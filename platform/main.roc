@@ -2,6 +2,8 @@ platform "webserver"
     requires {} { main : Url -> Task Str [] } # TODO change to U16 for status code
     exposes [
         Path,
+        Header,
+        Request,
         Arg,
         Dir,
         Env,
