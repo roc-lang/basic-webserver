@@ -48,11 +48,11 @@ impl RocFunction_93 {
     }
 }
 
-pub fn mainForHost(arg0: roc_std::RocStr) -> RocFunction_93 {
+pub fn mainForHost(arg0: Request) -> RocFunction_93 {
     extern "C" {
         fn roc__mainForHost_1_exposed_generic(
             _: *mut RocFunction_93,
-            _: &mut core::mem::ManuallyDrop<roc_std::RocStr>,
+            _: &mut core::mem::ManuallyDrop<roc_std::Request>,
         );
     }
 
@@ -68,8 +68,8 @@ pub fn mainForHost(arg0: roc_std::RocStr) -> RocFunction_93 {
     }
 }
 
-pub fn main(roc_str: RocStr) -> roc_std::RocStr {
-    let task = mainForHost(roc_str);
+pub fn main(req: Request) -> roc_std::RocStr {
+    let task = mainForHost(req);
 
     task.force_thunk()
 }

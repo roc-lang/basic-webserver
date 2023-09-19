@@ -22,9 +22,30 @@ pub fn start() -> i32 {
     }
 }
 
-fn call_roc(url: &str) -> Response<Body> {
+fn call_roc(req: Request<Body>) -> Response<Body> {
+    let resp = {
+        let parts = req.into_parts();
+        let method: RocStr = parts.as_str().into();
+        let url: String = parts.uri.to_string();
+        let mut headers: RocList<glue::Header> = RocList::empty();
 
-    let resp: String = roc_app::main(url.into()).as_str().to_string();
+        for (name, value) in parts.headers.iter() {
+            let header = glue::Header {
+                name: name.as_str().into(),
+                value: value.as_bytes().into(),
+            };
+
+            headers.push(header)
+        }
+
+        roc_app::main(glue::Request {
+            url,
+            method,
+            headers,
+        })
+    }
+    .as_str()
+    .to_string();
 
     Response::builder()
         .status(StatusCode::OK) // TODO get status code from Roc too
@@ -33,9 +54,7 @@ fn call_roc(url: &str) -> Response<Body> {
 }
 
 async fn handle_req(req: Request<Body>) -> Response<Body> {
-    let url: String = req.uri().to_string();
-
-    spawn_blocking(move || call_roc(&url))
+    spawn_blocking(move || call_roc(req))
         .then(|resp| async {
             resp.unwrap() // TODO don't unwrap here
         })

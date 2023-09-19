@@ -1,6 +1,6 @@
 app "app"
     packages { pf: "../platform/main.roc" }
-    imports [pf.Task.{ Task }, pf.Url.{ Url }]
+    imports [pf.Task.{ Task }, pf.Request.{ Request }, pf.Url]
     # imports [pf.Task.{ Task }, pf.Url.{ Url }, pf.Http, pf.Env, pf.Base64]
     # imports [pf.Task.{ Task }, pf.Url.{ Url }, pf.Http, pf.Base64]
     provides [main] to pf
@@ -9,8 +9,9 @@ app "app"
 # baseUrl = "https://localhost:1234"
 
 # TODO split the request URL on a query param which will be another URL, then go hit that URL and include its resp in our response
-main : Url -> Task Str []
-main = \url ->
+main : Request -> Task Str []
+main = \req ->
+    url = Url.fromStr req.url
     path = Url.path url
 
     dbg url
