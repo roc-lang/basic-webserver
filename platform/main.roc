@@ -1,5 +1,5 @@
 platform "webserver"
-    requires {} { main : Request -> Task Str [] } # TODO change to U16 for status code
+    requires {} { main : Request -> Task Response [] } # TODO change to U16 for status code
     exposes [
         Path,
         Header,
@@ -37,13 +37,46 @@ mainForHost = \bytes ->
                     main { method, url, headers, body }
                     |> Task.map responseToBytes
 
-                Err InvalidUrl -> { status: 400, body: "Invalid URL" }
-                Err MissingUrl -> { status: 400, body: "HTTP request is missing URL" }
+                Err InvalidUrl -> malformed "Invalid URL"
+                Err MissingUrl -> malformed "HTTP request is missing URL"
 
-        Err EmptyRequest -> responseToBytes { status: 400, body: "Empty HTTP request" }
-        Err InvalidMethod -> responseToBytes { status: 400, body: "Unsupported HTTP method" }
+        Err EmptyRequest -> malformed "Empty HTTP request"
+        Err InvalidMethod -> malformed "Unsupported HTTP method"
+
+malformed : Str -> Task (List U8) []
+malformed = \body ->
+    { status: 400, headers: [], body: Str.toUtf8 body }
+    |> responseToBytes
+    |> Task.ok
 
 responseToBytes : Response -> List U8
+responseToBytes = \{ status, headers, body } ->
+    # {status}\n{headers-separated-by-newlines}\n\n{body}
+    withoutBody =
+        status
+        |> Num.toStr
+        |> Str.toUtf8
+        |> List.append '\n'
+        |> addHeaderBytes headers
+
+    if List.isEmpty body then
+        withoutBody
+    else
+        withoutBody
+        |> List.append '\n' # We already have a trailing '\n' so this makes a blank line
+        |> List.concat body
+
+addHeaderBytes : List U8, List Header -> List U8
+addHeaderBytes = \bytes, headers ->
+    when List.first headers is
+        Ok header ->
+            bytes
+            |> List.concat (Str.toUtf8 header.name)
+            |> List.append ':'
+            |> List.concat header.value
+            |> List.append '\n'
+
+        Err ListWasEmpty -> bytes
 
 parseUrl : List U8 -> Result (Str, List U8) [InvalidUrl, MissingUrl]
 parseUrl = \bytes ->
@@ -53,24 +86,32 @@ parseUrl = \bytes ->
                 Ok urlStr -> Ok (urlStr, rest)
                 Err _ -> Err InvalidUrl
 
-        Err ListWasEmpty -> Err MissingUrl
+        Err NotFound -> Err MissingUrl
 
 parseHeadersHelp : List Header, List U8 -> (List Header, List U8)
 parseHeadersHelp = \headers, bytes ->
     when List.splitFirst bytes '\n' is
-        Ok (line, rest) ->
+        Ok { before: line, after: rest } ->
             when List.splitFirst line ':' is
-                Ok (name, value) ->
-                    # Add the header we just parsed and continue
-                    headers
-                    |> List.append { name, value }
-                    |> parseHeadersHelp rest
+                Ok { before: nameBytes, after: value } ->
+                    when Str.fromUtf8 nameBytes is
+                        Ok name ->
+                            # Add the header we just parsed and continue
+                            headers
+                            |> List.append { name, value }
+                            |> parseHeadersHelp rest
 
-                Err ListWasEmpty ->
-                    # We hit a blank line, so we're done with headers! The rest is the body.
-                    (headers, rest)
+                        Err _ ->
+                            crash "TODO invalid header - bad UTF-8"
 
-        Err ListWasEmpty ->
+                Err NotFound ->
+                    if List.isEmpty line then
+                        # We hit a blank line, so we're done with headers! The rest is the body.
+                        (headers, rest)
+                    else
+                        crash "TODO invalid header - missing :"
+
+        Err NotFound ->
             # There are no more lines after the last header, so this request has no body!
             (headers, [])
 
@@ -78,11 +119,11 @@ parseHeadersHelp = \headers, bytes ->
 parseMethod : List U8 -> Result (Method, List U8) [InvalidMethod, EmptyRequest]
 parseMethod = \bytes ->
     when List.splitFirst bytes '\n' is
-        Ok (['G', 'E', 'T'], rest) -> Ok (GET, rest)
-        Ok (['P', 'O', 'S', 'T'], rest) -> Ok (POST, rest)
-        Ok (['P', 'U', 'T'], rest) -> Ok (PUT, rest)
-        Ok (['D', 'E', 'L', 'E', 'T', 'E'], rest) -> Ok (DELETE, rest)
-        Ok (['H', 'E', 'A', 'D'], rest) -> Ok (HEAD, rest)
-        Ok (['O', 'P', 'T', 'I', 'O', 'N', 'S'], rest) -> Ok (OPTIONS, rest)
+        Ok { before: ['G', 'E', 'T'], after: rest } -> Ok (GET, rest)
+        Ok { before: ['P', 'O', 'S', 'T'], after: rest } -> Ok (POST, rest)
+        Ok { before: ['P', 'U', 'T'], after: rest } -> Ok (PUT, rest)
+        Ok { before: ['D', 'E', 'L', 'E', 'T', 'E'], after: rest } -> Ok (DELETE, rest)
+        Ok { before: ['H', 'E', 'A', 'D'], after: rest } -> Ok (HEAD, rest)
+        Ok { before: ['O', 'P', 'T', 'I', 'O', 'N', 'S'], after: rest } -> Ok (OPTIONS, rest)
         Ok _ -> Err InvalidMethod
-        Err ListWasEmpty -> Err EmptyRequest
+        Err NotFound -> Err EmptyRequest
