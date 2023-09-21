@@ -48,7 +48,7 @@ responseToBytes : Response -> List U8
 parseUrl : List U8 -> Result (Str, List U8) [InvalidUrl, MissingUrl]
 parseUrl = \bytes ->
     when List.splitFirst bytes '\n' is
-        Ok (urlBytes, rest) ->
+        Ok { before: urlBytes, after: rest } ->
             when Str.fromUtf8 urlBytes is
                 Ok urlStr -> Ok (urlStr, rest)
                 Err _ -> Err InvalidUrl
