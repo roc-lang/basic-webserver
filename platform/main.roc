@@ -26,22 +26,23 @@ platform "webserver"
 
 mainForHost : List U8 -> Task (List U8) []
 mainForHost = \bytes ->
+    Task.ok (responseToBytes { status: 200, headers: [], body: Str.toUtf8 "test" })
     # TODO send the Request directly over from the host, once the ABI bug is fixed
     # Temporary format: {method}\n{url}\n{headers}\n\n{body}
-    when parseMethod bytes is
-        Ok (method, afterMethod) ->
-            when parseUrl afterMethod is
-                Ok (url, afterUrl) -> # NOTE: we don't send the HTTP version over; we don't care
-                    (headers, body) = parseHeadersHelp [] afterUrl
+    # when parseMethod bytes is
+    #     Ok (method, afterMethod) ->
+    #         when parseUrl afterMethod is
+    #             Ok (url, afterUrl) -> # NOTE: we don't send the HTTP version over; we don't care
+    #                 (headers, body) = parseHeadersHelp [] afterUrl
 
-                    main { method, url, headers, body }
-                    |> Task.map responseToBytes
+    #                 main { method, url, headers, body }
+    #                 |> Task.map responseToBytes
 
-                Err InvalidUrl -> malformed "Invalid URL"
-                Err MissingUrl -> malformed "HTTP request is missing URL"
+    #             Err InvalidUrl -> malformed "Invalid URL"
+    #             Err MissingUrl -> malformed "HTTP request is missing URL"
 
-        Err EmptyRequest -> malformed "Empty HTTP request"
-        Err InvalidMethod -> malformed "Unsupported HTTP method"
+    #     Err EmptyRequest -> malformed "Empty HTTP request"
+    #     Err InvalidMethod -> malformed "Unsupported HTTP method"
 
 malformed : Str -> Task (List U8) []
 malformed = \body ->
