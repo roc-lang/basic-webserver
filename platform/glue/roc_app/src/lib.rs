@@ -27,12 +27,12 @@ pub struct RocFunction_93 {
 }
 
 impl RocFunction_93 {
-    pub fn force_thunk(self) -> roc_std::RocStr {
+    pub fn force_thunk(self) -> roc_std::RocList<u8> {
         extern "C" {
             fn roc__mainForHost_0_caller(
                 arg0: *const (),
                 closure_data: *mut u8,
-                output: *mut roc_std::RocStr,
+                output: *mut roc_std::RocList<u8>,
             );
         }
 
@@ -48,11 +48,11 @@ impl RocFunction_93 {
     }
 }
 
-pub fn mainForHost(arg0: Request) -> RocFunction_93 {
+pub fn mainForHost(arg0: RocList<u8>) -> RocFunction_93 {
     extern "C" {
         fn roc__mainForHost_1_exposed_generic(
             _: *mut RocFunction_93,
-            _: &mut core::mem::ManuallyDrop<roc_std::Request>,
+            _: &mut core::mem::ManuallyDrop<RocList<u8>>,
         );
     }
 
@@ -68,7 +68,7 @@ pub fn mainForHost(arg0: Request) -> RocFunction_93 {
     }
 }
 
-pub fn main(req: Request) -> roc_std::RocStr {
+pub fn main(req: RocList<u8>) -> roc_std::RocList<u8> {
     let task = mainForHost(req);
 
     task.force_thunk()

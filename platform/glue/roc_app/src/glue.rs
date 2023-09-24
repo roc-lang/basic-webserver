@@ -7,19 +7,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::undocumented_unsafe_blocks)]
 
-#[repr(C)]
-pub struct Header {
-    pub name: RocStr,
-    pub value: RocList<u8>,
-}
-
-#[repr(C)]
-struct Request {
-    pub headers: RocList<RocHeader>,
-    pub method: RocStr,
-    pub url: RocStr,
-}
-
 #[cfg(any(
     target_arch = "arm",
     target_arch = "aarch64",

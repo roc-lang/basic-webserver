@@ -1,27 +1,21 @@
 app "app"
     packages { pf: "../platform/main.roc" }
-    imports [pf.Task.{ Task }, pf.Request.{ Request }, pf.Url]
-    # imports [pf.Task.{ Task }, pf.Url.{ Url }, pf.Http, pf.Env, pf.Base64]
-    # imports [pf.Task.{ Task }, pf.Url.{ Url }, pf.Http, pf.Base64]
+    imports [pf.Task.{ Task }, pf.Request.{ Request }, pf.Url, pf.Response.{ Response }]
     provides [main] to pf
 
-# baseUrl : Str
-# baseUrl = "https://localhost:1234"
-
-# TODO split the request URL on a query param which will be another URL, then go hit that URL and include its resp in our response
-main : Request -> Task Str []
+main : Request -> Task Response []
 main = \req ->
     url = Url.fromStr req.url
     path = Url.path url
 
-    dbg url
+    # dbg url
 
     if path |> Str.startsWith "/foo/bar" then
         # validateToken url
-        Task.ok "Found: \(path)"
+        Task.ok { status: 200, headers: [], body: "Found: \(path)" |> Str.toUtf8 }
     else
         # TODO return HTTP 404
-        Task.ok "Not Found: \(path)"
+        Task.ok { status: 404, headers: [], body: "Not Found: \(path)" |> Str.toUtf8 }
 
 # validateToken : Url -> Task Str []
 # validateToken = \_url ->
