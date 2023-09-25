@@ -5,17 +5,19 @@ app "app"
 
 main : Request -> Task Response []
 main = \req ->
-    url = Url.fromStr req.url
-    path = Url.path url
+    Task.ok { status: 200, headers: [], body: "The Answer" |> Str.toUtf8 }
 
-    # dbg url
+    # url = Url.fromStr req.url
+    # path = Url.path url
 
-    if path |> Str.startsWith "/foo/bar" then
-        # validateToken url
-        Task.ok { status: 200, headers: [], body: "Found: \(path)" |> Str.toUtf8 }
-    else
-        # TODO return HTTP 404
-        Task.ok { status: 404, headers: [], body: "Not Found: \(path)" |> Str.toUtf8 }
+    # # dbg url
+
+    # if path |> Str.startsWith "/foo/bar" then
+    #     # validateToken url
+    #     Task.ok { status: 200, headers: [], body: "Found: \(path)" |> Str.toUtf8 }
+    # else
+    #     # TODO return HTTP 404
+    #     Task.ok { status: 404, headers: [], body: "Not Found: \(path)" |> Str.toUtf8 }
 
 # validateToken : Url -> Task Str []
 # validateToken = \_url ->

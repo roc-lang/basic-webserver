@@ -47,13 +47,19 @@ fn call_roc<'a>(
     }
 
     dbg!(core::str::from_utf8(req_bytes.as_slice()).unwrap());
+    let list = RocList::from(req_bytes.as_slice());
+    dbg!(list.len()); // This is a load-bearing dbg! somehow
+    let answer = roc_app::main(list);
 
-    response_from_bytes(roc_app::main(RocList::from(req_bytes.as_slice())))
+    dbg!("answered");
+    response_from_bytes(answer)
 }
 
 fn response_from_bytes(bytes: RocList<u8>) -> Response<Body> {
     let mut bytes = bytes.as_slice();
     let mut builder = Response::builder();
+
+    dbg!(core::str::from_utf8(bytes).unwrap());
 
     {
         let index = bytes.iter().position(|&byte| byte == b'\n').unwrap();

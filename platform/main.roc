@@ -26,7 +26,11 @@ platform "webserver"
 
 mainForHost : List U8 -> Task (List U8) []
 mainForHost = \bytes ->
-    Task.ok (responseToBytes { status: 200, headers: [], body: Str.toUtf8 "test" })
+    if Bool.false then # TODO if I remove this conditional, even if it's Bool.false, I get different behavior.
+        Task.ok (responseToBytes { status: 200, headers: [], body: Str.toUtf8 "test" })
+    else
+        main { method: GET, url: "", headers: [], body: [] }
+        |> Task.map responseToBytes
     # TODO send the Request directly over from the host, once the ABI bug is fixed
     # Temporary format: {method}\n{url}\n{headers}\n\n{body}
     # when parseMethod bytes is
@@ -44,40 +48,43 @@ mainForHost = \bytes ->
     #     Err EmptyRequest -> malformed "Empty HTTP request"
     #     Err InvalidMethod -> malformed "Unsupported HTTP method"
 
-malformed : Str -> Task (List U8) []
-malformed = \body ->
-    { status: 400, headers: [], body: Str.toUtf8 body }
-    |> responseToBytes
-    |> Task.ok
-
 responseToBytes : Response -> List U8
 responseToBytes = \{ status, headers, body } ->
+    dbg status
+    dbg headers
+    dbg body
+
     # {status}\n{headers-separated-by-newlines}\n\n{body}
     withoutBody =
         status
         |> Num.toStr
         |> Str.toUtf8
         |> List.append '\n'
-        |> addHeaderBytes headers
 
-    if List.isEmpty body then
-        withoutBody
-    else
-        withoutBody
-        |> List.append '\n' # We already have a trailing '\n' so this makes a blank line
-        |> List.concat body
+    withoutBody
 
-addHeaderBytes : List U8, List Header -> List U8
-addHeaderBytes = \bytes, headers ->
-    when List.first headers is
-        Ok header ->
-            bytes
-            |> List.concat (Str.toUtf8 header.name)
-            |> List.append ':'
-            |> List.concat header.value
-            |> List.append '\n'
+    # withHeaders = List.walk headers withoutBody addHeaderBytes
 
-        Err ListWasEmpty -> bytes
+    # if List.isEmpty body then
+    #     withHeaders
+    # else
+    #     withHeaders
+    #     |> List.append '\n' # We already have a trailing '\n' so this makes a blank line
+    #     |> List.concat body
+
+addHeaderBytes : List U8, Header -> List U8
+addHeaderBytes = \bytes, header ->
+    bytes
+    |> List.concat (Str.toUtf8 header.name)
+    |> List.append ':'
+    |> List.concat header.value
+    |> List.append '\n'
+
+malformed : Str -> Task (List U8) []
+malformed = \body ->
+    { status: 400, headers: [], body: Str.toUtf8 body }
+    |> responseToBytes
+    |> Task.ok
 
 parseUrl : List U8 -> Result (Str, List U8) [InvalidUrl, MissingUrl]
 parseUrl = \bytes ->
