@@ -65,6 +65,12 @@ fn method_from_str(method: &str) -> RocMethod {
 fn to_server_response(resp: RocResponse) -> Response<Body> {
     let mut builder = Response::builder();
 
+    if true {
+        builder = builder.status(StatusCode::INTERNAL_SERVER_ERROR);
+
+        return builder.body(Vec::new().into()).unwrap();
+    }
+
     match StatusCode::from_u16(resp.status) {
         Ok(status_code) => {
             builder = builder.status(status_code);

@@ -5,6 +5,8 @@ app "app"
 
 main : Request -> Task Response []
 main = \req ->
+    dbg req.url
+
     Task.ok { status: 200, headers: [], body: "The Answer" |> Str.toUtf8 }
 
     # url = Url.fromStr req.url
