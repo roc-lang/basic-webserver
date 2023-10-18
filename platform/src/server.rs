@@ -2,12 +2,11 @@ use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::{Body, Request, Response, Server, StatusCode};
-use roc_app;
-use roc_std::RocList;
-use std::convert::{Infallible, TryInto};
+use roc_app::{self, Method, RocHeader, RocMethod, RocRequest, RocResponse};
+use roc_std::{RocList, RocStr};
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
-use std::str::FromStr;
 use tokio::task::spawn_blocking;
 
 const DEFAULT_PORT: u16 = 8000;
@@ -32,88 +31,56 @@ fn call_roc<'a>(
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
 ) -> Response<Body> {
-    let mut req_bytes: Vec<u8> = format!("{}\n{}\n", method, url).into();
+    let roc_headers: RocList<RocHeader> = headers
+        .map(|(name, value)| RocHeader {
+            name: RocStr::from(name.as_str()),
+            value: RocList::from(value.as_bytes()),
+        })
+        .collect::<Vec<_>>() // TODO remove intermediate Vec if possible
+        .as_slice()
+        .into();
 
-    for (name, value) in headers {
-        req_bytes.extend(name.as_str().as_bytes());
-        req_bytes.push(b':');
-        req_bytes.extend(value.as_bytes());
-        req_bytes.push(b'\n');
-    }
+    let answer = roc_app::main(RocRequest {
+        body: body.to_vec().as_slice().into(), // TODO don't use to_vec if possible
+        headers: roc_headers,
+        url: RocStr::from(url),
+        method: method_from_str(method),
+    });
 
-    if !body.is_empty() {
-        req_bytes.push(b'\n');
-        req_bytes.extend(body);
-    }
-
-    dbg!(core::str::from_utf8(req_bytes.as_slice()).unwrap());
-    let list = RocList::from(req_bytes.as_slice());
-    dbg!(list.len()); // This is a load-bearing dbg! somehow
-    let answer = roc_app::main(list);
-
-    dbg!("answered");
-    response_from_bytes(answer)
+    to_server_response(answer)
 }
 
-fn response_from_bytes(bytes: RocList<u8>) -> Response<Body> {
-    let mut bytes = bytes.as_slice();
+fn method_from_str(method: &str) -> RocMethod {
+    match method {
+        "DELETE" => RocMethod::DELETE,
+        "GET" => RocMethod::GET,
+        "HEAD" => RocMethod::HEAD,
+        "OPTIONS" => RocMethod::OPTIONS,
+        "POST" => RocMethod::POST,
+        "PUT" => RocMethod::PUT,
+        _ => todo!("handle unrecognized method: {method:?}"),
+    }
+}
+
+fn to_server_response(resp: RocResponse) -> Response<Body> {
     let mut builder = Response::builder();
 
-    dbg!(core::str::from_utf8(bytes).unwrap());
-
-    {
-        let index = bytes.iter().position(|&byte| byte == b'\n').unwrap();
-        let (before, after) = bytes.split_at(index + 1);
-
-        let before = &before[..index]; // Drop the newline itself
-        let status_code_str = core::str::from_utf8(before).unwrap();
-        let status_code: u16 = status_code_str.parse().unwrap();
-
-        builder = builder.status(StatusCode::from_u16(status_code).unwrap());
-        bytes = &after[1..]; // Drop the newline itself
+    match StatusCode::from_u16(resp.status) {
+        Ok(status_code) => {
+            builder = builder.status(status_code);
+        }
+        Err(_) => {
+            todo!("invalid status code: {:?}", resp.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
+        }
     };
 
-    loop {
-        match bytes.iter().position(|&byte| byte == b'\n') {
-            Some(newline_index) => {
-                dbg!(&newline_index); // TODO note we aren't getting here, also we don't use bumpalo here!
-                let (line, after) = bytes.split_at(newline_index + 1);
-
-                // Drop the newline itself
-                let line = &line[..newline_index];
-                bytes = &after[1..];
-
-                if line.is_empty() {
-                    // We hit the end of the string; no more headers!
-                    break;
-                }
-
-                if line.first() == Some(&b'\n') {
-                    // Skip over that next newline
-                    bytes = &bytes[1..];
-
-                    // We hit a blank line; no more headers!
-                    break;
-                }
-
-                let colon_index = line.iter().position(|&byte| byte == b':').unwrap();
-                let (name, value) = line.split_at(colon_index + 1);
-
-                // Drop the colon itself
-                let name = &name[..colon_index];
-                let value = &value[1..];
-
-                builder = builder.header(name, value);
-            }
-            None => {
-                // We didn't find any more newlines; we're done!
-                break;
-            }
-        }
+    for header in resp.headers.iter() {
+        builder = builder.header(header.name.as_str(), header.value.as_slice());
     }
 
-    // Whatever's left is the body.
-    builder.body(Vec::from(bytes).into()).unwrap() // TODO don't unwrap this
+    builder
+        .body(Vec::from(resp.body.as_slice()).into()) // TODO try not to use Vec here
+        .unwrap() // TODO don't unwrap this
 }
 
 async fn handle_req(req: Request<Body>) -> Response<Body> {

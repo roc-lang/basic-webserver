@@ -20,19 +20,67 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use file_glue::ReadErr;
 use file_glue::WriteErr;
 
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(C)]
+pub struct RocHeader {
+    pub name: roc_std::RocStr,
+    pub value: roc_std::RocList<u8>,
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(u8)]
+pub enum RocMethod {
+    DELETE = 0,
+    GET = 1,
+    HEAD = 2,
+    OPTIONS = 3,
+    POST = 4,
+    PUT = 5,
+}
+
+impl core::fmt::Debug for RocMethod {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::DELETE => f.write_str("Method::DELETE"),
+            Self::GET => f.write_str("Method::GET"),
+            Self::HEAD => f.write_str("Method::HEAD"),
+            Self::OPTIONS => f.write_str("Method::OPTIONS"),
+            Self::POST => f.write_str("Method::POST"),
+            Self::PUT => f.write_str("Method::PUT"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(C)]
+pub struct RocRequest {
+    pub body: roc_std::RocList<u8>,
+    pub headers: roc_std::RocList<RocHeader>,
+    pub url: roc_std::RocStr,
+    pub method: RocMethod,
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(C)]
+pub struct RocResponse {
+    pub body: roc_std::RocList<u8>,
+    pub headers: roc_std::RocList<RocHeader>,
+    pub status: u16,
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct RocFunction_93 {
+pub struct RocFunction_88 {
     closure_data: roc_std::RocList<u8>,
 }
 
-impl RocFunction_93 {
-    pub fn force_thunk(self) -> roc_std::RocList<u8> {
+impl RocFunction_88 {
+    pub fn force_thunk(self) -> RocResponse {
         extern "C" {
             fn roc__mainForHost_0_caller(
                 arg0: *const (),
                 closure_data: *mut u8,
-                output: *mut roc_std::RocList<u8>,
+                output: *mut RocResponse,
             );
         }
 
@@ -48,11 +96,11 @@ impl RocFunction_93 {
     }
 }
 
-pub fn mainForHost(arg0: RocList<u8>) -> RocFunction_93 {
+pub fn mainForHost(arg0: RocRequest) -> RocFunction_88 {
     extern "C" {
         fn roc__mainForHost_1_exposed_generic(
-            _: *mut RocFunction_93,
-            _: &mut core::mem::ManuallyDrop<RocList<u8>>,
+            _: *mut RocFunction_88,
+            _: &mut core::mem::ManuallyDrop<RocRequest>,
         );
     }
 
@@ -68,7 +116,7 @@ pub fn mainForHost(arg0: RocList<u8>) -> RocFunction_93 {
     }
 }
 
-pub fn main(req: RocList<u8>) -> roc_std::RocList<u8> {
+pub fn main(req: RocRequest) -> RocResponse {
     let task = mainForHost(req);
 
     task.force_thunk()
