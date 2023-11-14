@@ -29,6 +29,7 @@ fn call_roc<'a>(
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
 ) -> hyper::Response<hyper::Body> {
+
     let roc_headers: RocList<roc_app::InternalHeader> = headers
         .map(|(name, value)| roc_app::InternalHeader {
             name: RocStr::from(name.as_str()),
@@ -38,7 +39,7 @@ fn call_roc<'a>(
         .as_slice()
         .into();
 
-    let answer = match Result::from(roc_app::mainForHost(roc_app::InternalRequest {
+    let answer = roc_app::mainForHost(roc_app::InternalRequest {
         body: roc_app::InternalBody::Body(
             roc_app::InternalBodyBody{
                 body: body.to_vec().as_slice().into(),
@@ -49,13 +50,7 @@ fn call_roc<'a>(
         url: RocStr::from(url),
         method: method_from_str(method),
         timeout: roc_app::InternalTimeoutConfig::TimeoutMilliseconds(1_000), // TODO implement timeouts
-    }).force_thunk()){
-        Ok(answer) => answer,
-        Err(_) => {
-            todo!("handle error from roc_app::mainForHost")
-        }
-    };
-
+    }).force_thunk();
     to_server_response(answer)
 }
 
@@ -67,25 +62,19 @@ fn method_from_str(method: &str) -> roc_app::InternalMethod {
         "OPTIONS" => roc_app::InternalMethod::Options,
         "POST" => roc_app::InternalMethod::Post,
         "PUT" => roc_app::InternalMethod::Put,
-        _ => todo!("handle unrecognized method: {method:?}"),
+        _ => todo!("handle unrecognized method from Roc: {method:?}"),
     }
 }
 
 fn to_server_response(resp: roc_app::InternalResponse) -> hyper::Response<hyper::Body> {
     let mut builder = hyper::Response::builder();
 
-    if true {
-        builder = builder.status(hyper::StatusCode::INTERNAL_SERVER_ERROR);
-
-        return builder.body(Vec::new().into()).unwrap();
-    }
-
     match hyper::StatusCode::from_u16(resp.status) {
         Ok(status_code) => {
             builder = builder.status(status_code);
         }
         Err(_) => {
-            todo!("invalid status code: {:?}", resp.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
+            todo!("invalid status code from Roc: {:?}", resp.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
         }
     };
 

@@ -471,45 +471,18 @@ pub struct InternalResponse {
     pub status: u16,
 }
 
-#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash, )]
-#[repr(transparent)]
-pub struct U1 ();
-
-impl U1 {
-    /// A tag named Err, which has no payload.
-    pub const Err: Self = Self();
-
-    /// Other `into_` methods return a payload, but since Err tag
-    /// has no payload, this does nothing and is only here for completeness.
-    pub fn into_Err(self) {
-        ()
-    }
-
-    /// Other `as_` methods return a payload, but since Err tag
-    /// has no payload, this does nothing and is only here for completeness.
-    pub fn as_Err(&self) {
-        ()
-    }
-}
-
-impl core::fmt::Debug for U1 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("U1::Err")
-    }
-}
-
 
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct RocFunction_88 {
+pub struct RocFunction_86 {
     closure_data: Vec<u8>,
 }
 
-impl RocFunction_88 {
-    pub fn force_thunk(mut self) -> roc_std::RocResult<InternalResponse, U1> {
+impl RocFunction_86 {
+    pub fn force_thunk(mut self) -> InternalResponse {
         extern "C" {
-            fn roc__mainForHost_0_caller(arg0: *const (), closure_data: *mut u8, output: *mut roc_std::RocResult<InternalResponse, U1>);
+            fn roc__mainForHost_0_caller(arg0: *const (), closure_data: *mut u8, output: *mut InternalResponse);
         }
 
         let mut output = core::mem::MaybeUninit::uninit();
@@ -522,7 +495,7 @@ impl RocFunction_88 {
     }
 }
 
-pub fn mainForHost(arg0: InternalRequest) -> RocFunction_88 {
+pub fn mainForHost(arg0: InternalRequest) -> RocFunction_86 {
     extern "C" {
         fn roc__mainForHost_1_exposed_generic(_: *mut u8, _: &mut core::mem::ManuallyDrop<InternalRequest>);
         fn roc__mainForHost_1_exposed_size() -> i64;
@@ -531,7 +504,7 @@ pub fn mainForHost(arg0: InternalRequest) -> RocFunction_88 {
     unsafe {
         let capacity = roc__mainForHost_1_exposed_size() as usize;
 
-        let mut ret = RocFunction_88 {
+        let mut ret = RocFunction_86 {
             closure_data: Vec::with_capacity(capacity),
         };
         ret.closure_data.resize(capacity, 0);

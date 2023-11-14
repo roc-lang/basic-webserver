@@ -1,5 +1,7 @@
 platform "webserver"
-    requires {} { main : Request -> Task Response [] } # TODO change to U16 for status code
+    # UNCOMMENT FOR GLUE GEN
+    # requires {} { main : Request -> ({} -> Response) }
+    requires {} { main : Request -> Task Response [] }
     exposes [
         Path,
         Arg,
@@ -19,9 +21,13 @@ platform "webserver"
         Command,
     ]
     packages {}
-    imports [Task.{ Task }, Http.{ Request, Method, Response }]
+    imports [
+        Task.{ Task }, # COMMENT FOR GLUE GEN
+        Http.{ Request, Method, Response },
+    ]
     provides [mainForHost]
 
-# NOTE use mainForHost : Request -> Task Response [Err] to generate glue
+# UNCOMMENT FOR GLUE GEN
+# mainForHost : Request -> ({} -> Response)
 mainForHost : Request -> Task Response []
 mainForHost = \req -> main req
