@@ -1,6 +1,0 @@
-app
-*.o
-*.so
-*.so.*
-
-main

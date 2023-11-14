@@ -3,26 +3,21 @@ app "app"
     imports [
         pf.Task.{ Task }, 
         pf.Http.{ Request, Response }, 
+        pf.Url,
     ]
     provides [main] to pf
 
 main : Request -> Task Response []
 main = \req ->
-    dbg req.url
 
-    Task.ok { status: 200, headers: [], body: "The Answer" |> Str.toUtf8 }
+    url = Url.fromStr req.url
+    path = Url.path url
 
-    # url = Url.fromStr req.url
-    # path = Url.path url
-
-    # # dbg url
-
-    # if path |> Str.startsWith "/foo/bar" then
-    #     # validateToken url
-    #     Task.ok { status: 200, headers: [], body: "Found: \(path)" |> Str.toUtf8 }
-    # else
-    #     # TODO return HTTP 404
-    #     Task.ok { status: 404, headers: [], body: "Not Found: \(path)" |> Str.toUtf8 }
+    when Str.split path "/" is 
+        ["", "foo", slug, ..] if slug == "bar" -> 
+            Task.ok { status: 200, headers: [], body: "Foo Bar Found!" |> Str.toUtf8 }
+        _ -> 
+            Task.ok { status: 404, headers: [], body: "Error 404 Not Found\n\(path)" |> Str.toUtf8 }
 
 # validateToken : Url -> Task Str []
 # validateToken = \_url ->

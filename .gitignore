@@ -1,0 +1,10 @@
+
+# Ignore generated docs
+generated-docs/
+
+app
+*.o
+*.so
+*.so.*
+
+examples/main
