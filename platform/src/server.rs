@@ -1,8 +1,6 @@
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
-use hyper::{Body, Request, Response, Server, StatusCode};
-use roc_app::{self, Method, RocHeader, RocMethod, RocRequest, RocResponse};
 use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -30,9 +28,9 @@ fn call_roc<'a>(
     url: &str,
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
-) -> Response<Body> {
-    let roc_headers: RocList<RocHeader> = headers
-        .map(|(name, value)| RocHeader {
+) -> hyper::Response<hyper::Body> {
+    let roc_headers: RocList<roc_app::InternalHeader> = headers
+        .map(|(name, value)| roc_app::InternalHeader {
             name: RocStr::from(name.as_str()),
             value: RocList::from(value.as_bytes()),
         })
@@ -40,38 +38,49 @@ fn call_roc<'a>(
         .as_slice()
         .into();
 
-    let answer = roc_app::main(RocRequest {
-        body: body.to_vec().as_slice().into(), // TODO don't use to_vec if possible
+    let answer = match Result::from(roc_app::mainForHost(roc_app::InternalRequest {
+        body: roc_app::InternalBody::Body(
+            roc_app::InternalBodyBody{
+                body: body.to_vec().as_slice().into(),
+                mimeType: RocStr::from("text/plain"),
+            }
+        ), 
         headers: roc_headers,
         url: RocStr::from(url),
         method: method_from_str(method),
-    });
+        timeout: roc_app::InternalTimeoutConfig::TimeoutMilliseconds(1_000), // TODO implement timeouts
+    }).force_thunk()){
+        Ok(answer) => answer,
+        Err(_) => {
+            todo!("handle error from roc_app::mainForHost")
+        }
+    };
 
     to_server_response(answer)
 }
 
-fn method_from_str(method: &str) -> RocMethod {
+fn method_from_str(method: &str) -> roc_app::InternalMethod {
     match method {
-        "DELETE" => RocMethod::DELETE,
-        "GET" => RocMethod::GET,
-        "HEAD" => RocMethod::HEAD,
-        "OPTIONS" => RocMethod::OPTIONS,
-        "POST" => RocMethod::POST,
-        "PUT" => RocMethod::PUT,
+        "DELETE" => roc_app::InternalMethod::Delete,
+        "GET" => roc_app::InternalMethod::Get,
+        "HEAD" => roc_app::InternalMethod::Head,
+        "OPTIONS" => roc_app::InternalMethod::Options,
+        "POST" => roc_app::InternalMethod::Post,
+        "PUT" => roc_app::InternalMethod::Put,
         _ => todo!("handle unrecognized method: {method:?}"),
     }
 }
 
-fn to_server_response(resp: RocResponse) -> Response<Body> {
-    let mut builder = Response::builder();
+fn to_server_response(resp: roc_app::InternalResponse) -> hyper::Response<hyper::Body> {
+    let mut builder = hyper::Response::builder();
 
     if true {
-        builder = builder.status(StatusCode::INTERNAL_SERVER_ERROR);
+        builder = builder.status(hyper::StatusCode::INTERNAL_SERVER_ERROR);
 
         return builder.body(Vec::new().into()).unwrap();
     }
 
-    match StatusCode::from_u16(resp.status) {
+    match hyper::StatusCode::from_u16(resp.status) {
         Ok(status_code) => {
             builder = builder.status(status_code);
         }
@@ -89,7 +98,7 @@ fn to_server_response(resp: RocResponse) -> Response<Body> {
         .unwrap() // TODO don't unwrap this
 }
 
-async fn handle_req(req: Request<Body>) -> Response<Body> {
+async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
     let (parts, body) = req.into_parts();
 
     match hyper::body::to_bytes(body).await {
@@ -108,8 +117,8 @@ async fn handle_req(req: Request<Body>) -> Response<Body> {
             .await
         }
         Err(_) => {
-            Response::builder()
-                .status(StatusCode::BAD_REQUEST)
+            hyper::Response::builder()
+                .status(hyper::StatusCode::BAD_REQUEST)
                 .body("Error receiving HTTP request body".into())
                 .unwrap() // TODO don't unwrap here
         }
@@ -118,13 +127,13 @@ async fn handle_req(req: Request<Body>) -> Response<Body> {
 
 /// Translate Rust panics in the given Future into 500 errors
 async fn handle_panics(
-    fut: impl Future<Output = Response<Body>>,
-) -> Result<Response<Body>, Infallible> {
+    fut: impl Future<Output = hyper::Response<hyper::Body>>,
+) -> Result<hyper::Response<hyper::Body>, Infallible> {
     match AssertUnwindSafe(fut).catch_unwind().await {
         Ok(response) => Ok(response),
         Err(_panic) => {
-            let error = Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
+            let error = hyper::Response::builder()
+                .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Panic detected!".into())
                 .unwrap(); // TODO don't unwrap here
 
@@ -137,7 +146,7 @@ const LOCALHOST: [u8; 4] = [127, 0, 0, 1];
 
 async fn run_server(port: u16) -> i32 {
     let addr = SocketAddr::from((LOCALHOST, port));
-    let server = Server::bind(&addr).serve(hyper::service::make_service_fn(|_conn| async {
+    let server = hyper::Server::bind(&addr).serve(hyper::service::make_service_fn(|_conn| async {
         Ok::<_, Infallible>(hyper::service::service_fn(|req| {
             handle_panics(handle_req(req))
         }))

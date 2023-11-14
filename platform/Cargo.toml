@@ -16,9 +16,9 @@ name = "host"
 path = "src/main.rs"
 
 [dependencies]
-roc_std = { path = "glue/roc_std", features = ["std"] }
-roc_app = { path = "glue/roc_app" }
-roc_fn = { path = "glue/roc_fn" }
+roc_std = { path = "src/glue/roc_std", features = ["std"] }
+roc_app = { path = "src/glue/roc_app" }
+roc_fn = { path = "src/roc_fn" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",

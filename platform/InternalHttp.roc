@@ -1,45 +1,51 @@
 interface InternalHttp
-    exposes [Request, Method, Header, TimeoutConfig, Part, Body, Response, Metadata, Error]
+    exposes [
+        InternalRequest, 
+        InternalMethod, 
+        InternalHeader, 
+        InternalTimeoutConfig, 
+        InternalPart, 
+        InternalBody, 
+        InternalResponse, 
+        InternalMetadata, 
+        InternalError,
+    ]
     imports []
 
-Request : {
-    method : Method,
-    headers : List Header,
+InternalRequest : {
+    method : InternalMethod,
+    headers : List InternalHeader,
     url : Str,
-    body : Body,
-    timeout : TimeoutConfig,
+    body : InternalBody,
+    timeout : InternalTimeoutConfig,
 }
 
-Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
+InternalMethod : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
 
-Header : { key : Str, val : Str }
+InternalHeader : { name : Str, value: List U8 }
 
-# Name is distinguished from the Timeout tag used in Response and Error
-TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
+# Name is distinguished from the Timeout tag used in InternalResponse and InternalError
+InternalTimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
-Part : [Part Str (List U8)]
+InternalPart : [Part Str (List U8)]
 
-Body : [
-    Body [MimeType Str] (List U8),
+InternalBody : [
+    Body InternalBodyBody,
     EmptyBody,
 ]
 
-Response : [
-    BadRequest Str,
-    Timeout,
-    NetworkError,
-    BadStatus Metadata (List U8),
-    GoodStatus Metadata (List U8),
-]
+InternalBodyBody : { mimeType: Str, body: List U8} # separate definition to help out glue gen
 
-Metadata : {
+InternalResponse : { status : U16, headers : List InternalHeader, body: List U8 }
+
+InternalMetadata : {
     url : Str,
     statusCode : U16,
     statusText : Str,
-    headers : List Header,
+    headers : List InternalHeader,
 }
 
-Error : [
+InternalError : [
     BadRequest Str,
     Timeout,
     NetworkError,

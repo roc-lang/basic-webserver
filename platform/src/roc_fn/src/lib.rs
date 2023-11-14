@@ -17,8 +17,8 @@ struct HostedFn {
 const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "sendRequest",
-        arg_types: &["&roc_app::Request"],
-        ret_type: "roc_app::Response",
+        arg_types: &["&roc_app::InternalRequest"],
+        ret_type: "roc_app::InternalResponse",
     },
     HostedFn {
         name: "tcpConnect",
