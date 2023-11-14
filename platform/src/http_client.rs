@@ -67,8 +67,6 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
 
     match client.execute(request) {
         Ok(response) => {
-            let status = response.status();
-            let status_str = status.canonical_reason().unwrap_or_else(|| status.as_str());
 
             let headers_iter = response.headers().iter().map(|(name, value)| {
                 roc_app::InternalHeader{
@@ -77,18 +75,19 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
                 }
             });
 
+            let headers = RocList::from_iter(headers_iter);
+
+            let status = response.status().as_u16();
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
 
-            let status = response.status();
-            let status_code = status.as_u16().clone();
-
             roc_app::InternalResponse{
-                status: status_code,
+                status,
                 body,
-                headers: RocList::from_iter(headers_iter),
+                headers,
             }
         }
+
         Err(err) => {
             if err.is_timeout() {
                 roc_app::InternalResponse{

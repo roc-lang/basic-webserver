@@ -1,6 +1,9 @@
 app "app"
     packages { pf: "../platform/main.roc" }
-    imports [pf.Task.{ Task }, pf.Request.{ Request }, pf.Url, pf.Response.{ Response }]
+    imports [
+        pf.Task.{ Task }, 
+        pf.Http.{ Request, Response }, 
+    ]
     provides [main] to pf
 
 main : Request -> Task Response []
