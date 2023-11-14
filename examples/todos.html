@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Todo List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+        #todos {
+            list-style-type: none;
+            padding: 0;
+        }
+        #todos li {
+            background: #fff;
+            padding: 10px;
+            margin-bottom: 5px;
+        }
+        #addTodoForm {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Todo List</h1>
+        <ul id="todos"></ul>
+        <form id="addTodoForm">
+            <input type="text" id="task" placeholder="New Task" required>
+            <input type="text" id="status" placeholder="Status" required>
+            <button type="submit">Add Todo</button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchTodos();
+
+            document.getElementById('addTodoForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addTodo();
+            });
+        });
+
+        function fetchTodos() {
+            fetch('/todos')
+                .then(response => response.json())
+                .then(todos => {
+                    const todosList = document.getElementById('todos');
+                    todosList.innerHTML = '';
+                    todos.forEach(todo => {
+                        const li = document.createElement('li');
+                        li.textContent = `${todo.task} - ${todo.status}`;
+                        todosList.appendChild(li);
+                    });
+                });
+        }
+
+        function addTodo() {
+            const task = document.getElementById('task').value;
+            const status = document.getElementById('status').value;
+
+            fetch('/todos?task=' + task + '&status=' + status, {
+                method: 'POST',
+                headers: {},
+                body: ''
+            })
+            .then(response => response.json())
+            .then(addedTodo => {
+                const todosList = document.getElementById('todos');
+                const li = document.createElement('li');
+                li.textContent = `${addedTodo[0].task} - ${addedTodo[0].status}`;
+                todosList.appendChild(li);
+
+                // Clear input fields
+                document.getElementById('task').value = '';
+                document.getElementById('status').value = '';
+            });
+        }
+    </script>
+</body>
+</html>
