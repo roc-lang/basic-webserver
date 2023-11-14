@@ -36,7 +36,7 @@ hosted Effect
         commandOutput,
     ]
     imports [
-        InternalHttp.{ Request, Response },
+        InternalHttp,
         InternalFile,
         InternalDir,
         InternalTcp,
@@ -67,7 +67,7 @@ args : Effect (List Str)
 
 cwd : Effect (List U8)
 
-sendRequest : Box Request -> Effect Response
+sendRequest : Box InternalHttp.InternalRequest -> Effect InternalHttp.InternalResponse
 
 tcpConnect : Str, U16 -> Effect InternalTcp.ConnectResult
 tcpClose : InternalTcp.Stream -> Effect {}

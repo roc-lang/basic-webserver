@@ -634,13 +634,7 @@ dependencies = [
 name = "roc_app"
 version = "1.0.0"
 dependencies = [
- "backtrace",
- "bytes",
- "futures",
- "hyper",
- "libc",
  "roc_std",
- "tokio",
 ]
 
 [[package]]

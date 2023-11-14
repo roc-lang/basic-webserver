@@ -21,28 +21,28 @@ interface Http
     imports [Effect, InternalTask, Task.{ Task }, InternalHttp]
 
 ## Represents an HTTP request.
-Request : InternalHttp.Request
+Request : InternalHttp.InternalRequest
 
 ## Represents an HTTP method.
-Method : InternalHttp.Method
+Method : InternalHttp.InternalMethod
 
 ## Represents an HTTP header e.g. `Content-Type: application/json`
-Header : InternalHttp.Header
+Header : InternalHttp.InternalHeader
 
 ## Represents a timeout configuration for an HTTP request.
-TimeoutConfig : InternalHttp.TimeoutConfig
+TimeoutConfig : InternalHttp.InternalTimeoutConfig
 
 ## Represents an HTTP request body.
-Body : InternalHttp.Body
+Body : InternalHttp.InternalBody
 
 ## Represents an HTTP response.
-Response : InternalHttp.Response
+Response : InternalHttp.InternalResponse
 
 ## Represents HTTP metadata, such as the URL or status code.
-Metadata : InternalHttp.Metadata
+Metadata : InternalHttp.InternalMetadata
 
 ## Represents an HTTP error.
-Error : InternalHttp.Error
+Error : InternalHttp.InternalError
 
 ## A default [Request] value.
 ##
@@ -67,7 +67,7 @@ defaultRequest = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : Str, Str -> Header
-header = \key, val -> { key, val }
+header = \name, value -> { name, value : Str.toUtf8 value }
 
 ## An empty HTTP request [Body].
 emptyBody : Body
@@ -82,9 +82,8 @@ emptyBody =
 ##     (MimeType "application/json")
 ##     [123, 125]
 ## ```
-bytesBody : [MimeType Str], List U8 -> Body
-bytesBody =
-    Body
+bytesBody : Str, List U8 -> Body
+bytesBody = \mimeType, body -> Body { mimeType, body}
 
 ## A request [Body] with a string.
 ##
@@ -93,9 +92,8 @@ bytesBody =
 ##     (MimeType "application/json")
 ##     "{\"name\": \"Louis\",\"age\": 22}"
 ## ```
-stringBody : [MimeType Str], Str -> Body
-stringBody = \mimeType, str ->
-    Body mimeType (Str.toUtf8 str)
+stringBody : Str, Str -> Body
+stringBody = \mimeType, str -> Body {mimeType, body: (Str.toUtf8 str)}
 
 # jsonBody : a -> Body where a implements Encoding
 # jsonBody = \val ->
@@ -120,21 +118,27 @@ stringBody = \mimeType, str ->
 # stringPart : Str, Str -> Part
 # stringPart = \name, str ->
 #     Part name (Str.toUtf8 str)
+
+
 ## Map a [Response] body to a [Str] or return an [Error].
 handleStringResponse : Response -> Result Str Error
 handleStringResponse = \response ->
-    when response is
-        BadRequest err -> Err (BadRequest err)
-        Timeout -> Err Timeout
-        NetworkError -> Err NetworkError
-        BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
-        GoodStatus _ bodyBytes ->
-            Str.fromUtf8 bodyBytes
-            |> Result.mapErr
-                \BadUtf8 _ pos ->
-                    position = Num.toStr pos
+    response.body 
+    |> Str.fromUtf8 
+    |> Result.mapErr \_ -> BadBody "" #TODO FIX THIS FUNCTION
 
-                    BadBody "Invalid UTF-8 at byte offset \(position)"
+    # when response is
+    #     BadRequest err -> Err (BadRequest err)
+    #     Timeout -> Err Timeout
+    #     NetworkError -> Err NetworkError
+    #     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
+    #     GoodStatus _ bodyBytes ->
+    #         Str.fromUtf8 bodyBytes
+    #         |> Result.mapErr
+    #             \BadUtf8 _ pos ->
+    #                 position = Num.toStr pos
+
+    #                 BadBody "Invalid UTF-8 at byte offset \(position)"
 
 ## Convert an [Error] to a [Str].
 errorToString : Error -> Str

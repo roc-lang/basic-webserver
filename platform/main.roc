@@ -1,9 +1,7 @@
 platform "webserver"
-    requires {} { main : Request -> Task Response [] } # TODO change to U16 for status code
+    requires {} { main : Request -> Task Response [Err] } # TODO change to U16 for status code
     exposes [
         Path,
-        Header,
-        Request,
         Arg,
         Dir,
         Env,
@@ -21,8 +19,8 @@ platform "webserver"
         Command,
     ]
     packages {}
-    imports [Task.{ Task }, Request.{ Request, Method }, Response.{ Response }]
+    imports [Task.{ Task }, Http.{ Request, Method, Response }]
     provides [mainForHost]
 
-mainForHost : Request -> Task Response []
+mainForHost : Request -> Task Response [Err]
 mainForHost = \req -> main req

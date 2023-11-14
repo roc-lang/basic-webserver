@@ -3,6 +3,7 @@ use roc_std::{RocResult, RocStr};
 use std::cell::RefCell;
 use std::os::raw::c_void;
 
+mod metadata;
 mod http_client;
 mod server;
 
@@ -191,7 +192,7 @@ pub unsafe extern "C" fn roc_getppid() -> libc::pid_t {
 // }
 
 #[roc_fn(name = "sendRequest")]
-fn send_req(roc_request: &roc_app::Request) -> roc_app::Response {
+fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResponse {
     http_client::send_req(roc_request)
 }
 
