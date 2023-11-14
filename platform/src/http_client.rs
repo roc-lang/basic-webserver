@@ -5,7 +5,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
     let mut builder = reqwest::blocking::ClientBuilder::new();
 
     if roc_request.timeout.is_TimeoutMilliseconds() {
-        let ms: u64 = roc_request.timeout.unwrap_TimeoutMilliseconds();
+        let ms: u64 = roc_request.timeout.clone().unwrap_TimeoutMilliseconds();
         builder = builder.timeout(Duration::from_millis(ms));
     }
 
@@ -46,7 +46,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
     };
 
     if roc_request.body.is_Body() {
-        let internal_body: roc_app::InternalBodyBody = roc_request.body.unwrap_Body();
+        let internal_body: roc_app::InternalBodyBody = roc_request.body.clone().unwrap_Body();
         let bytes = internal_body.body.as_slice().to_vec();
         let mime_type_str = internal_body.mimeType.as_str();
 
@@ -80,8 +80,11 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
 
+            let status = response.status();
+            let status_code = status.as_u16().clone();
+
             roc_app::InternalResponse{
-                status: response.status().as_u16(),
+                status: status_code,
                 body,
                 headers: RocList::from_iter(headers_iter),
             }
