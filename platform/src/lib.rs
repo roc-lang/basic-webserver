@@ -203,3 +203,8 @@ fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
         None => RocResult::err(()),
     }
 }
+
+#[roc_fn(name = "stdoutLine")]
+fn stdout_line(roc_str: &RocStr) {
+    eprint!("{}\n", roc_str.as_str());
+}

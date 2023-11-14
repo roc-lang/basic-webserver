@@ -2,6 +2,7 @@ interface Http
     exposes [
         Request,
         Method,
+        methodToStr,
         Header,
         TimeoutConfig,
         Body,
@@ -176,3 +177,16 @@ send = \req ->
 getUtf8 : Str -> Task Str Error
 getUtf8 = \url ->
     send { defaultRequest & url }
+
+methodToStr : Method -> Str
+methodToStr = \method ->
+    when method is
+        Get -> "GET"
+        Post -> "POST"
+        Put -> "PUT"
+        Patch -> "PATCH"
+        Delete -> "DELETE"
+        Head -> "HEAD"
+        Options -> "OPTIONS"
+        Connect -> "CONNECT"
+        Trace -> "TRACE"

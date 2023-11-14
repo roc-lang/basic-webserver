@@ -1,6 +1,7 @@
 app "app"
     packages { pf: "../platform/main.roc" }
     imports [
+        pf.Stdout,
         pf.Task.{ Task }, 
         pf.Http.{ Request, Response }, 
         pf.Url,
@@ -10,11 +11,15 @@ app "app"
 main : Request -> Task Response []
 main = \req ->
 
+    method = Http.methodToStr req.method
+
+    {} <- Stdout.line "\(method) \(req.url)" |> Task.await
+
     url = Url.fromStr req.url
     path = Url.path url
 
     when Str.split path "/" is 
-        ["", "foo", slug, ..] if slug == "bar" -> 
+        ["", "foo", slug, ..] if slug == "bar" ->         
             Task.ok { status: 200, headers: [], body: "Foo Bar Found!" |> Str.toUtf8 }
         _ -> 
             Task.ok { status: 404, headers: [], body: "Error 404 Not Found\n\(path)" |> Str.toUtf8 }
