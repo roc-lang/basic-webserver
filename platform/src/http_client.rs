@@ -1,4 +1,3 @@
-use crate::metadata::InternalMetadata;
 use roc_std::{RocList, RocStr};
 use std::{iter::FromIterator, time::Duration};
 
@@ -78,13 +77,6 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
                 }
             });
 
-            // let metadata = InternalMetadata {
-            //     headers: RocList::from_iter(headers_iter),
-            //     statusText: RocStr::from(status_str),
-            //     url: RocStr::from(url),
-            //     statusCode: status.as_u16(),
-            // };
-
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
 
@@ -93,21 +85,6 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
                 body,
                 headers: RocList::from_iter(headers_iter),
             }
-
-            // if status.is_success() {
-            //     roc_app::InternalResponse{
-            //         status: 200,
-            //         body,
-            //         headers: metadata.headers,
-            //     }
-            // } else {
-            //     roc_app::InternalResponse{
-            //         status: 200,
-            //         body,
-            //         headers: metadata.headers,
-            //     }
-            //     roc_app::InternalResponse::BadStatus(metadata, body)
-            // }
         }
         Err(err) => {
             if err.is_timeout() {

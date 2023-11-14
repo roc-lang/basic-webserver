@@ -3,7 +3,6 @@ use roc_std::{RocResult, RocStr};
 use std::cell::RefCell;
 use std::os::raw::c_void;
 
-mod metadata;
 mod http_client;
 mod server;
 
