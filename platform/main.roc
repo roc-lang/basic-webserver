@@ -22,5 +22,6 @@ platform "webserver"
     imports [Task.{ Task }, Http.{ Request, Method, Response }]
     provides [mainForHost]
 
+# NOTE use mainForHost : Request -> Task Response [Err] to generate glue
 mainForHost : Request -> Task Response []
 mainForHost = \req -> main req
