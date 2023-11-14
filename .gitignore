@@ -8,3 +8,4 @@ app
 *.so.*
 
 examples/main
+examples/todos

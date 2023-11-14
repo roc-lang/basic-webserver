@@ -79,5 +79,5 @@ tcpWrite : List U8, InternalTcp.Stream -> Effect InternalTcp.WriteResult
 posixTime : Effect U128
 sleepMillis : U64 -> Effect {}
 
-commandStatus : Box InternalCommand.Command -> Effect (Result {} InternalCommand.CommandErr)
-commandOutput : Box InternalCommand.Command -> Effect InternalCommand.Output
+commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} InternalCommand.InternalCommandErr)
+commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput

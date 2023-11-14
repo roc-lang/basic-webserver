@@ -19,13 +19,13 @@ interface Command
     ]
 
 ## Represents a command to be executed in a child process.
-Command := InternalCommand.Command
+Command := InternalCommand.InternalCommand
 
 ## Errors from executing a command.
-Error : InternalCommand.CommandErr
+Error : InternalCommand.InternalCommandErr
 
 ## Represents the output of a command.
-Output : InternalCommand.Output
+Output : InternalCommand.InternalOutput
 
 ## Create a new command to execute the given program in a child process.
 new : Str -> Command

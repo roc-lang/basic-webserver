@@ -34,7 +34,12 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         name: "stdoutLine",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "()",
-    }
+    },
+    HostedFn {
+        name: "commandOutput",
+        arg_types: &["&command_glue::InternalCommand"],
+        ret_type: "command_glue::InternalOutput",
+    },
 ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

@@ -1,5 +1,6 @@
 use roc_fn::roc_fn;
 use roc_std::{RocResult, RocStr};
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::os::raw::c_void;
 
@@ -197,7 +198,6 @@ fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResponse
 
 #[roc_fn(name = "envVar")]
 fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
-    dbg!("envVar({})", roc_str);
     match std::env::var_os(roc_str.as_str()) {
         Some(os_str) => RocResult::ok(RocStr::from(os_str.to_string_lossy().to_string().as_str())),
         None => RocResult::err(()),
@@ -207,4 +207,70 @@ fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
+}
+
+#[roc_fn(name = "commandOutput")]
+fn command_output(roc_cmd : &command_glue::InternalCommand) -> command_glue::InternalOutput {
+    let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
+    let num_envs = roc_cmd.envs.len() / 2;
+    let flat_envs = &roc_cmd.envs;
+
+    // Environment vairables must be passed in key=value pairs
+    assert_eq!(flat_envs.len() % 2, 0);
+
+    let mut envs = Vec::with_capacity(num_envs);
+    for chunk in flat_envs.chunks(2) {
+        let key = chunk[0].as_str();
+        let value = chunk[1].as_str();
+        envs.push((key, value));
+    }
+
+    // Create command
+    let mut cmd = std::process::Command::new(roc_cmd.program.as_str());
+
+    // Set arguments
+    cmd.args(args);
+
+    // Clear environment variables if cmd.clearEnvs set
+    // otherwise inherit environment variables if cmd.clearEnvs is not set
+    if roc_cmd.clearEnvs {
+        cmd.env_clear();
+    };
+
+    // Set environment variables
+    cmd.envs(envs);
+
+    match cmd.output() {
+        Ok(output) => {
+            // Status of the child process, successful/exit code/killed by signal
+            let status = if output.status.success() {
+                RocResult::ok(())
+            } else {
+                match output.status.code() {
+                    Some(code) => {
+                        let error = command_glue::InternalCommandErr::ExitCode(code);
+                        RocResult::err(error)
+                    }
+                    None => {
+                        // If no exit code is returned, the process was terminated by a signal.
+                        let error = command_glue::InternalCommandErr::KilledBySignal();
+                        RocResult::err(error)
+                    }
+                }
+            };
+
+            command_glue::InternalOutput {
+                status: status,
+                stdout: roc_std::RocList::from(&output.stdout[..]),
+                stderr: roc_std::RocList::from(&output.stderr[..]),
+            }
+        }
+        Err(err) => command_glue::InternalOutput {
+            status: RocResult::err(command_glue::InternalCommandErr::IOError(RocStr::from(
+                err.to_string().as_str(),
+            ))),
+            stdout: roc_std::RocList::empty(),
+            stderr: roc_std::RocList::empty(),
+        },
+    }
 }
