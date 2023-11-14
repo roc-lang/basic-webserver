@@ -1,4 +1,3 @@
-# basic-webserver
+# Basic Webserver for Roc
 
-A Roc [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) for a webserver.
-
+A basic webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) for Roc.

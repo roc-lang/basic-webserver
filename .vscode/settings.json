@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./platform/src/glue/roc_app/Cargo.toml"
+    ]
+}
