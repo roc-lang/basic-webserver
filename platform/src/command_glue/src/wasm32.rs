@@ -372,151 +372,151 @@ impl core::fmt::Debug for CommandTypes {
     }
 }
 
-impl Eq for CommandTypes {}
+// impl Eq for CommandTypes {}
 
-impl PartialEq for CommandTypes {
-    fn eq(&self, other: &Self) -> bool {
-        use discriminant_CommandTypes::*;
+// impl PartialEq for CommandTypes {
+//     fn eq(&self, other: &Self) -> bool {
+//         use discriminant_CommandTypes::*;
 
-        if self.discriminant != other.discriminant {
-            return false;
-        }
+//         if self.discriminant != other.discriminant {
+//             return false;
+//         }
 
-        unsafe {
-            match self.discriminant {
-                A => self.payload.A == other.payload.A,
-                B => self.payload.B == other.payload.B,
-                C => self.payload.C == other.payload.C,
-            }
-        }
-    }
-}
+//         unsafe {
+//             match self.discriminant {
+//                 A => self.payload.A == other.payload.A,
+//                 B => self.payload.B == other.payload.B,
+//                 C => self.payload.C == other.payload.C,
+//             }
+//         }
+//     }
+// }
 
-impl Ord for CommandTypes {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
+// impl Ord for CommandTypes {
+//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+//         self.partial_cmp(other).unwrap()
+//     }
+// }
 
-impl PartialOrd for CommandTypes {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use discriminant_CommandTypes::*;
+// impl PartialOrd for CommandTypes {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         use discriminant_CommandTypes::*;
 
-        use std::cmp::Ordering::*;
+//         use std::cmp::Ordering::*;
 
-        match self.discriminant.cmp(&other.discriminant) {
-            Less => Option::Some(Less),
-            Greater => Option::Some(Greater),
-            Equal => unsafe {
-                match self.discriminant {
-                    A => self.payload.A.partial_cmp(&other.payload.A),
-                    B => self.payload.B.partial_cmp(&other.payload.B),
-                    C => self.payload.C.partial_cmp(&other.payload.C),
-                }
-            },
-        }
-    }
-}
+//         match self.discriminant.cmp(&other.discriminant) {
+//             Less => Option::Some(Less),
+//             Greater => Option::Some(Greater),
+//             Equal => unsafe {
+//                 match self.discriminant {
+//                     A => self.payload.A.partial_cmp(&other.payload.A),
+//                     B => self.payload.B.partial_cmp(&other.payload.B),
+//                     C => self.payload.C.partial_cmp(&other.payload.C),
+//                 }
+//             },
+//         }
+//     }
+// }
 
-impl core::hash::Hash for CommandTypes {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        use discriminant_CommandTypes::*;
+// impl core::hash::Hash for CommandTypes {
+//     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+//         use discriminant_CommandTypes::*;
 
-        unsafe {
-            match self.discriminant {
-                A => self.payload.A.hash(state),
-                B => self.payload.B.hash(state),
-                C => self.payload.C.hash(state),
-            }
-        }
-    }
-}
+//         unsafe {
+//             match self.discriminant {
+//                 A => self.payload.A.hash(state),
+//                 B => self.payload.B.hash(state),
+//                 C => self.payload.C.hash(state),
+//             }
+//         }
+//     }
+// }
 
-impl CommandTypes {
+// impl CommandTypes {
 
-    pub fn unwrap_A(mut self) -> InternalCommand {
-        debug_assert_eq!(self.discriminant, discriminant_CommandTypes::A);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.A) }
-    }
+//     pub fn unwrap_A(mut self) -> InternalCommand {
+//         debug_assert_eq!(self.discriminant, discriminant_CommandTypes::A);
+//         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.A) }
+//     }
 
-    pub fn is_A(&self) -> bool {
-        matches!(self.discriminant, discriminant_CommandTypes::A)
-    }
+//     pub fn is_A(&self) -> bool {
+//         matches!(self.discriminant, discriminant_CommandTypes::A)
+//     }
 
-    pub fn unwrap_B(mut self) -> InternalOutput {
-        debug_assert_eq!(self.discriminant, discriminant_CommandTypes::B);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.B) }
-    }
+//     pub fn unwrap_B(mut self) -> InternalOutput {
+//         debug_assert_eq!(self.discriminant, discriminant_CommandTypes::B);
+//         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.B) }
+//     }
 
-    pub fn is_B(&self) -> bool {
-        matches!(self.discriminant, discriminant_CommandTypes::B)
-    }
+//     pub fn is_B(&self) -> bool {
+//         matches!(self.discriminant, discriminant_CommandTypes::B)
+//     }
 
-    pub fn unwrap_C(mut self) -> InternalCommandErr {
-        debug_assert_eq!(self.discriminant, discriminant_CommandTypes::C);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.C) }
-    }
+//     pub fn unwrap_C(mut self) -> InternalCommandErr {
+//         debug_assert_eq!(self.discriminant, discriminant_CommandTypes::C);
+//         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.C) }
+//     }
 
-    pub fn is_C(&self) -> bool {
-        matches!(self.discriminant, discriminant_CommandTypes::C)
-    }
-}
-
-
-
-impl CommandTypes {
-
-    pub fn A(payload: InternalCommand) -> Self {
-        Self {
-            discriminant: discriminant_CommandTypes::A,
-            payload: union_CommandTypes {
-                A: core::mem::ManuallyDrop::new(payload),
-            }
-        }
-    }
-
-    pub fn B(payload: InternalOutput) -> Self {
-        Self {
-            discriminant: discriminant_CommandTypes::B,
-            payload: union_CommandTypes {
-                B: core::mem::ManuallyDrop::new(payload),
-            }
-        }
-    }
-
-    pub fn C(payload: InternalCommandErr) -> Self {
-        Self {
-            discriminant: discriminant_CommandTypes::C,
-            payload: union_CommandTypes {
-                C: core::mem::ManuallyDrop::new(payload),
-            }
-        }
-    }
-}
-
-impl Drop for CommandTypes {
-    fn drop(&mut self) {
-        // Drop the payloads
-        match self.discriminant() {
-            discriminant_CommandTypes::A => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.A) },
-            discriminant_CommandTypes::B => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.B) },
-            discriminant_CommandTypes::C => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.C) },
-        }
-    }
-}
+//     pub fn is_C(&self) -> bool {
+//         matches!(self.discriminant, discriminant_CommandTypes::C)
+//     }
+// }
 
 
 
-pub fn mainForHost() -> CommandTypes {
-    extern "C" {
-        fn roc__mainForHost_1_exposed_generic(_: *mut CommandTypes);
-    }
+// impl CommandTypes {
 
-    let mut ret = core::mem::MaybeUninit::uninit();
+//     pub fn A(payload: InternalCommand) -> Self {
+//         Self {
+//             discriminant: discriminant_CommandTypes::A,
+//             payload: union_CommandTypes {
+//                 A: core::mem::ManuallyDrop::new(payload),
+//             }
+//         }
+//     }
 
-    unsafe {
-        roc__mainForHost_1_exposed_generic(ret.as_mut_ptr(), );
+//     pub fn B(payload: InternalOutput) -> Self {
+//         Self {
+//             discriminant: discriminant_CommandTypes::B,
+//             payload: union_CommandTypes {
+//                 B: core::mem::ManuallyDrop::new(payload),
+//             }
+//         }
+//     }
 
-        ret.assume_init()
-    }
-}
+//     pub fn C(payload: InternalCommandErr) -> Self {
+//         Self {
+//             discriminant: discriminant_CommandTypes::C,
+//             payload: union_CommandTypes {
+//                 C: core::mem::ManuallyDrop::new(payload),
+//             }
+//         }
+//     }
+// }
+
+// impl Drop for CommandTypes {
+//     fn drop(&mut self) {
+//         // Drop the payloads
+//         match self.discriminant() {
+//             discriminant_CommandTypes::A => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.A) },
+//             discriminant_CommandTypes::B => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.B) },
+//             discriminant_CommandTypes::C => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.C) },
+//         }
+//     }
+// }
+
+
+
+// pub fn mainForHost() -> CommandTypes {
+//     extern "C" {
+//         fn roc__mainForHost_1_exposed_generic(_: *mut CommandTypes);
+//     }
+
+//     let mut ret = core::mem::MaybeUninit::uninit();
+
+//     unsafe {
+//         roc__mainForHost_1_exposed_generic(ret.as_mut_ptr(), );
+
+//         ret.assume_init()
+//     }
+// }
