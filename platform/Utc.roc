@@ -8,8 +8,14 @@ interface Utc
         fromNanosSinceEpoch,
         deltaAsMillis,
         deltaAsNanos,
+        toIso8601Str,
     ]
-    imports [Effect, InternalTask, Task.{ Task }]
+    imports [
+        Effect, 
+        InternalTask, 
+        InternalDateTime,
+        Task.{ Task },
+    ]
 
 ## Stores a timestamp as nanoseconds since UNIX EPOCH
 Utc := U128
@@ -21,6 +27,15 @@ now =
     |> Effect.map @Utc
     |> Effect.map Ok
     |> InternalTask.fromEffect
+
+## Convert Utc timestamp to ISO 8601 string
+## Example: 2023-11-14T23:39:39Z
+toIso8601Str : Utc -> Str
+toIso8601Str = \@Utc nanos ->
+    nanos
+    |> Num.divTrunc nanosPerMilli
+    |> InternalDateTime.epochMillisToDateTime 
+    |> InternalDateTime.toIso8601Str
 
 # Constant number of nanoseconds in a millisecond
 nanosPerMilli = 1_000_000

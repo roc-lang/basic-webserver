@@ -11,11 +11,11 @@ app "app"
 main : Request -> Task Response []
 main = \req ->
 
-    millis <- Utc.now |> Task.map Utc.toMillisSinceEpoch |> Task.map Num.toStr |> Task.await
+    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
 
     method = Http.methodToStr req.method
 
-    logLine = "\(millis) \(method) \(req.url)"
+    logLine = "\(date) \(method) \(req.url)"
 
     {} <- Stdout.line logLine |> Task.await
 
