@@ -21,11 +21,6 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_app::InternalResponse",
     },
     HostedFn {
-        name: "tcpConnect",
-        arg_types: &["&roc_std::RocStr", "u16"],
-        ret_type: "roc_app::ConnectResult",
-    },
-    HostedFn {
         name: "envVar",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "roc_std::RocResult<RocStr, ()>",
@@ -44,6 +39,39 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         name: "posixTime",
         arg_types: &[],
         ret_type: "roc_std::U128",
+    },
+    HostedFn {
+        name: "tcpConnect",
+        arg_types: &["&roc_std::RocStr", "u16"],
+        ret_type: "tcp_glue::ConnectResult",
+    },
+    HostedFn {
+        name: "tcpClose",
+        arg_types: &["*mut std::io::BufReader<std::net::TcpStream>"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "tcpReadUpTo",
+        arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
+        ret_type: "tcp_glue::ReadResult",
+    },
+    HostedFn {
+        name: "tcpReadExactly",
+        arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
+        ret_type: "tcp_glue::ReadExactlyResult",
+    },
+    HostedFn {
+        name: "tcpReadUntil",
+        arg_types: &["u8", "*mut std::io::BufReader<std::net::TcpStream>"],
+        ret_type: "tcp_glue::ReadResult",
+    },
+    HostedFn {
+        name: "tcpWrite",
+        arg_types: &[
+            "&roc_std::RocList<u8>",
+            "*mut std::io::BufReader<std::net::TcpStream>",
+        ],
+        ret_type: "tcp_glue::WriteResult",
     },
 ];
 
