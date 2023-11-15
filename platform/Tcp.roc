@@ -39,13 +39,13 @@ StreamErr : InternalTcp.StreamErr
 ##  - `localhost`
 ##  - `roc-lang.org`
 ##
-withConnect : Str, U16, (Stream -> Task {} err) -> Task {} [TcpConnectErr ConnectErr, TcpPerformErr err]
+withConnect : Str, U16, (Stream -> Task a err) -> Task a [TcpConnectErr ConnectErr, TcpPerformErr err]
 withConnect = \hostname, port, callback ->
     stream <- connect hostname port
         |> Task.mapErr TcpConnectErr
         |> Task.await
 
-    {} <- callback stream
+    result <- callback stream
         |> Task.mapErr TcpPerformErr
         |> Task.onErr
             (\err ->
@@ -55,6 +55,7 @@ withConnect = \hostname, port, callback ->
         |> Task.await
 
     close stream
+    |> Task.map \_ -> result
 
 connect : Str, U16 -> Task Stream ConnectErr
 connect = \host, port ->
@@ -65,7 +66,7 @@ connect = \host, port ->
 close : Stream -> Task {} *
 close = \stream ->
     Effect.tcpClose stream
-    |> Effect.map \{} -> Ok {}
+    |> Effect.map Ok
     |> InternalTask.fromEffect
 
 ## Read up to a number of bytes from the TCP stream.
