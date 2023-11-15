@@ -16,8 +16,7 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::clone_on_copy)]
 
-
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalCommand {
     pub args: roc_std::RocList<roc_std::RocStr>,
@@ -26,7 +25,7 @@ pub struct InternalCommand {
     pub clearEnvs: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
 pub enum discriminant_InternalCommandErr {
     ExitCode = 0,
@@ -51,11 +50,15 @@ pub union union_InternalCommandErr {
     KilledBySignal: (),
 }
 
-const _SIZE_CHECK_union_InternalCommandErr: () = assert!(core::mem::size_of::<union_InternalCommandErr>() == 12);
-const _ALIGN_CHECK_union_InternalCommandErr: () = assert!(core::mem::align_of::<union_InternalCommandErr>() == 4);
+const _SIZE_CHECK_union_InternalCommandErr: () =
+    assert!(core::mem::size_of::<union_InternalCommandErr>() == 12);
+const _ALIGN_CHECK_union_InternalCommandErr: () =
+    assert!(core::mem::align_of::<union_InternalCommandErr>() == 4);
 
-const _SIZE_CHECK_InternalCommandErr: () = assert!(core::mem::size_of::<InternalCommandErr>() == 16);
-const _ALIGN_CHECK_InternalCommandErr: () = assert!(core::mem::align_of::<InternalCommandErr>() == 4);
+const _SIZE_CHECK_InternalCommandErr: () =
+    assert!(core::mem::size_of::<InternalCommandErr>() == 16);
+const _ALIGN_CHECK_InternalCommandErr: () =
+    assert!(core::mem::align_of::<InternalCommandErr>() == 4);
 
 impl InternalCommandErr {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
@@ -69,7 +72,8 @@ impl InternalCommandErr {
 
     /// Internal helper
     fn set_discriminant(&mut self, discriminant: discriminant_InternalCommandErr) {
-        let discriminant_ptr: *mut discriminant_InternalCommandErr = (self as *mut InternalCommandErr).cast();
+        let discriminant_ptr: *mut discriminant_InternalCommandErr =
+            (self as *mut InternalCommandErr).cast();
 
         unsafe {
             *(discriminant_ptr.add(12)) = discriminant;
@@ -116,16 +120,22 @@ impl core::fmt::Debug for InternalCommandErr {
             match self.discriminant {
                 ExitCode => {
                     let field: &i32 = &self.payload.ExitCode;
-                    f.debug_tuple("InternalCommandErr::ExitCode").field(field).finish()
-                },
+                    f.debug_tuple("InternalCommandErr::ExitCode")
+                        .field(field)
+                        .finish()
+                }
                 IOError => {
                     let field: &roc_std::RocStr = &self.payload.IOError;
-                    f.debug_tuple("InternalCommandErr::IOError").field(field).finish()
-                },
+                    f.debug_tuple("InternalCommandErr::IOError")
+                        .field(field)
+                        .finish()
+                }
                 KilledBySignal => {
                     let field: &() = &self.payload.KilledBySignal;
-                    f.debug_tuple("InternalCommandErr::KilledBySignal").field(field).finish()
-                },
+                    f.debug_tuple("InternalCommandErr::KilledBySignal")
+                        .field(field)
+                        .finish()
+                }
             }
         }
     }
@@ -170,7 +180,10 @@ impl PartialOrd for InternalCommandErr {
                 match self.discriminant {
                     ExitCode => self.payload.ExitCode.partial_cmp(&other.payload.ExitCode),
                     IOError => self.payload.IOError.partial_cmp(&other.payload.IOError),
-                    KilledBySignal => self.payload.KilledBySignal.partial_cmp(&other.payload.KilledBySignal),
+                    KilledBySignal => self
+                        .payload
+                        .KilledBySignal
+                        .partial_cmp(&other.payload.KilledBySignal),
                 }
             },
         }
@@ -192,7 +205,6 @@ impl core::hash::Hash for InternalCommandErr {
 }
 
 impl InternalCommandErr {
-
     pub fn unwrap_ExitCode(mut self) -> i32 {
         debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
         unsafe { self.payload.ExitCode }
@@ -212,20 +224,18 @@ impl InternalCommandErr {
     }
 
     pub fn is_KilledBySignal(&self) -> bool {
-        matches!(self.discriminant, discriminant_InternalCommandErr::KilledBySignal)
+        matches!(
+            self.discriminant,
+            discriminant_InternalCommandErr::KilledBySignal
+        )
     }
 }
 
-
-
 impl InternalCommandErr {
-
     pub fn ExitCode(payload: i32) -> Self {
         Self {
             discriminant: discriminant_InternalCommandErr::ExitCode,
-            payload: union_InternalCommandErr {
-                ExitCode: payload,
-            }
+            payload: union_InternalCommandErr { ExitCode: payload },
         }
     }
 
@@ -234,16 +244,14 @@ impl InternalCommandErr {
             discriminant: discriminant_InternalCommandErr::IOError,
             payload: union_InternalCommandErr {
                 IOError: core::mem::ManuallyDrop::new(payload),
-            }
+            },
         }
     }
 
     pub fn KilledBySignal() -> Self {
         Self {
             discriminant: discriminant_InternalCommandErr::KilledBySignal,
-            payload: union_InternalCommandErr {
-                KilledBySignal: (),
-            }
+            payload: union_InternalCommandErr { KilledBySignal: () },
         }
     }
 }
@@ -253,13 +261,15 @@ impl Drop for InternalCommandErr {
         // Drop the payloads
         match self.discriminant() {
             discriminant_InternalCommandErr::ExitCode => {}
-            discriminant_InternalCommandErr::IOError => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.IOError) },
+            discriminant_InternalCommandErr::IOError => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.IOError)
+            },
             discriminant_InternalCommandErr::KilledBySignal => {}
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalOutput {
     pub status: roc_std::RocResult<(), InternalCommandErr>,
@@ -267,7 +277,7 @@ pub struct InternalOutput {
     pub stdout: roc_std::RocList<u8>,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
 pub enum discriminant_CommandTypes {
     A = 0,
@@ -292,8 +302,10 @@ pub union union_CommandTypes {
     C: core::mem::ManuallyDrop<InternalCommandErr>,
 }
 
-const _SIZE_CHECK_union_CommandTypes: () = assert!(core::mem::size_of::<union_CommandTypes>() == 44);
-const _ALIGN_CHECK_union_CommandTypes: () = assert!(core::mem::align_of::<union_CommandTypes>() == 4);
+const _SIZE_CHECK_union_CommandTypes: () =
+    assert!(core::mem::size_of::<union_CommandTypes>() == 44);
+const _ALIGN_CHECK_union_CommandTypes: () =
+    assert!(core::mem::align_of::<union_CommandTypes>() == 4);
 
 const _SIZE_CHECK_CommandTypes: () = assert!(core::mem::size_of::<CommandTypes>() == 48);
 const _ALIGN_CHECK_CommandTypes: () = assert!(core::mem::align_of::<CommandTypes>() == 4);
@@ -358,15 +370,15 @@ impl core::fmt::Debug for CommandTypes {
                 A => {
                     let field: &InternalCommand = &self.payload.A;
                     f.debug_tuple("CommandTypes::A").field(field).finish()
-                },
+                }
                 B => {
                     let field: &InternalOutput = &self.payload.B;
                     f.debug_tuple("CommandTypes::B").field(field).finish()
-                },
+                }
                 C => {
                     let field: &InternalCommandErr = &self.payload.C;
                     f.debug_tuple("CommandTypes::C").field(field).finish()
-                },
+                }
             }
         }
     }
@@ -433,7 +445,6 @@ impl core::hash::Hash for CommandTypes {
 }
 
 impl CommandTypes {
-
     pub fn unwrap_A(mut self) -> InternalCommand {
         debug_assert_eq!(self.discriminant, discriminant_CommandTypes::A);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.A) }
@@ -462,16 +473,13 @@ impl CommandTypes {
     }
 }
 
-
-
 impl CommandTypes {
-
     pub fn A(payload: InternalCommand) -> Self {
         Self {
             discriminant: discriminant_CommandTypes::A,
             payload: union_CommandTypes {
                 A: core::mem::ManuallyDrop::new(payload),
-            }
+            },
         }
     }
 
@@ -480,7 +488,7 @@ impl CommandTypes {
             discriminant: discriminant_CommandTypes::B,
             payload: union_CommandTypes {
                 B: core::mem::ManuallyDrop::new(payload),
-            }
+            },
         }
     }
 
@@ -489,7 +497,7 @@ impl CommandTypes {
             discriminant: discriminant_CommandTypes::C,
             payload: union_CommandTypes {
                 C: core::mem::ManuallyDrop::new(payload),
-            }
+            },
         }
     }
 }
@@ -498,14 +506,18 @@ impl Drop for CommandTypes {
     fn drop(&mut self) {
         // Drop the payloads
         match self.discriminant() {
-            discriminant_CommandTypes::A => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.A) },
-            discriminant_CommandTypes::B => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.B) },
-            discriminant_CommandTypes::C => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.C) },
+            discriminant_CommandTypes::A => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.A)
+            },
+            discriminant_CommandTypes::B => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.B)
+            },
+            discriminant_CommandTypes::C => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.C)
+            },
         }
     }
 }
-
-
 
 pub fn mainForHost() -> CommandTypes {
     extern "C" {
@@ -515,7 +527,7 @@ pub fn mainForHost() -> CommandTypes {
     let mut ret = core::mem::MaybeUninit::uninit();
 
     unsafe {
-        roc__mainForHost_1_exposed_generic(ret.as_mut_ptr(), );
+        roc__mainForHost_1_exposed_generic(ret.as_mut_ptr());
 
         ret.assume_init()
     }

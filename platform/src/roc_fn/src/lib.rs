@@ -40,6 +40,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["&command_glue::InternalCommand"],
         ret_type: "command_glue::InternalOutput",
     },
+    HostedFn {
+        name: "posixTime",
+        arg_types: &[],
+        ret_type: "roc_std::U128",
+    },
 ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

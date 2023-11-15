@@ -9,3 +9,5 @@ app
 
 examples/main
 examples/todos
+examples/http
+examples/log

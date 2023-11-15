@@ -29,7 +29,6 @@ fn call_roc<'a>(
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
 ) -> hyper::Response<hyper::Body> {
-
     let roc_headers: RocList<roc_app::InternalHeader> = headers
         .map(|(name, value)| roc_app::InternalHeader {
             name: RocStr::from(name.as_str()),
@@ -40,17 +39,16 @@ fn call_roc<'a>(
         .into();
 
     let answer = roc_app::mainForHost(roc_app::InternalRequest {
-        body: roc_app::InternalBody::Body(
-            roc_app::InternalBodyBody{
-                body: body.to_vec().as_slice().into(),
-                mimeType: RocStr::from("text/plain"),
-            }
-        ), 
+        body: roc_app::InternalBody::Body(roc_app::InternalBodyBody {
+            body: body.to_vec().as_slice().into(),
+            mimeType: RocStr::from("text/plain"),
+        }),
         headers: roc_headers,
         url: RocStr::from(url),
         method: method_from_str(method),
         timeout: roc_app::InternalTimeoutConfig::TimeoutMilliseconds(1_000), // TODO implement timeouts
-    }).force_thunk();
+    })
+    .force_thunk();
     to_server_response(answer)
 }
 
