@@ -2,7 +2,7 @@ use roc_fn::roc_fn;
 use roc_std::{RocResult, RocStr};
 use std::cell::RefCell;
 use std::os::raw::c_void;
-use std::time::{ SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 mod http_client;
 mod server;
@@ -213,14 +213,14 @@ fn stdout_line(roc_str: &RocStr) {
 fn posix_time() -> roc_std::U128 {
     // TODO in future may be able to avoid this panic by using C APIs
     let since_epoch = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .expect("time went backwards");
+        .duration_since(UNIX_EPOCH)
+        .expect("time went backwards");
 
     roc_std::U128::from(since_epoch.as_nanos())
 }
 
 #[roc_fn(name = "commandOutput")]
-fn command_output(roc_cmd : &command_glue::InternalCommand) -> command_glue::InternalOutput {
+fn command_output(roc_cmd: &command_glue::InternalCommand) -> command_glue::InternalOutput {
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;

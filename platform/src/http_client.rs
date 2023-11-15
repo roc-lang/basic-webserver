@@ -12,7 +12,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
     let client = match builder.build() {
         Ok(c) => c,
         Err(_) => {
-            return roc_app::InternalResponse{
+            return roc_app::InternalResponse {
                 status: 500,
                 body: RocList::empty(),
                 headers: RocList::empty(),
@@ -43,7 +43,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
 
     for header in roc_request.headers.iter() {
         req_builder = req_builder.header(header.name.as_str(), header.value.as_slice());
-    };
+    }
 
     if roc_request.body.is_Body() {
         let internal_body: roc_app::InternalBodyBody = roc_request.body.clone().unwrap_Body();
@@ -57,7 +57,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
     let request = match req_builder.build() {
         Ok(req) => req,
         Err(err) => {
-            return roc_app::InternalResponse{
+            return roc_app::InternalResponse {
                 status: 400,
                 body: RocList::from_slice(err.to_string().as_bytes()),
                 headers: RocList::empty(),
@@ -67,13 +67,14 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
 
     match client.execute(request) {
         Ok(response) => {
-
-            let headers_iter = response.headers().iter().map(|(name, value)| {
-                roc_app::InternalHeader{
-                    name: RocStr::from(name.as_str()),
-                    value: RocList::from(value.as_bytes()),
-                }
-            });
+            let headers_iter =
+                response
+                    .headers()
+                    .iter()
+                    .map(|(name, value)| roc_app::InternalHeader {
+                        name: RocStr::from(name.as_str()),
+                        value: RocList::from(value.as_bytes()),
+                    });
 
             let headers = RocList::from_iter(headers_iter);
 
@@ -81,7 +82,7 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
 
-            roc_app::InternalResponse{
+            roc_app::InternalResponse {
                 status,
                 body,
                 headers,
@@ -90,20 +91,20 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
 
         Err(err) => {
             if err.is_timeout() {
-                roc_app::InternalResponse{
+                roc_app::InternalResponse {
                     status: 408, // 408 Request Timeout
                     body: RocList::from_slice(err.to_string().as_bytes()),
                     headers: RocList::empty(),
                 }
             } else if err.is_request() {
-                roc_app::InternalResponse{
+                roc_app::InternalResponse {
                     status: 400, // 400 Bad Request
                     body: RocList::from_slice(err.to_string().as_bytes()),
                     headers: RocList::empty(),
                 }
             } else {
                 // TODO handle more errors
-                roc_app::InternalResponse{
+                roc_app::InternalResponse {
                     status: 404, // 404 Not Found
                     body: RocList::from_slice(err.to_string().as_bytes()),
                     headers: RocList::empty(),
