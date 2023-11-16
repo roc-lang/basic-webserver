@@ -1,24 +1,29 @@
 app "app"
     packages { pf: "../platform/main.roc" }
     imports [
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
+        pf.Task.{ Task, attempt, ok },
+        pf.Http.{ Request, Response, defaultRequest, send },
     ]
     provides [main] to pf
 
-main : Request -> Task Response []
 main = \_ ->
 
+    # Send an HTTP request to fetch the Roc website
     result <-
-        { Http.defaultRequest & url: "https://www.roc-lang.org" }
-        |> Http.send
-        |> Task.attempt
+        { defaultRequest & url: "https://www.roc-lang.org" }
+        |> send
+        |> attempt
 
+    # Respond with the website content
     when result is
-        Ok bytes ->
-            Task.ok { status: 200, headers: [], body: Str.toUtf8 bytes }
+        Ok str -> respond 200 str
+        Err _ -> respond 500 "Error 500 Internal Server Error\n"
 
-        Err _ -> serverError
-
-serverError : Task Response []
-serverError = Task.ok { status: 500, headers: [], body: Str.toUtf8 "Error 500 Internal Server Error\n" }
+respond = \code, body ->
+    ok {
+        status: code,
+        headers: [
+            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        ],
+        body: Str.toUtf8 body,
+    }
