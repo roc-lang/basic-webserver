@@ -1,12 +1,20 @@
-# Basic Webserver for [Roc-lang](https://www.roc-lang.org/) 
+# Basic Web Server for [Roc](https://www.roc-lang.org/) 
 
-A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) for Roc with a simple interface: you write a function which takes a Request, performs I/O, and returns a Response.
+A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) for Roc with a simple interface.
 
-Behind the scenes, this platform uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
+Write a function which takes a `Http.Request`, perform I/O like fetching content or reading environment variables, and return a `Http.Response`. It's that easy!
+
+Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
+
+## Contributing
 
 If you'd like to contribute, check out our [group chat](https://roc.zulipchat.com) and let us know what you're thinking, we're friendly!
 
-```elm
+## Example
+
+This is a simple example of a Roc function which fetches and responds with the content of the Roc website.
+
+```elixir
 app "app"
     packages { pf: "../platform/main.roc" }
     imports [
@@ -48,7 +56,7 @@ Let us know if you'd like to help out with this!
 
 ### Building from Source
 
-You will need rust installed.
+You will need [Rust](https://www.rust-lang.org) to build the platform source code.
 
 Run an example server with `$ roc run examples/http.roc`
 
