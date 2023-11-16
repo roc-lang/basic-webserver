@@ -1,24 +1,35 @@
-app "app"
+app "Fetch Roc website and return content"
     packages { pf: "../platform/main.roc" }
     imports [
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
+        pf.Stdout.{ line },
+        pf.Task.{ Task, map, attempt, ok, await },
+        pf.Http.{ Request, Response, methodToStr, defaultRequest, send },
+        pf.Utc.{ now, toIso8601Str },
     ]
     provides [main] to pf
 
-main : Request -> Task Response []
-main = \_ ->
+main = \req ->
 
+    # Log the date, time, method, and url to stdout
+    dateTime <- now |> map toIso8601Str |> await
+    {} <- line "\(dateTime) \(methodToStr req.method) \(req.url)" |> await
+
+    # Fetch the Roc website
     result <-
-        { Http.defaultRequest & url: "https://www.roc-lang.org" }
-        |> Http.send
-        |> Task.attempt
+        { defaultRequest & url: "https://www.roc-lang.org" }
+        |> send
+        |> attempt
 
+    # Respond with the website content
     when result is
-        Ok bytes ->
-            Task.ok { status: 200, headers: [], body: Str.toUtf8 bytes }
+        Ok str -> respond 200 str
+        Err _ -> respond 500 "Error 500 Internal Server Error\n"
 
-        Err _ -> serverError
-
-serverError : Task Response []
-serverError = Task.ok { status: 500, headers: [], body: Str.toUtf8 "Error 500 Internal Server Error\n" }
+respond = \code, body ->
+    ok {
+        status: code,
+        headers: [
+            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        ],
+        body: Str.toUtf8 body,
+    }
