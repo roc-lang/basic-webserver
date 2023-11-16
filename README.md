@@ -12,20 +12,26 @@ If you'd like to contribute, check out our [group chat](https://roc.zulipchat.co
 
 ## Example
 
-This is a simple example of a Roc function which fetches and responds with the content of the Roc website.
+The below [example](https://github.com/roc-lang/basic-webserver/blob/main/examples/http.roc) responds with the content of the latest Roc website.
 
 ```elixir
-app "app"
+app "Fetch Roc website and return content"
     packages { pf: "../platform/main.roc" }
     imports [
-        pf.Task.{ Task, attempt, ok },
-        pf.Http.{ Request, Response, defaultRequest, send },
+        pf.Stdout.{ line },
+        pf.Task.{ Task, map, attempt, ok, await },
+        pf.Http.{ Request, Response, methodToStr, defaultRequest, send },
+        pf.Utc.{ now, toIso8601Str },
     ]
     provides [main] to pf
 
-main = \_ ->
+main = \req ->
 
-    # Send an HTTP request to fetch the Roc website
+    # Log the date, time, method, and url to stdout
+    dateTime <- now |> map toIso8601Str |> await
+    {} <- line "\(dateTime) \(methodToStr req.method) \(req.url)" |> await
+
+    # Fetch the Roc website
     result <-
         { defaultRequest & url: "https://www.roc-lang.org" }
         |> send
@@ -36,12 +42,12 @@ main = \_ ->
         Ok str -> respond 200 str
         Err _ -> respond 500 "Error 500 Internal Server Error\n"
 
-respond = \code, body -> 
-    ok { 
-        status: code, 
+respond = \code, body ->
+    ok {
+        status: code,
         headers: [
-            { name : "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" } 
-        ], 
+            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        ],
         body: Str.toUtf8 body,
     }
 ```
