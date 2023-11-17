@@ -15,35 +15,27 @@ If you'd like to contribute, check out our [group chat](https://roc.zulipchat.co
 The below [example](https://github.com/roc-lang/basic-webserver/blob/main/examples/http.roc) responds with the content of the latest Roc website.
 
 ```elixir
-app "Fetch Roc website and return content"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout.{ line },
-        pf.Task.{ Task, map, attempt, ok, await },
-        pf.Http.{ Request, Response, methodToStr, defaultRequest, send },
-        pf.Utc.{ now, toIso8601Str },
-    ]
-    provides [main] to pf
-
+main : Request -> Task Response []
 main = \req ->
 
     # Log the date, time, method, and url to stdout
-    dateTime <- now |> map toIso8601Str |> await
-    {} <- line "\(dateTime) \(methodToStr req.method) \(req.url)" |> await
+    dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    {} <- Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url)" |> Task.await
 
     # Fetch the Roc website
     result <-
-        { defaultRequest & url: "https://www.roc-lang.org" }
-        |> send
-        |> attempt
+        { Http.defaultRequest & url: "https://www.roc-lang.org" }
+        |> Http.send
+        |> Task.attempt
 
     # Respond with the website content
     when result is
         Ok str -> respond 200 str
         Err _ -> respond 500 "Error 500 Internal Server Error\n"
 
+respond : U16, Str -> Task Response []
 respond = \code, body ->
-    ok {
+    Task.ok {
         status: code,
         headers: [
             { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
