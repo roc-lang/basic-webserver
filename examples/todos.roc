@@ -27,8 +27,8 @@ main = \req ->
 
     # Route to handler based on url path
     when req.url |> Url.fromStr |> Url.path |> Str.split "/" is
+        ["", ""] -> byteResponse 200 todoHtml
         ["", "todos", ..] -> routeTodos maybeDbPath req
-        ["", "index.html", ..] -> byteResponse 200 todoHtml
         _ -> textResponse 404 "404 Not Found\n"
 
 routeTodos : Result Str [VarNotFound], Request -> Task Response []
