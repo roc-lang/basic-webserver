@@ -6,6 +6,11 @@ license = "UPL-1.0"
 edition = "2018"
 links = "app"
 
+[profile.release]
+lto = true
+strip = "debuginfo"
+codegen-units = 1
+
 [lib]
 name = "host"
 path = "src/lib.rs"
