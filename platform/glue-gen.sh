@@ -22,4 +22,4 @@ roc_std = { path = "../glue/roc_std" }
 EOF
 
 # Generate glue for the platform
-roc glue ../roc/crates/glue/src/RustGlue.roc platform/src/glue platform/main.roc
+roc glue ../roc/crates/glue/src/RustGlue.roc platform/src/glue platform/main-glue.roc

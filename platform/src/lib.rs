@@ -8,7 +8,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 mod http_client;
 mod server;
-mod tcp_glue;
 
 #[no_mangle]
 pub extern "C" fn rust_main() -> i32 {
@@ -327,15 +326,15 @@ fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::Intern
 }
 
 #[roc_fn(name = "tcpConnect")]
-fn tcp_connect(host: &RocStr, port: u16) -> tcp_glue::ConnectResult {
+fn tcp_connect(host: &RocStr, port: u16) -> glue_manual::ConnectResult {
     match TcpStream::connect((host.as_str(), port)) {
         Ok(stream) => {
             let reader = BufReader::new(stream);
             let ptr = Box::into_raw(Box::new(reader)) as u64;
 
-            tcp_glue::ConnectResult::Connected(ptr)
+            glue_manual::ConnectResult::Connected(ptr)
         }
-        Err(err) => tcp_glue::ConnectResult::Error(to_tcp_connect_err(err)),
+        Err(err) => glue_manual::ConnectResult::Error(to_tcp_connect_err(err)),
     }
 }
 
@@ -350,7 +349,7 @@ fn tcp_close(stream_ptr: *mut BufReader<TcpStream>) {
 fn tcp_read_up_to(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadResult {
+) -> glue_manual::ReadResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut chunk = reader.take(bytes_to_read as u64);
@@ -361,10 +360,10 @@ fn tcp_read_up_to(
             reader.consume(received.len());
 
             let roc_list = RocList::from(&received[..]);
-            tcp_glue::ReadResult::Read(roc_list)
+            glue_manual::ReadResult::Read(roc_list)
         }
 
-        Err(err) => tcp_glue::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadResult::Error(to_tcp_stream_err(err)),
     }
 }
 
@@ -372,7 +371,7 @@ fn tcp_read_up_to(
 fn tcp_read_exactly(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadExactlyResult {
+) -> glue_manual::ReadExactlyResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = Vec::with_capacity(bytes_to_read);
@@ -381,14 +380,14 @@ fn tcp_read_exactly(
     match chunk.read_to_end(&mut buffer) {
         Ok(read) => {
             if read < bytes_to_read {
-                tcp_glue::ReadExactlyResult::UnexpectedEOF
+                glue_manual::ReadExactlyResult::UnexpectedEOF()
             } else {
                 let roc_list = RocList::from(&buffer[..]);
-                tcp_glue::ReadExactlyResult::Read(roc_list)
+                glue_manual::ReadExactlyResult::Read(roc_list)
             }
         }
 
-        Err(err) => tcp_glue::ReadExactlyResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadExactlyResult::Error(to_tcp_stream_err(err)),
     }
 }
 
@@ -396,7 +395,7 @@ fn tcp_read_exactly(
 pub extern "C" fn tcp_read_until(
     byte: u8,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadResult {
+) -> glue_manual::ReadResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = vec![];
@@ -404,54 +403,54 @@ pub extern "C" fn tcp_read_until(
     match reader.read_until(byte, &mut buffer) {
         Ok(_) => {
             let roc_list = RocList::from(&buffer[..]);
-            tcp_glue::ReadResult::Read(roc_list)
+            glue_manual::ReadResult::Read(roc_list)
         }
 
-        Err(err) => tcp_glue::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadResult::Error(to_tcp_stream_err(err)),
     }
 }
 
 #[roc_fn(name = "tcpWrite")]
-fn tcp_write(msg: &RocList<u8>, stream_ptr: *mut BufReader<TcpStream>) -> tcp_glue::WriteResult {
+fn tcp_write(msg: &RocList<u8>, stream_ptr: *mut BufReader<TcpStream>) -> glue_manual::WriteResult {
     let reader = unsafe { &mut *stream_ptr };
     let mut stream = reader.get_ref();
 
     match stream.write_all(msg.as_slice()) {
-        Ok(_) => tcp_glue::WriteResult::Wrote,
-        Err(err) => tcp_glue::WriteResult::Error(to_tcp_stream_err(err)),
+        Ok(_) => glue_manual::WriteResult::Wrote(),
+        Err(err) => glue_manual::WriteResult::Error(to_tcp_stream_err(err)),
     }
 }
 
-fn to_tcp_connect_err(err: std::io::Error) -> tcp_glue::ConnectErr {
+fn to_tcp_connect_err(err: std::io::Error) -> glue_manual::ConnectErr {
     let kind = err.kind();
     match kind {
-        ErrorKind::PermissionDenied => tcp_glue::ConnectErr::PermissionDenied,
-        ErrorKind::AddrInUse => tcp_glue::ConnectErr::AddrInUse,
-        ErrorKind::AddrNotAvailable => tcp_glue::ConnectErr::AddrNotAvailable,
-        ErrorKind::ConnectionRefused => tcp_glue::ConnectErr::ConnectionRefused,
-        ErrorKind::Interrupted => tcp_glue::ConnectErr::Interrupted,
-        ErrorKind::TimedOut => tcp_glue::ConnectErr::TimedOut,
-        ErrorKind::Unsupported => tcp_glue::ConnectErr::Unsupported,
-        _ => tcp_glue::ConnectErr::Unrecognized(
-            RocStr::from(kind.to_string().as_str()),
-            err.raw_os_error().unwrap_or_default(),
-        ),
+        ErrorKind::PermissionDenied => glue_manual::ConnectErr::PermissionDenied(),
+        ErrorKind::AddrInUse => glue_manual::ConnectErr::AddrInUse(),
+        ErrorKind::AddrNotAvailable => glue_manual::ConnectErr::AddrNotAvailable(),
+        ErrorKind::ConnectionRefused => glue_manual::ConnectErr::ConnectionRefused(),
+        ErrorKind::Interrupted => glue_manual::ConnectErr::Interrupted(),
+        ErrorKind::TimedOut => glue_manual::ConnectErr::TimedOut(),
+        ErrorKind::Unsupported => glue_manual::ConnectErr::Unsupported(),
+        _ => glue_manual::ConnectErr::Unrecognized(glue_manual::ConnectErr_Unrecognized {
+            f1: RocStr::from(kind.to_string().as_str()),
+            f0: err.raw_os_error().unwrap_or_default(),
+        }),
     }
 }
 
-fn to_tcp_stream_err(err: std::io::Error) -> tcp_glue::StreamErr {
+fn to_tcp_stream_err(err: std::io::Error) -> glue_manual::StreamErr {
     let kind = err.kind();
     match kind {
-        ErrorKind::PermissionDenied => tcp_glue::StreamErr::PermissionDenied,
-        ErrorKind::ConnectionRefused => tcp_glue::StreamErr::ConnectionRefused,
-        ErrorKind::ConnectionReset => tcp_glue::StreamErr::ConnectionReset,
-        ErrorKind::Interrupted => tcp_glue::StreamErr::Interrupted,
-        ErrorKind::OutOfMemory => tcp_glue::StreamErr::OutOfMemory,
-        ErrorKind::BrokenPipe => tcp_glue::StreamErr::BrokenPipe,
-        _ => tcp_glue::StreamErr::Unrecognized(
-            RocStr::from(kind.to_string().as_str()),
-            err.raw_os_error().unwrap_or_default(),
-        ),
+        ErrorKind::PermissionDenied => glue_manual::StreamErr::PermissionDenied(),
+        ErrorKind::ConnectionRefused => glue_manual::StreamErr::ConnectionRefused(),
+        ErrorKind::ConnectionReset => glue_manual::StreamErr::ConnectionReset(),
+        ErrorKind::Interrupted => glue_manual::StreamErr::Interrupted(),
+        ErrorKind::OutOfMemory => glue_manual::StreamErr::OutOfMemory(),
+        ErrorKind::BrokenPipe => glue_manual::StreamErr::BrokenPipe(),
+        _ => glue_manual::StreamErr::Unrecognized(glue_manual::ConnectErr_Unrecognized {
+            f1: RocStr::from(kind.to_string().as_str()),
+            f0: err.raw_os_error().unwrap_or_default(),
+        }),
     }
 }
 

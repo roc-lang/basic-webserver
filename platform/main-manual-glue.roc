@@ -5,6 +5,7 @@ platform "webserver"
     imports [
         InternalCommand,
         InternalError,
+        InternalTcp,
     ]
     provides [mainForHost]
 
@@ -13,6 +14,13 @@ GlueTypes : [
     B InternalCommand.InternalOutput,
     C InternalCommand.InternalCommandErr,
     D InternalError.InternalError,
+    E InternalTcp.Stream,
+    F InternalTcp.ConnectErr,
+    G InternalTcp.StreamErr,
+    H InternalTcp.ConnectResult,
+    I InternalTcp.WriteResult,
+    J InternalTcp.ReadResult,
+    K InternalTcp.ReadExactlyResult,
 ]
 
 mainForHost : GlueTypes
