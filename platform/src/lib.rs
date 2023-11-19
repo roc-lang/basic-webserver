@@ -239,6 +239,15 @@ fn set_cwd(roc_path: &roc_std::RocList<u8>) -> RocResult<(), ()> {
     }
 }
 
+#[roc_fn(name = "cwd")]
+fn cwd() -> roc_std::RocList<u8> {
+    // TODO instead, call getcwd on UNIX and GetCurrentDirectory on Windows
+    match std::env::current_dir() {
+        Ok(path_buf) => os_str_to_roc_path(path_buf.into_os_string().as_os_str()),
+        Err(_) => RocList::empty() // Default to empty path 
+    }
+}
+
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());

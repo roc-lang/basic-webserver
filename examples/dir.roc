@@ -14,6 +14,16 @@ app "dir"
 main : Request -> Task Response []
 main = \_ ->
 
+    # Get current working directory
+    maybeCwd <- Env.cwd |> Task.attempt
+
+    printCwd = 
+        when maybeCwd is 
+            Ok cwd -> Stdout.line "The current working directory is \(Path.display cwd)"
+            Err CwdUnavailable -> Stderr.line "Unable to read current working directory"
+
+    {} <- printCwd |> Task.await
+
     # Try to set cwd to examples
     maybeSet <- Env.setCwd (Path.fromStr "examples") |> Task.attempt
 
@@ -32,6 +42,7 @@ main = \_ ->
             paths 
             |> List.map Path.display
             |> Str.joinWith ","
+            |> \pathsStr -> "The paths are;\n\(pathsStr)"
             |> Stdout.line 
                 
         Err (DirReadErr path err) -> 

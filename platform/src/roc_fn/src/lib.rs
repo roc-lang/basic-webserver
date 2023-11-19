@@ -41,6 +41,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocResult<(), ()>",
     },
     HostedFn {
+        name: "cwd",
+        arg_types: &[],
+        ret_type: "roc_std::RocList<u8>",
+    },
+    HostedFn {
         name: "stdoutLine",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "()",

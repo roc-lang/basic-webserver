@@ -69,6 +69,7 @@ exePath : Effect (Result (List U8) {})
 setCwd : List U8 -> Effect (Result {} {})
 cwd : Effect (List U8)
 
+# Http
 sendRequest : Box InternalHttp.InternalRequest -> Effect InternalHttp.InternalResponse
 
 tcpConnect : Str, U16 -> Effect InternalTcp.ConnectResult
