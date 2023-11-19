@@ -50,10 +50,7 @@ readUrlEnv =
 
 fetchContent : Str -> Task Str AppError
 fetchContent = \url ->
-    result <-
-        { Http.defaultRequest & url }
-        |> Http.send
-        |> Task.attempt
+    result <- Http.getUtf8 url |> Task.attempt
 
     when result is
         Ok content -> Task.ok content
