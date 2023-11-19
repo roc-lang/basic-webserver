@@ -11,7 +11,7 @@ app "echo"
 main : Request -> Task Response []
 main = \_ ->
 
-    {} <- Stdout.line "Sleeping for 1 second...\n" |> Task.await
+    {} <- Stdout.write "Sleeping for 1 second...\n" |> Task.await
     {} <- Sleep.millis 1000 |> Task.await
 
     body = Str.toUtf8 "Response delayed by 1 second\n"

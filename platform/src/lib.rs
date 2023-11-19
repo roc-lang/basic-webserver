@@ -212,6 +212,13 @@ fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
 }
 
+#[roc_fn(name = "stdoutWrite")]
+fn stdout_write(roc_str: &RocStr) {
+    let string = roc_str.as_str();
+    print!("{}", string);
+    std::io::stdout().flush().unwrap();
+}
+
 #[roc_fn(name = "posixTime")]
 fn posix_time() -> roc_std::U128 {
     // TODO in future may be able to avoid this panic by using C APIs
