@@ -244,7 +244,7 @@ fn cwd() -> roc_std::RocList<u8> {
     // TODO instead, call getcwd on UNIX and GetCurrentDirectory on Windows
     match std::env::current_dir() {
         Ok(path_buf) => os_str_to_roc_path(path_buf.into_os_string().as_os_str()),
-        Err(_) => RocList::empty() // Default to empty path 
+        Err(_) => RocList::empty(), // Default to empty path
     }
 }
 
@@ -260,13 +260,8 @@ fn stdout_write(roc_str: &RocStr) {
 }
 
 #[roc_fn(name = "stdoutFlush")]
-fn stdout_flush() -> RocResult<(), glue_manual::InternalError> {
-    match std::io::stdout().flush() {
-        Ok(_) => RocResult::ok(()),
-        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
-            err.to_string().as_str(),
-        ))),
-    }
+fn stdout_flush() {
+    std::io::stdout().flush().unwrap()
 }
 
 #[roc_fn(name = "stderrLine")]
@@ -282,13 +277,8 @@ fn stderr_write(roc_str: &RocStr) {
 }
 
 #[roc_fn(name = "stderrFlush")]
-fn stderr_flush() -> RocResult<(), glue_manual::InternalError> {
-    match std::io::stderr().flush() {
-        Ok(_) => RocResult::ok(()),
-        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
-            err.to_string().as_str(),
-        ))),
-    }
+fn stderr_flush() {
+    std::io::stderr().flush().unwrap()
 }
 
 #[roc_fn(name = "posixTime")]
@@ -368,9 +358,11 @@ fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::Intern
 }
 
 #[roc_fn(name = "commandStatus")]
-fn command_status(roc_cmd: &glue_manual::InternalCommand) -> roc_std::RocResult<(), glue_manual::InternalCommandErr> {
+fn command_status(
+    roc_cmd: &glue_manual::InternalCommand,
+) -> roc_std::RocResult<(), glue_manual::InternalCommandErr> {
     use std::borrow::Borrow;
-    
+
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;
