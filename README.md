@@ -64,7 +64,5 @@ Then visit `http://localhost:8000` with your browser.
 
 Run the following from the repository root directory.
 
-1. In `platform/main.roc` comment out the lines as indicated
-2. Run `bash platform/glue-gen.sh`
-4. Restore commented lines in `platform/main.roc`
+1. Run `bash platform/glue-gen.sh`
 5. Manually fix any issues with glue generated code in `platform/glue-manual/*.rs`, this is a temporary workaround and should not be needed in future
