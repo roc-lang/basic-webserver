@@ -73,6 +73,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ],
         ret_type: "tcp_glue::WriteResult",
     },
+    HostedFn {
+        name: "sleepMillis",
+        arg_types: &["u64"],
+        ret_type: "()",
+    },
 ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

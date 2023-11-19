@@ -416,3 +416,9 @@ fn to_tcp_stream_err(err: std::io::Error) -> tcp_glue::StreamErr {
         ),
     }
 }
+
+#[roc_fn(name = "sleepMillis")]
+fn sleep_millis(milliseconds: u64) {
+    let duration = std::time::Duration::from_millis(milliseconds);
+    std::thread::sleep(duration);
+}
