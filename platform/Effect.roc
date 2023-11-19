@@ -8,7 +8,7 @@ hosted Effect
         forever,
         loop,
         dirList,
-        envDict,
+        envList,
         envVar,
         cwd,
         setCwd,
@@ -64,7 +64,7 @@ fileReadBytes : List U8 -> Effect (Result (List U8) InternalFile.ReadErr)
 dirList : List U8 -> Effect (Result (List (List U8)) InternalError.InternalDirReadErr)
 
 # Env
-envDict : Effect (Dict Str Str)
+envList : Effect (List (Str, Str))
 envVar : Str -> Effect (Result Str {})
 
 exePath : Effect (Result (List U8) {})

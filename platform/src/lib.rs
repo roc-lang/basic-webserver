@@ -207,6 +207,22 @@ fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
     }
 }
 
+#[roc_fn(name = "envList")]
+fn env_dict() -> RocList<(RocStr, RocStr)> {
+    use std::borrow::Borrow;
+
+    let mut entries = Vec::new();
+
+    for (key, val) in std::env::vars_os() {
+        let key = RocStr::from(key.to_string_lossy().borrow());
+        let value = RocStr::from(val.to_string_lossy().borrow());
+
+        entries.push((key, value));
+    }
+
+    RocList::from_slice(entries.as_slice())
+}
+
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
@@ -312,16 +328,16 @@ fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::Intern
 
             glue_manual::InternalOutput {
                 status: status,
-                stdout: roc_std::RocList::from(&output.stdout[..]),
-                stderr: roc_std::RocList::from(&output.stderr[..]),
+                stdout: RocList::from(&output.stdout[..]),
+                stderr: RocList::from(&output.stderr[..]),
             }
         }
         Err(err) => glue_manual::InternalOutput {
             status: RocResult::err(glue_manual::InternalCommandErr::IOError(RocStr::from(
                 err.to_string().as_str(),
             ))),
-            stdout: roc_std::RocList::empty(),
-            stderr: roc_std::RocList::empty(),
+            stdout: RocList::empty(),
+            stderr: RocList::empty(),
         },
     }
 }
@@ -477,7 +493,10 @@ fn file_write_bytes(
     write_slice(roc_path, roc_bytes.as_slice())
 }
 
-fn write_slice(roc_path: &roc_std::RocList<u8>, bytes: &[u8]) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+fn write_slice(
+    roc_path: &RocList<u8>,
+    bytes: &[u8],
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
     match std::fs::File::create(path_from_roc_path(roc_path)) {
         Ok(mut file) => match file.write_all(bytes) {
             Ok(()) => RocResult::ok(()),
@@ -495,7 +514,7 @@ fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Pa
 }
 
 #[cfg(target_family = "windows")]
-fn path_from_roc_path(bytes: &roc_std::RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
+fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
     use std::os::windows::ffi::OsStringExt;
 
     let bytes = bytes.as_slice();
@@ -507,7 +526,6 @@ fn path_from_roc_path(bytes: &roc_std::RocList<u8>) -> std::borrow::Cow<'_, std:
 
     std::borrow::Cow::Owned(std::path::PathBuf::from(os_string))
 }
-
 
 fn to_roc_write_error(err: std::io::Error) -> glue_manual::WriteErr {
     match err.kind() {
@@ -542,7 +560,9 @@ fn file_delete(roc_path: &RocList<u8>) -> roc_std::RocResult<(), glue_manual::Re
 }
 
 #[roc_fn(name = "fileReadBytes")]
-fn file_read_bytes(roc_path: &RocList<u8>) -> roc_std::RocResult<roc_std::RocList<u8>, glue_manual::ReadErr> {
+fn file_read_bytes(
+    roc_path: &RocList<u8>,
+) -> roc_std::RocResult<RocList<u8>, glue_manual::ReadErr> {
     let mut bytes = Vec::new();
 
     match std::fs::File::open(path_from_roc_path(roc_path)) {
@@ -572,19 +592,21 @@ fn to_roc_read_error(err: std::io::Error) -> glue_manual::ReadErr {
 }
 
 #[roc_fn(name = "dirList")]
-fn dir_list(roc_path: &RocList<u8>) -> roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, glue_manual::InternalDirReadErr> {
-
+fn dir_list(
+    roc_path: &RocList<u8>,
+) -> roc_std::RocResult<RocList<RocList<u8>>, glue_manual::InternalDirReadErr> {
     let path = path_from_roc_path(roc_path);
     let current_path = glue_manual::UnwrappedPath::ArbitraryBytes(roc_path.clone());
 
     if path.is_dir() {
-
         let dir = match std::fs::read_dir(path) {
             Ok(dir) => dir,
-            Err(err) => return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
-                current_path,
-                roc_std::RocStr::from(err.to_string().as_str())
-            )),
+            Err(err) => {
+                return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
+                    current_path,
+                    RocStr::from(err.to_string().as_str()),
+                ))
+            }
         };
 
         let mut entries = Vec::new();
@@ -592,36 +614,35 @@ fn dir_list(roc_path: &RocList<u8>) -> roc_std::RocResult<roc_std::RocList<roc_s
         for entry in dir {
             match entry {
                 Ok(entry) => {
-                    let path = entry.path(); 
+                    let path = entry.path();
                     let str = path.as_os_str();
                     entries.push(os_str_to_roc_path(str));
-                },
+                }
                 Err(_) => {} // TODO should we ignore errors reading directory??
             }
         }
 
-        return roc_std::RocResult::ok(roc_std::RocList::from_iter(entries));
-
+        return roc_std::RocResult::ok(RocList::from_iter(entries));
     } else {
         return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
             current_path,
-            roc_std::RocStr::from("Path is not a directory")
+            RocStr::from("Path is not a directory"),
         ));
     }
 }
 
 #[cfg(target_family = "unix")]
-fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> roc_std::RocList<u8> {
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
     use std::os::unix::ffi::OsStrExt;
 
-    roc_std::RocList::from(os_str.as_bytes())
+    RocList::from(os_str.as_bytes())
 }
 
 #[cfg(target_family = "windows")]
-fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> roc_std::RocList<u8> {
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
     use std::os::windows::ffi::OsStrExt;
 
     let bytes: Vec<_> = os_str.encode_wide().flat_map(|c| c.to_be_bytes()).collect();
 
-    roc_std::RocList::from(bytes.as_slice())
+    RocList::from(bytes.as_slice())
 }

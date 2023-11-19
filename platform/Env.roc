@@ -1,5 +1,5 @@
 interface Env
-    exposes [cwd, dict, var, decode, exePath, setCwd]
+    exposes [cwd, list, var, decode, exePath, setCwd]
     imports [Task.{ Task }, Path.{ Path }, InternalPath, Effect, InternalTask, EnvDecoding]
 
 ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
@@ -83,13 +83,13 @@ decode = \name ->
                         |> Result.mapErr (\_ -> DecodeErr TooShort)))
     |> InternalTask.fromEffect
 
-## Reads all the process's environment variables into a [Dict].
+## Reads all the process's environment variables into a List (Str, Str).
 ##
 ## If any key or value contains invalid Unicode, the [Unicode replacement character](https://unicode.org/glossary/#replacement_character)
 ## will be used in place of any parts of keys or values that are invalid Unicode.
-dict : Task (Dict Str Str) *
-dict =
-    Effect.envDict
+list : Task (List (Str, Str)) *
+list =
+    Effect.envList
     |> Effect.map Ok
     |> InternalTask.fromEffect
 

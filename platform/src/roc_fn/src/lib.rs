@@ -23,7 +23,12 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "envVar",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<RocStr, ()>",
+        ret_type: "roc_std::RocResult<roc_std::RocStr, ()>",
+    },
+    HostedFn {
+        name: "envList",
+        arg_types: &[],
+        ret_type: "roc_std::RocList<(roc_std::RocStr, roc_std::RocStr)>",
     },
     HostedFn {
         name: "stdoutLine",
