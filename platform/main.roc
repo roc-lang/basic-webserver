@@ -11,7 +11,6 @@ platform "webserver"
         FileMetadata,
         Http,
         Stderr,
-        Stdin,
         Stdout,
         Task,
         Tcp,

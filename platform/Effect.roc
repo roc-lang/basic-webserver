@@ -19,8 +19,6 @@ hosted Effect
         stderrLine,
         stderrWrite,
         stderrFlush,
-        stdinLine,
-        stdinBytes,
         sendRequest,
         fileReadBytes,
         fileDelete,
@@ -51,8 +49,6 @@ stdoutLine : Str -> Effect (Result {} InternalError.InternalError)
 stdoutWrite : Str -> Effect {}
 stderrLine : Str -> Effect {}
 stderrWrite : Str -> Effect {}
-stdinLine : Effect Str
-stdinBytes : Effect (List U8)
 stdoutFlush : Effect (Result {} InternalError.InternalError) 
 stderrFlush : Effect (Result {} InternalError.InternalError)
 
