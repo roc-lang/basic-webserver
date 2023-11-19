@@ -17,8 +17,8 @@ main = \req ->
         # Log the date, time, method, and url to stdout
         {} <- logRequest req |> Task.await
 
-        # Read TARGET_URL environment variable
-        url <- readUrlEnv |> Task.await
+        # Read environment variable
+        url <- readUrlEnv "TARGET_URL" |> Task.await
 
         # Fetch the Roc website
         content <- fetchContent url |> Task.await
@@ -40,21 +40,15 @@ logRequest = \req ->
 
     Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url)"
 
-readUrlEnv : Task Str AppError
-readUrlEnv =
-    maybeDbPath <- Env.var "TARGET_URL" |> Task.attempt
-
-    when maybeDbPath is
-        Ok url -> Task.ok url
-        Err VarNotFound -> Task.err EnvURLNotFound
+readUrlEnv : Str -> Task Str AppError
+readUrlEnv = \target ->
+    Env.var target 
+    |> Task.mapErr \_ -> EnvURLNotFound
 
 fetchContent : Str -> Task Str AppError
 fetchContent = \url ->
-    result <- Http.getUtf8 url |> Task.attempt
-
-    when result is
-        Ok content -> Task.ok content
-        Err err -> Task.err (HttpError err)
+    Http.getUtf8 url 
+    |> Task.mapErr \err -> (HttpError err)
 
 handleErr : AppError -> Task Response []
 handleErr = \err ->
