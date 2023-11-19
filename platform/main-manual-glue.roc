@@ -6,6 +6,7 @@ platform "webserver"
         InternalCommand,
         InternalError,
         InternalTcp,
+        InternalFile,
     ]
     provides [mainForHost]
 
@@ -21,6 +22,8 @@ GlueTypes : [
     I InternalTcp.WriteResult,
     J InternalTcp.ReadResult,
     K InternalTcp.ReadExactlyResult,
+    L InternalFile.ReadErr, 
+    M InternalFile.WriteErr
 ]
 
 mainForHost : GlueTypes

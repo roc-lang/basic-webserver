@@ -459,3 +459,113 @@ fn sleep_millis(milliseconds: u64) {
     let duration = std::time::Duration::from_millis(milliseconds);
     std::thread::sleep(duration);
 }
+
+#[roc_fn(name = "fileWriteUtf8")]
+fn file_write_utf8(
+    roc_path: &RocList<u8>,
+    roc_str: &RocStr,
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    write_slice(roc_path, roc_str.as_str().as_bytes())
+}
+
+#[roc_fn(name = "fileWriteBytes")]
+fn file_write_bytes(
+    roc_path: &RocList<u8>,
+    roc_bytes: &RocList<u8>,
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    write_slice(roc_path, roc_bytes.as_slice())
+}
+
+fn write_slice(roc_path: &roc_std::RocList<u8>, bytes: &[u8]) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    match std::fs::File::create(path_from_roc_path(roc_path)) {
+        Ok(mut file) => match file.write_all(bytes) {
+            Ok(()) => RocResult::ok(()),
+            Err(err) => RocResult::err(to_roc_write_error(err)),
+        },
+        Err(err) => RocResult::err(to_roc_write_error(err)),
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
+    use std::os::unix::ffi::OsStrExt;
+    let os_str = std::ffi::OsStr::from_bytes(bytes.as_slice());
+    std::borrow::Cow::Borrowed(std::path::Path::new(os_str))
+}
+
+#[cfg(target_family = "windows")]
+fn path_from_roc_path(bytes: &RocList<u8>) -> Cow<'_, Path> {
+    use std::os::windows::ffi::OsStringExt;
+
+    let bytes = bytes.as_slice();
+    assert_eq!(bytes.len() % 2, 0);
+    let characters: &[u16] =
+        unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast(), bytes.len() / 2) };
+
+    let os_string = std::ffi::OsString::from_wide(characters);
+
+    Cow::Owned(std::path::PathBuf::from(os_string))
+}
+
+
+fn to_roc_write_error(err: std::io::Error) -> glue_manual::WriteErr {
+    match err.kind() {
+        ErrorKind::NotFound => glue_manual::WriteErr::NotFound(),
+        ErrorKind::AlreadyExists => glue_manual::WriteErr::AlreadyExists(),
+        ErrorKind::Interrupted => glue_manual::WriteErr::Interrupted(),
+        ErrorKind::OutOfMemory => glue_manual::WriteErr::OutOfMemory(),
+        ErrorKind::PermissionDenied => glue_manual::WriteErr::PermissionDenied(),
+        ErrorKind::TimedOut => glue_manual::WriteErr::TimedOut(),
+        // TODO investigate support the following IO errors may need to update API
+        ErrorKind::WriteZero => glue_manual::WriteErr::WriteZero(),
+        // TODO investigate support the following IO errors
+        // std::io::ErrorKind::FileTooLarge <- unstable language feature
+        // std::io::ErrorKind::ExecutableFileBusy <- unstable language feature
+        // std::io::ErrorKind::FilesystemQuotaExceeded <- unstable language feature
+        // std::io::ErrorKind::InvalidFilename <- unstable language feature
+        // std::io::ErrorKind::ResourceBusy <- unstable language feature
+        // std::io::ErrorKind::ReadOnlyFilesystem <- unstable language feature
+        // std::io::ErrorKind::TooManyLinks <- unstable language feature
+        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
+        // std::io::ErrorKind::StorageFull <- unstable language feature
+        _ => glue_manual::WriteErr::Unsupported(),
+    }
+}
+
+#[roc_fn(name = "fileDelete")]
+fn file_delete(roc_path: &RocList<u8>) -> roc_std::RocResult<(), glue_manual::ReadErr> {
+    match std::fs::remove_file(path_from_roc_path(roc_path)) {
+        Ok(()) => RocResult::ok(()),
+        Err(err) => RocResult::err(to_roc_read_error(err)),
+    }
+}
+
+#[roc_fn(name = "fileReadBytes")]
+fn file_read_bytes(roc_path: &RocList<u8>) -> roc_std::RocResult<roc_std::RocList<u8>, glue_manual::ReadErr> {
+    let mut bytes = Vec::new();
+
+    match std::fs::File::open(path_from_roc_path(roc_path)) {
+        Ok(mut file) => match file.read_to_end(&mut bytes) {
+            Ok(_bytes_read) => RocResult::ok(RocList::from(bytes.as_slice())),
+            Err(err) => RocResult::err(to_roc_read_error(err)),
+        },
+        Err(err) => RocResult::err(to_roc_read_error(err)),
+    }
+}
+
+fn to_roc_read_error(err: std::io::Error) -> glue_manual::ReadErr {
+    match err.kind() {
+        ErrorKind::Interrupted => glue_manual::ReadErr::Interrupted(),
+        ErrorKind::NotFound => glue_manual::ReadErr::NotFound(),
+        ErrorKind::OutOfMemory => glue_manual::ReadErr::OutOfMemory(),
+        ErrorKind::PermissionDenied => glue_manual::ReadErr::PermissionDenied(),
+        ErrorKind::TimedOut => glue_manual::ReadErr::TimedOut(),
+        // TODO investigate support the following IO errors may need to update API
+        // std::io::ErrorKind:: => glue_manual::ReadErr::TooManyHardlinks,
+        // std::io::ErrorKind:: => glue_manual::ReadErr::TooManySymlinks,
+        // std::io::ErrorKind:: => glue_manual::ReadErr::Unrecognized,
+        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
+        // std::io::ErrorKind::InvalidFilename <- unstable language feature
+        _ => glue_manual::ReadErr::Unsupported(),
+    }
+}
