@@ -58,7 +58,7 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "stdoutFlush",
         arg_types: &[],
-        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+        ret_type: "()",
     },
     HostedFn {
         name: "stderrLine",
@@ -73,7 +73,7 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "stderrFlush",
         arg_types: &[],
-        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+        ret_type: "()",
     },
     HostedFn {
         name: "commandOutput",

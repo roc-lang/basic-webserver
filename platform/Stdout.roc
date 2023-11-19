@@ -1,6 +1,6 @@
 interface Stdout
     exposes [line, write, flush]
-    imports [Effect, Task.{ Task }, InternalTask, InternalError]
+    imports [Effect, Task.{ Task }, InternalTask]
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)),
 ## followed by a newline.
@@ -30,5 +30,5 @@ write = \str ->
 ##
 ## This may fail if the buffered output could not be written due to I/O 
 ## errors or EOF being reached.
-flush : Task {} InternalError.InternalError
-flush = Effect.stdoutFlush |> InternalTask.fromEffect
+flush : Task {} *
+flush = Effect.stdoutFlush |> Effect.map (\_ -> Ok {}) |> InternalTask.fromEffect

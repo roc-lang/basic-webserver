@@ -1,6 +1,6 @@
 interface Stderr
     exposes [line, write, flush]
-    imports [Effect, Task.{ Task }, InternalTask, InternalError]
+    imports [Effect, Task.{ Task }, InternalTask]
 
 ## Write the given string to [standard error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)),
 ## followed by a newline.
@@ -30,5 +30,5 @@ write = \str ->
 ##
 ## This may fail if the buffered output could not be written due to I/O 
 ## errors or EOF being reached.
-flush : Task {} InternalError.InternalError
-flush = Effect.stdoutFlush |> InternalTask.fromEffect
+flush : Task {} *
+flush = Effect.stderrFlush |> Effect.map (\_ -> Ok {}) |> InternalTask.fromEffect

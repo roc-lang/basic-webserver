@@ -44,14 +44,14 @@ hosted Effect
     generates Effect with [after, map, always, forever, loop]
 
 # Stdout
-stdoutLine : Str -> Effect (Result {} InternalError.InternalError) 
+stdoutLine : Str -> Effect {}
 stdoutWrite : Str -> Effect {}
-stdoutFlush : Effect (Result {} InternalError.InternalError) 
+stdoutFlush : Effect {}
 
 # Stderr
 stderrLine : Str -> Effect {}
 stderrWrite : Str -> Effect {}
-stderrFlush : Effect (Result {} InternalError.InternalError)
+stderrFlush : Effect {}
 
 # File 
 fileWriteBytes : List U8, List U8 -> Effect (Result {} InternalFile.WriteErr)
