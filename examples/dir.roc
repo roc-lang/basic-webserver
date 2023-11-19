@@ -2,6 +2,7 @@ app "dir"
     packages { pf: "../platform/main.roc" }
     imports [
         pf.Stdout,
+        pf.Stderr,
         pf.Dir,
         pf.Path,
         pf.Task.{ Task },
@@ -12,10 +13,8 @@ app "dir"
 main : Request -> Task Response []
 main = \_ ->
 
-    cwd = Path.fromStr "./"
-
-    # List contents of current directory
-    result <- Dir.list cwd |> Task.attempt
+    # List contents of examples directory
+    result <- Dir.list (Path.fromStr "examples") |> Task.attempt
 
     task = when result is 
         Ok paths ->  
@@ -24,9 +23,9 @@ main = \_ ->
             |> Str.joinWith ","
             |> Stdout.line 
                 
-        Err _ -> Stdout.line "Failed to list directory"
+        Err (DirReadErr path err) -> 
+            Stderr.line "Error reading directory \(Path.display path) with \(err)"
 
     {} <- task |> Task.await
 
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request\n" }
-

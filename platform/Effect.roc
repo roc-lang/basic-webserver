@@ -66,8 +66,8 @@ dirList : List U8 -> Effect (Result (List (List U8)) InternalError.InternalDirRe
 # Env
 envList : Effect (List (Str, Str))
 envVar : Str -> Effect (Result Str {})
-
 exePath : Effect (Result (List U8) {})
+
 setCwd : List U8 -> Effect (Result {} {})
 
 # If we encounter a Unicode error in any of the args, it will be replaced with

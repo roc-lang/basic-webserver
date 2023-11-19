@@ -31,6 +31,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocList<(roc_std::RocStr, roc_std::RocStr)>",
     },
     HostedFn {
+        name: "exePath",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<roc_std::RocList<u8>, ()>",
+    },
+    HostedFn {
         name: "stdoutLine",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "()",

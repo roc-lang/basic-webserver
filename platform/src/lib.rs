@@ -223,6 +223,14 @@ fn env_dict() -> RocList<(RocStr, RocStr)> {
     RocList::from_slice(entries.as_slice())
 }
 
+#[roc_fn(name = "exePath")]
+fn exe_path() -> RocResult<RocList<u8>, ()> {
+    match std::env::current_exe() {
+        Ok(path_buf) => RocResult::ok(os_str_to_roc_path(path_buf.as_path().as_os_str())),
+        Err(_) => RocResult::err(()),
+    }
+}
+
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
