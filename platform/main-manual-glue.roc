@@ -1,17 +1,19 @@
 platform "webserver"
-    requires {} { main : CommandTypes }
+    requires {} { main : GlueTypes }
     exposes []
     packages {}
     imports [
         InternalCommand,
+        InternalError,
     ]
     provides [mainForHost]
 
-CommandTypes : [
+GlueTypes : [
     A InternalCommand.InternalCommand,
     B InternalCommand.InternalOutput,
     C InternalCommand.InternalCommandErr,
+    D InternalError.InternalError,
 ]
 
-mainForHost : CommandTypes
+mainForHost : GlueTypes
 mainForHost = main

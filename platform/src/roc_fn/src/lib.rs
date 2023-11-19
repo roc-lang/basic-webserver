@@ -36,6 +36,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "()",
     },
     HostedFn {
+        name: "stdoutFlush",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+    },
+    HostedFn {
         name: "stderrLine",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "()",
@@ -46,9 +51,14 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "()",
     },
     HostedFn {
+        name: "stderrFlush",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+    },
+    HostedFn {
         name: "commandOutput",
-        arg_types: &["&command_glue::InternalCommand"],
-        ret_type: "command_glue::InternalOutput",
+        arg_types: &["&glue_manual::InternalCommand"],
+        ret_type: "glue_manual::InternalOutput",
     },
     HostedFn {
         name: "posixTime",

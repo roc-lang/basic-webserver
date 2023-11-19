@@ -87,13 +87,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "command_glue"
-version = "1.0.0"
-dependencies = [
- "roc_std",
-]
-
-[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -240,6 +233,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fb8d784f27acf97159b40fc4db5ecd8aa23b9ad5ef69cdd136d3bc80665f0c0"
 
 [[package]]
+name = "glue_manual"
+version = "1.0.0"
+dependencies = [
+ "roc_std",
+]
+
+[[package]]
 name = "h2"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -276,8 +276,8 @@ version = "0.0.1"
 dependencies = [
  "backtrace",
  "bytes",
- "command_glue",
  "futures",
+ "glue_manual",
  "hyper",
  "libc",
  "reqwest",

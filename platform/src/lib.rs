@@ -216,7 +216,16 @@ fn stdout_line(roc_str: &RocStr) {
 fn stdout_write(roc_str: &RocStr) {
     let string = roc_str.as_str();
     print!("{}", string);
-    std::io::stdout().flush().unwrap();
+}
+
+#[roc_fn(name = "stdoutFlush")]
+fn stdout_flush() -> RocResult<(), glue_manual::InternalError> {
+    match std::io::stdout().flush() {
+        Ok(_) => RocResult::ok(()),
+        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
+            err.to_string().as_str(),
+        ))),
+    }
 }
 
 #[roc_fn(name = "stderrLine")]
@@ -229,7 +238,16 @@ fn stderr_line(roc_str: &RocStr) {
 fn stderr_write(roc_str: &RocStr) {
     let string = roc_str.as_str();
     eprint!("{}", string);
-    std::io::stderr().flush().unwrap();
+}
+
+#[roc_fn(name = "stderrFlush")]
+fn stderr_flush() -> RocResult<(), glue_manual::InternalError> {
+    match std::io::stderr().flush() {
+        Ok(_) => RocResult::ok(()),
+        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
+            err.to_string().as_str(),
+        ))),
+    }
 }
 
 #[roc_fn(name = "posixTime")]
@@ -243,7 +261,7 @@ fn posix_time() -> roc_std::U128 {
 }
 
 #[roc_fn(name = "commandOutput")]
-fn command_output(roc_cmd: &command_glue::InternalCommand) -> command_glue::InternalOutput {
+fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::InternalOutput {
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;
@@ -281,25 +299,25 @@ fn command_output(roc_cmd: &command_glue::InternalCommand) -> command_glue::Inte
             } else {
                 match output.status.code() {
                     Some(code) => {
-                        let error = command_glue::InternalCommandErr::ExitCode(code);
+                        let error = glue_manual::InternalCommandErr::ExitCode(code);
                         RocResult::err(error)
                     }
                     None => {
                         // If no exit code is returned, the process was terminated by a signal.
-                        let error = command_glue::InternalCommandErr::KilledBySignal();
+                        let error = glue_manual::InternalCommandErr::KilledBySignal();
                         RocResult::err(error)
                     }
                 }
             };
 
-            command_glue::InternalOutput {
+            glue_manual::InternalOutput {
                 status: status,
                 stdout: roc_std::RocList::from(&output.stdout[..]),
                 stderr: roc_std::RocList::from(&output.stderr[..]),
             }
         }
-        Err(err) => command_glue::InternalOutput {
-            status: RocResult::err(command_glue::InternalCommandErr::IOError(RocStr::from(
+        Err(err) => glue_manual::InternalOutput {
+            status: RocResult::err(glue_manual::InternalCommandErr::IOError(RocStr::from(
                 err.to_string().as_str(),
             ))),
             stdout: roc_std::RocList::empty(),

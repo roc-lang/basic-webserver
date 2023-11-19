@@ -65,11 +65,12 @@ handleErr = \err ->
     # Build error message
     message =
         when err is
-            EnvURLNotFound -> "TARGET_URL environment variable not set\n"
-            HttpError _ -> "Http error fetching content\n"
+            EnvURLNotFound -> "TARGET_URL environment variable not set"
+            HttpError _ -> "Http error fetching content"
 
     # Log error to stderr
-    {} <- Stderr.line message |> Task.await
+    {} <- Stderr.line "Internal Server Error: \(message)" |> Task.await
+    _ <- Stderr.flush |> Task.attempt
 
     # Respond with Http 500 Error
     Task.ok {

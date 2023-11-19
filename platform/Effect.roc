@@ -15,8 +15,10 @@ hosted Effect
         exePath,
         stdoutLine,
         stdoutWrite,
+        stdoutFlush,
         stderrLine,
         stderrWrite,
+        stderrFlush,
         stdinLine,
         stdinBytes,
         sendRequest,
@@ -41,15 +43,18 @@ hosted Effect
         InternalDir,
         InternalTcp,
         InternalCommand,
+        InternalError,
     ]
     generates Effect with [after, map, always, forever, loop]
 
-stdoutLine : Str -> Effect {}
+stdoutLine : Str -> Effect (Result {} InternalError.InternalError) 
 stdoutWrite : Str -> Effect {}
 stderrLine : Str -> Effect {}
 stderrWrite : Str -> Effect {}
 stdinLine : Effect Str
 stdinBytes : Effect (List U8)
+stdoutFlush : Effect (Result {} InternalError.InternalError) 
+stderrFlush : Effect (Result {} InternalError.InternalError)
 
 fileWriteBytes : List U8, List U8 -> Effect (Result {} InternalFile.WriteErr)
 fileWriteUtf8 : List U8, Str -> Effect (Result {} InternalFile.WriteErr)
