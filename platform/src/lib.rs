@@ -2,6 +2,7 @@ use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+use std::iter::FromIterator;
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -494,7 +495,7 @@ fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Pa
 }
 
 #[cfg(target_family = "windows")]
-fn path_from_roc_path(bytes: &RocList<u8>) -> Cow<'_, Path> {
+fn path_from_roc_path(bytes: &roc_std::RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
     use std::os::windows::ffi::OsStringExt;
 
     let bytes = bytes.as_slice();
@@ -504,7 +505,7 @@ fn path_from_roc_path(bytes: &RocList<u8>) -> Cow<'_, Path> {
 
     let os_string = std::ffi::OsString::from_wide(characters);
 
-    Cow::Owned(std::path::PathBuf::from(os_string))
+    std::borrow::Cow::Owned(std::path::PathBuf::from(os_string))
 }
 
 
@@ -568,4 +569,59 @@ fn to_roc_read_error(err: std::io::Error) -> glue_manual::ReadErr {
         // std::io::ErrorKind::InvalidFilename <- unstable language feature
         _ => glue_manual::ReadErr::Unsupported(),
     }
+}
+
+#[roc_fn(name = "dirList")]
+fn dir_list(roc_path: &RocList<u8>) -> roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, glue_manual::InternalDirReadErr> {
+
+    let path = path_from_roc_path(roc_path);
+    let current_path = glue_manual::UnwrappedPath::ArbitraryBytes(roc_path.clone());
+
+    if path.is_dir() {
+
+        let dir = match std::fs::read_dir(path) {
+            Ok(dir) => dir,
+            Err(err) => return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
+                current_path,
+                roc_std::RocStr::from(err.to_string().as_str())
+            )),
+        };
+
+        let mut entries = Vec::new();
+
+        for entry in dir {
+            match entry {
+                Ok(entry) => {
+                    let path = entry.path(); 
+                    let str = path.as_os_str();
+                    entries.push(os_str_to_roc_path(str));
+                },
+                Err(_) => {} // TODO should we ignore errors reading directory??
+            }
+        }
+
+        return roc_std::RocResult::ok(roc_std::RocList::from_iter(entries));
+
+    } else {
+        return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
+            current_path,
+            roc_std::RocStr::from("Path is not a directory")
+        ));
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> roc_std::RocList<u8> {
+    use std::os::unix::ffi::OsStrExt;
+
+    roc_std::RocList::from(os_str.as_bytes())
+}
+
+#[cfg(target_family = "windows")]
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> roc_std::RocList<u8> {
+    use std::os::windows::ffi::OsStrExt;
+
+    let bytes: Vec<_> = os_str.encode_wide().flat_map(|c| c.to_be_bytes()).collect();
+
+    roc_std::RocList::from(bytes.as_slice())
 }

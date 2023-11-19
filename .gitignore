@@ -13,3 +13,4 @@ examples/http
 examples/echo
 examples/sleep
 examples/file
+examples/dir

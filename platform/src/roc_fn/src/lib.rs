@@ -123,6 +123,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["&roc_std::RocList<u8>"],
         ret_type: "roc_std::RocResult<roc_std::RocList<u8>, glue_manual::ReadErr>",
     },
+    HostedFn {
+        name: "dirList",
+        arg_types: &["&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, glue_manual::InternalDirReadErr>",
+    },
     ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

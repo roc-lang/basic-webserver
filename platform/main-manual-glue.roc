@@ -7,6 +7,7 @@ platform "webserver"
         InternalError,
         InternalTcp,
         InternalFile,
+        InternalPath,
     ]
     provides [mainForHost]
 
@@ -23,7 +24,10 @@ GlueTypes : [
     J InternalTcp.ReadResult,
     K InternalTcp.ReadExactlyResult,
     L InternalFile.ReadErr, 
-    M InternalFile.WriteErr
+    M InternalFile.WriteErr,
+    N InternalError.InternalDirReadErr,
+    O InternalError.InternalDirDeleteErr,
+    P InternalPath.UnwrappedPath,
 ]
 
 mainForHost : GlueTypes

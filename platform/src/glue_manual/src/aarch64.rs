@@ -3153,6 +3153,322 @@ impl Drop for WriteErr {
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
 #[repr(u8)]
+pub enum discriminant_UnwrappedPath {
+    ArbitraryBytes = 0,
+    FromOperatingSystem = 1,
+    FromStr = 2,
+}
+
+impl core::fmt::Debug for discriminant_UnwrappedPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ArbitraryBytes => f.write_str("discriminant_UnwrappedPath::ArbitraryBytes"),
+            Self::FromOperatingSystem => f.write_str("discriminant_UnwrappedPath::FromOperatingSystem"),
+            Self::FromStr => f.write_str("discriminant_UnwrappedPath::FromStr"),
+        }
+    }
+}
+
+#[repr(C, align(8))]
+pub union union_UnwrappedPath {
+    ArbitraryBytes: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    FromOperatingSystem: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    FromStr: core::mem::ManuallyDrop<roc_std::RocStr>,
+}
+
+const _SIZE_CHECK_union_UnwrappedPath: () = assert!(core::mem::size_of::<union_UnwrappedPath>() == 24);
+const _ALIGN_CHECK_union_UnwrappedPath: () = assert!(core::mem::align_of::<union_UnwrappedPath>() == 8);
+
+const _SIZE_CHECK_UnwrappedPath: () = assert!(core::mem::size_of::<UnwrappedPath>() == 32);
+const _ALIGN_CHECK_UnwrappedPath: () = assert!(core::mem::align_of::<UnwrappedPath>() == 8);
+
+impl UnwrappedPath {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_UnwrappedPath {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_UnwrappedPath>(*bytes.as_ptr().add(24))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_UnwrappedPath) {
+        let discriminant_ptr: *mut discriminant_UnwrappedPath = (self as *mut UnwrappedPath).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(24)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct UnwrappedPath {
+    payload: union_UnwrappedPath,
+    discriminant: discriminant_UnwrappedPath,
+}
+
+impl Clone for UnwrappedPath {
+    fn clone(&self) -> Self {
+        use discriminant_UnwrappedPath::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                ArbitraryBytes => union_UnwrappedPath {
+                    ArbitraryBytes: self.payload.ArbitraryBytes.clone(),
+                },
+                FromOperatingSystem => union_UnwrappedPath {
+                    FromOperatingSystem: self.payload.FromOperatingSystem.clone(),
+                },
+                FromStr => union_UnwrappedPath {
+                    FromStr: self.payload.FromStr.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for UnwrappedPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_UnwrappedPath::*;
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => {
+                    let field: &roc_std::RocList<u8> = &self.payload.ArbitraryBytes;
+                    f.debug_tuple("UnwrappedPath::ArbitraryBytes").field(field).finish()
+                },
+                FromOperatingSystem => {
+                    let field: &roc_std::RocList<u8> = &self.payload.FromOperatingSystem;
+                    f.debug_tuple("UnwrappedPath::FromOperatingSystem").field(field).finish()
+                },
+                FromStr => {
+                    let field: &roc_std::RocStr = &self.payload.FromStr;
+                    f.debug_tuple("UnwrappedPath::FromStr").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for UnwrappedPath {}
+
+impl PartialEq for UnwrappedPath {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_UnwrappedPath::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => self.payload.ArbitraryBytes == other.payload.ArbitraryBytes,
+                FromOperatingSystem => self.payload.FromOperatingSystem == other.payload.FromOperatingSystem,
+                FromStr => self.payload.FromStr == other.payload.FromStr,
+            }
+        }
+    }
+}
+
+impl Ord for UnwrappedPath {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for UnwrappedPath {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_UnwrappedPath::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    ArbitraryBytes => self.payload.ArbitraryBytes.partial_cmp(&other.payload.ArbitraryBytes),
+                    FromOperatingSystem => self.payload.FromOperatingSystem.partial_cmp(&other.payload.FromOperatingSystem),
+                    FromStr => self.payload.FromStr.partial_cmp(&other.payload.FromStr),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for UnwrappedPath {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_UnwrappedPath::*;
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => self.payload.ArbitraryBytes.hash(state),
+                FromOperatingSystem => self.payload.FromOperatingSystem.hash(state),
+                FromStr => self.payload.FromStr.hash(state),
+            }
+        }
+    }
+}
+
+impl UnwrappedPath {
+
+    pub fn unwrap_ArbitraryBytes(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ArbitraryBytes) }
+    }
+
+    pub fn is_ArbitraryBytes(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes)
+    }
+
+    pub fn unwrap_FromOperatingSystem(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromOperatingSystem) }
+    }
+
+    pub fn is_FromOperatingSystem(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem)
+    }
+
+    pub fn unwrap_FromStr(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromStr) }
+    }
+
+    pub fn is_FromStr(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::FromStr)
+    }
+}
+
+
+
+impl UnwrappedPath {
+
+    pub fn ArbitraryBytes(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::ArbitraryBytes,
+            payload: union_UnwrappedPath {
+                ArbitraryBytes: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn FromOperatingSystem(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::FromOperatingSystem,
+            payload: union_UnwrappedPath {
+                FromOperatingSystem: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn FromStr(payload: roc_std::RocStr) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::FromStr,
+            payload: union_UnwrappedPath {
+                FromStr: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for UnwrappedPath {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_UnwrappedPath::ArbitraryBytes => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.ArbitraryBytes) },
+            discriminant_UnwrappedPath::FromOperatingSystem => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.FromOperatingSystem) },
+            discriminant_UnwrappedPath::FromStr => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.FromStr) },
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(C)]
+pub struct InternalDirReadErr {
+     f0: UnwrappedPath,
+     f1: roc_std::RocStr,
+}
+
+impl InternalDirReadErr {
+    /// A tag named ``DirReadErr``, with the given payload.
+    pub fn DirReadErr(f0: UnwrappedPath, f1: roc_std::RocStr) -> Self {
+        Self {
+            f0,
+            f1
+        }
+    }
+
+    /// Since `InternalDirReadErr` only has one tag (namely, `DirReadErr`),
+    /// convert it to `DirReadErr`'s payload.
+    pub fn into_DirReadErr(self) -> (UnwrappedPath, roc_std::RocStr) {
+        (self.f0, self.f1)
+    }
+
+    /// Since `InternalDirReadErr` only has one tag (namely, `DirReadErr`),
+    /// convert it to `DirReadErr`'s payload.
+    pub fn as_DirReadErr(&self) -> (&UnwrappedPath, &roc_std::RocStr) {
+        (&self.f0, &self.f1)
+    }
+}
+
+
+impl core::fmt::Debug for InternalDirReadErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("InternalDirReadErr::DirReadErr")
+                .field(&self.f0)
+                .field(&self.f1)
+                .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(C)]
+pub struct InternalDirDeleteErr {
+     f0: UnwrappedPath,
+     f1: roc_std::RocStr,
+}
+
+impl InternalDirDeleteErr {
+    /// A tag named ``DirDeleteErr``, with the given payload.
+    pub fn DirDeleteErr(f0: UnwrappedPath, f1: roc_std::RocStr) -> Self {
+        Self {
+            f0,
+            f1
+        }
+    }
+
+    /// Since `InternalDirDeleteErr` only has one tag (namely, `DirDeleteErr`),
+    /// convert it to `DirDeleteErr`'s payload.
+    pub fn into_DirDeleteErr(self) -> (UnwrappedPath, roc_std::RocStr) {
+        (self.f0, self.f1)
+    }
+
+    /// Since `InternalDirDeleteErr` only has one tag (namely, `DirDeleteErr`),
+    /// convert it to `DirDeleteErr`'s payload.
+    pub fn as_DirDeleteErr(&self) -> (&UnwrappedPath, &roc_std::RocStr) {
+        (&self.f0, &self.f1)
+    }
+}
+
+
+impl core::fmt::Debug for InternalDirDeleteErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("InternalDirDeleteErr::DirDeleteErr")
+                .field(&self.f0)
+                .field(&self.f1)
+                .finish()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
 pub enum discriminant_GlueTypes {
     A = 0,
     B = 1,
@@ -3167,6 +3483,9 @@ pub enum discriminant_GlueTypes {
     K = 10,
     L = 11,
     M = 12,
+    N = 13,
+    O = 14,
+    P = 15,
 }
 
 impl core::fmt::Debug for discriminant_GlueTypes {
@@ -3185,6 +3504,9 @@ impl core::fmt::Debug for discriminant_GlueTypes {
             Self::K => f.write_str("discriminant_GlueTypes::K"),
             Self::L => f.write_str("discriminant_GlueTypes::L"),
             Self::M => f.write_str("discriminant_GlueTypes::M"),
+            Self::N => f.write_str("discriminant_GlueTypes::N"),
+            Self::O => f.write_str("discriminant_GlueTypes::O"),
+            Self::P => f.write_str("discriminant_GlueTypes::P"),
         }
     }
 }
@@ -3204,6 +3526,9 @@ pub union union_GlueTypes {
     K: core::mem::ManuallyDrop<ReadExactlyResult>,
     L: core::mem::ManuallyDrop<ReadErr>,
     M: core::mem::ManuallyDrop<WriteErr>,
+    N: core::mem::ManuallyDrop<InternalDirReadErr>,
+    O: core::mem::ManuallyDrop<InternalDirDeleteErr>,
+    P: core::mem::ManuallyDrop<UnwrappedPath>,
 }
 
 const _SIZE_CHECK_union_GlueTypes: () = assert!(core::mem::size_of::<union_GlueTypes>() == 88);
@@ -3283,6 +3608,15 @@ impl Clone for GlueTypes {
                 M => union_GlueTypes {
                     M: self.payload.M.clone(),
                 },
+                N => union_GlueTypes {
+                    N: self.payload.N.clone(),
+                },
+                O => union_GlueTypes {
+                    O: self.payload.O.clone(),
+                },
+                P => union_GlueTypes {
+                    P: self.payload.P.clone(),
+                },
             }
         };
 
@@ -3351,6 +3685,18 @@ impl core::fmt::Debug for GlueTypes {
                     let field: &WriteErr = &self.payload.M;
                     f.debug_tuple("GlueTypes::M").field(field).finish()
                 },
+                N => {
+                    let field: &InternalDirReadErr = &self.payload.N;
+                    f.debug_tuple("GlueTypes::N").field(field).finish()
+                },
+                O => {
+                    let field: &InternalDirDeleteErr = &self.payload.O;
+                    f.debug_tuple("GlueTypes::O").field(field).finish()
+                },
+                P => {
+                    let field: &UnwrappedPath = &self.payload.P;
+                    f.debug_tuple("GlueTypes::P").field(field).finish()
+                },
             }
         }
     }
@@ -3381,6 +3727,9 @@ impl PartialEq for GlueTypes {
                 K => self.payload.K == other.payload.K,
                 L => self.payload.L == other.payload.L,
                 M => self.payload.M == other.payload.M,
+                N => self.payload.N == other.payload.N,
+                O => self.payload.O == other.payload.O,
+                P => self.payload.P == other.payload.P,
             }
         }
     }
@@ -3416,6 +3765,9 @@ impl PartialOrd for GlueTypes {
                     K => self.payload.K.partial_cmp(&other.payload.K),
                     L => self.payload.L.partial_cmp(&other.payload.L),
                     M => self.payload.M.partial_cmp(&other.payload.M),
+                    N => self.payload.N.partial_cmp(&other.payload.N),
+                    O => self.payload.O.partial_cmp(&other.payload.O),
+                    P => self.payload.P.partial_cmp(&other.payload.P),
                 }
             },
         }
@@ -3441,6 +3793,9 @@ impl core::hash::Hash for GlueTypes {
                 K => self.payload.K.hash(state),
                 L => self.payload.L.hash(state),
                 M => self.payload.M.hash(state),
+                N => self.payload.N.hash(state),
+                O => self.payload.O.hash(state),
+                P => self.payload.P.hash(state),
             }
         }
     }
@@ -3564,6 +3919,33 @@ impl GlueTypes {
     pub fn is_M(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::M)
     }
+
+    pub fn unwrap_N(mut self) -> InternalDirReadErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::N);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.N) }
+    }
+
+    pub fn is_N(&self) -> bool {
+        matches!(self.discriminant, discriminant_GlueTypes::N)
+    }
+
+    pub fn unwrap_O(mut self) -> InternalDirDeleteErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::O);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.O) }
+    }
+
+    pub fn is_O(&self) -> bool {
+        matches!(self.discriminant, discriminant_GlueTypes::O)
+    }
+
+    pub fn unwrap_P(mut self) -> UnwrappedPath {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::P);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.P) }
+    }
+
+    pub fn is_P(&self) -> bool {
+        matches!(self.discriminant, discriminant_GlueTypes::P)
+    }
 }
 
 
@@ -3686,6 +4068,33 @@ impl GlueTypes {
             }
         }
     }
+
+    pub fn N(payload: InternalDirReadErr) -> Self {
+        Self {
+            discriminant: discriminant_GlueTypes::N,
+            payload: union_GlueTypes {
+                N: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn O(payload: InternalDirDeleteErr) -> Self {
+        Self {
+            discriminant: discriminant_GlueTypes::O,
+            payload: union_GlueTypes {
+                O: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn P(payload: UnwrappedPath) -> Self {
+        Self {
+            discriminant: discriminant_GlueTypes::P,
+            payload: union_GlueTypes {
+                P: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
 }
 
 impl Drop for GlueTypes {
@@ -3705,6 +4114,9 @@ impl Drop for GlueTypes {
             discriminant_GlueTypes::K => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.K) },
             discriminant_GlueTypes::L => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.L) },
             discriminant_GlueTypes::M => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.M) },
+            discriminant_GlueTypes::N => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.N) },
+            discriminant_GlueTypes::O => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.O) },
+            discriminant_GlueTypes::P => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.P) },
         }
     }
 }
