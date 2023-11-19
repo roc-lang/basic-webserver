@@ -231,6 +231,14 @@ fn exe_path() -> RocResult<RocList<u8>, ()> {
     }
 }
 
+#[roc_fn(name = "setCwd")]
+fn set_cwd(roc_path: &roc_std::RocList<u8>) -> RocResult<(), ()> {
+    match std::env::set_current_dir(path_from_roc_path(roc_path)) {
+        Ok(()) => RocResult::ok(()),
+        Err(_) => RocResult::err(()),
+    }
+}
+
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
