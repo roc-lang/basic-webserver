@@ -54,32 +54,32 @@ routeTodos = \maybeDbPath, req ->
 
 listTodos : Str -> Task Response []
 listTodos = \dbPath ->
-    result <-
+    output <-
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
         |> Command.arg "SELECT id, task, status FROM todos;"
         |> Command.output
-        |> Task.attempt
+        |> Task.await
 
-    when result is
-        Ok output -> jsonResponse output.stdout
-        Err (output, _) -> byteResponse 500 output.stderr
+    when output.status is
+        Ok {} -> jsonResponse output.stdout
+        Err _ -> byteResponse 500 output.stderr
 
 createTodo : Str, { task : Str, status : Str } -> Task Response []
 createTodo = \dbPath, { task, status } ->
-    result <-
+    output <-
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
         |> Command.arg "INSERT INTO todos (task, status) VALUES ('\(task)', '\(status)');"
         |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
         |> Command.output
-        |> Task.attempt
+        |> Task.await
 
-    when result is
-        Ok output -> jsonResponse output.stdout
-        Err (output, _) -> byteResponse 500 output.stderr
+    when output.status is
+        Ok {} -> jsonResponse output.stdout
+        Err _ -> byteResponse 500 output.stderr
 
 taskFromQuery : Str -> Result { task : Str, status : Str } [InvalidQuery]
 taskFromQuery = \url ->

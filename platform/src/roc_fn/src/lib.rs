@@ -81,6 +81,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "glue_manual::InternalOutput",
     },
     HostedFn {
+        name: "commandStatus",
+        arg_types: &["&glue_manual::InternalCommand"],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalCommandErr>",
+    },
+    HostedFn {
         name: "posixTime",
         arg_types: &[],
         ret_type: "roc_std::U128",

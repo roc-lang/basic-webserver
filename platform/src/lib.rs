@@ -367,6 +367,65 @@ fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::Intern
     }
 }
 
+#[roc_fn(name = "commandStatus")]
+fn command_status(roc_cmd: &glue_manual::InternalCommand) -> roc_std::RocResult<(), glue_manual::InternalCommandErr> {
+    use std::borrow::Borrow;
+    
+    let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
+    let num_envs = roc_cmd.envs.len() / 2;
+    let flat_envs = &roc_cmd.envs;
+
+    // Environment vairables must be passed in key=value pairs
+    assert_eq!(flat_envs.len() % 2, 0);
+
+    let mut envs = Vec::with_capacity(num_envs);
+    for chunk in flat_envs.chunks(2) {
+        let key = chunk[0].as_str();
+        let value = chunk[1].as_str();
+        envs.push((key, value));
+    }
+
+    // Create command
+    let mut cmd = std::process::Command::new(roc_cmd.program.as_str());
+
+    // Set arguments
+    cmd.args(args);
+
+    // Clear environment variables if cmd.clearEnvs set
+    // otherwise inherit environment variables if cmd.clearEnvs is not set
+    if roc_cmd.clearEnvs {
+        cmd.env_clear();
+    };
+
+    // Set environment variables
+    cmd.envs(envs);
+
+    match cmd.status() {
+        Ok(status) => {
+            if status.success() {
+                RocResult::ok(())
+            } else {
+                match status.code() {
+                    Some(code) => {
+                        let error = glue_manual::InternalCommandErr::ExitCode(code);
+                        RocResult::err(error)
+                    }
+                    None => {
+                        // If no exit code is returned, the process was terminated by a signal.
+                        let error = glue_manual::InternalCommandErr::KilledBySignal();
+                        RocResult::err(error)
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            let str = RocStr::from(err.to_string().borrow());
+            let error = glue_manual::InternalCommandErr::IOError(str);
+            RocResult::err(error)
+        }
+    }
+}
+
 #[roc_fn(name = "tcpConnect")]
 fn tcp_connect(host: &RocStr, port: u16) -> glue_manual::ConnectResult {
     match TcpStream::connect((host.as_str(), port)) {

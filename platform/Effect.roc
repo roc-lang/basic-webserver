@@ -72,6 +72,7 @@ cwd : Effect (List U8)
 # Http
 sendRequest : Box InternalHttp.InternalRequest -> Effect InternalHttp.InternalResponse
 
+# Tcp
 tcpConnect : Str, U16 -> Effect InternalTcp.ConnectResult
 tcpClose : InternalTcp.Stream -> Effect {}
 tcpReadUpTo : Nat, InternalTcp.Stream -> Effect InternalTcp.ReadResult
@@ -79,6 +80,7 @@ tcpReadExactly : Nat, InternalTcp.Stream -> Effect InternalTcp.ReadExactlyResult
 tcpReadUntil : U8, InternalTcp.Stream -> Effect InternalTcp.ReadResult
 tcpWrite : List U8, InternalTcp.Stream -> Effect InternalTcp.WriteResult
 
+# Utc
 posixTime : Effect U128
 sleepMillis : U64 -> Effect {}
 
