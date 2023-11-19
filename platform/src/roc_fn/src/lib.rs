@@ -36,6 +36,16 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "()",
     },
     HostedFn {
+        name: "stderrLine",
+        arg_types: &["&roc_std::RocStr"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "stderrWrite",
+        arg_types: &["&roc_std::RocStr"],
+        ret_type: "()",
+    },
+    HostedFn {
         name: "commandOutput",
         arg_types: &["&command_glue::InternalCommand"],
         ret_type: "command_glue::InternalOutput",
