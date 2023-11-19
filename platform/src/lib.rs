@@ -2,13 +2,13 @@ use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+use std::iter::FromIterator;
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod http_client;
 mod server;
-mod tcp_glue;
 
 #[no_mangle]
 pub extern "C" fn rust_main() -> i32 {
@@ -207,9 +207,88 @@ fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
     }
 }
 
+#[roc_fn(name = "envList")]
+fn env_dict() -> RocList<(RocStr, RocStr)> {
+    use std::borrow::Borrow;
+
+    let mut entries = Vec::new();
+
+    for (key, val) in std::env::vars_os() {
+        let key = RocStr::from(key.to_string_lossy().borrow());
+        let value = RocStr::from(val.to_string_lossy().borrow());
+
+        entries.push((key, value));
+    }
+
+    RocList::from_slice(entries.as_slice())
+}
+
+#[roc_fn(name = "exePath")]
+fn exe_path() -> RocResult<RocList<u8>, ()> {
+    match std::env::current_exe() {
+        Ok(path_buf) => RocResult::ok(os_str_to_roc_path(path_buf.as_path().as_os_str())),
+        Err(_) => RocResult::err(()),
+    }
+}
+
+#[roc_fn(name = "setCwd")]
+fn set_cwd(roc_path: &roc_std::RocList<u8>) -> RocResult<(), ()> {
+    match std::env::set_current_dir(path_from_roc_path(roc_path)) {
+        Ok(()) => RocResult::ok(()),
+        Err(_) => RocResult::err(()),
+    }
+}
+
+#[roc_fn(name = "cwd")]
+fn cwd() -> roc_std::RocList<u8> {
+    // TODO instead, call getcwd on UNIX and GetCurrentDirectory on Windows
+    match std::env::current_dir() {
+        Ok(path_buf) => os_str_to_roc_path(path_buf.into_os_string().as_os_str()),
+        Err(_) => RocList::empty() // Default to empty path 
+    }
+}
+
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
     print!("{}\n", roc_str.as_str());
+}
+
+#[roc_fn(name = "stdoutWrite")]
+fn stdout_write(roc_str: &RocStr) {
+    let string = roc_str.as_str();
+    print!("{}", string);
+}
+
+#[roc_fn(name = "stdoutFlush")]
+fn stdout_flush() -> RocResult<(), glue_manual::InternalError> {
+    match std::io::stdout().flush() {
+        Ok(_) => RocResult::ok(()),
+        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
+            err.to_string().as_str(),
+        ))),
+    }
+}
+
+#[roc_fn(name = "stderrLine")]
+fn stderr_line(roc_str: &RocStr) {
+    let string = roc_str.as_str();
+    eprintln!("{}", string);
+}
+
+#[roc_fn(name = "stderrWrite")]
+fn stderr_write(roc_str: &RocStr) {
+    let string = roc_str.as_str();
+    eprint!("{}", string);
+}
+
+#[roc_fn(name = "stderrFlush")]
+fn stderr_flush() -> RocResult<(), glue_manual::InternalError> {
+    match std::io::stderr().flush() {
+        Ok(_) => RocResult::ok(()),
+        Err(err) => RocResult::err(glue_manual::InternalError::IOError(RocStr::from(
+            err.to_string().as_str(),
+        ))),
+    }
 }
 
 #[roc_fn(name = "posixTime")]
@@ -223,7 +302,7 @@ fn posix_time() -> roc_std::U128 {
 }
 
 #[roc_fn(name = "commandOutput")]
-fn command_output(roc_cmd: &command_glue::InternalCommand) -> command_glue::InternalOutput {
+fn command_output(roc_cmd: &glue_manual::InternalCommand) -> glue_manual::InternalOutput {
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;
@@ -261,43 +340,102 @@ fn command_output(roc_cmd: &command_glue::InternalCommand) -> command_glue::Inte
             } else {
                 match output.status.code() {
                     Some(code) => {
-                        let error = command_glue::InternalCommandErr::ExitCode(code);
+                        let error = glue_manual::InternalCommandErr::ExitCode(code);
                         RocResult::err(error)
                     }
                     None => {
                         // If no exit code is returned, the process was terminated by a signal.
-                        let error = command_glue::InternalCommandErr::KilledBySignal();
+                        let error = glue_manual::InternalCommandErr::KilledBySignal();
                         RocResult::err(error)
                     }
                 }
             };
 
-            command_glue::InternalOutput {
+            glue_manual::InternalOutput {
                 status: status,
-                stdout: roc_std::RocList::from(&output.stdout[..]),
-                stderr: roc_std::RocList::from(&output.stderr[..]),
+                stdout: RocList::from(&output.stdout[..]),
+                stderr: RocList::from(&output.stderr[..]),
             }
         }
-        Err(err) => command_glue::InternalOutput {
-            status: RocResult::err(command_glue::InternalCommandErr::IOError(RocStr::from(
+        Err(err) => glue_manual::InternalOutput {
+            status: RocResult::err(glue_manual::InternalCommandErr::IOError(RocStr::from(
                 err.to_string().as_str(),
             ))),
-            stdout: roc_std::RocList::empty(),
-            stderr: roc_std::RocList::empty(),
+            stdout: RocList::empty(),
+            stderr: RocList::empty(),
         },
     }
 }
 
+#[roc_fn(name = "commandStatus")]
+fn command_status(roc_cmd: &glue_manual::InternalCommand) -> roc_std::RocResult<(), glue_manual::InternalCommandErr> {
+    use std::borrow::Borrow;
+    
+    let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
+    let num_envs = roc_cmd.envs.len() / 2;
+    let flat_envs = &roc_cmd.envs;
+
+    // Environment vairables must be passed in key=value pairs
+    assert_eq!(flat_envs.len() % 2, 0);
+
+    let mut envs = Vec::with_capacity(num_envs);
+    for chunk in flat_envs.chunks(2) {
+        let key = chunk[0].as_str();
+        let value = chunk[1].as_str();
+        envs.push((key, value));
+    }
+
+    // Create command
+    let mut cmd = std::process::Command::new(roc_cmd.program.as_str());
+
+    // Set arguments
+    cmd.args(args);
+
+    // Clear environment variables if cmd.clearEnvs set
+    // otherwise inherit environment variables if cmd.clearEnvs is not set
+    if roc_cmd.clearEnvs {
+        cmd.env_clear();
+    };
+
+    // Set environment variables
+    cmd.envs(envs);
+
+    match cmd.status() {
+        Ok(status) => {
+            if status.success() {
+                RocResult::ok(())
+            } else {
+                match status.code() {
+                    Some(code) => {
+                        let error = glue_manual::InternalCommandErr::ExitCode(code);
+                        RocResult::err(error)
+                    }
+                    None => {
+                        // If no exit code is returned, the process was terminated by a signal.
+                        let error = glue_manual::InternalCommandErr::KilledBySignal();
+                        RocResult::err(error)
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            let str = RocStr::from(err.to_string().borrow());
+            let error = glue_manual::InternalCommandErr::IOError(str);
+            RocResult::err(error)
+        }
+    }
+}
+
 #[roc_fn(name = "tcpConnect")]
-fn tcp_connect(host: &RocStr, port: u16) -> tcp_glue::ConnectResult {
+fn tcp_connect(host: &RocStr, port: u16) -> glue_manual::ConnectResult {
     match TcpStream::connect((host.as_str(), port)) {
         Ok(stream) => {
             let reader = BufReader::new(stream);
             let ptr = Box::into_raw(Box::new(reader)) as u64;
 
-            tcp_glue::ConnectResult::Connected(ptr)
+            glue_manual::ConnectResult::Connected(ptr)
         }
-        Err(err) => tcp_glue::ConnectResult::Error(to_tcp_connect_err(err)),
+        Err(err) => glue_manual::ConnectResult::Error(to_tcp_connect_err(err)),
     }
 }
 
@@ -312,7 +450,7 @@ fn tcp_close(stream_ptr: *mut BufReader<TcpStream>) {
 fn tcp_read_up_to(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadResult {
+) -> glue_manual::ReadResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut chunk = reader.take(bytes_to_read as u64);
@@ -323,10 +461,10 @@ fn tcp_read_up_to(
             reader.consume(received.len());
 
             let roc_list = RocList::from(&received[..]);
-            tcp_glue::ReadResult::Read(roc_list)
+            glue_manual::ReadResult::Read(roc_list)
         }
 
-        Err(err) => tcp_glue::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadResult::Error(to_tcp_stream_err(err)),
     }
 }
 
@@ -334,7 +472,7 @@ fn tcp_read_up_to(
 fn tcp_read_exactly(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadExactlyResult {
+) -> glue_manual::ReadExactlyResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = Vec::with_capacity(bytes_to_read);
@@ -343,14 +481,14 @@ fn tcp_read_exactly(
     match chunk.read_to_end(&mut buffer) {
         Ok(read) => {
             if read < bytes_to_read {
-                tcp_glue::ReadExactlyResult::UnexpectedEOF
+                glue_manual::ReadExactlyResult::UnexpectedEOF()
             } else {
                 let roc_list = RocList::from(&buffer[..]);
-                tcp_glue::ReadExactlyResult::Read(roc_list)
+                glue_manual::ReadExactlyResult::Read(roc_list)
             }
         }
 
-        Err(err) => tcp_glue::ReadExactlyResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadExactlyResult::Error(to_tcp_stream_err(err)),
     }
 }
 
@@ -358,7 +496,7 @@ fn tcp_read_exactly(
 pub extern "C" fn tcp_read_until(
     byte: u8,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> tcp_glue::ReadResult {
+) -> glue_manual::ReadResult {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = vec![];
@@ -366,53 +504,229 @@ pub extern "C" fn tcp_read_until(
     match reader.read_until(byte, &mut buffer) {
         Ok(_) => {
             let roc_list = RocList::from(&buffer[..]);
-            tcp_glue::ReadResult::Read(roc_list)
+            glue_manual::ReadResult::Read(roc_list)
         }
 
-        Err(err) => tcp_glue::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => glue_manual::ReadResult::Error(to_tcp_stream_err(err)),
     }
 }
 
 #[roc_fn(name = "tcpWrite")]
-fn tcp_write(msg: &RocList<u8>, stream_ptr: *mut BufReader<TcpStream>) -> tcp_glue::WriteResult {
+fn tcp_write(msg: &RocList<u8>, stream_ptr: *mut BufReader<TcpStream>) -> glue_manual::WriteResult {
     let reader = unsafe { &mut *stream_ptr };
     let mut stream = reader.get_ref();
 
     match stream.write_all(msg.as_slice()) {
-        Ok(_) => tcp_glue::WriteResult::Wrote,
-        Err(err) => tcp_glue::WriteResult::Error(to_tcp_stream_err(err)),
+        Ok(_) => glue_manual::WriteResult::Wrote(),
+        Err(err) => glue_manual::WriteResult::Error(to_tcp_stream_err(err)),
     }
 }
 
-fn to_tcp_connect_err(err: std::io::Error) -> tcp_glue::ConnectErr {
+fn to_tcp_connect_err(err: std::io::Error) -> glue_manual::ConnectErr {
     let kind = err.kind();
     match kind {
-        ErrorKind::PermissionDenied => tcp_glue::ConnectErr::PermissionDenied,
-        ErrorKind::AddrInUse => tcp_glue::ConnectErr::AddrInUse,
-        ErrorKind::AddrNotAvailable => tcp_glue::ConnectErr::AddrNotAvailable,
-        ErrorKind::ConnectionRefused => tcp_glue::ConnectErr::ConnectionRefused,
-        ErrorKind::Interrupted => tcp_glue::ConnectErr::Interrupted,
-        ErrorKind::TimedOut => tcp_glue::ConnectErr::TimedOut,
-        ErrorKind::Unsupported => tcp_glue::ConnectErr::Unsupported,
-        _ => tcp_glue::ConnectErr::Unrecognized(
-            RocStr::from(kind.to_string().as_str()),
-            err.raw_os_error().unwrap_or_default(),
-        ),
+        ErrorKind::PermissionDenied => glue_manual::ConnectErr::PermissionDenied(),
+        ErrorKind::AddrInUse => glue_manual::ConnectErr::AddrInUse(),
+        ErrorKind::AddrNotAvailable => glue_manual::ConnectErr::AddrNotAvailable(),
+        ErrorKind::ConnectionRefused => glue_manual::ConnectErr::ConnectionRefused(),
+        ErrorKind::Interrupted => glue_manual::ConnectErr::Interrupted(),
+        ErrorKind::TimedOut => glue_manual::ConnectErr::TimedOut(),
+        ErrorKind::Unsupported => glue_manual::ConnectErr::Unsupported(),
+        _ => glue_manual::ConnectErr::Unrecognized(glue_manual::ConnectErr_Unrecognized {
+            f1: RocStr::from(kind.to_string().as_str()),
+            f0: err.raw_os_error().unwrap_or_default(),
+        }),
     }
 }
 
-fn to_tcp_stream_err(err: std::io::Error) -> tcp_glue::StreamErr {
+fn to_tcp_stream_err(err: std::io::Error) -> glue_manual::StreamErr {
     let kind = err.kind();
     match kind {
-        ErrorKind::PermissionDenied => tcp_glue::StreamErr::PermissionDenied,
-        ErrorKind::ConnectionRefused => tcp_glue::StreamErr::ConnectionRefused,
-        ErrorKind::ConnectionReset => tcp_glue::StreamErr::ConnectionReset,
-        ErrorKind::Interrupted => tcp_glue::StreamErr::Interrupted,
-        ErrorKind::OutOfMemory => tcp_glue::StreamErr::OutOfMemory,
-        ErrorKind::BrokenPipe => tcp_glue::StreamErr::BrokenPipe,
-        _ => tcp_glue::StreamErr::Unrecognized(
-            RocStr::from(kind.to_string().as_str()),
-            err.raw_os_error().unwrap_or_default(),
-        ),
+        ErrorKind::PermissionDenied => glue_manual::StreamErr::PermissionDenied(),
+        ErrorKind::ConnectionRefused => glue_manual::StreamErr::ConnectionRefused(),
+        ErrorKind::ConnectionReset => glue_manual::StreamErr::ConnectionReset(),
+        ErrorKind::Interrupted => glue_manual::StreamErr::Interrupted(),
+        ErrorKind::OutOfMemory => glue_manual::StreamErr::OutOfMemory(),
+        ErrorKind::BrokenPipe => glue_manual::StreamErr::BrokenPipe(),
+        _ => glue_manual::StreamErr::Unrecognized(glue_manual::ConnectErr_Unrecognized {
+            f1: RocStr::from(kind.to_string().as_str()),
+            f0: err.raw_os_error().unwrap_or_default(),
+        }),
     }
+}
+
+#[roc_fn(name = "sleepMillis")]
+fn sleep_millis(milliseconds: u64) {
+    let duration = std::time::Duration::from_millis(milliseconds);
+    std::thread::sleep(duration);
+}
+
+#[roc_fn(name = "fileWriteUtf8")]
+fn file_write_utf8(
+    roc_path: &RocList<u8>,
+    roc_str: &RocStr,
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    write_slice(roc_path, roc_str.as_str().as_bytes())
+}
+
+#[roc_fn(name = "fileWriteBytes")]
+fn file_write_bytes(
+    roc_path: &RocList<u8>,
+    roc_bytes: &RocList<u8>,
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    write_slice(roc_path, roc_bytes.as_slice())
+}
+
+fn write_slice(
+    roc_path: &RocList<u8>,
+    bytes: &[u8],
+) -> roc_std::RocResult<(), glue_manual::WriteErr> {
+    match std::fs::File::create(path_from_roc_path(roc_path)) {
+        Ok(mut file) => match file.write_all(bytes) {
+            Ok(()) => RocResult::ok(()),
+            Err(err) => RocResult::err(to_roc_write_error(err)),
+        },
+        Err(err) => RocResult::err(to_roc_write_error(err)),
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
+    use std::os::unix::ffi::OsStrExt;
+    let os_str = std::ffi::OsStr::from_bytes(bytes.as_slice());
+    std::borrow::Cow::Borrowed(std::path::Path::new(os_str))
+}
+
+#[cfg(target_family = "windows")]
+fn path_from_roc_path(bytes: &RocList<u8>) -> std::borrow::Cow<'_, std::path::Path> {
+    use std::os::windows::ffi::OsStringExt;
+
+    let bytes = bytes.as_slice();
+    assert_eq!(bytes.len() % 2, 0);
+    let characters: &[u16] =
+        unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast(), bytes.len() / 2) };
+
+    let os_string = std::ffi::OsString::from_wide(characters);
+
+    std::borrow::Cow::Owned(std::path::PathBuf::from(os_string))
+}
+
+fn to_roc_write_error(err: std::io::Error) -> glue_manual::WriteErr {
+    match err.kind() {
+        ErrorKind::NotFound => glue_manual::WriteErr::NotFound(),
+        ErrorKind::AlreadyExists => glue_manual::WriteErr::AlreadyExists(),
+        ErrorKind::Interrupted => glue_manual::WriteErr::Interrupted(),
+        ErrorKind::OutOfMemory => glue_manual::WriteErr::OutOfMemory(),
+        ErrorKind::PermissionDenied => glue_manual::WriteErr::PermissionDenied(),
+        ErrorKind::TimedOut => glue_manual::WriteErr::TimedOut(),
+        // TODO investigate support the following IO errors may need to update API
+        ErrorKind::WriteZero => glue_manual::WriteErr::WriteZero(),
+        // TODO investigate support the following IO errors
+        // std::io::ErrorKind::FileTooLarge <- unstable language feature
+        // std::io::ErrorKind::ExecutableFileBusy <- unstable language feature
+        // std::io::ErrorKind::FilesystemQuotaExceeded <- unstable language feature
+        // std::io::ErrorKind::InvalidFilename <- unstable language feature
+        // std::io::ErrorKind::ResourceBusy <- unstable language feature
+        // std::io::ErrorKind::ReadOnlyFilesystem <- unstable language feature
+        // std::io::ErrorKind::TooManyLinks <- unstable language feature
+        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
+        // std::io::ErrorKind::StorageFull <- unstable language feature
+        _ => glue_manual::WriteErr::Unsupported(),
+    }
+}
+
+#[roc_fn(name = "fileDelete")]
+fn file_delete(roc_path: &RocList<u8>) -> roc_std::RocResult<(), glue_manual::ReadErr> {
+    match std::fs::remove_file(path_from_roc_path(roc_path)) {
+        Ok(()) => RocResult::ok(()),
+        Err(err) => RocResult::err(to_roc_read_error(err)),
+    }
+}
+
+#[roc_fn(name = "fileReadBytes")]
+fn file_read_bytes(
+    roc_path: &RocList<u8>,
+) -> roc_std::RocResult<RocList<u8>, glue_manual::ReadErr> {
+    let mut bytes = Vec::new();
+
+    match std::fs::File::open(path_from_roc_path(roc_path)) {
+        Ok(mut file) => match file.read_to_end(&mut bytes) {
+            Ok(_bytes_read) => RocResult::ok(RocList::from(bytes.as_slice())),
+            Err(err) => RocResult::err(to_roc_read_error(err)),
+        },
+        Err(err) => RocResult::err(to_roc_read_error(err)),
+    }
+}
+
+fn to_roc_read_error(err: std::io::Error) -> glue_manual::ReadErr {
+    match err.kind() {
+        ErrorKind::Interrupted => glue_manual::ReadErr::Interrupted(),
+        ErrorKind::NotFound => glue_manual::ReadErr::NotFound(),
+        ErrorKind::OutOfMemory => glue_manual::ReadErr::OutOfMemory(),
+        ErrorKind::PermissionDenied => glue_manual::ReadErr::PermissionDenied(),
+        ErrorKind::TimedOut => glue_manual::ReadErr::TimedOut(),
+        // TODO investigate support the following IO errors may need to update API
+        // std::io::ErrorKind:: => glue_manual::ReadErr::TooManyHardlinks,
+        // std::io::ErrorKind:: => glue_manual::ReadErr::TooManySymlinks,
+        // std::io::ErrorKind:: => glue_manual::ReadErr::Unrecognized,
+        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
+        // std::io::ErrorKind::InvalidFilename <- unstable language feature
+        _ => glue_manual::ReadErr::Unsupported(),
+    }
+}
+
+#[roc_fn(name = "dirList")]
+fn dir_list(
+    roc_path: &RocList<u8>,
+) -> roc_std::RocResult<RocList<RocList<u8>>, glue_manual::InternalDirReadErr> {
+    let path = path_from_roc_path(roc_path);
+    let current_path = glue_manual::UnwrappedPath::ArbitraryBytes(roc_path.clone());
+
+    if path.is_dir() {
+        let dir = match std::fs::read_dir(path) {
+            Ok(dir) => dir,
+            Err(err) => {
+                return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
+                    current_path,
+                    RocStr::from(err.to_string().as_str()),
+                ))
+            }
+        };
+
+        let mut entries = Vec::new();
+
+        for entry in dir {
+            match entry {
+                Ok(entry) => {
+                    let path = entry.path();
+                    let str = path.as_os_str();
+                    entries.push(os_str_to_roc_path(str));
+                }
+                Err(_) => {} // TODO should we ignore errors reading directory??
+            }
+        }
+
+        return roc_std::RocResult::ok(RocList::from_iter(entries));
+    } else {
+        return roc_std::RocResult::err(glue_manual::InternalDirReadErr::DirReadErr(
+            current_path,
+            RocStr::from("Path is not a directory"),
+        ));
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
+    use std::os::unix::ffi::OsStrExt;
+
+    RocList::from(os_str.as_bytes())
+}
+
+#[cfg(target_family = "windows")]
+fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
+    use std::os::windows::ffi::OsStrExt;
+
+    let bytes: Vec<_> = os_str.encode_wide().flat_map(|c| c.to_be_bytes()).collect();
+
+    RocList::from(bytes.as_slice())
 }

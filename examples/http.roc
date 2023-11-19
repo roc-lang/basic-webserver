@@ -2,31 +2,78 @@ app "http"
     packages { pf: "../platform/main.roc" }
     imports [
         pf.Stdout,
+        pf.Stderr,
         pf.Task.{ Task },
         pf.Http.{ Request, Response },
         pf.Utc,
+        pf.Env,
     ]
     provides [main] to pf
 
 main : Request -> Task Response []
 main = \req ->
 
-    # Log the date, time, method, and url to stdout
+    handleReq =
+        # Log the date, time, method, and url to stdout
+        {} <- logRequest req |> Task.await
+
+        # Read environment variable
+        url <- readUrlEnv "TARGET_URL" |> Task.await
+
+        # Fetch the Roc website
+        content <- fetchContent url |> Task.await
+
+        # Respond with the website content
+        respond 200 content
+
+    # Handle any application errors
+    handleReq |> Task.onErr handleErr
+
+AppError : [
+    EnvURLNotFound,
+    HttpError Http.Error,
+]
+
+logRequest : Request -> Task {} AppError
+logRequest = \req ->
     dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-    {} <- Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url)" |> Task.await
 
-    # Fetch the Roc website
-    result <-
-        { Http.defaultRequest & url: "https://www.roc-lang.org" }
-        |> Http.send
-        |> Task.attempt
+    Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url)"
 
-    # Respond with the website content
-    when result is
-        Ok str -> respond 200 str
-        Err _ -> respond 500 "Error 500 Internal Server Error\n"
+readUrlEnv : Str -> Task Str AppError
+readUrlEnv = \target ->
+    Env.var target 
+    |> Task.mapErr \_ -> EnvURLNotFound
 
-respond : U16, Str -> Task Response []
+fetchContent : Str -> Task Str AppError
+fetchContent = \url ->
+    Http.getUtf8 url 
+    |> Task.mapErr \err -> (HttpError err)
+
+handleErr : AppError -> Task Response []
+handleErr = \err ->
+
+    # Build error message
+    message =
+        when err is
+            EnvURLNotFound -> "TARGET_URL environment variable not set"
+            HttpError _ -> "Http error fetching content"
+
+    # Log error to stderr
+    {} <- Stderr.line "Internal Server Error: \(message)" |> Task.await
+    _ <- Stderr.flush |> Task.attempt
+
+    # Respond with Http 500 Error
+    Task.ok {
+        status: 500,
+        headers: [
+            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        ],
+        body: Str.toUtf8 "Error 500 Internal Server Error\n",
+    }
+
+# Respond with the given status code and body
+respond : U16, Str -> Task Response AppError
 respond = \code, body ->
     Task.ok {
         status: code,

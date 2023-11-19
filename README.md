@@ -60,3 +60,9 @@ Run an example server with `$ roc run examples/http.roc`
 
 Then visit `http://localhost:8000` with your browser.
 
+## Steps to re-generate glue
+
+Run the following from the repository root directory.
+
+1. Run `bash platform/glue-gen.sh`
+2. Manually fix any issues with glue generated code in `platform/glue-manual/*.rs`, this is a temporary workaround and should not be needed in future

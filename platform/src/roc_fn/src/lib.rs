@@ -23,7 +23,27 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "envVar",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<RocStr, ()>",
+        ret_type: "roc_std::RocResult<roc_std::RocStr, ()>",
+    },
+    HostedFn {
+        name: "envList",
+        arg_types: &[],
+        ret_type: "roc_std::RocList<(roc_std::RocStr, roc_std::RocStr)>",
+    },
+    HostedFn {
+        name: "exePath",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<roc_std::RocList<u8>, ()>",
+    },
+    HostedFn {
+        name: "setCwd",
+        arg_types: &["&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<(), ()>",
+    },
+    HostedFn {
+        name: "cwd",
+        arg_types: &[],
+        ret_type: "roc_std::RocList<u8>",
     },
     HostedFn {
         name: "stdoutLine",
@@ -31,9 +51,39 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "()",
     },
     HostedFn {
+        name: "stdoutWrite",
+        arg_types: &["&roc_std::RocStr"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "stdoutFlush",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+    },
+    HostedFn {
+        name: "stderrLine",
+        arg_types: &["&roc_std::RocStr"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "stderrWrite",
+        arg_types: &["&roc_std::RocStr"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "stderrFlush",
+        arg_types: &[],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalError>",
+    },
+    HostedFn {
         name: "commandOutput",
-        arg_types: &["&command_glue::InternalCommand"],
-        ret_type: "command_glue::InternalOutput",
+        arg_types: &["&glue_manual::InternalCommand"],
+        ret_type: "glue_manual::InternalOutput",
+    },
+    HostedFn {
+        name: "commandStatus",
+        arg_types: &["&glue_manual::InternalCommand"],
+        ret_type: "roc_std::RocResult<(), glue_manual::InternalCommandErr>",
     },
     HostedFn {
         name: "posixTime",
@@ -43,7 +93,7 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "tcpConnect",
         arg_types: &["&roc_std::RocStr", "u16"],
-        ret_type: "tcp_glue::ConnectResult",
+        ret_type: "glue_manual::ConnectResult",
     },
     HostedFn {
         name: "tcpClose",
@@ -53,17 +103,17 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "tcpReadUpTo",
         arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "tcp_glue::ReadResult",
+        ret_type: "glue_manual::ReadResult",
     },
     HostedFn {
         name: "tcpReadExactly",
         arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "tcp_glue::ReadExactlyResult",
+        ret_type: "glue_manual::ReadExactlyResult",
     },
     HostedFn {
         name: "tcpReadUntil",
         arg_types: &["u8", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "tcp_glue::ReadResult",
+        ret_type: "glue_manual::ReadResult",
     },
     HostedFn {
         name: "tcpWrite",
@@ -71,9 +121,39 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
             "&roc_std::RocList<u8>",
             "*mut std::io::BufReader<std::net::TcpStream>",
         ],
-        ret_type: "tcp_glue::WriteResult",
+        ret_type: "glue_manual::WriteResult",
     },
-];
+    HostedFn {
+        name: "sleepMillis",
+        arg_types: &["u64"],
+        ret_type: "()",
+    },
+    HostedFn {
+        name: "fileWriteUtf8",
+        arg_types: &["&roc_std::RocList<u8>","&roc_std::RocStr"],
+        ret_type: "roc_std::RocResult<(), glue_manual::WriteErr>",
+    },
+    HostedFn {
+        name: "fileWriteBytes",
+        arg_types: &["&roc_std::RocList<u8>","&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<(), glue_manual::WriteErr>",
+    },
+    HostedFn {
+        name: "fileDelete",
+        arg_types: &["&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<(), glue_manual::ReadErr>",
+    },
+    HostedFn {
+        name: "fileReadBytes",
+        arg_types: &["&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<roc_std::RocList<u8>, glue_manual::ReadErr>",
+    },
+    HostedFn {
+        name: "dirList",
+        arg_types: &["&roc_std::RocList<u8>"],
+        ret_type: "roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, glue_manual::InternalDirReadErr>",
+    },
+    ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {
     for hosted in ROC_HOSTED_FNS.iter().copied() {

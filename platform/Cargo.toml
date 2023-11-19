@@ -24,7 +24,7 @@ path = "src/main.rs"
 roc_std = { path = "src/glue/roc_std", features = ["std"] }
 roc_app = { path = "src/glue/roc_app" }
 roc_fn = { path = "src/roc_fn" }
-command_glue = { path = "src/command_glue" }
+glue_manual = { path = "src/glue_manual" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",

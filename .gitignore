@@ -11,3 +11,8 @@ examples/main
 examples/todos
 examples/http
 examples/echo
+examples/sleep
+examples/file
+examples/dir
+examples/env
+examples/command

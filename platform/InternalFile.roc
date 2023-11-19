@@ -12,7 +12,7 @@ ReadErr : [
     TimedOut,
     StaleNetworkFileHandle,
     OutOfMemory,
-    Unsupported,
+    Unsupported, # e.g. trying to read from a directory 
     Unrecognized I32 Str,
 ]
 

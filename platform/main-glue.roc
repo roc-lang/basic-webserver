@@ -1,5 +1,5 @@
 platform "webserver"
-    requires {} { main : Request -> Task Response [] }
+    requires {} { main : Request -> ({} -> Response) }
     exposes [
         Path,
         Dir,
@@ -18,10 +18,9 @@ platform "webserver"
     ]
     packages {}
     imports [
-        Task.{ Task },
         Http.{ Request, Method, Response },
     ]
     provides [mainForHost]
 
-mainForHost : Request -> Task Response []
+mainForHost : Request -> ({} -> Response)
 mainForHost = \req -> main req

@@ -19,15 +19,40 @@ interface Command
     ]
 
 ## Represents a command to be executed in a child process.
+## ```
+## {
+##     status : Result {} [ExitCode I32, KilledBySignal, IOError Str],
+##     stdout : List U8,
+##     stderr : List U8,
+## }
+## ```
 Command := InternalCommand.InternalCommand
 
 ## Errors from executing a command.
+## ```
+## [
+##     ExitCode I32,
+##     KilledBySignal,
+##     IOError Str,
+## ]
+## ```
 Error : InternalCommand.InternalCommandErr
 
 ## Represents the output of a command.
+## ```
+## {
+##     status : Result {} [ExitCode I32, KilledBySignal, IOError Str],
+##     stdout : List U8,
+##     stderr : List U8,
+## }
+## ```
 Output : InternalCommand.InternalOutput
 
 ## Create a new command to execute the given program in a child process.
+##
+## ```
+## Command.new "sqlite3" # Execute "sqlite3" program
+## ```
 new : Str -> Command
 new = \program ->
     @Command {
@@ -44,7 +69,6 @@ new = \program ->
 ## Command.new "ls"
 ## |> Command.arg "-l"
 ## ```
-##
 arg : Command, Str -> Command
 arg = \@Command cmd, value ->
     @Command
@@ -116,15 +140,41 @@ clearEnvs = \@Command cmd ->
 ##
 ## > Stdin is not inherited from the parent and any attempt by the child process
 ## > to read from the stdin stream will result in the stream immediately closing.
-##
+## ```
+## output <-
+##     Command.new "sqlite3"
+##     |> Command.arg dbPath
+##     |> Command.arg ".mode json"
+##     |> Command.arg "SELECT id, task, status FROM todos;"
+##     |> Command.output
+##     |> Task.await
+## 
+## when output.status is
+##     Ok {} -> jsonResponse output.stdout
+##     Err _ -> byteResponse 500 output.stderr
+## ```
 output : Command -> Task Output *
-output = \@Command cmd ->
+output = \@Command cmd -> 
     Effect.commandOutput (Box.box cmd)
-    |> Effect.map Ok
+    |> Effect.map (\out -> Ok out)
     |> InternalTask.fromEffect
 
 ## Execute command and inheriting stdin, stdout and stderr from parent
-##
+## ```
+## # Log request date, method and url using echo program
+## date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+## result <- 
+##     Command.new "echo"
+##     |> Command.arg "\(date) \(Http.methodToStr req.method) \(req.url)"
+##     |> Command.status
+##     |> Task.attempt
+## 
+## when result is 
+##     Ok {} -> respond "Command succeeded\n"
+##     Err (ExitCode code) -> respond "Command exited with code \(Num.toStr code)\n"
+##     Err (KilledBySignal) -> respond "Command was killed by signal\n"
+##     Err (IOError str) -> respond "IO Error: \(str)\n"
+## ```
 status : Command -> Task {} Error
 status = \@Command cmd ->
     Effect.commandStatus (Box.box cmd)
