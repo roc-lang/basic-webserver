@@ -15,28 +15,21 @@ main : Request -> Task Response []
 main = \_ ->
 
     # Print the executable path
-    maybeExe <- Env.exePath |> Task.attempt
-    printExe = when maybeExe is 
-        Ok exePath -> Stdout.line "Executable path: \(Path.display exePath)\n"
-        Err ExePathUnavailable -> Stderr.line "Unable to get executable path\n"
+    {} <-
+        Env.exePath
+        |> Task.await \exePath -> Stdout.line "Executable path: \(Path.display exePath)\n"
+        |> Task.onErr \ExePathUnavailable -> Stderr.line "Unable to get executable path\n"
+        |> Task.await
 
-    {} <- printExe |> Task.await
-
-    # Read the contents of the log file
-    result <- File.readUtf8 (Path.fromStr "examples/log.txt") |> Task.attempt
-
-    task = 
-        when result is 
-            Ok contents -> Stdout.line contents
-            Err (FileReadErr path err) -> Stdout.line "Error reading file \(Path.display path) with \(File.readErrToStr err)"
-            Err (FileReadUtf8Err path _) -> Stdout.line "Error reading file \(Path.display path) as utf8" 
-
-    {} <- task |> Task.await
-
-    # Delete the file
-    # _ <- File.delete path |> Task.attempt
+    # Read the contents of the log file (which shouldn't exist)
+    {} <-
+        File.readUtf8 (Path.fromStr "examples/log.txt")
+        |> Task.attempt \result ->
+            when result is
+                Ok contents -> Stdout.line contents
+                Err (FileReadErr path err) -> Stdout.line "Error reading file \(Path.display path) with \(File.readErrToStr err)"
+                Err (FileReadUtf8Err path _) -> Stdout.line "Error reading file \(Path.display path) as utf8"
+        |> Task.await
 
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request\n" }
-
-
 
