@@ -2,7 +2,6 @@ platform "webserver"
     requires {} { main : Request -> ({} -> Response) }
     exposes [
         Path,
-        Arg,
         Dir,
         Env,
         File,
