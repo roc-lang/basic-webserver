@@ -15,7 +15,7 @@ Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https:
 The below example returns the body that was provided in the HTTP request:
 
 ```elixir
-app "echo"
+app "helloweb"
     packages { pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.1/dCL3KsovvV-8A5D_W_0X_abynkcRcoAngsgF0xtvQsk.tar.br" }
     imports [
         pf.Stdout,
@@ -32,18 +32,10 @@ main = \req ->
     date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
     {} <- Stdout.line "\(date) \(Http.methodToStr req.method) \(req.url)" |> Task.await
 
-    # Respond with request body
-    when req.body is
-        EmptyBody -> Task.ok { status: 200, headers: [], body: [] }
-        Body internal -> Task.ok { status: 200, headers: [], body: internal.body }
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b>\n" }
 ```
 
-Run this example server with `$ roc run echo.roc`
-
-Send a request with curl:
-```
-curl -d "hello" http://localhost:8000
-```
+Run this example server with `$ roc run helloweb.roc` and go to http://localhost:8000 in your browser.
 
 ## Contributing
 
