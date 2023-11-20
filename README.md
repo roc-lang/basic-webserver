@@ -12,7 +12,7 @@ Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https:
 
 ## Example
 
-The below example returns the body that was provided in the HTTP request:
+Hello world webserver:
 
 ```elixir
 app "helloweb"
