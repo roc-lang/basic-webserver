@@ -1,6 +1,7 @@
 name: Generate docs
 
 on:
+  pull_request:
   # Run when a release is published
   release:
     types:
@@ -21,7 +22,7 @@ jobs:
         with:
           roc-version: nightly
       - name: Generate docs
-        run: roc docs package/main.roc
+        run: roc docs platform/main.roc
       - name: Fix absolute paths
         run: |
           find generated-docs/ -type f -name '*.html' -exec sed -i "s/\(href\|src\)=\"\//\1=\"\/${{ github.event.repository.name }}\//g" {} +
