@@ -1,4 +1,8 @@
-# Basic Web Server for [Roc](https://www.roc-lang.org/) 
+:book: [docs](https://roc-lang.github.io/basic-webserver/)
+
+:eyes: [examples](https://github.com/roc-lang/basic-webserver/tree/0.1/examples)
+
+# Basic Web Server for [Roc](https://www.roc-lang.org/)
 
 A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) with a simple interface.
 
