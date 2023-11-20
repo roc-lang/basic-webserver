@@ -36,7 +36,10 @@ main = \req ->
 
 Run this example server with `$ roc run echo.roc`
 
-Then visit `http://localhost:8000` with your browser.
+Send a request with curl:
+```
+curl -d "hello" http://localhost:8000
+```
 
 ## Contributing
 
