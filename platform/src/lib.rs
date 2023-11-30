@@ -42,8 +42,13 @@ thread_local! {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn roc_panic(msg: RocStr) {
+pub unsafe extern "C" fn roc_panic(msg: &RocStr, _tag_id: u32) {
     panic!("The Roc app crashed with: {}", msg.as_str());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn roc_dbg(loc: &RocStr, msg: &RocStr) {
+    eprintln!("[{}] {}", &*loc, &*msg);
 }
 
 #[no_mangle]
