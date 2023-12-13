@@ -3,18 +3,21 @@ use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
 use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
+use std::env;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use tokio::task::spawn_blocking;
 
 const DEFAULT_PORT: u16 = 8000;
+const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
+const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
 
 pub fn start() -> i32 {
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(async { run_server(DEFAULT_PORT).await }),
+        Ok(runtime) => runtime.block_on(async { run_server().await }),
         Err(err) => {
             eprintln!("Error initializing tokio multithreaded runtime: {}", err); // TODO improve this
 
@@ -129,10 +132,12 @@ async fn handle_panics(
     }
 }
 
-const LOCALHOST: [u8; 4] = [127, 0, 0, 1];
-
-async fn run_server(port: u16) -> i32 {
-    let addr = SocketAddr::from((LOCALHOST, port));
+async fn run_server() -> i32 {
+    let host = env::var(HOST_ENV_NAME).unwrap_or("127.0.0.1".to_string());
+    let port = env::var(PORT_ENV_NAME).unwrap_or(DEFAULT_PORT.to_string());
+    let addr = format!("{}:{}", host, port)
+        .parse::<SocketAddr>()
+        .expect("Failed to parse host and port");
     let server = hyper::Server::bind(&addr).serve(hyper::service::make_service_fn(|_conn| async {
         Ok::<_, Infallible>(hyper::service::service_fn(|req| {
             handle_panics(handle_req(req))
