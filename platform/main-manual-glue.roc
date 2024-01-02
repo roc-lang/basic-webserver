@@ -27,7 +27,8 @@ GlueTypes : [
     M InternalFile.WriteErr,
     N InternalError.InternalDirReadErr,
     O InternalError.InternalDirDeleteErr,
-    P InternalPath.UnwrappedPath,
+    P InternalError.CacheError,
+    Q InternalPath.UnwrappedPath,
 ]
 
 mainForHost : GlueTypes

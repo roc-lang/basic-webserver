@@ -727,3 +727,13 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
 
     RocList::from(bytes.as_slice())
 }
+
+#[roc_fn(name = "getKV")]
+fn get_kv(key: u64) -> roc_std::RocResult<roc_std::RocList<u8>, glue_manual::CacheError> {
+    roc_std::RocResult::err(glue_manual::CacheError::NotFound)
+}
+
+#[roc_fn(name = "setKV")]
+fn set_kv(key: u64, value: &roc_std::RocList<u8>) {
+    // todo
+}

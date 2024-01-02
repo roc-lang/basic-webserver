@@ -33,6 +33,8 @@ hosted Effect
         sleepMillis,
         commandStatus,
         commandOutput,
+        getKV, 
+        setKV,
     ]
     imports [
         InternalHttp,
@@ -86,3 +88,7 @@ sleepMillis : U64 -> Effect {}
 
 commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} InternalCommand.InternalCommandErr)
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
+
+# Cache
+getKV : U64 -> Effect (Result (List U8) InternalError.CacheError)
+setKV : U64, List U8 -> Effect {}
