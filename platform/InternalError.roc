@@ -1,11 +1,13 @@
 interface InternalError
-    exposes [InternalError, InternalDirReadErr, InternalDirDeleteErr]
+    exposes [InternalError, CacheError, InternalDirReadErr, InternalDirDeleteErr]
     imports [Path.{ Path }]
 
 InternalError : [
-    IOError Str, 
+    IOError Str,
     EOF,
 ]
+
+CacheError : [NotFound]
 
 InternalDirReadErr : [DirReadErr Path Str]
 

@@ -3467,6 +3467,33 @@ impl core::fmt::Debug for InternalDirDeleteErr {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(transparent)]
+pub struct CacheError ();
+
+impl CacheError {
+    /// A tag named NotFound, which has no payload.
+    pub const NotFound: Self = Self();
+
+    /// Other `into_` methods return a payload, but since NotFound tag
+    /// has no payload, this does nothing and is only here for completeness.
+    pub fn into_NotFound(self) {
+        ()
+    }
+
+    /// Other `as_` methods return a payload, but since NotFound tag
+    /// has no payload, this does nothing and is only here for completeness.
+    pub fn as_NotFound(&self) {
+        ()
+    }
+}
+
+impl core::fmt::Debug for CacheError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("CacheError::NotFound")
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
 #[repr(u8)]
 pub enum discriminant_GlueTypes {
@@ -3486,6 +3513,7 @@ pub enum discriminant_GlueTypes {
     N = 13,
     O = 14,
     P = 15,
+    Q = 16,
 }
 
 impl core::fmt::Debug for discriminant_GlueTypes {
@@ -3507,6 +3535,7 @@ impl core::fmt::Debug for discriminant_GlueTypes {
             Self::N => f.write_str("discriminant_GlueTypes::N"),
             Self::O => f.write_str("discriminant_GlueTypes::O"),
             Self::P => f.write_str("discriminant_GlueTypes::P"),
+            Self::Q => f.write_str("discriminant_GlueTypes::Q"),
         }
     }
 }
@@ -3528,7 +3557,8 @@ pub union union_GlueTypes {
     M: core::mem::ManuallyDrop<WriteErr>,
     N: core::mem::ManuallyDrop<InternalDirReadErr>,
     O: core::mem::ManuallyDrop<InternalDirDeleteErr>,
-    P: core::mem::ManuallyDrop<UnwrappedPath>,
+    P: CacheError,
+    Q: core::mem::ManuallyDrop<UnwrappedPath>,
 }
 
 const _SIZE_CHECK_union_GlueTypes: () = assert!(core::mem::size_of::<union_GlueTypes>() == 88);
@@ -3617,6 +3647,9 @@ impl Clone for GlueTypes {
                 P => union_GlueTypes {
                     P: self.payload.P.clone(),
                 },
+                Q => union_GlueTypes {
+                    Q: self.payload.Q.clone(),
+                },
             }
         };
 
@@ -3694,8 +3727,12 @@ impl core::fmt::Debug for GlueTypes {
                     f.debug_tuple("GlueTypes::O").field(field).finish()
                 },
                 P => {
-                    let field: &UnwrappedPath = &self.payload.P;
+                    let field: &CacheError = &self.payload.P;
                     f.debug_tuple("GlueTypes::P").field(field).finish()
+                },
+                Q => {
+                    let field: &UnwrappedPath = &self.payload.Q;
+                    f.debug_tuple("GlueTypes::Q").field(field).finish()
                 },
             }
         }
@@ -3730,6 +3767,7 @@ impl PartialEq for GlueTypes {
                 N => self.payload.N == other.payload.N,
                 O => self.payload.O == other.payload.O,
                 P => self.payload.P == other.payload.P,
+                Q => self.payload.Q == other.payload.Q,
             }
         }
     }
@@ -3768,6 +3806,7 @@ impl PartialOrd for GlueTypes {
                     N => self.payload.N.partial_cmp(&other.payload.N),
                     O => self.payload.O.partial_cmp(&other.payload.O),
                     P => self.payload.P.partial_cmp(&other.payload.P),
+                    Q => self.payload.Q.partial_cmp(&other.payload.Q),
                 }
             },
         }
@@ -3796,6 +3835,7 @@ impl core::hash::Hash for GlueTypes {
                 N => self.payload.N.hash(state),
                 O => self.payload.O.hash(state),
                 P => self.payload.P.hash(state),
+                Q => self.payload.Q.hash(state),
             }
         }
     }
@@ -3938,13 +3978,22 @@ impl GlueTypes {
         matches!(self.discriminant, discriminant_GlueTypes::O)
     }
 
-    pub fn unwrap_P(mut self) -> UnwrappedPath {
+    pub fn unwrap_P(mut self) -> CacheError {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::P);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.P) }
+        unsafe { self.payload.P }
     }
 
     pub fn is_P(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::P)
+    }
+
+    pub fn unwrap_Q(mut self) -> UnwrappedPath {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::Q);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Q) }
+    }
+
+    pub fn is_Q(&self) -> bool {
+        matches!(self.discriminant, discriminant_GlueTypes::Q)
     }
 }
 
@@ -4087,11 +4136,20 @@ impl GlueTypes {
         }
     }
 
-    pub fn P(payload: UnwrappedPath) -> Self {
+    pub fn P(payload: CacheError) -> Self {
         Self {
             discriminant: discriminant_GlueTypes::P,
             payload: union_GlueTypes {
-                P: core::mem::ManuallyDrop::new(payload),
+                P: payload,
+            }
+        }
+    }
+
+    pub fn Q(payload: UnwrappedPath) -> Self {
+        Self {
+            discriminant: discriminant_GlueTypes::Q,
+            payload: union_GlueTypes {
+                Q: core::mem::ManuallyDrop::new(payload),
             }
         }
     }
@@ -4116,7 +4174,8 @@ impl Drop for GlueTypes {
             discriminant_GlueTypes::M => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.M) },
             discriminant_GlueTypes::N => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.N) },
             discriminant_GlueTypes::O => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.O) },
-            discriminant_GlueTypes::P => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.P) },
+            discriminant_GlueTypes::P => {}
+            discriminant_GlueTypes::Q => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Q) },
         }
     }
 }
