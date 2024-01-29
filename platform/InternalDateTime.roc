@@ -145,12 +145,12 @@ epochMillisToDateTimeHelp = \current ->
 
 # test last day of 1st year after epoch
 expect 
-    str = epochMillisToDateTime (364 * 24 * 60 * 60 * 1000) |> toIso8601Str
+    str = (364 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
     str == "1970-12-31T00:00.00Z"
 
 # test last day of 1st month after epoch
 expect
-    str = epochMillisToDateTime (30 * 24 * 60 * 60 * 1000) |> toIso8601Str
+    str = (30 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
     str == "1970-01-31T00:00.00Z"
 
 # test 1_700_005_179_053 ms past epoch
