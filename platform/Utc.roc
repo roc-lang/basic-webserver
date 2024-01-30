@@ -11,8 +11,8 @@ interface Utc
         toIso8601Str,
     ]
     imports [
-        Effect, 
-        InternalTask, 
+        Effect,
+        InternalTask,
         InternalDateTime,
         Task.{ Task },
     ]
@@ -34,7 +34,7 @@ toIso8601Str : Utc -> Str
 toIso8601Str = \@Utc nanos ->
     nanos
     |> Num.divTrunc nanosPerMilli
-    |> InternalDateTime.epochMillisToDateTime 
+    |> InternalDateTime.epochMillisToDateTime
     |> InternalDateTime.toIso8601Str
 
 # Constant number of nanoseconds in a millisecond
@@ -43,7 +43,7 @@ nanosPerMilli = 1_000_000
 ## Convert Utc timestamp to milliseconds
 toMillisSinceEpoch : Utc -> U128
 toMillisSinceEpoch = \@Utc nanos ->
-    nanos * nanosPerMilli
+    nanos // nanosPerMilli
 
 ## Convert milliseconds to Utc timestamp
 fromMillisSinceEpoch : U128 -> Utc
