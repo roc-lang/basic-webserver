@@ -6,7 +6,7 @@ interface InternalDateTime
     ]
     imports []
 
-DateTime : { year : U128, month : U128, day : U128, hours : U128, minutes : U128, seconds : U128 }
+DateTime : { year : I128, month : I128, day : I128, hours : I128, minutes : I128, seconds : I128 }
 
 toIso8601Str : DateTime -> Str
 toIso8601Str = \{ year, month, day, hours, minutes, seconds } ->
@@ -19,7 +19,7 @@ toIso8601Str = \{ year, month, day, hours, minutes, seconds } ->
 
     "\(yearStr)-\(monthStr)-\(dayStr)T\(hourStr):\(minuteStr).\(secondsStr)Z"
 
-yearWithPaddedZeros : U128 -> Str
+yearWithPaddedZeros : I128 -> Str
 yearWithPaddedZeros = \year ->
     yearStr = Num.toStr year
     if year < 10 then
@@ -31,7 +31,7 @@ yearWithPaddedZeros = \year ->
     else
         yearStr
 
-monthWithPaddedZeros : U128 -> Str
+monthWithPaddedZeros : I128 -> Str
 monthWithPaddedZeros = \month ->
     monthStr = Num.toStr month
     if month < 10 then
@@ -39,19 +39,19 @@ monthWithPaddedZeros = \month ->
     else
         monthStr
 
-dayWithPaddedZeros : U128 -> Str
+dayWithPaddedZeros : I128 -> Str
 dayWithPaddedZeros = monthWithPaddedZeros
 
-hoursWithPaddedZeros : U128 -> Str
+hoursWithPaddedZeros : I128 -> Str
 hoursWithPaddedZeros = monthWithPaddedZeros
 
-minutesWithPaddedZeros : U128 -> Str
+minutesWithPaddedZeros : I128 -> Str
 minutesWithPaddedZeros = monthWithPaddedZeros
 
-secondsWithPaddedZeros : U128 -> Str
+secondsWithPaddedZeros : I128 -> Str
 secondsWithPaddedZeros = monthWithPaddedZeros
 
-isLeapYear : U128 -> Bool
+isLeapYear : I128 -> Bool
 isLeapYear = \year ->
     (year % 4 == 0)
     && # divided evenly by 4 unless...
@@ -68,7 +68,7 @@ expect !(isLeapYear 2015)
 expect List.map [2023, 1988, 1992, 1996] isLeapYear == [Bool.false, Bool.true, Bool.true, Bool.true]
 expect List.map [1700, 1800, 1900, 2100, 2200, 2300, 2500, 2600] isLeapYear == [Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false]
 
-daysInMonth : U128, U128 -> U128
+daysInMonth : I128, I128 -> I128
 daysInMonth = \year, month ->
     if List.contains [1, 3, 5, 7, 8, 10, 12] month then
         31
@@ -93,12 +93,12 @@ expect daysInMonth 2023 10 == 31 # October
 expect daysInMonth 2023 11 == 30 # November
 expect daysInMonth 2023 12 == 31 # December
 
-epochMillisToDateTime : U128 -> DateTime
+epochMillisToDateTime : I128 -> DateTime
 epochMillisToDateTime = \millis ->
-    seconds = Num.divTrunc millis 1000
-    minutes = Num.divTrunc seconds 60
-    hours = Num.divTrunc minutes 60
-    day = 1 + Num.divTrunc hours 24
+    seconds = millis // 1000
+    minutes = seconds // 60
+    hours = minutes // 60
+    day = 1 + hours // 24
     month = 1
     year = 1970
 
@@ -106,42 +106,77 @@ epochMillisToDateTime = \millis ->
         year,
         month,
         day,
-        hours,
-        minutes,
-        seconds,
+        hours: hours % 24,
+        minutes: minutes % 60,
+        seconds: seconds % 60,
     }
 
 epochMillisToDateTimeHelp : DateTime -> DateTime
 epochMillisToDateTimeHelp = \current ->
-
-    countDaysInYear = if isLeapYear current.year then 366 else 365
     countDaysInMonth = daysInMonth current.year current.month
+    countDaysInPrevMonth = 
+        if current.month == 1 then daysInMonth (current.year - 1) 12 
+        else daysInMonth current.year (current.month - 1)
 
-    if current.day > countDaysInYear then
-        epochMillisToDateTimeHelp {
-            year: current.year + 1,
-            month: current.month,
-            day: current.day - countDaysInYear,
-            hours: current.hours - (countDaysInYear * 24),
-            minutes: current.minutes - (countDaysInYear * 24 * 60),
-            seconds: current.seconds - (countDaysInYear * 24 * 60 * 60),
-        }
-    else if current.day > countDaysInMonth then
-        epochMillisToDateTimeHelp {
-            year: current.year,
-            month: current.month + 1,
-            day: current.day - countDaysInMonth,
-            hours: current.hours - (countDaysInMonth * 24),
-            minutes: current.minutes - (countDaysInMonth * 24 * 60),
-            seconds: current.seconds - (countDaysInMonth * 24 * 60 * 60),
-        }
-    else
-        { current &
-            hours: current.hours % 24,
-            minutes: current.minutes % 60,
-            seconds: current.seconds % 60,
-        }
+        if current.day < 1 then
+            epochMillisToDateTimeHelp {
+                current &
+                year: if current.month == 1 then current.year - 1 else current.year,
+                month: if current.month == 1 then 12 else current.month - 1,
+                day: current.day + countDaysInPrevMonth,
+            }
+        else if current.hours < 0 then
+            epochMillisToDateTimeHelp {
+                current &
+                day: current.day - 1,
+                hours: current.hours + 24
+            }
+        else if current.minutes < 0 then
+            epochMillisToDateTimeHelp {
+                current &
+                hours: current.hours - 1,
+                minutes: current.minutes + 60,
+            }
+        else if current.seconds < 0 then
+            epochMillisToDateTimeHelp {
+                current &
+                minutes: current.minutes - 1,
+                seconds: current.seconds + 60,
+            }
+        else if current.day > countDaysInMonth then
+            epochMillisToDateTimeHelp {
+                current &
+                year: if current.month == 12 then current.year + 1 else current.year,
+                month: if current.month == 12 then 1 else current.month + 1,
+                day: current.day - countDaysInMonth,
+            }
+        else
+            current
 
+# test 1000 ms before epoch
+expect
+    str = -1000 |> epochMillisToDateTime |> toIso8601Str
+    str == "1969-12-31T23:59.59Z"
+
+# test 1 hour, 1 minute, 1 second before epoch
+expect
+    str = (-3600 * 1000 - 60 * 1000 - 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1969-12-31T22:58.59Z"
+
+# test 1 month before epoch
+expect
+    str = (-1 * 31 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1969-12-01T00:00.00Z"
+
+# test 1 year before epoch
+expect 
+    str = (-1 * 365 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1969-01-01T00:00.00Z"
+
+# test 1st leap year before epoch
+expect
+    str = (-1 * (365 + 366) * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1968-01-01T00:00.00Z"
 
 # test last day of 1st year after epoch
 expect 
