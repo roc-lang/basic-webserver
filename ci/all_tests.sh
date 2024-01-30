@@ -19,5 +19,7 @@ for roc_file in $examples_dir*.roc; do
     $roc build $roc_file
 done
 
+$roc test platform/Url.roc
+
 # test building website
 $roc docs platform/main.roc
