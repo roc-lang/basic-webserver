@@ -17,7 +17,7 @@ toIso8601Str = \{ year, month, day, hours, minutes, seconds } ->
     minuteStr = minutesWithPaddedZeros minutes
     secondsStr = secondsWithPaddedZeros seconds
 
-    "\(yearStr)-\(monthStr)-\(dayStr)T\(hourStr):\(minuteStr).\(secondsStr)Z"
+    "\(yearStr)-\(monthStr)-\(dayStr)T\(hourStr):\(minuteStr):\(secondsStr)Z"
 
 yearWithPaddedZeros : U128 -> Str
 yearWithPaddedZeros = \year ->
@@ -146,34 +146,34 @@ epochMillisToDateTimeHelp = \current ->
 # test last day of 1st year after epoch
 expect 
     str = (364 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
-    str == "1970-12-31T00:00.00Z"
+    str == "1970-12-31T00:00:00Z"
 
 # test last day of 1st month after epoch
 expect
     str = (30 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
-    str == "1970-01-31T00:00.00Z"
+    str == "1970-01-31T00:00:00Z"
 
 # test 1_700_005_179_053 ms past epoch
 expect
     str = 1_700_005_179_053 |> epochMillisToDateTime |> toIso8601Str
-    str == "2023-11-14T23:39.39Z"
+    str == "2023-11-14T23:39:39Z"
 
 # test 1000 ms past epoch
 expect
     str = 1_000 |> epochMillisToDateTime |> toIso8601Str
-    str == "1970-01-01T00:00.01Z"
+    str == "1970-01-01T00:00:01Z"
 
 # test 1_000_000 ms past epoch
 expect
     str = 1_000_000 |> epochMillisToDateTime |> toIso8601Str
-    str == "1970-01-01T00:16.40Z"
+    str == "1970-01-01T00:16:40Z"
 
 # test 1_000_000_000 ms past epoch
 expect
     str = 1_000_000_000 |> epochMillisToDateTime |> toIso8601Str
-    str == "1970-01-12T13:46.40Z"
+    str == "1970-01-12T13:46:40Z"
 
 # test 1_600_005_179_000 ms past epoch
 expect
     str = 1_600_005_179_000 |> epochMillisToDateTime |> toIso8601Str
-    str == "2020-09-13T13:52.59Z"
+    str == "2020-09-13T13:52:59Z"
