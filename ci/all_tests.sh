@@ -3,23 +3,31 @@
 # https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
 set -euxo pipefail
 
-roc='./roc_nightly/roc'
+if [ -z "${ROC}" ]; then
+  echo "ERROR: The ROC environment variable is not set.
+    Set it to something like:
+        /home/username/Downloads/roc_nightly-linux_x86_64-2023-10-30-cb00cfb/roc
+        or
+        /home/username/gitrepos/roc/target/build/release/roc" >&2
+
+  exit 1
+fi
 
 examples_dir='./examples/'
 
 # roc check
 for roc_file in $examples_dir*.roc; do
-    $roc check $roc_file
+    $ROC check $roc_file
 done
 
 # roc build
 architecture=$(uname -m)
 
 for roc_file in $examples_dir*.roc; do
-    $roc build $roc_file
+    $ROC build $roc_file
 done
 
 $roc test platform/Url.roc
 
 # test building website
-$roc docs platform/main.roc
+$ROC docs platform/main.roc
