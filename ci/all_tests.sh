@@ -22,5 +22,7 @@ done
 
 $roc test platform/Url.roc
 
+$roc test platform/InternalDateTime.roc
+
 # test building website
 $roc docs platform/main.roc
