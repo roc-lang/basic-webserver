@@ -117,7 +117,7 @@ epochMillisToDateTimeHelp = \current ->
     countDaysInYear = if isLeapYear current.year then 366 else 365
     countDaysInMonth = daysInMonth current.year current.month
 
-    if current.day >= countDaysInYear then
+    if current.day > countDaysInYear then
         epochMillisToDateTimeHelp {
             year: current.year + 1,
             month: current.month,
@@ -126,7 +126,7 @@ epochMillisToDateTimeHelp = \current ->
             minutes: current.minutes - (countDaysInYear * 24 * 60),
             seconds: current.seconds - (countDaysInYear * 24 * 60 * 60),
         }
-    else if current.day >= countDaysInMonth then
+    else if current.day > countDaysInMonth then
         epochMillisToDateTimeHelp {
             year: current.year,
             month: current.month + 1,
@@ -141,6 +141,17 @@ epochMillisToDateTimeHelp = \current ->
             minutes: current.minutes % 60,
             seconds: current.seconds % 60,
         }
+
+
+# test last day of 1st year after epoch
+expect 
+    str = (364 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1970-12-31T00:00.00Z"
+
+# test last day of 1st month after epoch
+expect
+    str = (30 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
+    str == "1970-01-31T00:00.00Z"
 
 # test 1_700_005_179_053 ms past epoch
 expect
