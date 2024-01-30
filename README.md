@@ -10,6 +10,8 @@ Write a function which takes a `Http.Request`, perform I/O like fetching content
 
 Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
 
+:warning: `--linker=legacy` is necessary for this package because of [this Roc issue](https://github.com/roc-lang/roc/issues/3609).
+
 ## Example
 
 Hello world webserver:
@@ -35,7 +37,7 @@ main = \req ->
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b>\n" }
 ```
 
-Run this example server with `$ roc run helloweb.roc` and go to http://localhost:8000 in your browser.
+Run this example server with `$ roc run helloweb.roc --linker=legacy` and go to http://localhost:8000 in your browser.
 
 ## Contributing
 
