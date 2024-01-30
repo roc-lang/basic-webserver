@@ -16,7 +16,8 @@ done
 architecture=$(uname -m)
 
 for roc_file in $examples_dir*.roc; do
-    $roc build $roc_file
+    # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
+    $roc build $roc_file --linker=legacy
 done
 
 $roc test platform/Url.roc
