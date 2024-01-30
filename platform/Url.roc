@@ -93,7 +93,7 @@ toStr = \@Url str -> str
 ## Url.fromStr "https://example.com?search=blah#fragment"
 ## |> Url.append "stuff"
 ##
-## # Gives https://example.com/things/stuff/more/etc/"
+## # Gives https://example.com/things/stuff/more/etc/
 ## Url.fromStr "https://example.com/things/"
 ## |> Url.append "/stuff/"
 ## |> Url.append "/more/etc/"
@@ -104,7 +104,7 @@ toStr = \@Url str -> str
 ## ```
 append : Url, Str -> Url
 append = \@Url urlStr, suffixUnencoded ->
-    suffix = percentEncode suffixUnencoded
+    suffix = percentEncode suffixUnencoded IgnoreSlash
 
     when Str.splitFirst urlStr "?" is
         Ok { before, after } ->
@@ -143,6 +143,38 @@ append = \@Url urlStr, suffixUnencoded ->
                 Err NotFound ->
                     # No query and no fragment, so just append it
                     @Url (appendHelp urlStr suffix)
+
+appendTestHelper = \urlStr, toAppendStr ->
+    Url.fromStr urlStr
+    |> Url.append toAppendStr
+    |> Url.toStr
+
+expect
+    appendedUrlStr =
+        appendTestHelper "https://example.com" "some stuff"
+
+    appendedUrlStr == "https://example.com/some%20stuff"
+
+expect
+    appendedUrlStr =
+        appendTestHelper "https://example.com?search=blah#fragment" "stuff"
+
+    appendedUrlStr == "https://example.com/stuff?search=blah#fragment"
+
+expect
+    appendedUrlStr =
+        Url.fromStr "https://example.com/things/"
+        |> Url.append "/stuff/"
+        |> Url.append "/more/etc/"
+        |> Url.toStr
+
+    appendedUrlStr == "https://example.com/things/stuff/more/etc/"
+
+expect
+    appendedUrlStr =
+        appendTestHelper "https://example.com/things" ""
+
+    appendedUrlStr == "https://example.com/things"
 
 ## Internal helper
 appendHelp : Str, Str -> Str
@@ -192,43 +224,78 @@ appendHelp = \prefix, suffix ->
 ## suggests that these can be encoded as `+`, however this is not always safe to
 ## use. See [this stackoverflow discussion](https://stackoverflow.com/questions/2678551/when-should-space-be-encoded-to-plus-or-20/47188851#47188851)
 ## for a detailed explanation.
-percentEncode : Str -> Str
-percentEncode = \input ->
+##
+## > IgnoreSlash is used by the function append, so that `append example.com /more/etc` results in
+## "example.com/more/etc" instead of "example.com/%2Fmore%2Fetc".
+## EncodeSlash is used by the function appendParam.
+##
+percentEncode : Str, [IgnoreSlash, EncodeSlash] -> Str
+percentEncode = \input, howSlash ->
     # Optimistically assume we won't need any percent encoding, and can have
     # the same capacity as the input string. If we're wrong, it will get doubled.
-    initialOutput = strWithCapacity (Str.countUtf8Bytes input)
+    initialOutput = List.withCapacity (Str.countUtf8Bytes input)
 
-    # TODO use Str.walkUtf8 once it exists
-    Str.walkUtf8WithIndex input initialOutput \output, byte, _index ->
-        # Spec for percent-encoding: https://www.ietf.org/rfc/rfc3986.txt
-        if
-            (byte >= 97 && byte <= 122) # lowercase ASCII
-            || (byte >= 65 && byte <= 90) # uppercase ASCII
-            || (byte >= 48 && byte <= 57) # digit
-        then
-            # This is the most common case: an unreserved character,
-            # which needs no encoding in a path
-            Str.appendScalar output (Num.toU32 byte)
-            |> Result.withDefault "" # this will never fail
-        else
-            when byte is
-                46 # '.'
-                | 95 # '_'
-                | 126 # '~'
-                | 150 -> # '-'
-                    # These special characters can all be unescaped in paths
-                    Str.appendScalar output (Num.toU32 byte)
-                    |> Result.withDefault "" # this will never fail
+    strBytes = Str.toUtf8 input
 
-                _ ->
-                    # This needs encoding in a path
-                    suffix =
-                        Str.toUtf8 percentEncoded
-                        |> List.sublist { len: 3, start: 3 * Num.toNat byte }
-                        |> Str.fromUtf8
-                        |> Result.withDefault "" # This will never fail
+    percentEncodedBytes =
+        List.walk strBytes initialOutput \output, byte ->
+            # Spec for percent-encoding: https://www.ietf.org/rfc/rfc3986.txt
+            if
+                (byte >= 97 && byte <= 122) # lowercase ASCII
+                || (byte >= 65 && byte <= 90) # uppercase ASCII
+                || (byte >= 48 && byte <= 57) # digit
+            then
+                # This is the most common case: an unreserved character,
+                # which needs no encoding in a path
+                List.append output byte
+            else
+                when byte is
+                    46 # '.'
+                    | 95 # '_'
+                    | 126 # '~'
+                    | 150 -> # '-'
+                        # These special characters can all be unescaped in paths
+                        List.append output byte
 
-                    Str.concat output suffix
+                    47 -> # '/'
+                        when howSlash is
+                            IgnoreSlash -> List.append output byte
+                            EncodeSlash -> List.concat output (percentEncodeByte byte)
+
+                    _ ->
+                        # This needs encoding in a path
+                        List.concat output (percentEncodeByte byte)
+
+    strResult = Str.fromUtf8 percentEncodedBytes
+
+    when strResult is
+        Ok str ->
+            str
+
+        Err err ->
+            crash
+                """
+                Impossible error: we started with valid Utf8, so all should still be valid Utf8.
+                    - We started with the Str:
+                        $(input)
+                    - The Utf8 bytes of that Str are:
+                        $(Inspect.toStr strBytes)
+                    - The percent encoded bytes are:
+                        $(Inspect.toStr percentEncodedBytes)
+                    - I failed to convert percentEncodedBytes to Utf8 with the error:
+                        $(Inspect.toStr err)
+                """
+
+percentEncodeByte : U8 -> List U8
+percentEncodeByte = \byte ->
+    Str.toUtf8 percentEncoded
+    |> List.sublist { len: 3, start: 3 * Num.intCast byte } # efficient Dict alternative
+
+# Adapted from the percent-encoding crate, © The rust-url developers, Apache2-licensed
+#
+# https://github.com/servo/rust-url/blob/e12d76a61add5bc09980599c738099feaacd1d0d/percent_encoding/src/lib.rs#L183
+percentEncoded : Str
+percentEncoded = "%00%01%02%03%04%05%06%07%08%09%0A%0B%0C%0D%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D%2E%2F%30%31%32%33%34%35%36%37%38%39%3A%3B%3C%3D%3E%3F%40%41%42%43%44%45%46%47%48%49%4A%4B%4C%4D%4E%4F%50%51%52%53%54%55%56%57%58%59%5A%5B%5C%5D%5E%5F%60%61%62%63%64%65%66%67%68%69%6A%6B%6C%6D%6E%6F%70%71%72%73%74%75%76%77%78%79%7A%7B%7C%7D%7E%7F%80%81%82%83%84%85%86%87%88%89%8A%8B%8C%8D%8E%8F%90%91%92%93%94%95%96%97%98%99%9A%9B%9C%9D%9E%9F%A0%A1%A2%A3%A4%A5%A6%A7%A8%A9%AA%AB%AC%AD%AE%AF%B0%B1%B2%B3%B4%B5%B6%B7%B8%B9%BA%BB%BC%BD%BE%BF%C0%C1%C2%C3%C4%C5%C6%C7%C8%C9%CA%CB%CC%CD%CE%CF%D0%D1%D2%D3%D4%D5%D6%D7%D8%D9%DA%DB%DC%DD%DE%DF%E0%E1%E2%E3%E4%E5%E6%E7%E8%E9%EA%EB%EC%ED%EE%EF%F0%F1%F2%F3%F4%F5%F6%F7%F8%F9%FA%FB%FC%FD%FE%FF"
 
 ## Adds a [Str] query parameter to the end of the [Url].
 ##
@@ -261,8 +328,8 @@ appendParam = \@Url urlStr, key, value ->
             Err NotFound ->
                 { withoutFragment: urlStr, afterQuery: "" }
 
-    encodedKey = percentEncode key
-    encodedValue = percentEncode value
+    encodedKey = percentEncode key EncodeSlash
+    encodedValue = percentEncode value EncodeSlash
 
     bytes =
         Str.countUtf8Bytes withoutFragment
@@ -280,6 +347,23 @@ appendParam = \@Url urlStr, key, value ->
     |> Str.concat encodedValue
     |> Str.concat afterQuery
     |> @Url
+
+expect
+    urlWParamStr =
+        Url.fromStr "https://example.com"
+        |> Url.appendParam "email" "someone@example.com"
+        |> Url.toStr
+
+    urlWParamStr == "https://example.com?email=someone%40example.com"
+
+expect
+    urlWParamStr =
+        Url.fromStr "https://example.com"
+        |> Url.appendParam "café" "du Monde"
+        |> Url.appendParam "email" "hi@example.com"
+        |> Url.toStr
+
+    urlWParamStr == "https://example.com?caf%C3%A9=du%20Monde&email=hi%40example.com"
 
 ## Replaces the URL's [query](https://en.wikipedia.org/wiki/URL#Syntax)—the part
 ## after the `?`, if it has one, but before any `#` it might have.
@@ -496,13 +580,3 @@ hasFragment = \@Url urlStr ->
     # with SIMD iteration if the string is small enough to fit in a SIMD register.
     Str.toUtf8 urlStr
     |> List.contains (Num.toU8 '#')
-
-strWithCapacity : Nat -> Str
-strWithCapacity = \cap ->
-    Str.reserve "" cap
-
-# Adapted from the percent-encoding crate, © The rust-url developers, Apache2-licensed
-#
-# https://github.com/servo/rust-url/blob/e12d76a61add5bc09980599c738099feaacd1d0d/percent_encoding/src/lib.rs#L183
-percentEncoded : Str
-percentEncoded = "%00%01%02%03%04%05%06%07%08%09%0A%0B%0C%0D%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D%2E%2F%30%31%32%33%34%35%36%37%38%39%3A%3B%3C%3D%3E%3F%40%41%42%43%44%45%46%47%48%49%4A%4B%4C%4D%4E%4F%50%51%52%53%54%55%56%57%58%59%5A%5B%5C%5D%5E%5F%60%61%62%63%64%65%66%67%68%69%6A%6B%6C%6D%6E%6F%70%71%72%73%74%75%76%77%78%79%7A%7B%7C%7D%7E%7F%80%81%82%83%84%85%86%87%88%89%8A%8B%8C%8D%8E%8F%90%91%92%93%94%95%96%97%98%99%9A%9B%9C%9D%9E%9F%A0%A1%A2%A3%A4%A5%A6%A7%A8%A9%AA%AB%AC%AD%AE%AF%B0%B1%B2%B3%B4%B5%B6%B7%B8%B9%BA%BB%BC%BD%BE%BF%C0%C1%C2%C3%C4%C5%C6%C7%C8%C9%CA%CB%CC%CD%CE%CF%D0%D1%D2%D3%D4%D5%D6%D7%D8%D9%DA%DB%DC%DD%DE%DF%E0%E1%E2%E3%E4%E5%E6%E7%E8%E9%EA%EB%EC%ED%EE%EF%F0%F1%F2%F3%F4%F5%F6%F7%F8%F9%FA%FB%FC%FD%FE%FF"
