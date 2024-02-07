@@ -33,6 +33,7 @@ hosted Effect
         sleepMillis,
         commandStatus,
         commandOutput,
+        sqliteExecute,
     ]
     imports [
         InternalHttp,
@@ -86,3 +87,6 @@ sleepMillis : U64 -> Effect {}
 
 commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} InternalCommand.InternalCommandErr)
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
+
+# SQLite3
+sqliteExecute : Str, Str -> Effect (Result {} InternalError.SQLiteError)

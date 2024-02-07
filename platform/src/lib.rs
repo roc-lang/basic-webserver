@@ -727,3 +727,38 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
 
     RocList::from(bytes.as_slice())
 }
+
+#[repr(C, align(8))]
+pub struct SQLiteError {
+    code : i64,
+    message : roc_std::RocStr,
+}
+
+#[roc_fn(name = "sqliteExecute")]
+fn sqlite_execute(
+    db_path: &roc_std::RocStr,
+    query: &roc_std::RocStr,
+) -> roc_std::RocResult<(), SQLiteError> {
+    
+    let connection : sqlite::Connection = {
+        match sqlite::open(db_path.as_str()) {
+            Ok(c) => c,
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    };
+
+    match connection.execute(query.as_str()) {
+        Ok(()) => {
+            RocResult::ok(())
+        },
+        Err(err) => RocResult::err(SQLiteError {
+            code: err.code.unwrap_or_default() as i64,
+            message: RocStr::from(err.message.unwrap_or_default().as_str()),
+        }),
+    }
+}

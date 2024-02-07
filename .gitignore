@@ -16,3 +16,4 @@ examples/file
 examples/dir
 examples/env
 examples/command
+examples/sqlite3
