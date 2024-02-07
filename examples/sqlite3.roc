@@ -19,8 +19,8 @@ main = \_ ->
     result <-
         SQLite3.execute {
             path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
-            query: "SELECT * FROM todos;",
-            bindings: [],
+            query: "SELECT * FROM todos WHERE status = :status;",
+            bindings: [{name : ":status", value : "completed"}],
         }
         |> Task.attempt
 
