@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
 use std::net::TcpStream;
+use std::os::macos::raw::stat;
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -734,12 +735,20 @@ pub struct SQLiteError {
     message : roc_std::RocStr,
 }
 
+#[repr(C, align(8))]
+pub struct SQLiteBindings {
+    name : roc_std::RocStr,
+    value : roc_std::RocStr,
+}
+
 #[roc_fn(name = "sqliteExecute")]
 fn sqlite_execute(
     db_path: &roc_std::RocStr,
     query: &roc_std::RocStr,
-) -> roc_std::RocResult<(), SQLiteError> {
+    bindings: &roc_std::RocList<SQLiteBindings>,
+) -> roc_std::RocResult<RocList<RocList<glue_manual::SQLiteValue>>, SQLiteError> {
     
+    // Create the connection
     let connection : sqlite::Connection = {
         match sqlite::open(db_path.as_str()) {
             Ok(c) => c,
@@ -752,13 +761,60 @@ fn sqlite_execute(
         }
     };
 
-    match connection.execute(query.as_str()) {
-        Ok(()) => {
-            RocResult::ok(())
-        },
-        Err(err) => RocResult::err(SQLiteError {
-            code: err.code.unwrap_or_default() as i64,
-            message: RocStr::from(err.message.unwrap_or_default().as_str()),
-        }),
+    // Prepare the query
+    let mut statement = {
+        match connection.prepare(query.as_str()) {
+            Ok(c) => c,
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    };
+
+    // Add bindings for the query
+    for binding in bindings {
+        match statement.bind((binding.name.as_str(),binding.value.as_str())) {
+            Ok(()) => {},
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    }
+
+    let mut cursor = statement.iter();
+    let column_count = cursor.column_count();
+
+    // Save space for 1000 rows without allocating
+    let mut roc_values : RocList<RocList<glue_manual::SQLiteValue>> = RocList::with_capacity(1000); 
+
+    while let Ok(Some(row_values)) = cursor.try_next() {
+
+        let mut row = RocList::with_capacity(column_count);
+        
+        // For each column in the row
+        for value in row_values {
+            row.push(roc_sql_from_sqlite_value(value));
+        }
+
+        roc_values.push(row);
+    }
+
+    RocResult::ok(roc_values)
+
+}
+
+fn roc_sql_from_sqlite_value(value: sqlite::Value) -> glue_manual::SQLiteValue {
+    match value {
+        sqlite::Value::Binary(bytes) => glue_manual::SQLiteValue::Bytes(RocList::from_slice(&bytes[..])),
+        sqlite::Value::Float(f64) => glue_manual::SQLiteValue::Real(f64),
+        sqlite::Value::Integer(i64) => glue_manual::SQLiteValue::Integer(i64),
+        sqlite::Value::String(str) => glue_manual::SQLiteValue::String(RocStr::from(str.as_str())),
+        sqlite::Value::Null => glue_manual::SQLiteValue::Null(),
     }
 }

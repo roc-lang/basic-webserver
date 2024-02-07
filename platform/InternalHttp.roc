@@ -1,13 +1,13 @@
 interface InternalHttp
     exposes [
-        InternalRequest, 
-        InternalMethod, 
-        InternalHeader, 
-        InternalTimeoutConfig, 
-        InternalPart, 
-        InternalBody, 
-        InternalResponse, 
-        InternalMetadata, 
+        InternalRequest,
+        InternalMethod,
+        InternalHeader,
+        InternalTimeoutConfig,
+        InternalPart,
+        InternalBody,
+        InternalResponse,
+        InternalMetadata,
         InternalError,
     ]
     imports []
@@ -22,7 +22,7 @@ InternalRequest : {
 
 InternalMethod : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
 
-InternalHeader : { name : Str, value: List U8 }
+InternalHeader : { name : Str, value : List U8 }
 
 # Name is distinguished from the Timeout tag used in InternalResponse and InternalError
 InternalTimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
@@ -34,9 +34,9 @@ InternalBody : [
     EmptyBody,
 ]
 
-InternalBodyBody : { mimeType: Str, body: List U8} # separate definition to help out glue gen
+InternalBodyBody : { mimeType : Str, body : List U8 } # separate definition to help out glue gen
 
-InternalResponse : { status : U16, headers : List InternalHeader, body: List U8 }
+InternalResponse : { status : U16, headers : List InternalHeader, body : List U8 }
 
 InternalMetadata : {
     url : Str,

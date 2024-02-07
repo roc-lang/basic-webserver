@@ -155,8 +155,8 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     },
     HostedFn {
         name: "sqliteExecute",
-        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<(), SQLiteError>",
+        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
+        ret_type: "roc_std::RocResult<RocList<RocList<glue_manual::SQLiteValue>>, SQLiteError>",
     },
     ];
 

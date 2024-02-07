@@ -5,30 +5,35 @@ app "echo"
         pf.Task.{ Task },
         pf.Http.{ Request, Response },
         pf.SQLite3,
+        pf.Env,
     ]
     provides [main] to pf
 
 main : Request -> Task Response []
 main = \_ ->
 
-    query = 
-        """
-        CREATE TABLE things (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL
-        );
-        """
+    # Read DB_PATH environment variable
+    maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
 
-    result <- SQLite3.execute "test.db" query |> Task.attempt
+    # Query todos table
+    result <-
+        SQLite3.execute {
+            path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
+            query: "SELECT * FROM todos;",
+            bindings: [],
+        }
+        |> Task.attempt
 
-    body = when result is 
-        Ok {} -> "Success!!"
-        Err err -> "Error!! $(SQLite3.errToStr err)" 
+    # Print out the results
+    body =
+        when result is
+            Ok rows -> "$(Inspect.toStr rows)"
+            Err err -> crash "$(SQLite3.errToStr err)"
 
     {} <- Stdout.line body |> Task.await
 
     Task.ok {
-        status: 200, 
-        headers: [{ name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" }], 
+        status: 200,
+        headers: [{ name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" }],
         body: Str.toUtf8 body,
     }

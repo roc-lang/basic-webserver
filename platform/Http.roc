@@ -68,7 +68,7 @@ defaultRequest = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : Str, Str -> Header
-header = \name, value -> { name, value : Str.toUtf8 value }
+header = \name, value -> { name, value: Str.toUtf8 value }
 
 ## An empty HTTP request [Body].
 emptyBody : Body
@@ -84,7 +84,7 @@ emptyBody =
 ##     [123, 125]
 ## ```
 bytesBody : Str, List U8 -> Body
-bytesBody = \mimeType, body -> Body { mimeType, body}
+bytesBody = \mimeType, body -> Body { mimeType, body }
 
 ## A request [Body] with a string.
 ##
@@ -94,7 +94,7 @@ bytesBody = \mimeType, body -> Body { mimeType, body}
 ##     "{\"name\": \"Louis\",\"age\": 22}"
 ## ```
 stringBody : Str, Str -> Body
-stringBody = \mimeType, str -> Body {mimeType, body: (Str.toUtf8 str)}
+stringBody = \mimeType, str -> Body { mimeType, body: Str.toUtf8 str }
 
 # jsonBody : a -> Body where a implements Encoding
 # jsonBody = \val ->
@@ -120,26 +120,25 @@ stringBody = \mimeType, str -> Body {mimeType, body: (Str.toUtf8 str)}
 # stringPart = \name, str ->
 #     Part name (Str.toUtf8 str)
 
-
 ## Map a [Response] body to a [Str] or return an [Error].
 handleStringResponse : Response -> Result Str Error
 handleStringResponse = \response ->
-    response.body 
-    |> Str.fromUtf8 
-    |> Result.mapErr \_ -> BadBody "" #TODO FIX THIS FUNCTION
+    response.body
+    |> Str.fromUtf8
+    |> Result.mapErr \_ -> BadBody "" # TODO FIX THIS FUNCTION
 
-    # when response is
-    #     BadRequest err -> Err (BadRequest err)
-    #     Timeout -> Err Timeout
-    #     NetworkError -> Err NetworkError
-    #     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
-    #     GoodStatus _ bodyBytes ->
-    #         Str.fromUtf8 bodyBytes
-    #         |> Result.mapErr
-    #             \BadUtf8 _ pos ->
-    #                 position = Num.toStr pos
+# when response is
+#     BadRequest err -> Err (BadRequest err)
+#     Timeout -> Err Timeout
+#     NetworkError -> Err NetworkError
+#     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
+#     GoodStatus _ bodyBytes ->
+#         Str.fromUtf8 bodyBytes
+#         |> Result.mapErr
+#             \BadUtf8 _ pos ->
+#                 position = Num.toStr pos
 
-    #                 BadBody "Invalid UTF-8 at byte offset \(position)"
+#                 BadBody "Invalid UTF-8 at byte offset \(position)"
 
 ## Convert an [Error] to a [Str].
 errorToString : Error -> Str
