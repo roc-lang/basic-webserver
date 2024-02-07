@@ -36,6 +36,7 @@ extern "C" {
     ) -> *mut c_void;
     pub fn roc_dealloc(ptr: *mut c_void, alignment: u32);
     pub fn roc_panic(c_ptr: *mut c_void, tag_id: u32);
+    pub fn roc_dbg(loc: *mut c_void, msg: *mut c_void, src: *mut c_void);
     pub fn roc_memset(dst: *mut c_void, c: i32, n: usize) -> *mut c_void;
 }
 
@@ -309,10 +310,9 @@ impl RocDec {
             }
         };
 
-        let opt_after_point = match parts.next() {
-            Some(answer) if answer.len() <= Self::DECIMAL_PLACES => Some(answer),
-            _ => None,
-        };
+        let opt_after_point = parts
+            .next()
+            .map(|answer| &answer[..Ord::min(answer.len(), Self::DECIMAL_PLACES)]);
 
         // There should have only been one "." in the string!
         if parts.next().is_some() {
@@ -494,7 +494,7 @@ impl PartialEq for I128 {
 
 impl PartialOrd for I128 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        i128::from(*self).partial_cmp(&i128::from(*other))
+        Some(self.cmp(other))
     }
 }
 
@@ -546,7 +546,7 @@ impl PartialEq for U128 {
 
 impl PartialOrd for U128 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        u128::from(*self).partial_cmp(&u128::from(*other))
+        Some(self.cmp(other))
     }
 }
 
