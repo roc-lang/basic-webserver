@@ -1,0 +1,15 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+spawn $env(EXAMPLES_DIR)hello-web
+
+expect "Listening on localhost port 8000\r\n" {
+    exit 0
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1
