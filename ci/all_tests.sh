@@ -16,17 +16,22 @@ if [ -z "${ROC}" ]; then
   exit 1
 fi
 
-examples_dir='./examples/'
+
+if [ -z "${EXAMPLES_DIR}" ]; then
+  echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
+  
+  exit 1
+fi
 
 # roc check
-for roc_file in $examples_dir*.roc; do
+for roc_file in $EXAMPLES_DIR*.roc; do
     $ROC check $roc_file
 done
 
 # roc build
 architecture=$(uname -m)
 
-for roc_file in $examples_dir*.roc; do
+for roc_file in $EXAMPLES_DIR*.roc; do
     # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
     $ROC build $roc_file --linker=legacy
 done
@@ -46,6 +51,8 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
         fi
     fi
 done
+
+expect ci/expect_scripts/hello-web.exp
 
 # test building website
 $ROC docs platform/main.roc
