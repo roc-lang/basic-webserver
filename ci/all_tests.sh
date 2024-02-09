@@ -31,9 +31,21 @@ for roc_file in $examples_dir*.roc; do
     $ROC build $roc_file --linker=legacy
 done
 
-$ROC test platform/Url.roc
+# `roc test` every roc file if it contains a test, skip roc_nightly folder
+find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | while read file; do
+    if grep -qE '^\s*expect(\s+|$)' "$file"; then
 
-$ROC test platform/InternalDateTime.roc
+        # don't exit script if test_command fails
+        set +e
+        test_command=$($ROC test "$file")
+        test_exit_code=$?
+        set -e
+
+        if [[ $test_exit_code -ne 0 && $test_exit_code -ne 2 ]]; then
+            exit $test_exit_code
+        fi
+    fi
+done
 
 # test building website
 $ROC docs platform/main.roc
