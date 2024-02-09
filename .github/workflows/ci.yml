@@ -40,7 +40,8 @@ jobs:
       - run: sudo apt install -y expect
       # expect for testing
 
-      - run: expect --version
+      - name: print expect version
+        run: expect -v
 
       # Run all tests 
       - run: ROC=./roc_nightly/roc EXAMPLES_DIR=./examples/ ./ci/all_tests.sh
