@@ -8,7 +8,16 @@ set timeout 7
 spawn $env(EXAMPLES_DIR)hello-web
 
 expect "Listening on localhost port 8000\r\n" {
-    exit 0
+    set curlOutput [exec curl -sS localhost:8000]
+    
+    if {$curlOutput eq "<b>Hello, world!</b>"} {
+        expect "Z GET /\r\n" {
+            exit 0
+        }
+    } else {
+        puts "Error: curl output was different than expected: $curlOutput"
+        exit 1
+    }
 }
 
 puts stderr "\nError: output was different than expected."
