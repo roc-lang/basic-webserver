@@ -1,19 +1,26 @@
 interface SQLite3
     exposes [
+        Value,
+        Code,
+        Error,
+        Binding,
         execute,
         errToStr,
     ]
     imports [InternalTask, Task.{ Task }, InternalSQL, Effect]
 
-SQLErrorMessage : [SQLError InternalSQL.SQLiteErrCode Str]
+Value : InternalSQL.SQLiteValue
+Code : InternalSQL.SQLiteErrCode
+Error : [SQLError Code Str]
+Binding : InternalSQL.SQLiteBindings
 
 execute :
     {
         path : Str,
         query : Str,
-        bindings : List InternalSQL.SQLiteBindings,
+        bindings : List Binding,
     }
-    -> Task (List (List InternalSQL.SQLiteValue)) SQLErrorMessage
+    -> Task (List (List InternalSQL.SQLiteValue)) Error
 execute = \{ path, query, bindings } ->
     result <-
         Effect.sqliteExecute path query bindings
@@ -89,7 +96,7 @@ codeFromI64 = \code ->
     else
         crash "unsupported SQLite error code $(Num.toStr code)"
 
-errToStr : SQLErrorMessage -> Str
+errToStr : Error -> Str
 errToStr = \err ->
     (code, msg2) =
         when err is
