@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
 use std::net::TcpStream;
-use std::os::macos::raw::stat;
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -731,14 +730,59 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
 
 #[repr(C, align(8))]
 pub struct SQLiteError {
-    code : i64,
-    message : roc_std::RocStr,
+    code: i64,
+    message: roc_std::RocStr,
 }
 
 #[repr(C, align(8))]
 pub struct SQLiteBindings {
-    name : roc_std::RocStr,
-    value : roc_std::RocStr,
+    name: roc_std::RocStr,
+    value: roc_std::RocStr,
+}
+
+struct SQLiteConnection {
+    path: String,
+    connection: std::sync::Arc<sqlite::Connection>,
+}
+
+static INIT_GLOBAL_CONNECTION_STORE: std::sync::Once = std::sync::Once::new();
+static mut GLOBAL_SQLITE_CONNECTIONS: *mut std::sync::Mutex<Vec<SQLiteConnection>> =
+    std::ptr::null_mut();
+
+fn get_connection(path: &str) -> Result<std::sync::Arc<sqlite::Connection>, sqlite::Error> {
+    use std::sync::Arc;
+
+    let store: &'static std::sync::Mutex<Vec<SQLiteConnection>> = unsafe {
+        INIT_GLOBAL_CONNECTION_STORE.call_once(|| {
+            GLOBAL_SQLITE_CONNECTIONS = Box::into_raw(Box::new(std::sync::Mutex::new(Vec::new())));
+        });
+        &*GLOBAL_SQLITE_CONNECTIONS
+    };
+
+    let mut opened_store = store.lock().unwrap();
+
+    for c in opened_store.iter() {
+        if c.path == path {
+            return Ok(Arc::clone(&c.connection));
+        }
+    }
+
+    let connection: sqlite::Connection = match sqlite::open(path) {
+        Ok(new_con) => new_con,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let arc_connection = Arc::new(connection);
+    let new_connection = SQLiteConnection {
+        path: path.to_owned(),
+        connection: Arc::clone(&arc_connection),
+    };
+
+    opened_store.push(new_connection);
+
+    Ok(arc_connection)
 }
 
 #[roc_fn(name = "sqliteExecute")]
@@ -747,10 +791,9 @@ fn sqlite_execute(
     query: &roc_std::RocStr,
     bindings: &roc_std::RocList<SQLiteBindings>,
 ) -> roc_std::RocResult<RocList<RocList<glue_manual::SQLiteValue>>, SQLiteError> {
-    
-    // Create the connection
-    let connection : sqlite::Connection = {
-        match sqlite::open(db_path.as_str()) {
+    // Get the connection
+    let connection = {
+        match get_connection(db_path.as_str()) {
             Ok(c) => c,
             Err(err) => {
                 return RocResult::err(SQLiteError {
@@ -776,8 +819,8 @@ fn sqlite_execute(
 
     // Add bindings for the query
     for binding in bindings {
-        match statement.bind((binding.name.as_str(),binding.value.as_str())) {
-            Ok(()) => {},
+        match statement.bind((binding.name.as_str(), binding.value.as_str())) {
+            Ok(()) => {}
             Err(err) => {
                 return RocResult::err(SQLiteError {
                     code: err.code.unwrap_or_default() as i64,
@@ -791,12 +834,11 @@ fn sqlite_execute(
     let column_count = cursor.column_count();
 
     // Save space for 1000 rows without allocating
-    let mut roc_values : RocList<RocList<glue_manual::SQLiteValue>> = RocList::with_capacity(1000); 
+    let mut roc_values: RocList<RocList<glue_manual::SQLiteValue>> = RocList::with_capacity(1000);
 
     while let Ok(Some(row_values)) = cursor.try_next() {
-
         let mut row = RocList::with_capacity(column_count);
-        
+
         // For each column in the row
         for value in row_values {
             row.push(roc_sql_from_sqlite_value(value));
@@ -806,12 +848,13 @@ fn sqlite_execute(
     }
 
     RocResult::ok(roc_values)
-
 }
 
 fn roc_sql_from_sqlite_value(value: sqlite::Value) -> glue_manual::SQLiteValue {
     match value {
-        sqlite::Value::Binary(bytes) => glue_manual::SQLiteValue::Bytes(RocList::from_slice(&bytes[..])),
+        sqlite::Value::Binary(bytes) => {
+            glue_manual::SQLiteValue::Bytes(RocList::from_slice(&bytes[..]))
+        }
         sqlite::Value::Float(f64) => glue_manual::SQLiteValue::Real(f64),
         sqlite::Value::Integer(i64) => glue_manual::SQLiteValue::Integer(i64),
         sqlite::Value::String(str) => glue_manual::SQLiteValue::String(RocStr::from(str.as_str())),
