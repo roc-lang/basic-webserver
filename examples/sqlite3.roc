@@ -16,20 +16,26 @@ main = \_ ->
     maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
 
     # Query todos table
-    result <-
+    rows <-
         SQLite3.execute {
             path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
             query: "SELECT id, task FROM todos WHERE status = :status;",
             bindings: [{ name: ":status", value: "completed" }],
         }
-        |> Task.attempt
+        |> Task.map \rows ->
+            # Parse each row into a string
+            List.map rows \cols ->
+                when cols is
+                    [Integer id, String task] -> "row $(Num.toStr id), task: $(task)"
+                    _ -> crash "unexpected values returned, expected Integer and String got $(Inspect.toStr cols)"
+        |> Task.onErr \err ->
+            # Crash on any errors for now
+            crash "$(SQLite3.errToStr err)"
+        |> Task.await
+
+    body = rows |> Str.joinWith "\n"
 
     # Print out the results
-    body =
-        when result is
-            Ok rows -> parseCompletedTodos rows |> Str.joinWith "\n"
-            Err err -> crash "$(SQLite3.errToStr err)"
-
     {} <- Stdout.line body |> Task.await
 
     Task.ok {
@@ -37,11 +43,3 @@ main = \_ ->
         headers: [{ name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" }],
         body: Str.toUtf8 body,
     }
-
-parseCompletedTodos : List (List SQLite3.Value) -> List Str
-parseCompletedTodos = \rows ->
-    rows
-    |> List.map \cols ->
-        when cols is
-            [Integer id, String task] -> "row $(Num.toStr id), task: $(task)"
-            _ -> crash "unexpected values returned, expected Integer and String got $(Inspect.toStr cols)"
