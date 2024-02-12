@@ -17,7 +17,7 @@ main = \_ ->
     # Get current working directory
     {} <-
         Env.cwd
-        |> Task.await \cwd -> Stdout.line "The current working directory is \(Path.display cwd)"
+        |> Task.await \cwd -> Stdout.line "The current working directory is $(Path.display cwd)"
         |> Task.onErr \CwdUnavailable -> Stderr.line "Unable to read current working directory"
         |> Task.await
 
@@ -35,10 +35,10 @@ main = \_ ->
             paths
             |> List.map Path.display
             |> Str.joinWith ","
-            |> \pathsStr -> "The paths are;\n\(pathsStr)"
+            |> \pathsStr -> "The paths are;\n$(pathsStr)"
             |> Stdout.line
         |> Task.onErr \DirReadErr path err ->
-            Stderr.line "Error reading directory \(Path.display path) with \(err)"
+            Stderr.line "Error reading directory $(Path.display path):\n\t$(err)"
         |> Task.await
 
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request\n" }

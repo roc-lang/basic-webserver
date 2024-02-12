@@ -20,7 +20,7 @@ main = \req ->
     date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
 
     # Log request date, method and url to stdout
-    {} <- "\(date) \(Http.methodToStr req.method) \(req.url)" |> Stdout.line |> Task.await
+    {} <- "$(date) $(Http.methodToStr req.method) $(req.url)" |> Stdout.line |> Task.await
 
     # Read DB_PATH environment variable
     maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
@@ -72,7 +72,7 @@ createTodo = \dbPath, { task, status } ->
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
-        |> Command.arg "INSERT INTO todos (task, status) VALUES ('\(task)', '\(status)');"
+        |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
         |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
         |> Command.output
         |> Task.await
