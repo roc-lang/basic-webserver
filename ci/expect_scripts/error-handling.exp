@@ -1,0 +1,26 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+set env(TARGET_URL) "http://www.example.com"
+
+spawn $env(EXAMPLES_DIR)error-handling
+
+expect "Listening on localhost port 8000\r\n" {
+    set curlOutput [exec curl -sS localhost:8000]
+    
+    if {[string match "*Example Domain*" $curlOutput]} {
+        expect "Z GET /\r\n" {
+            exit 0
+        }
+    } else {
+        puts "Error: curl output was different than expected: $curlOutput"
+        exit 1
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1

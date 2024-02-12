@@ -17,17 +17,17 @@ toIso8601Str = \{ year, month, day, hours, minutes, seconds } ->
     minuteStr = minutesWithPaddedZeros minutes
     secondsStr = secondsWithPaddedZeros seconds
 
-    "\(yearStr)-\(monthStr)-\(dayStr)T\(hourStr):\(minuteStr):\(secondsStr)Z"
+    "$(yearStr)-$(monthStr)-$(dayStr)T$(hourStr):$(minuteStr):$(secondsStr)Z"
 
 yearWithPaddedZeros : I128 -> Str
 yearWithPaddedZeros = \year ->
     yearStr = Num.toStr year
     if year < 10 then
-        "000\(yearStr)"
+        "000$(yearStr)"
     else if year < 100 then
-        "00\(yearStr)"
+        "00$(yearStr)"
     else if year < 1000 then
-        "0\(yearStr)"
+        "0$(yearStr)"
     else
         yearStr
 
@@ -35,7 +35,7 @@ monthWithPaddedZeros : I128 -> Str
 monthWithPaddedZeros = \month ->
     monthStr = Num.toStr month
     if month < 10 then
-        "0\(monthStr)"
+        "0$(monthStr)"
     else
         monthStr
 

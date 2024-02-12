@@ -1,4 +1,5 @@
-app "http"
+# This example demonstrates error handling and fetching content from another website.
+app "error-handling"
     packages { pf: "../platform/main.roc" }
     imports [
         pf.Stdout,
@@ -18,9 +19,9 @@ main = \req ->
         {} <- logRequest req |> Task.await
 
         # Read environment variable
-        url <- readUrlEnv "TARGET_URL" |> Task.await
+        url <- readEnvVar "TARGET_URL" |> Task.await
 
-        # Fetch the Roc website
+        # Fetch content of url
         content <- fetchContent url |> Task.await
 
         # Respond with the website content
@@ -30,7 +31,7 @@ main = \req ->
     handleReq |> Task.onErr handleErr
 
 AppError : [
-    EnvURLNotFound,
+    EnvVarNotSet Str,
     HttpError Http.Error,
 ]
 
@@ -38,12 +39,12 @@ logRequest : Request -> Task {} AppError
 logRequest = \req ->
     dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
 
-    Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url)"
+    Stdout.line "$(dateTime) $(Http.methodToStr req.method) $(req.url)"
 
-readUrlEnv : Str -> Task Str AppError
-readUrlEnv = \target ->
-    Env.var target 
-    |> Task.mapErr \_ -> EnvURLNotFound
+readEnvVar : Str -> Task Str AppError
+readEnvVar = \envVarName ->
+    Env.var envVarName 
+    |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
 fetchContent : Str -> Task Str AppError
 fetchContent = \url ->
@@ -51,25 +52,23 @@ fetchContent = \url ->
     |> Task.mapErr \err -> (HttpError err)
 
 handleErr : AppError -> Task Response []
-handleErr = \err ->
+handleErr = \appErr ->
 
     # Build error message
-    message =
-        when err is
-            EnvURLNotFound -> "TARGET_URL environment variable not set"
-            HttpError _ -> "Http error fetching content"
+    errMsg =
+        when appErr is
+            EnvVarNotSet envVarName -> "Environment variable \"$(envVarName)\" was not set."
+            HttpError err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
 
     # Log error to stderr
-    {} <- Stderr.line "Internal Server Error: \(message)" |> Task.await
+    {} <- Stderr.line "Internal Server Error:\n\t$(errMsg)" |> Task.await
     _ <- Stderr.flush |> Task.attempt
 
     # Respond with Http 500 Error
     Task.ok {
         status: 500,
-        headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-        ],
-        body: Str.toUtf8 "Error 500 Internal Server Error\n",
+        headers: [],
+        body: Str.toUtf8 "Internal Server Error.\n",
     }
 
 # Respond with the given status code and body
@@ -77,8 +76,6 @@ respond : U16, Str -> Task Response AppError
 respond = \code, body ->
     Task.ok {
         status: code,
-        headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-        ],
+        headers: [],
         body: Str.toUtf8 body,
     }

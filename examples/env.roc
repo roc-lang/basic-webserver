@@ -26,7 +26,7 @@ main = \_ ->
 
             body =
                 vars
-                |> List.map (\(k, v) -> "\(k): \(v)")
+                |> List.map (\(k, v) -> "$(k): $(v)")
                 |> Str.joinWith "\n"
                 |> Str.concat "\n"
                 |> Str.toUtf8
