@@ -33,7 +33,7 @@ execute = \{ path, query, bindings } ->
 
 codeFromI64 : I64 -> InternalSQL.SQLiteErrCode
 codeFromI64 = \code ->
-    if code == 1 then
+    if code == 1 || code == 0 then
         ERROR
     else if code == 2 then
         INTERNAL
