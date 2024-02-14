@@ -11,9 +11,9 @@ app "echo"
 main : Request -> Task Response []
 main = \req ->
 
-    # Log request date, method and url
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-    {} <- Stdout.line "$(date) $(Http.methodToStr req.method) $(req.url)" |> Task.await
+    # Log request datetime, method and url
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    {} <- Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)" |> Task.await
 
     # Respond with request body
     when req.body is

@@ -1,7 +1,9 @@
-app "Read todos from SQLite3 response with Json"
+# Webapp for todos using a SQLite 3 database
+app "todos"
     packages { pf: "../platform/main.roc" }
     imports [
         pf.Stdout,
+        pf.Stderr,
         pf.Task.{ Task },
         pf.Http.{ Request, Response },
         pf.Command,
@@ -16,43 +18,50 @@ app "Read todos from SQLite3 response with Json"
 main : Request -> Task Response []
 main = \req ->
 
-    # Get current date-time as ISO8601 string
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    responseTask =
+        {} <- logRequest req |> Task.await
 
-    # Log request date, method and url to stdout
-    {} <- "$(date) $(Http.methodToStr req.method) $(req.url)" |> Stdout.line |> Task.await
+        {} <- isSqliteInstalled |> Task.await
 
-    # Read DB_PATH environment variable
-    maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
+        dbPath <- readEnvVar "DB_PATH" |> Task.await
 
-    # Route to handler based on url path
-    when req.url |> Url.fromStr |> Url.path |> Str.split "/" is
-        ["", ""] -> byteResponse 200 todoHtml
-        ["", "todos", ..] -> routeTodos maybeDbPath req
-        _ -> textResponse 404 "404 Not Found\n"
+        splitUrl =
+            req.url
+            |> Url.fromStr
+            |> Url.path
+            |> Str.split "/"
 
-routeTodos : Result Str [VarNotFound], Request -> Task Response []
-routeTodos = \maybeDbPath, req ->
-    when (maybeDbPath, req.method) is
-        (Ok dbPath, Get) ->
-            # List todos
+        # Route to handler based on url path
+        when splitUrl is
+            ["", ""] -> byteResponse 200 todoHtml
+            ["", "todos", ..] -> routeTodos dbPath req
+            _ -> textResponse 404 "URL Not Found (404)\n"
+
+    # Handle any application errors
+    responseTask |> Task.onErr handleErr
+
+AppError : [
+    Sqlite3NotInstalled,
+    EnvVarNotSet Str,
+]
+
+routeTodos : Str, Request -> Task Response *
+routeTodos = \dbPath, req ->
+    when req.method is
+        Get ->
             listTodos dbPath
 
-        (Ok dbPath, Post) ->
+        Post ->
             # Create todo
             when taskFromQuery req.url is
                 Ok props -> createTodo dbPath props
-                Err InvalidQuery -> textResponse 400 "Invalid query string expected ?task=foo&status=bar"
+                Err InvalidQuery -> textResponse 400 "Invalid query string, I expected: ?task=foo&status=bar"
 
-        (Err VarNotFound, _) ->
-            # No DB_PATH environment variable
-            textResponse 500 "DB_PATH environment variable not found"
+        otherMethod ->
+            # Not supported
+            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)\n"
 
-        (_, _) ->
-            # Route not found
-            textResponse 404 "404 Not Found\n"
-
-listTodos : Str -> Task Response []
+listTodos : Str -> Task Response *
 listTodos = \dbPath ->
     output <-
         Command.new "sqlite3"
@@ -66,7 +75,7 @@ listTodos = \dbPath ->
         Ok {} -> jsonResponse output.stdout
         Err _ -> byteResponse 500 output.stderr
 
-createTodo : Str, { task : Str, status : Str } -> Task Response []
+createTodo : Str, { task : Str, status : Str } -> Task Response *
 createTodo = \dbPath, { task, status } ->
     output <-
         Command.new "sqlite3"
@@ -89,7 +98,7 @@ taskFromQuery = \url ->
         (Ok task, Ok status) -> Ok { task: Str.replaceEach task "%20" " ", status: Str.replaceEach status "%20" " " }
         _ -> Err InvalidQuery
 
-jsonResponse : List U8 -> Task Response []
+jsonResponse : List U8 -> Task Response *
 jsonResponse = \bytes ->
     Task.ok {
         status: 200,
@@ -99,7 +108,7 @@ jsonResponse = \bytes ->
         body: bytes,
     }
 
-textResponse : U16, Str -> Task Response []
+textResponse : U16, Str -> Task Response *
 textResponse = \status, str ->
     Task.ok {
         status,
@@ -109,7 +118,7 @@ textResponse = \status, str ->
         body: Str.toUtf8 str,
     }
 
-byteResponse : U16, List U8 -> Task Response []
+byteResponse : U16, List U8 -> Task Response *
 byteResponse = \status, bytes ->
     Task.ok {
         status,
@@ -117,4 +126,47 @@ byteResponse = \status, bytes ->
             { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
         ],
         body: bytes,
+    }
+
+isSqliteInstalled : Task {} [Sqlite3NotInstalled]_
+isSqliteInstalled =
+    sqlite3Res <-
+        Command.new "sqlite3"
+        |> Command.arg "--version"
+        |> Command.status
+        |> Task.attempt
+
+    when sqlite3Res is 
+        Ok {} -> Task.ok {}
+        Err _ -> Task.err Sqlite3NotInstalled
+    
+logRequest : Request -> Task {} *
+logRequest = \req ->
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+
+    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+
+readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
+readEnvVar = \envVarName ->
+    Env.var envVarName 
+    |> Task.mapErr \_ -> EnvVarNotSet envVarName
+
+handleErr : AppError -> Task Response *
+handleErr = \appErr ->
+
+    # Build error message
+    errMsg =
+        when appErr is
+            EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
+            Sqlite3NotInstalled -> "I failed to call `sqlite3 --version`, is sqlite installed?"
+
+    # Log error to stderr
+    {} <- Stderr.line "Internal Server Error:\n\t$(errMsg)" |> Task.await
+    _ <- Stderr.flush |> Task.attempt
+
+    # Respond with Http 500 Error
+    Task.ok {
+        status: 500,
+        headers: [],
+        body: Str.toUtf8 "Internal Server Error.\n",
     }

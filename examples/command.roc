@@ -11,11 +11,11 @@ app "command"
 main : Request -> Task Response []
 main = \req ->
 
-    # Log request date, method and url using echo program
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    # Log request datetime, method and url using echo program
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
     result <- 
         Command.new "echo"
-        |> Command.arg "$(date) $(Http.methodToStr req.method) $(req.url)"
+        |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
         |> Command.status
         |> Task.attempt
 

@@ -35,23 +35,23 @@ AppError : [
     HttpError Http.Error,
 ]
 
-logRequest : Request -> Task {} AppError
+logRequest : Request -> Task {} *
 logRequest = \req ->
-    dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
 
-    Stdout.line "$(dateTime) $(Http.methodToStr req.method) $(req.url)"
+    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
-readEnvVar : Str -> Task Str AppError
+readEnvVar : Str -> Task Str [EnvVarNotSet Str]
 readEnvVar = \envVarName ->
     Env.var envVarName 
     |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
-fetchContent : Str -> Task Str AppError
+fetchContent : Str -> Task Str [HttpError Http.Error]
 fetchContent = \url ->
     Http.getUtf8 url 
     |> Task.mapErr \err -> (HttpError err)
 
-handleErr : AppError -> Task Response []
+handleErr : AppError -> Task Response *
 handleErr = \appErr ->
 
     # Build error message
@@ -72,7 +72,7 @@ handleErr = \appErr ->
     }
 
 # Respond with the given status code and body
-respond : U16, Str -> Task Response AppError
+respond : U16, Str -> Task Response *
 respond = \code, body ->
     Task.ok {
         status: code,
