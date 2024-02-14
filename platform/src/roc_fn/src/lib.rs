@@ -153,6 +153,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["&roc_std::RocList<u8>"],
         ret_type: "roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, glue_manual::InternalDirReadErr>",
     },
+    HostedFn {
+        name: "sqliteExecute",
+        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
+        ret_type: "roc_std::RocResult<RocList<RocList<glue_manual::SQLiteValue>>, SQLiteError>",
+    },
     ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

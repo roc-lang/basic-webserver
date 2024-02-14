@@ -114,45 +114,46 @@ epochMillisToDateTime = \millis ->
 epochMillisToDateTimeHelp : DateTime -> DateTime
 epochMillisToDateTimeHelp = \current ->
     countDaysInMonth = daysInMonth current.year current.month
-    countDaysInPrevMonth = 
-        if current.month == 1 then daysInMonth (current.year - 1) 12 
-        else daysInMonth current.year (current.month - 1)
+    countDaysInPrevMonth =
+        if current.month == 1 then
+            daysInMonth (current.year - 1) 12
+        else
+            daysInMonth current.year (current.month - 1)
 
-        if current.day < 1 then
-            epochMillisToDateTimeHelp {
-                current &
+    if current.day < 1 then
+        epochMillisToDateTimeHelp
+            { current &
                 year: if current.month == 1 then current.year - 1 else current.year,
                 month: if current.month == 1 then 12 else current.month - 1,
                 day: current.day + countDaysInPrevMonth,
             }
-        else if current.hours < 0 then
-            epochMillisToDateTimeHelp {
-                current &
+    else if current.hours < 0 then
+        epochMillisToDateTimeHelp
+            { current &
                 day: current.day - 1,
-                hours: current.hours + 24
+                hours: current.hours + 24,
             }
-        else if current.minutes < 0 then
-            epochMillisToDateTimeHelp {
-                current &
+    else if current.minutes < 0 then
+        epochMillisToDateTimeHelp
+            { current &
                 hours: current.hours - 1,
                 minutes: current.minutes + 60,
             }
-        else if current.seconds < 0 then
-            epochMillisToDateTimeHelp {
-                current &
+    else if current.seconds < 0 then
+        epochMillisToDateTimeHelp
+            { current &
                 minutes: current.minutes - 1,
                 seconds: current.seconds + 60,
             }
-        else if current.day > countDaysInMonth then
-            epochMillisToDateTimeHelp {
-                current &
+    else if current.day > countDaysInMonth then
+        epochMillisToDateTimeHelp
+            { current &
                 year: if current.month == 12 then current.year + 1 else current.year,
                 month: if current.month == 12 then 1 else current.month + 1,
                 day: current.day - countDaysInMonth,
             }
-        else
-            current
-
+    else
+        current
 
 # test 1000 ms before epoch
 expect
@@ -170,7 +171,7 @@ expect
     str == "1969-12-01T00:00:00Z"
 
 # test 1 year before epoch
-expect 
+expect
     str = (-1 * 365 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
     str == "1969-01-01T00:00:00Z"
 
@@ -180,7 +181,7 @@ expect
     str == "1968-01-01T00:00:00Z"
 
 # test last day of 1st year after epoch
-expect 
+expect
     str = (364 * 24 * 60 * 60 * 1000) |> epochMillisToDateTime |> toIso8601Str
     str == "1970-12-31T00:00:00Z"
 
