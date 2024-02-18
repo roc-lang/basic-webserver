@@ -14,6 +14,7 @@ interface Http
         errorToString,
         send,
         getUtf8,
+        parseFormUrlEncoded,
     ]
     imports [Effect, InternalTask, Task.{ Task }, InternalHttp]
 
@@ -133,3 +134,100 @@ methodToStr = \method ->
         Options -> "OPTIONS"
         Connect -> "CONNECT"
         Trace -> "TRACE"
+
+## Parse URL Encoded Form values into a Dict
+##
+## ```
+## expect
+##     bytes = Str.toUtf8 "todo=foo&status=bar"
+##     parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+##
+##     Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
+## ```
+parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
+parseFormUrlEncoded = \bytes ->
+
+    mapUtfErr = \err -> err |> Result.mapErr \_ -> BadUtf8
+
+    go = \bytesRemaining, state, key, chomped, dict ->
+        next = List.dropFirst bytesRemaining 1
+        when bytesRemaining is
+            [] if List.isEmpty chomped -> dict |> Ok
+            [] ->
+                # chomped last value
+                keyStr <- key |> Str.fromUtf8 |> mapUtfErr |> Result.try
+                valueStr <- chomped |> Str.fromUtf8 |> mapUtfErr |> Result.try
+
+                Dict.insert dict keyStr valueStr |> Ok
+
+            ['=', ..] -> go next ParsingValue chomped [] dict # put chomped into key
+            ['&', ..] ->
+                keyStr <- key |> Str.fromUtf8 |> mapUtfErr |> Result.try
+                valueStr <- chomped |> Str.fromUtf8 |> mapUtfErr |> Result.try
+
+                go next ParsingKey [] [] (Dict.insert dict keyStr valueStr)
+
+            ['%', firstByte, secondByte, ..] ->
+                hex = Num.toU8 (hexBytesToU32 [firstByte, secondByte])
+
+                go (List.dropFirst next 2) state key (List.append chomped hex) dict
+
+            [first, ..] -> go next state key (List.append chomped first) dict
+
+    go bytes ParsingKey [] [] (Dict.empty {})
+
+expect hexBytesToU32 ['2', '0'] == 32
+
+expect
+    bytes = Str.toUtf8 "todo=foo&status=bar"
+    parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+
+    Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
+
+expect
+    Str.toUtf8 "task=asdfs%20adf&status=qwerwe"
+    |> parseFormUrlEncoded
+    |> Result.withDefault (Dict.empty {})
+    |> Dict.toList
+    |> Bool.isEq [("task", "asdfs adf"), ("status", "qwerwe")]
+
+hexBytesToU32 : List U8 -> U32
+hexBytesToU32 = \bytes ->
+    bytes
+    |> List.reverse
+    |> List.walkWithIndex 0 \accum, byte, i -> accum + (Num.powInt 16 (Num.toU32 i)) * (hexToDec byte)
+    |> Num.toU32
+
+expect hexBytesToU32 ['0', '0', '0', '0'] == 0
+expect hexBytesToU32 ['0', '0', '0', '1'] == 1
+expect hexBytesToU32 ['0', '0', '0', 'F'] == 15
+expect hexBytesToU32 ['0', '0', '1', '0'] == 16
+expect hexBytesToU32 ['0', '0', 'F', 'F'] == 255
+expect hexBytesToU32 ['0', '1', '0', '0'] == 256
+expect hexBytesToU32 ['0', 'F', 'F', 'F'] == 4095
+expect hexBytesToU32 ['1', '0', '0', '0'] == 4096
+expect hexBytesToU32 ['1', '6', 'F', 'F', '1'] == 94193
+
+hexToDec : U8 -> U32
+hexToDec = \byte ->
+    when byte is
+        '0' -> 0
+        '1' -> 1
+        '2' -> 2
+        '3' -> 3
+        '4' -> 4
+        '5' -> 5
+        '6' -> 6
+        '7' -> 7
+        '8' -> 8
+        '9' -> 9
+        'A' -> 10
+        'B' -> 11
+        'C' -> 12
+        'D' -> 13
+        'E' -> 14
+        'F' -> 15
+        _ -> 0
+
+expect hexToDec '0' == 0
+expect hexToDec 'F' == 15
