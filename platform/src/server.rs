@@ -42,10 +42,8 @@ fn call_roc<'a>(
         .into();
 
     let answer = roc_app::mainForHost(roc_app::InternalRequest {
-        body: roc_app::InternalBody::Body(roc_app::InternalBodyBody {
-            body: body.to_vec().as_slice().into(),
-            mimeType: RocStr::from("text/plain"),
-        }),
+        body: body.to_vec().as_slice().into(),
+        mimeType: RocStr::from("text/plain"),
         headers: roc_headers,
         url: RocStr::from(url),
         method: method_from_str(method),

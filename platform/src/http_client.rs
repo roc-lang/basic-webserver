@@ -45,14 +45,11 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
         req_builder = req_builder.header(header.name.as_str(), header.value.as_slice());
     }
 
-    if roc_request.body.is_Body() {
-        let internal_body: roc_app::InternalBodyBody = roc_request.body.clone().unwrap_Body();
-        let bytes = internal_body.body.as_slice().to_vec();
-        let mime_type_str = internal_body.mimeType.as_str();
+    let mime_type_str = roc_request.mimeType.as_str();
+    let bytes = roc_request.body.as_slice().to_vec();
 
-        req_builder = req_builder.header("Content-Type", mime_type_str);
-        req_builder = req_builder.body(bytes);
-    }
+    req_builder = req_builder.header("Content-Type", mime_type_str);
+    req_builder = req_builder.body(bytes);
 
     let request = match req_builder.build() {
         Ok(req) => req,

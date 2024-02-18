@@ -16,7 +16,8 @@ main = \req ->
     {} <- Stdout.line "$(date) $(Http.methodToStr req.method) $(req.url)" |> Task.await
 
     # Respond with request body
-    when req.body is
-        EmptyBody -> Task.ok { status: 200, headers: [], body: [] }
-        Body internal -> Task.ok { status: 200, headers: [], body: internal.body }
+    if List.isEmpty req.body then
+        Task.ok { status: 200, headers: [], body: [] }
+    else
+        Task.ok { status: 200, headers: [], body: req.body }
 

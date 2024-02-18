@@ -5,7 +5,6 @@ interface InternalHttp
         InternalHeader,
         InternalTimeoutConfig,
         InternalPart,
-        InternalBody,
         InternalResponse,
         InternalMetadata,
         InternalError,
@@ -16,7 +15,8 @@ InternalRequest : {
     method : InternalMethod,
     headers : List InternalHeader,
     url : Str,
-    body : InternalBody,
+    mimeType : Str,
+    body : List U8,
     timeout : InternalTimeoutConfig,
 }
 
@@ -29,14 +29,11 @@ InternalTimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
 InternalPart : [Part Str (List U8)]
 
-InternalBody : [
-    Body InternalBodyBody,
-    EmptyBody,
-]
-
-InternalBodyBody : { mimeType : Str, body : List U8 } # separate definition to help out glue gen
-
-InternalResponse : { status : U16, headers : List InternalHeader, body : List U8 }
+InternalResponse : {
+    status : U16,
+    headers : List InternalHeader,
+    body : List U8,
+}
 
 InternalMetadata : {
     url : Str,
