@@ -147,7 +147,7 @@ methodToStr = \method ->
 parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
 parseFormUrlEncoded = \bytes ->
 
-    chainUtf8 = \bytesList -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try
+    chainUtf8 = \bytesList, tryFun -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try tryFun
 
     # simplify `BadUtf8 Utf8ByteProblem ...` error
     mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
