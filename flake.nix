@@ -46,6 +46,7 @@
           llvmPkgs.clang
           expect
           rocPkgs.cli
+          sqlite
         ]);
       in {
 

@@ -1,0 +1,44 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+spawn $env(EXAMPLES_DIR)todos
+
+expect "Listening on localhost port 8000\r\n" {
+
+    set curlOutputIndex [exec curl -sS localhost:8000]
+    
+    if {[string match "*addTodoForm*" $curlOutputIndex]} {
+        expect "Z GET /\r\n" {
+
+            set curlOutputTodos [exec curl -sS localhost:8000/todos]
+
+            if {[string match "*AoC*" $curlOutputTodos]} {
+                 expect "Z GET /todos\r\n" {
+
+                    set curlOutputPost [exec curl -sSX POST "localhost:8000/todos?task=Task%206&status=planned"]
+
+                    if {[string match "*planned*" $curlOutputPost]} {
+                        expect "Z POST /todos?task=Task%206&status=planned\r\n" {
+
+                            set curlOutputTodos2 [exec curl -sS localhost:8000/todos]
+
+                            if {[string match "*Task 6*" $curlOutputTodos2]} {
+                                exit 0
+                            }
+                        }
+                    }
+                 }
+            }
+        }
+    } else {
+        puts "Error: curl output was different than expected: $curlOutput"
+        exit 1
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1
