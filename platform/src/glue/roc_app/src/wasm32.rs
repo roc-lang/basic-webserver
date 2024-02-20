@@ -16,8 +16,7 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::clone_on_copy)]
 
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
 pub enum discriminant_InternalTimeoutConfig {
     NoTimeout = 0,
@@ -28,7 +27,9 @@ impl core::fmt::Debug for discriminant_InternalTimeoutConfig {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoTimeout => f.write_str("discriminant_InternalTimeoutConfig::NoTimeout"),
-            Self::TimeoutMilliseconds => f.write_str("discriminant_InternalTimeoutConfig::TimeoutMilliseconds"),
+            Self::TimeoutMilliseconds => {
+                f.write_str("discriminant_InternalTimeoutConfig::TimeoutMilliseconds")
+            }
         }
     }
 }
@@ -39,11 +40,15 @@ pub union union_InternalTimeoutConfig {
     TimeoutMilliseconds: u64,
 }
 
-const _SIZE_CHECK_union_InternalTimeoutConfig: () = assert!(core::mem::size_of::<union_InternalTimeoutConfig>() == 8);
-const _ALIGN_CHECK_union_InternalTimeoutConfig: () = assert!(core::mem::align_of::<union_InternalTimeoutConfig>() == 8);
+const _SIZE_CHECK_union_InternalTimeoutConfig: () =
+    assert!(core::mem::size_of::<union_InternalTimeoutConfig>() == 8);
+const _ALIGN_CHECK_union_InternalTimeoutConfig: () =
+    assert!(core::mem::align_of::<union_InternalTimeoutConfig>() == 8);
 
-const _SIZE_CHECK_InternalTimeoutConfig: () = assert!(core::mem::size_of::<InternalTimeoutConfig>() == 16);
-const _ALIGN_CHECK_InternalTimeoutConfig: () = assert!(core::mem::align_of::<InternalTimeoutConfig>() == 8);
+const _SIZE_CHECK_InternalTimeoutConfig: () =
+    assert!(core::mem::size_of::<InternalTimeoutConfig>() == 16);
+const _ALIGN_CHECK_InternalTimeoutConfig: () =
+    assert!(core::mem::align_of::<InternalTimeoutConfig>() == 8);
 
 impl InternalTimeoutConfig {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
@@ -57,7 +62,8 @@ impl InternalTimeoutConfig {
 
     /// Internal helper
     fn set_discriminant(&mut self, discriminant: discriminant_InternalTimeoutConfig) {
-        let discriminant_ptr: *mut discriminant_InternalTimeoutConfig = (self as *mut InternalTimeoutConfig).cast();
+        let discriminant_ptr: *mut discriminant_InternalTimeoutConfig =
+            (self as *mut InternalTimeoutConfig).cast();
 
         unsafe {
             *(discriminant_ptr.add(8)) = discriminant;
@@ -101,12 +107,16 @@ impl core::fmt::Debug for InternalTimeoutConfig {
             match self.discriminant {
                 NoTimeout => {
                     let field: &() = &self.payload.NoTimeout;
-                    f.debug_tuple("InternalTimeoutConfig::NoTimeout").field(field).finish()
-                },
+                    f.debug_tuple("InternalTimeoutConfig::NoTimeout")
+                        .field(field)
+                        .finish()
+                }
                 TimeoutMilliseconds => {
                     let field: &u64 = &self.payload.TimeoutMilliseconds;
-                    f.debug_tuple("InternalTimeoutConfig::TimeoutMilliseconds").field(field).finish()
-                },
+                    f.debug_tuple("InternalTimeoutConfig::TimeoutMilliseconds")
+                        .field(field)
+                        .finish()
+                }
             }
         }
     }
@@ -125,7 +135,9 @@ impl PartialEq for InternalTimeoutConfig {
         unsafe {
             match self.discriminant {
                 NoTimeout => self.payload.NoTimeout == other.payload.NoTimeout,
-                TimeoutMilliseconds => self.payload.TimeoutMilliseconds == other.payload.TimeoutMilliseconds,
+                TimeoutMilliseconds => {
+                    self.payload.TimeoutMilliseconds == other.payload.TimeoutMilliseconds
+                }
             }
         }
     }
@@ -149,7 +161,10 @@ impl PartialOrd for InternalTimeoutConfig {
             Equal => unsafe {
                 match self.discriminant {
                     NoTimeout => self.payload.NoTimeout.partial_cmp(&other.payload.NoTimeout),
-                    TimeoutMilliseconds => self.payload.TimeoutMilliseconds.partial_cmp(&other.payload.TimeoutMilliseconds),
+                    TimeoutMilliseconds => self
+                        .payload
+                        .TimeoutMilliseconds
+                        .partial_cmp(&other.payload.TimeoutMilliseconds),
                 }
             },
         }
@@ -170,31 +185,34 @@ impl core::hash::Hash for InternalTimeoutConfig {
 }
 
 impl InternalTimeoutConfig {
-
     pub fn is_NoTimeout(&self) -> bool {
-        matches!(self.discriminant, discriminant_InternalTimeoutConfig::NoTimeout)
+        matches!(
+            self.discriminant,
+            discriminant_InternalTimeoutConfig::NoTimeout
+        )
     }
 
     pub fn unwrap_TimeoutMilliseconds(mut self) -> u64 {
-        debug_assert_eq!(self.discriminant, discriminant_InternalTimeoutConfig::TimeoutMilliseconds);
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
+        );
         unsafe { self.payload.TimeoutMilliseconds }
     }
 
     pub fn is_TimeoutMilliseconds(&self) -> bool {
-        matches!(self.discriminant, discriminant_InternalTimeoutConfig::TimeoutMilliseconds)
+        matches!(
+            self.discriminant,
+            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
+        )
     }
 }
 
-
-
 impl InternalTimeoutConfig {
-
     pub fn NoTimeout() -> Self {
         Self {
             discriminant: discriminant_InternalTimeoutConfig::NoTimeout,
-            payload: union_InternalTimeoutConfig {
-                NoTimeout: (),
-            }
+            payload: union_InternalTimeoutConfig { NoTimeout: () },
         }
     }
 
@@ -203,227 +221,19 @@ impl InternalTimeoutConfig {
             discriminant: discriminant_InternalTimeoutConfig::TimeoutMilliseconds,
             payload: union_InternalTimeoutConfig {
                 TimeoutMilliseconds: payload,
-            }
-        }
-    }
-}
-
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
-#[repr(C)]
-pub struct InternalBodyBody {
-    pub body: roc_std::RocList<u8>,
-    pub mimeType: roc_std::RocStr,
-}
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
-#[repr(u8)]
-pub enum discriminant_InternalBody {
-    Body = 0,
-    EmptyBody = 1,
-}
-
-impl core::fmt::Debug for discriminant_InternalBody {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Body => f.write_str("discriminant_InternalBody::Body"),
-            Self::EmptyBody => f.write_str("discriminant_InternalBody::EmptyBody"),
-        }
-    }
-}
-
-#[repr(C, align(4))]
-pub union union_InternalBody {
-    Body: core::mem::ManuallyDrop<InternalBodyBody>,
-    EmptyBody: (),
-}
-
-const _SIZE_CHECK_union_InternalBody: () = assert!(core::mem::size_of::<union_InternalBody>() == 24);
-const _ALIGN_CHECK_union_InternalBody: () = assert!(core::mem::align_of::<union_InternalBody>() == 4);
-
-const _SIZE_CHECK_InternalBody: () = assert!(core::mem::size_of::<InternalBody>() == 28);
-const _ALIGN_CHECK_InternalBody: () = assert!(core::mem::align_of::<InternalBody>() == 4);
-
-impl InternalBody {
-    /// Returns which variant this tag union holds. Note that this never includes a payload!
-    pub fn discriminant(&self) -> discriminant_InternalBody {
-        unsafe {
-            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
-
-            core::mem::transmute::<u8, discriminant_InternalBody>(*bytes.as_ptr().add(24))
-        }
-    }
-
-    /// Internal helper
-    fn set_discriminant(&mut self, discriminant: discriminant_InternalBody) {
-        let discriminant_ptr: *mut discriminant_InternalBody = (self as *mut InternalBody).cast();
-
-        unsafe {
-            *(discriminant_ptr.add(24)) = discriminant;
-        }
-    }
-}
-
-#[repr(C)]
-pub struct InternalBody {
-    payload: union_InternalBody,
-    discriminant: discriminant_InternalBody,
-}
-
-impl Clone for InternalBody {
-    fn clone(&self) -> Self {
-        use discriminant_InternalBody::*;
-
-        let payload = unsafe {
-            match self.discriminant {
-                Body => union_InternalBody {
-                    Body: self.payload.Body.clone(),
-                },
-                EmptyBody => union_InternalBody {
-                    EmptyBody: self.payload.EmptyBody.clone(),
-                },
-            }
-        };
-
-        Self {
-            discriminant: self.discriminant,
-            payload,
-        }
-    }
-}
-
-impl core::fmt::Debug for InternalBody {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use discriminant_InternalBody::*;
-
-        unsafe {
-            match self.discriminant {
-                Body => {
-                    let field: &InternalBodyBody = &self.payload.Body;
-                    f.debug_tuple("InternalBody::Body").field(field).finish()
-                },
-                EmptyBody => {
-                    let field: &() = &self.payload.EmptyBody;
-                    f.debug_tuple("InternalBody::EmptyBody").field(field).finish()
-                },
-            }
-        }
-    }
-}
-
-impl Eq for InternalBody {}
-
-impl PartialEq for InternalBody {
-    fn eq(&self, other: &Self) -> bool {
-        use discriminant_InternalBody::*;
-
-        if self.discriminant != other.discriminant {
-            return false;
-        }
-
-        unsafe {
-            match self.discriminant {
-                Body => self.payload.Body == other.payload.Body,
-                EmptyBody => self.payload.EmptyBody == other.payload.EmptyBody,
-            }
-        }
-    }
-}
-
-impl Ord for InternalBody {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for InternalBody {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use discriminant_InternalBody::*;
-
-        use std::cmp::Ordering::*;
-
-        match self.discriminant.cmp(&other.discriminant) {
-            Less => Option::Some(Less),
-            Greater => Option::Some(Greater),
-            Equal => unsafe {
-                match self.discriminant {
-                    Body => self.payload.Body.partial_cmp(&other.payload.Body),
-                    EmptyBody => self.payload.EmptyBody.partial_cmp(&other.payload.EmptyBody),
-                }
             },
         }
     }
 }
 
-impl core::hash::Hash for InternalBody {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        use discriminant_InternalBody::*;
-
-        unsafe {
-            match self.discriminant {
-                Body => self.payload.Body.hash(state),
-                EmptyBody => self.payload.EmptyBody.hash(state),
-            }
-        }
-    }
-}
-
-impl InternalBody {
-
-    pub fn unwrap_Body(mut self) -> InternalBodyBody {
-        debug_assert_eq!(self.discriminant, discriminant_InternalBody::Body);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Body) }
-    }
-
-    pub fn is_Body(&self) -> bool {
-        matches!(self.discriminant, discriminant_InternalBody::Body)
-    }
-
-    pub fn is_EmptyBody(&self) -> bool {
-        matches!(self.discriminant, discriminant_InternalBody::EmptyBody)
-    }
-}
-
-
-
-impl InternalBody {
-
-    pub fn Body(payload: InternalBodyBody) -> Self {
-        Self {
-            discriminant: discriminant_InternalBody::Body,
-            payload: union_InternalBody {
-                Body: core::mem::ManuallyDrop::new(payload),
-            }
-        }
-    }
-
-    pub fn EmptyBody() -> Self {
-        Self {
-            discriminant: discriminant_InternalBody::EmptyBody,
-            payload: union_InternalBody {
-                EmptyBody: (),
-            }
-        }
-    }
-}
-
-impl Drop for InternalBody {
-    fn drop(&mut self) {
-        // Drop the payloads
-        match self.discriminant() {
-            discriminant_InternalBody::Body => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Body) },
-            discriminant_InternalBody::EmptyBody => {}
-        }
-    }
-}
-
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalHeader {
     pub name: roc_std::RocStr,
     pub value: roc_std::RocList<u8>,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
 pub enum InternalMethod {
     Connect = 0,
@@ -453,25 +263,24 @@ impl core::fmt::Debug for InternalMethod {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalRequest {
     pub timeout: InternalTimeoutConfig,
-    pub body: InternalBody,
+    pub body: roc_std::RocList<u8>,
     pub headers: roc_std::RocList<InternalHeader>,
+    pub mimeType: roc_std::RocStr,
     pub url: roc_std::RocStr,
     pub method: InternalMethod,
 }
 
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalResponse {
     pub body: roc_std::RocList<u8>,
     pub headers: roc_std::RocList<InternalHeader>,
     pub status: u16,
 }
-
-
 
 #[repr(C)]
 #[derive(Debug)]
@@ -482,7 +291,11 @@ pub struct RocFunction_86 {
 impl RocFunction_86 {
     pub fn force_thunk(mut self) -> InternalResponse {
         extern "C" {
-            fn roc__mainForHost_0_caller(arg0: *const (), closure_data: *mut u8, output: *mut InternalResponse);
+            fn roc__mainForHost_0_caller(
+                arg0: *const (),
+                closure_data: *mut u8,
+                output: *mut InternalResponse,
+            );
         }
 
         let mut output = core::mem::MaybeUninit::uninit();
@@ -497,7 +310,10 @@ impl RocFunction_86 {
 
 pub fn mainForHost(arg0: InternalRequest) -> RocFunction_86 {
     extern "C" {
-        fn roc__mainForHost_1_exposed_generic(_: *mut u8, _: &mut core::mem::ManuallyDrop<InternalRequest>);
+        fn roc__mainForHost_1_exposed_generic(
+            _: *mut u8,
+            _: &mut core::mem::ManuallyDrop<InternalRequest>,
+        );
         fn roc__mainForHost_1_exposed_size() -> i64;
     }
 
@@ -509,7 +325,10 @@ pub fn mainForHost(arg0: InternalRequest) -> RocFunction_86 {
         };
         ret.closure_data.resize(capacity, 0);
 
-        roc__mainForHost_1_exposed_generic(ret.closure_data.as_mut_ptr(), &mut core::mem::ManuallyDrop::new(arg0));
+        roc__mainForHost_1_exposed_generic(
+            ret.closure_data.as_mut_ptr(),
+            &mut core::mem::ManuallyDrop::new(arg0),
+        );
 
         ret
     }
