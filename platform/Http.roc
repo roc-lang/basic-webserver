@@ -135,7 +135,7 @@ methodToStr = \method ->
         Connect -> "CONNECT"
         Trace -> "TRACE"
 
-## Parse URL Encoded Form values into a Dict
+## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
 ##
 ## ```
 ## expect
@@ -147,34 +147,38 @@ methodToStr = \method ->
 parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
 parseFormUrlEncoded = \bytes ->
 
-    mapUtfErr = \err -> err |> Result.mapErr \_ -> BadUtf8
+    chainUtf8 = \bytesList -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try
 
-    go = \bytesRemaining, state, key, chomped, dict ->
-        next = List.dropFirst bytesRemaining 1
+    # simplify `BadUtf8 Utf8ByteProblem ...` error
+    mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
+
+    parse = \bytesRemaining, state, key, chomped, dict ->
+        tail = List.dropFirst bytesRemaining 1
+
         when bytesRemaining is
             [] if List.isEmpty chomped -> dict |> Ok
             [] ->
                 # chomped last value
-                keyStr <- key |> Str.fromUtf8 |> mapUtfErr |> Result.try
-                valueStr <- chomped |> Str.fromUtf8 |> mapUtfErr |> Result.try
+                keyStr <- key |> chainUtf8
+                valueStr <- chomped |> chainUtf8
 
                 Dict.insert dict keyStr valueStr |> Ok
 
-            ['=', ..] -> go next ParsingValue chomped [] dict # put chomped into key
+            ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
             ['&', ..] ->
-                keyStr <- key |> Str.fromUtf8 |> mapUtfErr |> Result.try
-                valueStr <- chomped |> Str.fromUtf8 |> mapUtfErr |> Result.try
+                keyStr <- key |> chainUtf8
+                valueStr <- chomped |> chainUtf8
 
-                go next ParsingKey [] [] (Dict.insert dict keyStr valueStr)
+                parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
-            ['%', firstByte, secondByte, ..] ->
-                hex = Num.toU8 (hexBytesToU32 [firstByte, secondByte])
+            ['%', secondByte, thirdByte, ..] ->
+                hex = Num.toU8 (hexBytesToU32 [secondByte, thirdByte])
 
-                go (List.dropFirst next 2) state key (List.append chomped hex) dict
+                parse (List.dropFirst tail 2) state key (List.append chomped hex) dict
 
-            [first, ..] -> go next state key (List.append chomped first) dict
+            [firstByte, ..] -> parse tail state key (List.append chomped firstByte) dict
 
-    go bytes ParsingKey [] [] (Dict.empty {})
+    parse bytes ParsingKey [] [] (Dict.empty {})
 
 expect hexBytesToU32 ['2', '0'] == 32
 
@@ -227,7 +231,7 @@ hexToDec = \byte ->
         'D' -> 13
         'E' -> 14
         'F' -> 15
-        _ -> 0
+        _ -> crash "Impossible error: the `when` block I'm in should have matched before reaching the catch-all `_`."
 
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
