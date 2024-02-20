@@ -52,15 +52,5 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
     fi
 done
 
-# TODO use loop instead
-expect ci/expect_scripts/command.exp
-expect ci/expect_scripts/dir.exp
-expect ci/expect_scripts/echo.exp
-expect ci/expect_scripts/env.exp
-expect ci/expect_scripts/error-handling.exp
-expect ci/expect_scripts/file.exp
-expect ci/expect_scripts/hello-web.exp
-expect ci/expect_scripts/sleep.exp
-
 # test building website
 $ROC docs platform/main.roc
