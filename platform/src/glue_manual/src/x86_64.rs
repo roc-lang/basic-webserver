@@ -3469,6 +3469,279 @@ impl core::fmt::Debug for InternalDirDeleteErr {
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
 #[repr(u8)]
+pub enum discriminant_SQLiteValue {
+    Bytes = 0,
+    Integer = 1,
+    Null = 2,
+    Real = 3,
+    String = 4,
+}
+
+impl core::fmt::Debug for discriminant_SQLiteValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bytes => f.write_str("discriminant_SQLiteValue::Bytes"),
+            Self::Integer => f.write_str("discriminant_SQLiteValue::Integer"),
+            Self::Null => f.write_str("discriminant_SQLiteValue::Null"),
+            Self::Real => f.write_str("discriminant_SQLiteValue::Real"),
+            Self::String => f.write_str("discriminant_SQLiteValue::String"),
+        }
+    }
+}
+
+#[repr(C, align(8))]
+pub union union_SQLiteValue {
+    Bytes: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    Integer: i64,
+    Null: (),
+    Real: f64,
+    String: core::mem::ManuallyDrop<roc_std::RocStr>,
+}
+
+const _SIZE_CHECK_union_SQLiteValue: () = assert!(core::mem::size_of::<union_SQLiteValue>() == 24);
+const _ALIGN_CHECK_union_SQLiteValue: () = assert!(core::mem::align_of::<union_SQLiteValue>() == 8);
+
+const _SIZE_CHECK_SQLiteValue: () = assert!(core::mem::size_of::<SQLiteValue>() == 32);
+const _ALIGN_CHECK_SQLiteValue: () = assert!(core::mem::align_of::<SQLiteValue>() == 8);
+
+impl SQLiteValue {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_SQLiteValue {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_SQLiteValue>(*bytes.as_ptr().add(24))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_SQLiteValue) {
+        let discriminant_ptr: *mut discriminant_SQLiteValue = (self as *mut SQLiteValue).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(24)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct SQLiteValue {
+    payload: union_SQLiteValue,
+    discriminant: discriminant_SQLiteValue,
+}
+
+impl Clone for SQLiteValue {
+    fn clone(&self) -> Self {
+        use discriminant_SQLiteValue::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Bytes => union_SQLiteValue {
+                    Bytes: self.payload.Bytes.clone(),
+                },
+                Integer => union_SQLiteValue {
+                    Integer: self.payload.Integer.clone(),
+                },
+                Null => union_SQLiteValue {
+                    Null: self.payload.Null.clone(),
+                },
+                Real => union_SQLiteValue {
+                    Real: self.payload.Real.clone(),
+                },
+                String => union_SQLiteValue {
+                    String: self.payload.String.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for SQLiteValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_SQLiteValue::*;
+
+        unsafe {
+            match self.discriminant {
+                Bytes => {
+                    let field: &roc_std::RocList<u8> = &self.payload.Bytes;
+                    f.debug_tuple("SQLiteValue::Bytes").field(field).finish()
+                },
+                Integer => {
+                    let field: &i64 = &self.payload.Integer;
+                    f.debug_tuple("SQLiteValue::Integer").field(field).finish()
+                },
+                Null => {
+                    let field: &() = &self.payload.Null;
+                    f.debug_tuple("SQLiteValue::Null").field(field).finish()
+                },
+                Real => {
+                    let field: &f64 = &self.payload.Real;
+                    f.debug_tuple("SQLiteValue::Real").field(field).finish()
+                },
+                String => {
+                    let field: &roc_std::RocStr = &self.payload.String;
+                    f.debug_tuple("SQLiteValue::String").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl PartialEq for SQLiteValue {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_SQLiteValue::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Bytes => self.payload.Bytes == other.payload.Bytes,
+                Integer => self.payload.Integer == other.payload.Integer,
+                Null => self.payload.Null == other.payload.Null,
+                Real => self.payload.Real == other.payload.Real,
+                String => self.payload.String == other.payload.String,
+            }
+        }
+    }
+}
+
+impl PartialOrd for SQLiteValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_SQLiteValue::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Bytes => self.payload.Bytes.partial_cmp(&other.payload.Bytes),
+                    Integer => self.payload.Integer.partial_cmp(&other.payload.Integer),
+                    Null => self.payload.Null.partial_cmp(&other.payload.Null),
+                    Real => self.payload.Real.partial_cmp(&other.payload.Real),
+                    String => self.payload.String.partial_cmp(&other.payload.String),
+                }
+            },
+        }
+    }
+}
+
+impl SQLiteValue {
+
+    pub fn unwrap_Bytes(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Bytes) }
+    }
+
+    pub fn is_Bytes(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Bytes)
+    }
+
+    pub fn unwrap_Integer(mut self) -> i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { self.payload.Integer }
+    }
+
+    pub fn is_Integer(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Integer)
+    }
+
+    pub fn is_Null(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Null)
+    }
+
+    pub fn unwrap_Real(mut self) -> f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { self.payload.Real }
+    }
+
+    pub fn is_Real(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Real)
+    }
+
+    pub fn unwrap_String(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.String) }
+    }
+
+    pub fn is_String(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::String)
+    }
+}
+
+
+
+impl SQLiteValue {
+
+    pub fn Bytes(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Bytes,
+            payload: union_SQLiteValue {
+                Bytes: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Integer(payload: i64) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Integer,
+            payload: union_SQLiteValue {
+                Integer: payload,
+            }
+        }
+    }
+
+    pub fn Null() -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Null,
+            payload: union_SQLiteValue {
+                Null: (),
+            }
+        }
+    }
+
+    pub fn Real(payload: f64) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Real,
+            payload: union_SQLiteValue {
+                Real: payload,
+            }
+        }
+    }
+
+    pub fn String(payload: roc_std::RocStr) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::String,
+            payload: union_SQLiteValue {
+                String: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for SQLiteValue {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_SQLiteValue::Bytes => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Bytes) },
+            discriminant_SQLiteValue::Integer => {}
+            discriminant_SQLiteValue::Null => {}
+            discriminant_SQLiteValue::Real => {}
+            discriminant_SQLiteValue::String => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.String) },
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
 pub enum discriminant_GlueTypes {
     A = 0,
     B = 1,
@@ -3486,6 +3759,7 @@ pub enum discriminant_GlueTypes {
     N = 13,
     O = 14,
     P = 15,
+    Q = 16,
 }
 
 impl core::fmt::Debug for discriminant_GlueTypes {
@@ -3507,6 +3781,7 @@ impl core::fmt::Debug for discriminant_GlueTypes {
             Self::N => f.write_str("discriminant_GlueTypes::N"),
             Self::O => f.write_str("discriminant_GlueTypes::O"),
             Self::P => f.write_str("discriminant_GlueTypes::P"),
+            Self::Q => f.write_str("discriminant_GlueTypes::Q"),
         }
     }
 }
@@ -3529,6 +3804,7 @@ pub union union_GlueTypes {
     N: core::mem::ManuallyDrop<InternalDirReadErr>,
     O: core::mem::ManuallyDrop<InternalDirDeleteErr>,
     P: core::mem::ManuallyDrop<UnwrappedPath>,
+    Q: core::mem::ManuallyDrop<SQLiteValue>,
 }
 
 const _SIZE_CHECK_union_GlueTypes: () = assert!(core::mem::size_of::<union_GlueTypes>() == 88);
@@ -3617,6 +3893,9 @@ impl Clone for GlueTypes {
                 P => union_GlueTypes {
                     P: self.payload.P.clone(),
                 },
+                Q => union_GlueTypes {
+                    Q: self.payload.Q.clone(),
+                },
             }
         };
 
@@ -3697,12 +3976,14 @@ impl core::fmt::Debug for GlueTypes {
                     let field: &UnwrappedPath = &self.payload.P;
                     f.debug_tuple("GlueTypes::P").field(field).finish()
                 },
+                Q => {
+                    let field: &SQLiteValue = &self.payload.Q;
+                    f.debug_tuple("GlueTypes::Q").field(field).finish()
+                },
             }
         }
     }
 }
-
-impl Eq for GlueTypes {}
 
 impl PartialEq for GlueTypes {
     fn eq(&self, other: &Self) -> bool {
@@ -3730,14 +4011,9 @@ impl PartialEq for GlueTypes {
                 N => self.payload.N == other.payload.N,
                 O => self.payload.O == other.payload.O,
                 P => self.payload.P == other.payload.P,
+                Q => self.payload.Q == other.payload.Q,
             }
         }
-    }
-}
-
-impl Ord for GlueTypes {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -3768,35 +4044,9 @@ impl PartialOrd for GlueTypes {
                     N => self.payload.N.partial_cmp(&other.payload.N),
                     O => self.payload.O.partial_cmp(&other.payload.O),
                     P => self.payload.P.partial_cmp(&other.payload.P),
+                    Q => self.payload.Q.partial_cmp(&other.payload.Q),
                 }
             },
-        }
-    }
-}
-
-impl core::hash::Hash for GlueTypes {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        use discriminant_GlueTypes::*;
-
-        unsafe {
-            match self.discriminant {
-                A => self.payload.A.hash(state),
-                B => self.payload.B.hash(state),
-                C => self.payload.C.hash(state),
-                D => self.payload.D.hash(state),
-                E => self.payload.E.hash(state),
-                F => self.payload.F.hash(state),
-                G => self.payload.G.hash(state),
-                H => self.payload.H.hash(state),
-                I => self.payload.I.hash(state),
-                J => self.payload.J.hash(state),
-                K => self.payload.K.hash(state),
-                L => self.payload.L.hash(state),
-                M => self.payload.M.hash(state),
-                N => self.payload.N.hash(state),
-                O => self.payload.O.hash(state),
-                P => self.payload.P.hash(state),
-            }
         }
     }
 }
@@ -3945,6 +4195,15 @@ impl GlueTypes {
 
     pub fn is_P(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::P)
+    }
+
+    pub fn unwrap_Q(mut self) -> SQLiteValue {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::Q);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Q) }
+    }
+
+    pub fn is_Q(&self) -> bool {
+        matches!(self.discriminant, discriminant_GlueTypes::Q)
     }
 }
 
@@ -4095,6 +4354,15 @@ impl GlueTypes {
             }
         }
     }
+
+    pub fn Q(payload: SQLiteValue) -> Self {
+        Self {
+            discriminant: discriminant_GlueTypes::Q,
+            payload: union_GlueTypes {
+                Q: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
 }
 
 impl Drop for GlueTypes {
@@ -4117,6 +4385,7 @@ impl Drop for GlueTypes {
             discriminant_GlueTypes::N => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.N) },
             discriminant_GlueTypes::O => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.O) },
             discriminant_GlueTypes::P => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.P) },
+            discriminant_GlueTypes::Q => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Q) },
         }
     }
 }

@@ -48,8 +48,8 @@ readEnvVar = \envVarName ->
 
 fetchContent : Str -> Task Str [HttpError Http.Error]
 fetchContent = \url ->
-    Http.getUtf8 url 
-    |> Task.mapErr \err -> (HttpError err)
+    Http.getUtf8 url
+    |> Task.mapErr \err -> HttpError err
 
 handleErr : AppError -> Task Response *
 handleErr = \appErr ->
