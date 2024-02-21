@@ -20,7 +20,7 @@ toBytes = \input ->
     List.withCapacity (4 * ((2 + len) // 3))
     |> toBytesHelp (Str.toUtf8 input) len 0
 
-toBytesHelp : List U8, List U8, Nat, Nat -> List U8
+toBytesHelp : List U8, List U8, U64, U64 -> List U8
 toBytesHelp = \answer, input, len, index ->
     if index < len then
         octetA = getU32 input (index + 0)
@@ -40,14 +40,14 @@ toBytesHelp = \answer, input, len, index ->
     else
         answer
 
-getU32 : List U8, Nat -> U32
+getU32 : List U8, U64 -> U32
 getU32 = \input, index ->
     input
     |> List.get index
     |> Result.withDefault 0
     |> Num.toU32
 
-update : List U8, U32, Nat, Bool -> List U8
+update : List U8, U32, U64, Bool -> List U8
 update = \list, triple, index, usePlaceholder ->
     shiftAmount = 6 * (3 - index) |> Num.toU8
     byte = base64Char (triple |> Num.shiftRightBy shiftAmount |> Num.bitwiseAnd 0x3F)

@@ -39,7 +39,7 @@ Url := Str
 ## There is no `Url.withCapacity` because it's better to reserve extra capacity
 ## on a [Str] first, and then pass that string to [Url.fromStr]. This function will make use
 ## of the extra capacity.
-reserve : Url, Nat -> Url
+reserve : Url, U64 -> Url
 reserve = \@Url str, cap ->
     @Url (Str.reserve str cap)
 
