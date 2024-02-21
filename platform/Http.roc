@@ -5,19 +5,16 @@ interface Http
         methodToStr,
         Header,
         TimeoutConfig,
-        Body,
         Response,
         Metadata,
         Error,
         header,
-        emptyBody,
-        bytesBody,
-        stringBody,
         handleStringResponse,
         defaultRequest,
         errorToString,
         send,
         getUtf8,
+        parseFormUrlEncoded,
     ]
     imports [Effect, InternalTask, Task.{ Task }, InternalHttp]
 
@@ -32,9 +29,6 @@ Header : InternalHttp.InternalHeader
 
 ## Represents a timeout configuration for an HTTP request.
 TimeoutConfig : InternalHttp.InternalTimeoutConfig
-
-## Represents an HTTP request body.
-Body : InternalHttp.InternalBody
 
 ## Represents an HTTP response.
 Response : InternalHttp.InternalResponse
@@ -59,7 +53,8 @@ defaultRequest = {
     method: Get,
     headers: [],
     url: "",
-    body: Http.emptyBody,
+    mimeType: "text/plain",
+    body: [],
     timeout: NoTimeout,
 }
 
@@ -68,78 +63,27 @@ defaultRequest = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : Str, Str -> Header
-header = \name, value -> { name, value : Str.toUtf8 value }
-
-## An empty HTTP request [Body].
-emptyBody : Body
-emptyBody =
-    EmptyBody
-
-## A request [Body] with raw bytes.
-##
-## ```
-## # A application/json body of "{}".
-## Http.bytesBody
-##     (MimeType "application/json")
-##     [123, 125]
-## ```
-bytesBody : Str, List U8 -> Body
-bytesBody = \mimeType, body -> Body { mimeType, body}
-
-## A request [Body] with a string.
-##
-## ```
-## Http.stringBody
-##     (MimeType "application/json")
-##     "{\"name\": \"Louis\",\"age\": 22}"
-## ```
-stringBody : Str, Str -> Body
-stringBody = \mimeType, str -> Body {mimeType, body: (Str.toUtf8 str)}
-
-# jsonBody : a -> Body where a implements Encoding
-# jsonBody = \val ->
-#     Body (MimeType "application/json") (Encode.toBytes val Json.format)
-#
-# multiPartBody : List Part -> Body
-# multiPartBody = \parts ->
-#     boundary = "7MA4YWxkTrZu0gW" # TODO: what's this exactly? a hash of all the part bodies?
-#     beforeName = Str.toUtf8 "-- $(boundary)\r\nContent-Disposition: form-data; name=\""
-#     afterName = Str.toUtf8 "\"\r\n"
-#     appendPart = \buffer, Part name partBytes ->
-#         buffer
-#         |> List.concat beforeName
-#         |> List.concat (Str.toUtf8 name)
-#         |> List.concat afterName
-#         |> List.concat partBytes
-#     bodyBytes = List.walk parts [] appendPart
-#     Body (MimeType "multipart/form-data;boundary=\"$(boundary)\"") bodyBytes
-# bytesPart : Str, List U8 -> Part
-# bytesPart =
-#     Part
-# stringPart : Str, Str -> Part
-# stringPart = \name, str ->
-#     Part name (Str.toUtf8 str)
-
+header = \name, value -> { name, value: Str.toUtf8 value }
 
 ## Map a [Response] body to a [Str] or return an [Error].
 handleStringResponse : Response -> Result Str Error
 handleStringResponse = \response ->
-    response.body 
-    |> Str.fromUtf8 
-    |> Result.mapErr \_ -> BadBody "" #TODO FIX THIS FUNCTION
+    response.body
+    |> Str.fromUtf8
+    |> Result.mapErr \_ -> BadBody "" # TODO FIX THIS FUNCTION
 
-    # when response is
-    #     BadRequest err -> Err (BadRequest err)
-    #     Timeout -> Err Timeout
-    #     NetworkError -> Err NetworkError
-    #     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
-    #     GoodStatus _ bodyBytes ->
-    #         Str.fromUtf8 bodyBytes
-    #         |> Result.mapErr
-    #             \BadUtf8 _ pos ->
-    #                 position = Num.toStr pos
+# when response is
+#     BadRequest err -> Err (BadRequest err)
+#     Timeout -> Err Timeout
+#     NetworkError -> Err NetworkError
+#     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
+#     GoodStatus _ bodyBytes ->
+#         Str.fromUtf8 bodyBytes
+#         |> Result.mapErr
+#             \BadUtf8 _ pos ->
+#                 position = Num.toStr pos
 
-    #                 BadBody "Invalid UTF-8 at byte offset $(position)"
+#                 BadBody "Invalid UTF-8 at byte offset $(position)"
 
 ## Convert an [Error] to a [Str].
 errorToString : Error -> Str
@@ -190,3 +134,104 @@ methodToStr = \method ->
         Options -> "OPTIONS"
         Connect -> "CONNECT"
         Trace -> "TRACE"
+
+## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
+##
+## ```
+## expect
+##     bytes = Str.toUtf8 "todo=foo&status=bar"
+##     parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+##
+##     Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
+## ```
+parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
+parseFormUrlEncoded = \bytes ->
+
+    chainUtf8 = \bytesList, tryFun -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try tryFun
+
+    # simplify `BadUtf8 Utf8ByteProblem ...` error
+    mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
+
+    parse = \bytesRemaining, state, key, chomped, dict ->
+        tail = List.dropFirst bytesRemaining 1
+
+        when bytesRemaining is
+            [] if List.isEmpty chomped -> dict |> Ok
+            [] ->
+                # chomped last value
+                keyStr <- key |> chainUtf8
+                valueStr <- chomped |> chainUtf8
+
+                Dict.insert dict keyStr valueStr |> Ok
+
+            ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
+            ['&', ..] ->
+                keyStr <- key |> chainUtf8
+                valueStr <- chomped |> chainUtf8
+
+                parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
+
+            ['%', secondByte, thirdByte, ..] ->
+                hex = Num.toU8 (hexBytesToU32 [secondByte, thirdByte])
+
+                parse (List.dropFirst tail 2) state key (List.append chomped hex) dict
+
+            [firstByte, ..] -> parse tail state key (List.append chomped firstByte) dict
+
+    parse bytes ParsingKey [] [] (Dict.empty {})
+
+expect hexBytesToU32 ['2', '0'] == 32
+
+expect
+    bytes = Str.toUtf8 "todo=foo&status=bar"
+    parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+
+    Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
+
+expect
+    Str.toUtf8 "task=asdfs%20adf&status=qwerwe"
+    |> parseFormUrlEncoded
+    |> Result.withDefault (Dict.empty {})
+    |> Dict.toList
+    |> Bool.isEq [("task", "asdfs adf"), ("status", "qwerwe")]
+
+hexBytesToU32 : List U8 -> U32
+hexBytesToU32 = \bytes ->
+    bytes
+    |> List.reverse
+    |> List.walkWithIndex 0 \accum, byte, i -> accum + (Num.powInt 16 (Num.toU32 i)) * (hexToDec byte)
+    |> Num.toU32
+
+expect hexBytesToU32 ['0', '0', '0', '0'] == 0
+expect hexBytesToU32 ['0', '0', '0', '1'] == 1
+expect hexBytesToU32 ['0', '0', '0', 'F'] == 15
+expect hexBytesToU32 ['0', '0', '1', '0'] == 16
+expect hexBytesToU32 ['0', '0', 'F', 'F'] == 255
+expect hexBytesToU32 ['0', '1', '0', '0'] == 256
+expect hexBytesToU32 ['0', 'F', 'F', 'F'] == 4095
+expect hexBytesToU32 ['1', '0', '0', '0'] == 4096
+expect hexBytesToU32 ['1', '6', 'F', 'F', '1'] == 94193
+
+hexToDec : U8 -> U32
+hexToDec = \byte ->
+    when byte is
+        '0' -> 0
+        '1' -> 1
+        '2' -> 2
+        '3' -> 3
+        '4' -> 4
+        '5' -> 5
+        '6' -> 6
+        '7' -> 7
+        '8' -> 8
+        '9' -> 9
+        'A' -> 10
+        'B' -> 11
+        'C' -> 12
+        'D' -> 13
+        'E' -> 14
+        'F' -> 15
+        _ -> crash "Impossible error: the `when` block I'm in should have matched before reaching the catch-all `_`."
+
+expect hexToDec '0' == 0
+expect hexToDec 'F' == 15

@@ -1,9 +1,13 @@
 interface InternalError
-    exposes [InternalError, InternalDirReadErr, InternalDirDeleteErr]
+    exposes [
+        InternalError,
+        InternalDirReadErr,
+        InternalDirDeleteErr,
+    ]
     imports [Path.{ Path }]
 
 InternalError : [
-    IOError Str, 
+    IOError Str,
     EOF,
 ]
 

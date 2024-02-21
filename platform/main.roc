@@ -15,6 +15,7 @@ platform "webserver"
         Utc,
         Sleep,
         Command,
+        SQLite3,
     ]
     packages {}
     imports [

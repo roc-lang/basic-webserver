@@ -7,8 +7,8 @@ interface Stdout
 ##
 ## > To write to `stdout` without the newline, see [Stdout.write].
 line : Str -> Task {} *
-line = \str -> 
-    Effect.stdoutLine str 
+line = \str ->
+    Effect.stdoutLine str
     |> Effect.map (\_ -> Ok {})
     |> InternalTask.fromEffect
 
@@ -25,10 +25,10 @@ write = \str ->
     |> InternalTask.fromEffect
 
 ## Flush the [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
-## This will cause any buffered output to be written out. This is typically to 
+## This will cause any buffered output to be written out. This is typically to
 ## the terminal but may be captured and written to a file.
 ##
-## This may fail if the buffered output could not be written due to I/O 
+## This may fail if the buffered output could not be written due to I/O
 ## errors or EOF being reached.
 flush : Task {} *
 flush = Effect.stdoutFlush |> Effect.map (\_ -> Ok {}) |> InternalTask.fromEffect

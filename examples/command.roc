@@ -12,14 +12,14 @@ main : Request -> Task Response []
 main = \req ->
 
     # Log request date, method and url using echo program
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-    result <- 
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    result <-
         Command.new "echo"
-        |> Command.arg "$(date) $(Http.methodToStr req.method) $(req.url)"
+        |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
         |> Command.status
         |> Task.attempt
 
-    when result is 
+    when result is
         Ok {} -> respond "Command succeeded\n"
         Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)\n"
         Err (KilledBySignal) -> respond "Command was killed by signal\n"

@@ -11,12 +11,13 @@ app "echo"
 main : Request -> Task Response []
 main = \req ->
 
-    # Log request date, method and url
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-    {} <- Stdout.line "$(date) $(Http.methodToStr req.method) $(req.url)" |> Task.await
+    # Log request datetime, method and url
+    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    {} <- Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)" |> Task.await
 
     # Respond with request body
-    when req.body is
-        EmptyBody -> Task.ok { status: 200, headers: [], body: [] }
-        Body internal -> Task.ok { status: 200, headers: [], body: internal.body }
+    if List.isEmpty req.body then
+        Task.ok { status: 200, headers: [], body: [] }
+    else
+        Task.ok { status: 200, headers: [], body: req.body }
 

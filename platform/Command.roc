@@ -148,13 +148,13 @@ clearEnvs = \@Command cmd ->
 ##     |> Command.arg "SELECT id, task, status FROM todos;"
 ##     |> Command.output
 ##     |> Task.await
-## 
+##
 ## when output.status is
 ##     Ok {} -> jsonResponse output.stdout
 ##     Err _ -> byteResponse 500 output.stderr
 ## ```
 output : Command -> Task Output *
-output = \@Command cmd -> 
+output = \@Command cmd ->
     Effect.commandOutput (Box.box cmd)
     |> Effect.map (\out -> Ok out)
     |> InternalTask.fromEffect
@@ -163,13 +163,13 @@ output = \@Command cmd ->
 ## ```
 ## # Log request date, method and url using echo program
 ## date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-## result <- 
+## result <-
 ##     Command.new "echo"
 ##     |> Command.arg "$(date) $(Http.methodToStr req.method) $(req.url)"
 ##     |> Command.status
 ##     |> Task.attempt
-## 
-## when result is 
+##
+## when result is
 ##     Ok {} -> respond "Command succeeded\n"
 ##     Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)\n"
 ##     Err (KilledBySignal) -> respond "Command was killed by signal\n"

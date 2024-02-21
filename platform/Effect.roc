@@ -33,6 +33,7 @@ hosted Effect
         sleepMillis,
         commandStatus,
         commandOutput,
+        sqliteExecute,
     ]
     imports [
         InternalHttp,
@@ -40,6 +41,7 @@ hosted Effect
         InternalTcp,
         InternalCommand,
         InternalError,
+        InternalSQL,
     ]
     generates Effect with [after, map, always, forever, loop]
 
@@ -53,7 +55,7 @@ stderrLine : Str -> Effect {}
 stderrWrite : Str -> Effect {}
 stderrFlush : Effect {}
 
-# File 
+# File
 fileWriteBytes : List U8, List U8 -> Effect (Result {} InternalFile.WriteErr)
 fileWriteUtf8 : List U8, Str -> Effect (Result {} InternalFile.WriteErr)
 fileDelete : List U8 -> Effect (Result {} InternalFile.WriteErr)
@@ -86,3 +88,6 @@ sleepMillis : U64 -> Effect {}
 
 commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} InternalCommand.InternalCommandErr)
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
+
+# SQLite3
+sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError)
