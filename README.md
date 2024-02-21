@@ -1,6 +1,6 @@
-:book: [docs](https://roc-lang.github.io/basic-webserver/)
+:book: docs: [main branch](https://roc-lang.github.io/basic-webserver/)
 
-:eyes: [examples](https://github.com/roc-lang/basic-webserver/tree/0.1/examples)
+:eyes: examples: [0.3](https://github.com/roc-lang/basic-webserver/tree/0.3.0/examples), [0.2](https://github.com/roc-lang/basic-webserver/tree/0.2.0/examples), [0.1](https://github.com/roc-lang/basic-webserver/tree/0.1/examples)
 
 # Basic Web Server for [Roc](https://www.roc-lang.org/)
 
