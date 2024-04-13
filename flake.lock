@@ -79,17 +79,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1712163089,
-        "narHash": "sha256-Um+8kTIrC19vD4/lUCN9/cU9kcOsD1O1m+axJqQPyMM=",
+        "lastModified": 1702900294,
+        "narHash": "sha256-pt7sSoJYNw3n8YtXw0Z/Nnr6/PfY2YrjDvqboErXnRM=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "fd281bd6b7d3e32ddfa399853946f782553163b5",
+        "rev": "886c9aee6ca9324e127f9c2c4e6f68c2641c8256",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "fd281bd6b7d3e32ddfa399853946f782553163b5",
+        "rev": "886c9aee6ca9324e127f9c2c4e6f68c2641c8256",
         "type": "github"
       }
     },
@@ -102,16 +102,17 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1712930574,
-        "narHash": "sha256-9BIrDgumBUW3AHxoz3qTsPtBOGlVM+8uJOhL0MiGurE=",
-        "owner": "roc-lang",
+        "lastModified": 1712598913,
+        "narHash": "sha256-COI1qtCi0OmZwpNFDOs+/A7LzyYoy19QOTlkQZUs9CM=",
+        "owner": "faldor20",
         "repo": "roc",
-        "rev": "237bd942ed1ed23b39f07ed1ee88dfe23c223fc5",
+        "rev": "3fef8b9f82acb70c7fb8b142e886ac5dd4495fe6",
         "type": "github"
       },
       "original": {
-        "owner": "roc-lang",
+        "owner": "faldor20",
         "repo": "roc",
+        "rev": "3fef8b9f82acb70c7fb8b142e886ac5dd4495fe6",
         "type": "github"
       }
     },
