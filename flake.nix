@@ -2,7 +2,7 @@
   description = "basic-webserver devShell flake";
 
   inputs = {
-    roc.url = "github:roc-lang/roc";
+    roc.url = "github:faldor20/roc/3fef8b9f82acb70c7fb8b142e886ac5dd4495fe6";
     nixpkgs.follows = "roc/nixpkgs";
 
     # rust from nixpkgs has some libc problems, this is patched in the rust-overlay
