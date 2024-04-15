@@ -18,7 +18,7 @@ Hello world webserver:
 
 ```elixir
 app "helloweb"
-    packages { pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.3.0/gJOTXTeR3CD4zCbRqK7olo4edxQvW5u3xGL-8SSxDcY.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.4.0/iAiYpbs5zdVB75golcg_YMtgexN3e2fwhsYPLPCeGzk.tar.br" }
     imports [
         pf.Stdout,
         pf.Task.{ Task },
