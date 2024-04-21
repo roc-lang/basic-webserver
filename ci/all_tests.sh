@@ -61,6 +61,7 @@ expect ci/expect_scripts/error-handling.exp
 expect ci/expect_scripts/file.exp
 expect ci/expect_scripts/hello-web.exp
 expect ci/expect_scripts/sleep.exp
+expect ci/expect_scripts/result.exp
 
 # test building website
 $ROC docs platform/main.roc
