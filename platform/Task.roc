@@ -222,7 +222,7 @@ batch = \current -> \next ->
 ## Transform a task that can either succeed with `ok`, or fail with `err`, into
 ## a task that succeeds with `Result ok err`.
 ##
-## This is useful when chaining tasks using the `!` suffix. For example
+## This is useful when chaining tasks using the `!` suffix. For example:
 ##
 ## ```
 ## # Path.roc
