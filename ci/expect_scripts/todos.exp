@@ -7,10 +7,10 @@ set timeout 7
 
 spawn $env(EXAMPLES_DIR)todos
 
-expect "Listening on localhost port 8000\r\n" {
+expect "Listening on <http://localhost:8000>\r\n" {
 
     set curlOutputIndex [exec curl -sS localhost:8000]
-    
+
     if {[string match "*addTodoForm*" $curlOutputIndex]} {
         expect "Z GET /\r\n" {
 

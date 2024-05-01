@@ -142,7 +142,7 @@ async fn run_server() -> i32 {
         }))
     }));
 
-    println!("Listening on localhost port {port}");
+    println!("Listening on <http://localhost:{port}>");
 
     match server.await {
         Ok(_) => 0,

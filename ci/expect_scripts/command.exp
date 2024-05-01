@@ -7,9 +7,9 @@ set timeout 7
 
 spawn $env(EXAMPLES_DIR)command
 
-expect "Listening on localhost port 8000\r\n" {
+expect "Listening on <http://localhost:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
-    
+
     if {$curlOutput eq "Command succeeded"} {
         expect "Z GET /\r\n" {
             exit 0

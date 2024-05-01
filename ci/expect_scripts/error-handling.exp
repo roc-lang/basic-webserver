@@ -9,9 +9,9 @@ set env(TARGET_URL) "http://www.example.com"
 
 spawn $env(EXAMPLES_DIR)error-handling
 
-expect "Listening on localhost port 8000\r\n" {
+expect "Listening on <http://localhost:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
-    
+
     if {[string match "*Example Domain*" $curlOutput]} {
         expect "Z GET /\r\n" {
             exit 0
