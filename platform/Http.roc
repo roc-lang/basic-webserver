@@ -3,20 +3,24 @@ interface Http
         Request,
         Method,
         methodToStr,
-        Header,
         TimeoutConfig,
-        Response,
         Metadata,
         Error,
         header,
-        handleStringResponse,
         defaultRequest,
         errorToString,
         send,
         getUtf8,
         parseFormUrlEncoded,
     ]
-    imports [Effect, InternalTask, Task.{ Task }, InternalHttp]
+    imports [
+        Effect,
+        InternalTask,
+        Task.{ Task },
+        InternalHttp,
+        HttpHeader.{ Header },
+        HttpResponse.{ Response },
+    ]
 
 ## Represents an HTTP request.
 Request : InternalHttp.InternalRequest
@@ -24,14 +28,8 @@ Request : InternalHttp.InternalRequest
 ## Represents an HTTP method.
 Method : InternalHttp.InternalMethod
 
-## Represents an HTTP header e.g. `Content-Type: application/json`
-Header : InternalHttp.InternalHeader
-
 ## Represents a timeout configuration for an HTTP request.
 TimeoutConfig : InternalHttp.InternalTimeoutConfig
-
-## Represents an HTTP response.
-Response : InternalHttp.InternalResponse
 
 ## Represents HTTP metadata, such as the URL or status code.
 Metadata : InternalHttp.InternalMetadata
@@ -65,15 +63,8 @@ defaultRequest = {
 header : Str, Str -> Header
 header = \name, value -> { name, value: Str.toUtf8 value }
 
-## Map a [Response] body to a [Str] or return an [Error].
-handleStringResponse : Response -> Result Str Error
-handleStringResponse = \response ->
-    response.body
-    |> Str.fromUtf8
-    |> Result.mapErr \_ -> BadBody "" # TODO FIX THIS FUNCTION
-
 # when response is
-#     BadRequest err -> Err (BadRequest err)
+#     BadRequest error -> Err (BadRequest error)
 #     Timeout -> Err Timeout
 #     NetworkError -> Err NetworkError
 #     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
@@ -87,40 +78,58 @@ handleStringResponse = \response ->
 
 ## Convert an [Error] to a [Str].
 errorToString : Error -> Str
-errorToString = \err ->
-    when err is
+errorToString = \error ->
+    when error is
         BadRequest e -> "Invalid Request: $(e)"
         Timeout -> "Request timed out"
         NetworkError -> "Network error"
         BadStatus code -> Str.concat "Request failed with status " (Num.toStr code)
         BadBody details -> Str.concat "Request failed. Invalid body. " details
 
-## Task to send an HTTP request, succeeds with a value of [Str] or fails with an
-## [Error].
+## Send a HTTP [Request] and get back the [Response] unless there was an [Error].
 ##
 ## ```
 ## # Prints out the HTML of the Roc-lang website.
-## result <-
+## result =
 ##     { Http.defaultRequest &
 ##         url: "https://www.roc-lang.org",
 ##     }
 ##     |> Http.send
-##     |> Task.attempt
+##     |> Task.result!
+##     |> Result.try \{ body } -> Str.fromUtf8 body
 ##
 ## when result is
-##     Ok responseBody -> Stdout.line responseBody
-##     Err _ -> Stdout.line "Oops, something went wrong!"
+##     Ok responseBody -> Stdout.line! responseBody
+##     Err _ -> Stdout.line! "Oops, something went wrong!"
 ## ```
-send : Request -> Task Str Error
+send : Request -> Task Response Error
 send = \req ->
     # TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
     Effect.sendRequest (Box.box req)
-    |> Effect.map handleStringResponse
+    |> Effect.map Ok
     |> InternalTask.fromEffect
 
+## Send a HTTP [Request] and get the response's UTF-8 body as a [Str] unless there was an [Error].
+##
+## ```
+## # Prints out the HTML of the Roc-lang website.
+## result =
+##     { Http.defaultRequest &
+##         url: "https://www.roc-lang.org",
+##     }
+##     |> Http.getUtf8
+##     |> Task.result!
+##
+## when result is
+##     Ok responseBody -> Stdout.line! responseBody
+##     Err _ -> Stdout.line! "Oops, something went wrong!"
+## ```
 getUtf8 : Str -> Task Str Error
 getUtf8 = \url ->
-    send { defaultRequest & url }
+    # TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
+    Effect.sendRequest (Box.box { defaultRequest & url })
+    |> Effect.map \response -> response.body |> Str.fromUtf8 |> Result.mapErr \_ -> BadBody "" # TODO FIX THIS FUNCTION
+    |> InternalTask.fromEffect
 
 methodToStr : Method -> Str
 methodToStr = \method ->
@@ -150,7 +159,7 @@ parseFormUrlEncoded = \bytes ->
     chainUtf8 = \bytesList, tryFun -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try tryFun
 
     # simplify `BadUtf8 Utf8ByteProblem ...` error
-    mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
+    mapUtf8Err = \error -> error |> Result.mapErr \_ -> BadUtf8
 
     parse = \bytesRemaining, state, key, chomped, dict ->
         tail = List.dropFirst bytesRemaining 1
