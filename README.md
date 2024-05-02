@@ -22,19 +22,19 @@ app "helloweb"
     imports [
         pf.Stdout,
         pf.Task.{ Task },
-        pf.Http.{ Request, Response },
+        pf.Http.{ Request },
+        pf.Response.{ Response },
         pf.Utc,
     ]
     provides [main] to pf
 
 main : Request -> Task Response []
 main = \req ->
+    # Log request date, method and request path
+    date = Utc.now! |> Utc.toIso8601Str
+    Stdout.line! "$(date) $(Http.methodToStr req.method) $(req.path)"
 
-    # Log request date, method and url
-    date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-    {} <- Stdout.line "$(date) $(Http.methodToStr req.method) $(req.url)" |> Task.await
-
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b>\n" }
+    Response.ok [] (Str.toUtf8 "<b>Hello, world!</b>\n")
 ```
 
 Run this example server with `$ roc run helloweb.roc --linker=legacy` and go to http://localhost:8000 in your browser.
