@@ -20,7 +20,7 @@ platform "webserver"
     packages {}
     imports [
         Task.{ Task },
-        Http.{ Request, Method, Response },
+        Http.{ Request, Response },
     ]
     provides [mainForHost]
 
