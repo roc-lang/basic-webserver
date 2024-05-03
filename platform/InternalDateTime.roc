@@ -1,10 +1,8 @@
-interface InternalDateTime
-    exposes [
-        DateTime,
-        toIso8601Str,
-        epochMillisToDateTime,
-    ]
-    imports []
+module [
+    DateTime,
+    toIso8601Str,
+    epochMillisToDateTime,
+]
 
 DateTime : { year : I128, month : I128, day : I128, hours : I128, minutes : I128, seconds : I128 }
 

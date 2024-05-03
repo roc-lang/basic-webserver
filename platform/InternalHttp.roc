@@ -1,15 +1,13 @@
-interface InternalHttp
-    exposes [
-        InternalRequest,
-        InternalMethod,
-        InternalHeader,
-        InternalTimeoutConfig,
-        InternalPart,
-        InternalResponse,
-        InternalMetadata,
-        InternalError,
-    ]
-    imports []
+module [
+    InternalRequest,
+    InternalMethod,
+    InternalHeader,
+    InternalTimeoutConfig,
+    InternalPart,
+    InternalResponse,
+    InternalMetadata,
+    InternalError,
+]
 
 InternalRequest : {
     method : InternalMethod,

@@ -1,12 +1,9 @@
-app "file"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.File,
-        pf.Path,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.File
+import pf.Path
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
 
 main : Request -> Task Response []
 main = \_ ->

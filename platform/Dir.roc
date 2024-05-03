@@ -1,6 +1,11 @@
-interface Dir
-    exposes [deleteEmptyDir, deleteRecursive, list]
-    imports [Effect, Task.{ Task }, InternalTask, Path.{ Path }, InternalPath, InternalError]
+module [deleteEmptyDir, deleteRecursive, list]
+
+import Effect
+import Task exposing [Task]
+import InternalTask
+import Path exposing [Path]
+import InternalPath
+import InternalError
 
 ReadErr : InternalError.InternalDirReadErr
 

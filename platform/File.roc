@@ -1,6 +1,11 @@
-interface File
-    exposes [ReadErr, WriteErr, write, writeUtf8, writeBytes, readUtf8, readBytes, delete, writeErrToStr, readErrToStr]
-    imports [Task.{ Task }, InternalTask, InternalFile, Path.{ Path }, InternalPath, Effect.{ Effect }]
+module [ReadErr, WriteErr, write, writeUtf8, writeBytes, readUtf8, readBytes, delete, writeErrToStr, readErrToStr]
+
+import Task exposing [Task]
+import InternalTask
+import InternalFile
+import Path exposing [Path]
+import InternalPath
+import Effect exposing [Effect]
 
 ## Tag union of possible errors when reading a file or directory.
 ReadErr : InternalFile.ReadErr

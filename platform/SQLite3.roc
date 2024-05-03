@@ -1,13 +1,16 @@
-interface SQLite3
-    exposes [
-        Value,
-        Code,
-        Error,
-        Binding,
-        execute,
-        errToStr,
-    ]
-    imports [InternalTask, Task.{ Task }, InternalSQL, Effect]
+module [
+    Value,
+    Code,
+    Error,
+    Binding,
+    execute,
+    errToStr,
+]
+
+import InternalTask
+import Task exposing [Task]
+import InternalSQL
+import Effect
 
 Value : InternalSQL.SQLiteValue
 Code : InternalSQL.SQLiteErrCode

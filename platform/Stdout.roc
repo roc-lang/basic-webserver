@@ -1,6 +1,8 @@
-interface Stdout
-    exposes [line, write, flush]
-    imports [Effect, Task.{ Task }, InternalTask]
+module [line, write, flush]
+
+import Effect
+import Task exposing [Task]
+import InternalTask
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)),
 ## followed by a newline.

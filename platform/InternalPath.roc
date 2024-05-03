@@ -1,14 +1,12 @@
-interface InternalPath
-    exposes [
-        UnwrappedPath,
-        InternalPath,
-        wrap,
-        unwrap,
-        toBytes,
-        fromArbitraryBytes,
-        fromOsBytes,
-    ]
-    imports []
+module [
+    UnwrappedPath,
+    InternalPath,
+    wrap,
+    unwrap,
+    toBytes,
+    fromArbitraryBytes,
+    fromOsBytes,
+]
 
 InternalPath := UnwrappedPath
 

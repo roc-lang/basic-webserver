@@ -1,13 +1,10 @@
-app "echo"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.SQLite3,
-        pf.Env,
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.Stdout
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.SQLite3
+import pf.Env
 
 main : Request -> Task Response []
 main = \_ ->

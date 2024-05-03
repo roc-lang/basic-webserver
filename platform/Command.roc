@@ -1,22 +1,20 @@
-interface Command
-    exposes [
-        Command,
-        Output,
-        new,
-        arg,
-        args,
-        env,
-        envs,
-        clearEnvs,
-        status,
-        output,
-    ]
-    imports [
-        Task.{ Task },
-        InternalTask,
-        InternalCommand,
-        Effect,
-    ]
+module [
+    Command,
+    Output,
+    new,
+    arg,
+    args,
+    env,
+    envs,
+    clearEnvs,
+    status,
+    output,
+]
+
+import Task exposing [Task]
+import InternalTask
+import InternalCommand
+import Effect
 
 ## Represents a command to be executed in a child process.
 ## ```
