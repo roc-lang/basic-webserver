@@ -1,12 +1,9 @@
-app "hello-web"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Utc,
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.Stdout
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Utc
 
 main : Request -> Task Response []
 main = \req ->

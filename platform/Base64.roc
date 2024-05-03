@@ -1,6 +1,4 @@
-interface Base64
-    exposes [toBytes, toStr]
-    imports []
+module [toBytes, toStr]
 
 ## Base64-encodes a [Str] into another [Str].
 toStr : Str -> Str

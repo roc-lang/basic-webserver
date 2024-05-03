@@ -1,15 +1,12 @@
 # This example demonstrates error handling and fetching content from another website.
-app "error-handling"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout,
-        pf.Stderr,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Utc,
-        pf.Env,
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.Stdout
+import pf.Stderr
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Utc
+import pf.Env
 
 main : Request -> Task Response []
 main = \req ->
@@ -43,7 +40,7 @@ logRequest = \req ->
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]
 readEnvVar = \envVarName ->
-    Env.var envVarName 
+    Env.var envVarName
     |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
 fetchContent : Str -> Task Str [HttpError Http.Error]

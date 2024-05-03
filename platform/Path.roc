@@ -1,17 +1,17 @@
-interface Path
-    exposes [
-        Path,
-        PathComponent,
-        CanonicalizeErr,
-        WindowsRoot,
-        # toComponents,
-        # walkComponents,
-        display,
-        fromStr,
-        fromBytes,
-        withExtension,
-    ]
-    imports [InternalPath.{ InternalPath }]
+module [
+    Path,
+    PathComponent,
+    CanonicalizeErr,
+    WindowsRoot,
+    # toComponents,
+    # walkComponents,
+    display,
+    fromStr,
+    fromBytes,
+    withExtension,
+]
+
+import InternalPath exposing [InternalPath]
 
 # You can canonicalize a [Path] using `Path.canonicalize`.
 #

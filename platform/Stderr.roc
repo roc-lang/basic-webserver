@@ -1,6 +1,8 @@
-interface Stderr
-    exposes [line, write, flush]
-    imports [Effect, Task.{ Task }, InternalTask]
+module [line, write, flush]
+
+import Effect
+import Task exposing [Task]
+import InternalTask
 
 ## Write the given string to [standard error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)),
 ## followed by a newline.

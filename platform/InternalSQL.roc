@@ -1,11 +1,9 @@
-interface InternalSQL
-    exposes [
-        SQLiteErrCode,
-        SQLiteError,
-        SQLiteValue,
-        SQLiteBindings,
-    ]
-    imports []
+module [
+    SQLiteErrCode,
+    SQLiteError,
+    SQLiteValue,
+    SQLiteBindings,
+]
 
 SQLiteErrCode : [
     ERROR, # SQL error or missing database

@@ -1,22 +1,25 @@
-interface Http
-    exposes [
-        Request,
-        Method,
-        methodToStr,
-        Header,
-        TimeoutConfig,
-        Response,
-        Metadata,
-        Error,
-        header,
-        handleStringResponse,
-        defaultRequest,
-        errorToString,
-        send,
-        getUtf8,
-        parseFormUrlEncoded,
-    ]
-    imports [Effect, InternalTask, Task.{ Task }, InternalHttp]
+module [
+    Request,
+    Method,
+    methodToStr,
+    Header,
+    TimeoutConfig,
+    Response,
+    Metadata,
+    Error,
+    header,
+    handleStringResponse,
+    defaultRequest,
+    errorToString,
+    send,
+    getUtf8,
+    parseFormUrlEncoded,
+]
+
+import Effect
+import InternalTask
+import Task exposing [Task]
+import InternalHttp
 
 ## Represents an HTTP request.
 Request : InternalHttp.InternalRequest

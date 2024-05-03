@@ -1,19 +1,16 @@
 # Webapp for todos using a SQLite 3 database
-app "todos"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout,
-        pf.Stderr,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Command,
-        pf.Env,
-        pf.Url,
-        pf.Utc,
-        Dict,
-        "todos.html" as todoHtml : List U8,
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.Stdout
+import pf.Stderr
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Command
+import pf.Env
+import pf.Url
+import pf.Utc
+import Dict
+import "todos.html" as todoHtml : List U8
 
 main : Request -> Task Response []
 main = \req ->
@@ -136,10 +133,10 @@ isSqliteInstalled =
         |> Command.status
         |> Task.attempt
 
-    when sqlite3Res is 
+    when sqlite3Res is
         Ok {} -> Task.ok {}
         Err _ -> Task.err Sqlite3NotInstalled
-    
+
 logRequest : Request -> Task {} *
 logRequest = \req ->
     datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
@@ -148,7 +145,7 @@ logRequest = \req ->
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
 readEnvVar = \envVarName ->
-    Env.var envVarName 
+    Env.var envVarName
     |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
 handleErr : AppError -> Task Response *

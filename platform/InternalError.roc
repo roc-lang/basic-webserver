@@ -1,10 +1,10 @@
-interface InternalError
-    exposes [
-        InternalError,
-        InternalDirReadErr,
-        InternalDirDeleteErr,
-    ]
-    imports [Path.{ Path }]
+module [
+    InternalError,
+    InternalDirReadErr,
+    InternalDirDeleteErr,
+]
+
+import Path exposing [Path]
 
 InternalError : [
     IOError Str,

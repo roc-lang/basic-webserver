@@ -1,15 +1,12 @@
-app "dir"
-    packages { pf: "../platform/main.roc" }
-    imports [
-        pf.Stdout,
-        pf.Stderr,
-        pf.Dir,
-        pf.Env,
-        pf.Path,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-    ]
-    provides [main] to pf
+app [main] { pf: platform "../platform/main.roc" }
+
+import pf.Stdout
+import pf.Stderr
+import pf.Dir
+import pf.Env
+import pf.Path
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
 
 main : Request -> Task Response []
 main = \_ ->
