@@ -9,7 +9,6 @@ import pf.Command
 import pf.Env
 import pf.Url
 import pf.Utc
-import Dict
 import "todos.html" as todoHtml : List U8
 
 main : Request -> Task Response []
