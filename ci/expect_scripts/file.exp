@@ -10,7 +10,7 @@ spawn $env(EXAMPLES_DIR)file
 expect "Listening on <http://localhost:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
 
-    if { [string match "Source code of current program:\n\napp \"file\"*" $curlOutput] } {
+    if { [string match "Source code of current program:\n\napp *" $curlOutput] } {
         exit 0
     } else {
         puts "Error: curl output was different than expected: $curlOutput"
