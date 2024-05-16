@@ -7,7 +7,7 @@ set timeout 7
 
 spawn $env(EXAMPLES_DIR)echo
 
-expect "Listening on <http://localhost:8000>\r\n" {
+expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000 -d "echo me"]
 
     if {$curlOutput eq "echo me"} {
