@@ -11,10 +11,16 @@
 # Ignore generated docs
 generated-docs/
 
+target/
+
 app
 *.o
 *.so
 *.so.*
+*.a
+*.lib
+*.obj
+*.dylib
 
 # roc linking files
 dynhost
@@ -32,3 +38,5 @@ examples/env
 examples/command
 examples/sqlite3
 examples/hello-web
+
+.DS_Store
