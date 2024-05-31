@@ -1,30 +1,20 @@
 [package]
-name = "host"
+name = "roc_host"
 version = "0.0.1"
 authors = ["The Roc Contributors"]
 license = "UPL-1.0"
 edition = "2018"
-links = "app"
-
-[profile.release]
-lto = true
-strip = "debuginfo"
-codegen-units = 1
 
 [lib]
-name = "host"
+name = "roc_host"
 path = "src/lib.rs"
-crate-type = ["staticlib", "lib"]
-
-[[bin]]
-name = "host"
-path = "src/main.rs"
+crate-type = ["lib"]
 
 [dependencies]
-roc_std = { path = "src/glue/roc_std", features = ["std"] }
-roc_app = { path = "src/glue/roc_app" }
-roc_fn = { path = "src/roc_fn" }
-glue_manual = { path = "src/glue_manual" }
+roc_std = { path = "../roc_std" }
+roc_app = { path = "../roc_app" }
+roc_fn = { path = "../roc_fn" }
+glue_manual = { path = "../glue_manual" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",
@@ -44,5 +34,3 @@ futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
 sqlite = { version = "0.33.0", features = ["bundled"] }
-
-[workspace]
