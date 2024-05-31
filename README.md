@@ -14,18 +14,20 @@ Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https:
 
 ## Example
 
-Hello world webserver:
+To run any of the examples, you will need to get [the latest release URL](https://github.com/roc-lang/basic-webserver/releases) which is named using a hash of the file contents, e.g. "Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br". You can usually right-click in your browser to copy the link URL.
 
-```elixir
-app "helloweb"
-    packages { pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.4.0/iAiYpbs5zdVB75golcg_YMtgexN3e2fwhsYPLPCeGzk.tar.br" }
-    imports [
-        pf.Stdout,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Utc,
-    ]
-    provides [main] to pf
+Then you need to replace the local path to the platform `"../platform/main.roc"` with the URL you copied in the `app` block of the Roc file.
+
+```roc
+app [main] {
+    # replaced the pf: "../platform/main.roc" with the following
+     pf: "https://github.com/roc-lang/basic-webserver/releases/<latest release hash>.tar.br"
+}
+
+import pf.Stdout
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Utc
 
 main : Request -> Task Response []
 main = \req ->
@@ -35,17 +37,19 @@ main = \req ->
     Stdout.line! "$(date) $(Http.methodToStr req.method) $(req.url)"
 
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b>\n" }
+
 ```
 
-Run this example server with `$ roc run helloweb.roc --linker=legacy` and go to http://localhost:8000 in your browser.
+Run this example server with `$ roc helloweb.roc` (note for linux you will need `--linker=legacy`) and go to `http://localhost:8000` in your browser.
 
 ## Contributing
 
 If you'd like to contribute, check out our [group chat](https://roc.zulipchat.com) and let us know what you're thinking, we're friendly!
 
-## Steps to re-generate glue
+## Developing / Building Locally
 
-Run the following from the repository root directory.
+If you have cloned this repository and want to run the examples without using a packaged release, you will need to build the platform first as the roc cli is not aware of the host toolchain.
 
-1. Run `bash platform/glue-gen.sh`
-2. Manually fix any issues with glue generated code in `platform/glue-manual/*.rs`, this is a temporary workaround and should not be needed in future
+First run `roc build.roc`, which will generate the pre-built binaries for your native target.
+
+Then you will be able to run an example that is using the platform from a local path. For example `roc run examples/hello.roc` will run the echo example, and in this file the header is referencing the platform locally `app [main] { pf: platform "../platform/main.roc" }`.
