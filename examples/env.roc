@@ -19,7 +19,7 @@ main = \_ ->
     when debug is
         DebugPrintMode ->
             # Respond with all the current environment variables
-            vars <- Env.list |> Task.await
+            vars = Env.list!
 
             body =
                 vars
@@ -33,4 +33,3 @@ main = \_ ->
         NonDebugMode ->
             # Respond with a message that DEBUG is not set
             Task.ok { status: 200, headers: [], body: Str.toUtf8 "DEBUG var not set\n" }
-
