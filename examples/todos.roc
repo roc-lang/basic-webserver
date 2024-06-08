@@ -15,11 +15,10 @@ main : Request -> Task Response []
 main = \req ->
 
     responseTask =
-        {} <- logRequest req |> Task.await
+        logRequest! req
+        isSqliteInstalled!
 
-        {} <- isSqliteInstalled |> Task.await
-
-        dbPath <- readEnvVar "DB_PATH" |> Task.await
+        dbPath = readEnvVar! "DB_PATH"
 
         splitUrl =
             req.url
@@ -138,7 +137,7 @@ isSqliteInstalled =
 
 logRequest : Request -> Task {} *
 logRequest = \req ->
-    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    datetime = Utc.now! |> Utc.toIso8601Str
 
     Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
@@ -155,9 +154,8 @@ handleErr = \appErr ->
         when appErr is
             EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
             Sqlite3NotInstalled -> "I failed to call `sqlite3 --version`, is sqlite installed?"
-
     # Log error to stderr
-    {} <- Stderr.line "Internal Server Error:\n\t$(errMsg)" |> Task.await
+    Stderr.line! "Internal Server Error:\n\t$(errMsg)"
     _ <- Stderr.flush |> Task.attempt
 
     # Respond with Http 500 Error

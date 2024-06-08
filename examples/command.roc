@@ -9,7 +9,7 @@ main : Request -> Task Response []
 main = \req ->
 
     # Log request date, method and url using echo program
-    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    datetime = Utc.now! |> Utc.toIso8601Str
     result <-
         Command.new "echo"
         |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"

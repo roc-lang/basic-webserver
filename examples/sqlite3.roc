@@ -31,9 +31,8 @@ main = \_ ->
         |> Task.await
 
     body = rows |> Str.joinWith "\n"
-
     # Print out the results
-    {} <- Stdout.line body |> Task.await
+    Stdout.line! body
 
     Task.ok {
         status: 200,

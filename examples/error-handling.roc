@@ -13,13 +13,13 @@ main = \req ->
 
     handleReq =
         # Log the date, time, method, and url to stdout
-        {} <- logRequest req |> Task.await
+        logRequest! req
 
         # Read environment variable
-        url <- readEnvVar "TARGET_URL" |> Task.await
+        url = readEnvVar! "TARGET_URL"
 
         # Fetch content of url
-        content <- fetchContent url |> Task.await
+        content = fetchContent! url
 
         # Respond with the website content
         respond 200 content
@@ -34,7 +34,7 @@ AppError : [
 
 logRequest : Request -> Task {} *
 logRequest = \req ->
-    datetime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    datetime = Utc.now! |> Utc.toIso8601Str
 
     Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
@@ -56,9 +56,8 @@ handleErr = \appErr ->
         when appErr is
             EnvVarNotSet envVarName -> "Environment variable \"$(envVarName)\" was not set."
             HttpError err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
-
     # Log error to stderr
-    {} <- Stderr.line "Internal Server Error:\n\t$(errMsg)" |> Task.await
+    Stderr.line! "Internal Server Error:\n\t$(errMsg)"
     _ <- Stderr.flush |> Task.attempt
 
     # Respond with Http 500 Error
