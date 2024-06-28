@@ -13,7 +13,7 @@ module [
     fromResult,
     batch,
     result,
-    seq, 
+    sequence, 
     forEach,
 ]
 
@@ -246,34 +246,39 @@ result = \task ->
             \res -> res |> ok |> InternalTask.toEffect
 
     InternalTask.fromEffect effect
-## Apply a task repeatedly to a list of items, and return a list of the resulting values
+
+
+## Apply each task in a list sequentially, and return a [Task] with the list of the resulting values.
+## Each task will be awaited (see [Task.await]) before beginning the next task, 
+## execution will stop if an error occurs.
 ##
 ## ```
-## authors : List ID
-## getAuthor : ID -> Task Author [DbError]
+## fetchAuthorTasks : List (Task Author [DbError])
 ##
 ## getAuthors : Task (List Author) [DbError]
-## getAuthors = Task.list authors getAuthor
+## getAuthors = Task.sequence fetchAuthorTasks
 ## ```
 ##
-seq : List (Task ok err) -> Task (List ok) err
-seq = \tasks ->
-    List.walk tasks (Task.ok []) \state, task ->
-        value <- task |> Task.await
+sequence : List (Task ok err) -> Task (List ok) err
+sequence = \tasks ->
+    List.walk tasks (InternalTask.ok []) \state, task ->
+        value <- task |> await
 
-        state |> Task.map \values -> List.append values value
+        state |> map \values -> List.append values value
 
-## Apply a task repeatedly for each item in a list
+## Apply a function that returns `Task {} _` for each item in a list.
+## Each task will be awaited (see [Task.await]) before beginning the next task,
+## execution will stop if an error occurs.
 ##
 ## ```
 ## authors : List Author
 ## saveAuthor : Author -> Task {} [DbError]
 ##
-## saveAuthors : Task (List Author) [DbError]
+## saveAuthors : Task {} [DbError]
 ## saveAuthors = Task.forEach authors saveAuthor
 ## ```
 ##
 forEach : List a, (a -> Task {} b) -> Task {} b
 forEach = \items, fn ->
-    List.walk items (Task.ok {}) \state, item ->
-        state |> Task.await \_ -> fn item
+    List.walk items (InternalTask.ok {}) \state, item ->
+        state |> await \_ -> fn item
