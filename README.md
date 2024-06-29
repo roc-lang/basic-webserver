@@ -2,6 +2,8 @@
 
 :eyes: examples: [0.4](https://github.com/roc-lang/basic-webserver/tree/0.4.0/examples), [0.3](https://github.com/roc-lang/basic-webserver/tree/0.3.0/examples), [0.2](https://github.com/roc-lang/basic-webserver/tree/0.2.0/examples), [0.1](https://github.com/roc-lang/basic-webserver/tree/0.1/examples)
 
+:warning: On linux `--linker=legacy` is necessary for this package because of [this Roc issue](https://github.com/roc-lang/roc/issues/3609).
+
 # Basic Web Server for [Roc](https://www.roc-lang.org/)
 
 A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) with a simple interface.
@@ -9,8 +11,6 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 Write a function which takes a `Http.Request`, perform I/O like fetching content or reading environment variables, and return a `Http.Response`. It's that easy!
 
 Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
-
-:warning: On linux `--linker=legacy` is necessary for this package because of [this Roc issue](https://github.com/roc-lang/roc/issues/3609).
 
 ## Example
 
