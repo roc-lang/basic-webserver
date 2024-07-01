@@ -3,7 +3,6 @@ app [main] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Env

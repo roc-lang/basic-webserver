@@ -1,6 +1,5 @@
 app [main] { pf: platform "../platform/main.roc" }
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
 # This example demonstrates the use of `Task.result`.

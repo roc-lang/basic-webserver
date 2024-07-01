@@ -1,11 +1,9 @@
 module [ReadErr, WriteErr, write, writeUtf8, writeBytes, readUtf8, readBytes, delete, writeErrToStr, readErrToStr]
 
-import Task exposing [Task]
-import InternalTask
+import PlatformTask
 import InternalFile
 import Path exposing [Path]
 import InternalPath
-import Effect exposing [Effect]
 
 ## Tag union of possible errors when reading a file or directory.
 ReadErr : InternalFile.ReadErr
@@ -53,7 +51,7 @@ write = \path, val, fmt ->
 ## > To format data before writing it to a file, you can use [File.write] instead.
 writeBytes : Path, List U8 -> Task {} [FileWriteErr Path WriteErr]
 writeBytes = \path, bytes ->
-    toWriteTask path \pathBytes -> Effect.fileWriteBytes pathBytes bytes
+    toWriteTask path \pathBytes -> PlatformTask.fileWriteBytes pathBytes bytes
 
 ## Writes a [Str] to a file, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
 ##
@@ -67,7 +65,7 @@ writeBytes = \path, bytes ->
 ## > To write unformatted bytes to a file, you can use [File.writeBytes] instead.
 writeUtf8 : Path, Str -> Task {} [FileWriteErr Path WriteErr]
 writeUtf8 = \path, str ->
-    toWriteTask path \bytes -> Effect.fileWriteUtf8 bytes str
+    toWriteTask path \bytes -> PlatformTask.fileWriteUtf8 bytes str
 
 ## Deletes a file from the filesystem.
 ##
@@ -90,7 +88,7 @@ writeUtf8 = \path, str ->
 ##
 delete : Path -> Task {} [FileWriteErr Path WriteErr]
 delete = \path ->
-    toWriteTask path \bytes -> Effect.fileDelete bytes
+    toWriteTask path \bytes -> PlatformTask.fileDelete bytes
 
 ## Reads all the bytes in a file.
 ##
@@ -104,7 +102,7 @@ delete = \path ->
 ## > To read and decode data from a file, you can use `File.read` instead.
 readBytes : Path -> Task (List U8) [FileReadErr Path ReadErr]
 readBytes = \path ->
-    toReadTask path \bytes -> Effect.fileReadBytes bytes
+    toReadTask path \bytes -> PlatformTask.fileReadBytes bytes
 
 ## Reads a [Str] from a file containing [UTF-8](https://en.wikipedia.org/wiki/UTF-8)-encoded text.
 ##
@@ -119,45 +117,20 @@ readBytes = \path ->
 ## > To read unformatted bytes from a file, you can use [File.readBytes] instead.
 readUtf8 : Path -> Task Str [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
 readUtf8 = \path ->
-    effect = Effect.map (Effect.fileReadBytes (InternalPath.toBytes path)) \result ->
-        when result is
-            Ok bytes ->
-                Str.fromUtf8 bytes
-                |> Result.mapErr \err -> FileReadUtf8Err path err
+    PlatformTask.fileReadBytes (InternalPath.toBytes path)
+    |> Task.await \bytes -> bytes |> Str.fromUtf8 |> Task.fromResult
+    |> Task.mapErr \err -> FileReadUtf8Err path err
 
-            Err readErr -> Err (FileReadErr path readErr)
-
-    InternalTask.fromEffect effect
-
-# read :
-#     Path,
-#     fmt
-#     -> Task
-#         Str
-#         [FileReadErr Path ReadErr, FileReadDecodeErr Path [Leftover (List U8)]Decode.DecodeError ]
-#         [Read [File]]
-#     where val implements Decode.Decoding, fmt implements Decode.DecoderFormatting
-# read = \path, fmt ->
-#     effect = Effect.map (Effect.fileReadBytes (InternalPath.toBytes path)) \result ->
-#         when result is
-#             Ok bytes ->
-#                 when Decode.fromBytes bytes fmt is
-#                     Ok val -> Ok val
-#                     Err decodingErr -> Err (FileReadDecodeErr decodingErr)
-#             Err readErr -> Err (FileReadErr readErr)
-#     InternalTask.fromEffect effect
-toWriteTask : Path, (List U8 -> Effect (Result ok err)) -> Task ok [FileWriteErr Path err]
-toWriteTask = \path, toEffect ->
+toWriteTask : Path, (List U8 -> Task ok err) -> Task ok [FileWriteErr Path err]
+toWriteTask = \path, toPlatformTask ->
     InternalPath.toBytes path
-    |> toEffect
-    |> InternalTask.fromEffect
+    |> toPlatformTask
     |> Task.mapErr \err -> FileWriteErr path err
 
-toReadTask : Path, (List U8 -> Effect (Result ok err)) -> Task ok [FileReadErr Path err]
-toReadTask = \path, toEffect ->
+toReadTask : Path, (List U8 -> Task ok err) -> Task ok [FileReadErr Path err]
+toReadTask = \path, toPlatformTask ->
     InternalPath.toBytes path
-    |> toEffect
-    |> InternalTask.fromEffect
+    |> toPlatformTask
     |> Task.mapErr \err -> FileReadErr path err
 
 ## Converts a [WriteErr] to a [Str].

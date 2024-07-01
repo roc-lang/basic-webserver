@@ -1,43 +1,35 @@
 module [cwd, list, var, decode, exePath, setCwd]
 
-import Task exposing [Task]
 import Path exposing [Path]
 import InternalPath
-import Effect
-import InternalTask
+import PlatformTask
 import EnvDecoding
 
 ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## from the environment. File operations on relative [Path]s are relative to this directory.
 cwd : Task Path [CwdUnavailable]
 cwd =
-    effect = Effect.map Effect.cwd \bytes ->
+    PlatformTask.cwd
+    |> Task.await \bytes ->
         if List.isEmpty bytes then
-            Err CwdUnavailable
+            Task.err CwdUnavailable
         else
-            Ok (InternalPath.fromArbitraryBytes bytes)
-
-    InternalTask.fromEffect effect
+            Task.ok (InternalPath.fromArbitraryBytes bytes)
 
 ## Sets the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## in the environment. After changing it, file operations on relative [Path]s will be relative
 ## to this directory.
 setCwd : Path -> Task {} [InvalidCwd]
 setCwd = \path ->
-    Effect.setCwd (InternalPath.toBytes path)
-    |> Effect.map (\result -> Result.mapErr result \{} -> InvalidCwd)
-    |> InternalTask.fromEffect
+    PlatformTask.setCwd (InternalPath.toBytes path)
+    |> Task.mapErr \{} -> InvalidCwd
 
 ## Gets the path to the currently-running executable.
 exePath : Task Path [ExePathUnavailable]
 exePath =
-    effect =
-        Effect.map Effect.exePath \result ->
-            when result is
-                Ok bytes -> Ok (InternalPath.fromOsBytes bytes)
-                Err {} -> Err ExePathUnavailable
-
-    InternalTask.fromEffect effect
+    PlatformTask.exePath
+    |> Task.map \bytes -> InternalPath.fromOsBytes bytes
+    |> Task.mapErr \{} -> ExePathUnavailable
 
 ## Reads the given environment variable.
 ##
@@ -45,9 +37,8 @@ exePath =
 ## [Unicode replacement character](https://unicode.org/glossary/#replacement_character) ('�').
 var : Str -> Task Str [VarNotFound]
 var = \name ->
-    Effect.envVar name
-    |> Effect.map (\result -> Result.mapErr result \{} -> VarNotFound)
-    |> InternalTask.fromEffect
+    PlatformTask.envVar name
+    |> Task.mapErr \{} -> VarNotFound
 
 ## Reads the given environment variable and attempts to decode it.
 ##
@@ -76,17 +67,12 @@ var = \name ->
 ##
 decode : Str -> Task val [VarNotFound, DecodeErr DecodeError] where val implements Decoding
 decode = \name ->
-    Effect.envVar name
-    |> Effect.map
-        (
-            \result ->
-                result
-                |> Result.mapErr (\{} -> VarNotFound)
-                |> Result.try
-                    (\varStr ->
-                        Decode.fromBytes (Str.toUtf8 varStr) (EnvDecoding.format {})
-                        |> Result.mapErr (\_ -> DecodeErr TooShort)))
-    |> InternalTask.fromEffect
+    PlatformTask.envVar name
+    |> Task.mapErr \{} -> VarNotFound
+    |> Task.await \varStr ->
+        Decode.fromBytes (Str.toUtf8 varStr) (EnvDecoding.format {})
+        |> Result.mapErr \_ -> DecodeErr TooShort
+        |> Task.fromResult
 
 ## Reads all the process's environment variables into a List (Str, Str).
 ##
@@ -94,9 +80,7 @@ decode = \name ->
 ## will be used in place of any parts of keys or values that are invalid Unicode.
 list : Task (List (Str, Str)) *
 list =
-    Effect.envList
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
+    PlatformTask.envList
 
 # ## Walks over the process's environment variables as key-value arguments to the walking function.
 # ##

@@ -19,7 +19,6 @@ platform "webserver"
     ]
     packages {}
     imports [
-        Task.{ Task },
         Http.{ Request, Response },
     ]
     provides [mainForHost]
