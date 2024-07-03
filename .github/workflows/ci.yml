@@ -1,4 +1,4 @@
-on: 
+on:
   pull_request:
   workflow_dispatch:
 
@@ -8,17 +8,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   build-and-test:
     runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v3
-          
+
       - id: try_fetching_testing_release
         continue-on-error: true
         run: |
           curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-TESTING.tar.gz
-    
+
       - name: There are no TESTING releases, checking regular releases instead
         if: steps.try_fetching_testing_release.outcome == 'failure'
         run: |
@@ -43,8 +42,9 @@ jobs:
       - name: print expect version
         run: expect -v
 
-      # Run all tests 
+      - name: Build platform binary
+        run: ./roc_nightly/roc ./build.roc --release --cli ./roc_nightly/roc
+
+      # Run all tests
       - run: ROC=./roc_nightly/roc EXAMPLES_DIR=./examples/ ./ci/all_tests.sh
-
 # TODO clippy, rustfmt, roc fmt check
-

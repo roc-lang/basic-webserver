@@ -1,29 +1,22 @@
 app [main] {
-    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.11.0/SY4WWMhWQ9NvQgvIthcv15AUeA7rAIJHAHgiaSHGhdY.tar.br",
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.12.0/cf_TpThUd4e69C7WzHxCbgsagnDmk3xlb_HmEKXTICw.tar.br",
     weaver: "https://github.com/smores56/weaver/releases/download/0.2.0/BBDPvzgGrYp-AhIDw0qmwxT0pWZIQP_7KOrUrZfp_xw.tar.br",
 }
 
 import cli.Task exposing [Task]
 import cli.Cmd
 import cli.Stdout
+import cli.Env
 import cli.Arg
 import weaver.Opt
 import weaver.Cli
-
-RocTarget : [
-    MacosArm64,
-    MacosX64,
-    LinuxArm64,
-    LinuxX64,
-    WindowsArm64,
-    WindowsX64,
-]
 
 main =
 
     cliParser =
         Cli.weave {
-            release: <- Opt.flag { short: "r", help: "Release build" },
+            release: <- Opt.flag { short: "r", long: "release", help: "Release build" },
+            maybeRoc: <- Opt.maybeStr { short: "c", long: "cli", help: "Path to the roc cli"},
         }
         |> Cli.finish {
             name: "basic-webserver",
@@ -37,119 +30,89 @@ main =
         Ok args -> run args
         Err message -> Task.err (Exit 1 message)
 
-run = \{ release } ->
-    target = getNativeTarget!
+run = \{ release, maybeRoc } ->
 
-    appStubPath = "crates/roc_host_bin/libapp.$(appStubExt target)"
-    appStubBuildPath = "platform/libapp.$(appStubExt target)"
-    printInfoLine! "roc build the app stub shared library at $(appStubBuildPath)"
-    Cmd.exec "roc" ["build", "--lib", "platform/libapp.roc"]
-    |> Task.mapErr! ErrBuildingAppStub
+    roc = maybeRoc |> Result.withDefault "roc"
 
-    printInfoLine! "move the app stub shared library to the roc_host_bin crate"
-    Cmd.exec "cp" [appStubBuildPath, appStubPath]
-    |> Task.mapErr! ErrMovingAppStub
+    info! "Generating glue for builtins ..."
+    roc
+        |> Cmd.exec  ["glue", "glue.roc", "crates/", "platform/main.roc"]
+        |> Task.mapErr! ErrGeneratingGlue
+
+    info! "Getting the native target ..."
+    target =
+        Env.platform
+        |> Task.await! getNativeTarget
+
+    stubPath = "platform/libapp.$(stubExt target)"
+
+    info! "Building stubbed app shared library ..."
+    roc
+        |> Cmd.exec  ["build", "--lib", "platform/libapp.roc", "--output", stubPath]
+        |> Task.mapErr! ErrBuildingAppStub
 
     (cargoBuildArgs, message) =
         if release then
-            (["build", "--release"], "building roc host binaries in release mode")
+            (["build", "--release"], "Building host in RELEASE mode ...")
         else
-            (["build"], "building roc host binaries in debug mode")
+            (["build"], "Building host in DEBUG mode ...")
 
-    printInfoLine! message
-    Cmd.exec "cargo" cargoBuildArgs
-    |> Task.mapErr! ErrBuildingRocHostBinaries
+    info! message
+    "cargo"
+        |> Cmd.exec  cargoBuildArgs
+        |> Task.mapErr! ErrBuildingHostBinaries
 
-    prebuiltLegacyBinaryBuildPath =
-        if release then
-            "target/release/libhost.a"
-        else
-            "target/debug/libhost.a"
+    hostBuildPath = if release then "target/release/libhost.a" else "target/debug/libhost.a"
+    hostDestPath = "platform/$(prebuiltStaticLibrary target)"
 
-    prebuiltLegacyBinaryPath = "platform/$(prebuiltBinaryName target)"
-    printInfoLine! "moving the prebuilt binary from $(prebuiltLegacyBinaryBuildPath) to $(prebuiltLegacyBinaryPath)"
-    Cmd.exec "cp" [prebuiltLegacyBinaryBuildPath, prebuiltLegacyBinaryPath]
-    |> Task.mapErr! ErrMovingPrebuiltLegacyBinary
+    info! "Moving the prebuilt binary from $(hostBuildPath) to $(hostDestPath) ..."
+    "cp"
+        |> Cmd.exec  [hostBuildPath, hostDestPath]
+        |> Task.mapErr! ErrMovingPrebuiltLegacyBinary
 
-    # SURGICAL LINKER IS NOT YET SUPPORTED need to merge
-    # https://github.com/roc-lang/roc/pull/6696
-    #prebuiltSurgicalBinaryBuildPath =
-    #    if release then
-    #        "target/release/host"
-    #    else
-    #        "target/debug/host"
+    info! "Preprocessing surgical host ..."
+    surgicalBuildPath = if release then "target/release/host" else "target/debug/host"
+    roc
+        |> Cmd.exec  ["preprocess-host", surgicalBuildPath, "platform/main.roc", stubPath]
+        |> Task.mapErr! ErrPreprocessingSurgicalBinary
 
-    #prebuiltSurgicalBinaryPath = "platform/dynhost" ## currently hardcoded
-    #printInfoLine! "moving the prebuilt binary from $(prebuiltSurgicalBinaryBuildPath) to $(prebuiltSurgicalBinaryPath)"
-    #Cmd.exec "cp" [prebuiltSurgicalBinaryBuildPath, prebuiltSurgicalBinaryPath]
-    #|> Task.mapErr! ErrMovingPrebuiltSurgicalBinary
+    info! "Successfully completed building platform binaries."
 
-    #printInfoLine! "preprocessing the host for surgical linker"
-    #Cmd.exec "roc" ["preprocess-host","platform/libapp.roc"]
-    #|> Task.mapErr! ErrPreprocessingSurgicalHost
+RocTarget : [
+    MacosArm64,
+    MacosX64,
+    LinuxArm64,
+    LinuxX64,
+    WindowsArm64,
+    WindowsX64,
+]
 
-getNativeTarget : Task RocTarget _
-getNativeTarget =
-
-    printInfoLine! "geting native target using uname"
-
-    archFromStr = \bytes ->
-        when Str.fromUtf8 bytes is
-            Ok str if str == "arm64\n" -> Arm64
-            Ok str if str == "x86_64\n" -> X64
-            Ok str -> UnsupportedArch str
-            _ -> crash "invalid utf8 from uname -m"
-
-    arch =
-        Cmd.new "uname"
-            |> Cmd.arg "-m"
-            |> Cmd.output
-            |> Task.map .stdout
-            |> Task.map archFromStr
-            |> Task.mapErr! ErrGettingNativeArch
-
-    osFromStr = \bytes ->
-        when Str.fromUtf8 bytes is
-            Ok str if str == "Darwin\n" -> Macos
-            Ok str if str == "Linux\n" -> Linux
-            Ok str -> UnsupportedOS str
-            _ -> crash "invalid utf8 from uname -s"
-
-    os =
-        Cmd.new "uname"
-            |> Cmd.arg "-s"
-            |> Cmd.output
-            |> Task.map .stdout
-            |> Task.map osFromStr
-            |> Task.mapErr! ErrGettingNativeOS
-
+getNativeTarget : _ -> Task RocTarget _
+getNativeTarget =\{os, arch} ->
     when (os, arch) is
-        (Macos, Arm64) -> Task.ok MacosArm64
-        (Macos, X64) -> Task.ok MacosX64
-        (Linux, Arm64) -> Task.ok LinuxArm64
-        (Linux, X64) -> Task.ok LinuxX64
+        (MACOS, AARCH64) -> Task.ok MacosArm64
+        (MACOS, X64) -> Task.ok MacosX64
+        (LINUX, AARCH64) -> Task.ok LinuxArm64
+        (LINUX, X64) -> Task.ok LinuxX64
         _ -> Task.err (UnsupportedNative os arch)
 
-appStubExt : RocTarget -> Str
-appStubExt = \target ->
+stubExt : RocTarget -> Str
+stubExt = \target ->
     when target is
-        MacosArm64 -> "dylib"
-        MacosX64 -> "dylib"
-        LinuxArm64 -> "so"
-        LinuxX64 -> "so"
-        WindowsArm64 -> "dll"
-        WindowsX64 -> "dll"
+        MacosX64 | MacosArm64 -> "dylib"
+        LinuxArm64 | LinuxX64-> "so"
+        WindowsX64| WindowsArm64 -> "dll"
 
-prebuiltBinaryName : RocTarget -> Str
-prebuiltBinaryName = \target ->
+prebuiltStaticLibrary : RocTarget -> Str
+prebuiltStaticLibrary = \target ->
     when target is
         MacosArm64 -> "macos-arm64.a"
-        MacosX64 -> "macos-x64"
+        MacosX64 -> "macos-x64.a"
         LinuxArm64 -> "linux-arm64.a"
         LinuxX64 -> "linux-x64.a"
-        WindowsArm64 -> "windows-arm64.a"
-        WindowsX64 -> "windows-x64"
+        WindowsArm64 -> "windows-arm64.lib"
+        WindowsX64 -> "windows-x64.lib"
 
-printInfoLine : Str -> Task {} _
-printInfoLine = \msg ->
-    Stdout.line! "\u(001b)[34mROC BUILD INFO:\u(001b)[0m $(msg)"
+info : Str -> Task {} _
+info = \msg ->
+    Stdout.line! "\u(001b)[34mINFO:\u(001b)[0m $(msg)"

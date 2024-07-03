@@ -40,3 +40,9 @@ examples/sqlite3
 examples/hello-web
 
 .DS_Store
+
+# glue generated files
+crates/roc_std
+
+# build script artifacts
+build

@@ -89,6 +89,7 @@ fn to_server_response(resp: roc_app::InternalResponse) -> hyper::Response<hyper:
 async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
     let (parts, body) = req.into_parts();
 
+    #[allow(deprecated)]
     match hyper::body::to_bytes(body).await {
         Ok(body) => {
             spawn_blocking(move || {
