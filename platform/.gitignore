@@ -20,3 +20,4 @@ target
 *.o
 *.so
 *.so.*
+.DS_Store
