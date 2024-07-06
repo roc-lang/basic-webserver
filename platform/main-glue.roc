@@ -18,7 +18,7 @@ platform "webserver"
     ]
     packages {}
     imports [
-        Http.{ Request, Method, Response },
+        Http.{ Request, Response },
     ]
     provides [mainForHost]
 

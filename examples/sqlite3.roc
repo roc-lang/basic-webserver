@@ -17,7 +17,7 @@ main = \_ ->
         SQLite3.execute {
             path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
             query: "SELECT id, task FROM todos WHERE status = :status;",
-            bindings: [{ name: ":status", value: "completed" }],
+            bindings: [{ name: ":status", value: String "completed" }],
         }
         |> Task.map \rows ->
             # Parse each row into a string
