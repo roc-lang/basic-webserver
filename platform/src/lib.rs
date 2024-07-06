@@ -1,10 +1,12 @@
 use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
 use std::net::TcpStream;
 use std::os::raw::c_void;
+use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod http_client;
@@ -742,47 +744,43 @@ pub struct SQLiteBindings {
 
 struct SQLiteConnection {
     path: String,
-    connection: std::sync::Arc<sqlite::Connection>,
+    connection: Rc<sqlite::Connection>,
 }
 
-static INIT_GLOBAL_CONNECTION_STORE: std::sync::Once = std::sync::Once::new();
-static mut GLOBAL_SQLITE_CONNECTIONS: *mut std::sync::Mutex<Vec<SQLiteConnection>> =
-    std::ptr::null_mut();
+thread_local! {
+    static SQLITE_CONNECTIONS : RefCell<Vec<SQLiteConnection>> = RefCell::new(vec![]);
+}
 
-fn get_connection(path: &str) -> Result<std::sync::Arc<sqlite::Connection>, sqlite::Error> {
-    use std::sync::Arc;
-
-    let store: &'static std::sync::Mutex<Vec<SQLiteConnection>> = unsafe {
-        INIT_GLOBAL_CONNECTION_STORE.call_once(|| {
-            GLOBAL_SQLITE_CONNECTIONS = Box::into_raw(Box::new(std::sync::Mutex::new(Vec::new())));
-        });
-        &*GLOBAL_SQLITE_CONNECTIONS
-    };
-
-    let mut opened_store = store.lock().unwrap();
-
-    for c in opened_store.iter() {
-        if c.path == path {
-            return Ok(Arc::clone(&c.connection));
+fn get_connection(path: &str) -> Result<Rc<sqlite::Connection>, sqlite::Error> {
+    SQLITE_CONNECTIONS.with(|connections| {
+        for c in connections.borrow().iter() {
+            if c.path == path {
+                return Ok(Rc::clone(&c.connection));
+            }
         }
-    }
 
-    let connection: sqlite::Connection = match sqlite::open(path) {
-        Ok(new_con) => new_con,
-        Err(err) => {
-            return Err(err);
-        }
-    };
+        let connection = match sqlite::Connection::open_with_flags(
+            path,
+            sqlite::OpenFlags::new()
+                .with_create()
+                .with_read_write()
+                .with_no_mutex(),
+        ) {
+            Ok(new_con) => new_con,
+            Err(err) => {
+                return Err(err);
+            }
+        };
 
-    let arc_connection = Arc::new(connection);
-    let new_connection = SQLiteConnection {
-        path: path.to_owned(),
-        connection: Arc::clone(&arc_connection),
-    };
+        let rc_connection = Rc::new(connection);
+        let new_connection = SQLiteConnection {
+            path: path.to_owned(),
+            connection: Rc::clone(&rc_connection),
+        };
 
-    opened_store.push(new_connection);
-
-    Ok(arc_connection)
+        connections.borrow_mut().push(new_connection);
+        Ok(rc_connection)
+    })
 }
 
 #[roc_fn(name = "sqliteExecute")]
