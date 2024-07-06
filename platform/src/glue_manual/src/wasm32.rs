@@ -12,9 +12,9 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::let_and_return)]
 #![allow(clippy::missing_safety_doc)]
-#![allow(clippy::redundant_static_lifetimes)]
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::clone_on_copy)]
+#![allow(clippy::non_canonical_partial_ord_impl)]
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
@@ -210,6 +210,16 @@ impl InternalCommandErr {
         unsafe { self.payload.ExitCode }
     }
 
+    pub fn borrow_ExitCode(&self) -> i32 {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
+        unsafe { self.payload.ExitCode }
+    }
+
+    pub fn borrow_mut_ExitCode(&mut self) -> &mut i32 {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
+        unsafe { &mut self.payload.ExitCode }
+    }
+
     pub fn is_ExitCode(&self) -> bool {
         matches!(self.discriminant, discriminant_InternalCommandErr::ExitCode)
     }
@@ -217,6 +227,18 @@ impl InternalCommandErr {
     pub fn unwrap_IOError(mut self) -> roc_std::RocStr {
         debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.IOError) }
+    }
+
+    pub fn borrow_IOError(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
+        use core::borrow::Borrow;
+        unsafe { self.payload.IOError.borrow() }
+    }
+
+    pub fn borrow_mut_IOError(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.IOError.borrow_mut() }
     }
 
     pub fn is_IOError(&self) -> bool {
@@ -441,6 +463,18 @@ impl InternalError {
     pub fn unwrap_IOError(mut self) -> roc_std::RocStr {
         debug_assert_eq!(self.discriminant, discriminant_InternalError::IOError);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.IOError) }
+    }
+
+    pub fn borrow_IOError(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalError::IOError);
+        use core::borrow::Borrow;
+        unsafe { self.payload.IOError.borrow() }
+    }
+
+    pub fn borrow_mut_IOError(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalError::IOError);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.IOError.borrow_mut() }
     }
 
     pub fn is_IOError(&self) -> bool {
@@ -778,6 +812,18 @@ impl ConnectErr {
     pub fn unwrap_Unrecognized(mut self) -> ConnectErr_Unrecognized {
         debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
+    }
+
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Unrecognized.borrow_mut() }
     }
 
     pub fn is_Unrecognized(&self) -> bool {
@@ -1155,6 +1201,18 @@ impl StreamErr {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
     }
 
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_StreamErr::Unrecognized);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_StreamErr::Unrecognized);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Unrecognized.borrow_mut() }
+    }
+
     pub fn is_Unrecognized(&self) -> bool {
         matches!(self.discriminant, discriminant_StreamErr::Unrecognized)
     }
@@ -1252,19 +1310,19 @@ impl core::fmt::Debug for discriminant_ConnectResult {
     }
 }
 
-#[repr(C, align(4))]
+#[repr(C, align(8))]
 pub union union_ConnectResult {
-    Connected: u32,
+    Connected: u64,
     Error: core::mem::ManuallyDrop<ConnectErr>,
 }
 
 const _SIZE_CHECK_union_ConnectResult: () =
-    assert!(core::mem::size_of::<union_ConnectResult>() == 20);
+    assert!(core::mem::size_of::<union_ConnectResult>() == 24);
 const _ALIGN_CHECK_union_ConnectResult: () =
-    assert!(core::mem::align_of::<union_ConnectResult>() == 4);
+    assert!(core::mem::align_of::<union_ConnectResult>() == 8);
 
-const _SIZE_CHECK_ConnectResult: () = assert!(core::mem::size_of::<ConnectResult>() == 24);
-const _ALIGN_CHECK_ConnectResult: () = assert!(core::mem::align_of::<ConnectResult>() == 4);
+const _SIZE_CHECK_ConnectResult: () = assert!(core::mem::size_of::<ConnectResult>() == 32);
+const _ALIGN_CHECK_ConnectResult: () = assert!(core::mem::align_of::<ConnectResult>() == 8);
 
 impl ConnectResult {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
@@ -1272,7 +1330,7 @@ impl ConnectResult {
         unsafe {
             let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
 
-            core::mem::transmute::<u8, discriminant_ConnectResult>(*bytes.as_ptr().add(20))
+            core::mem::transmute::<u8, discriminant_ConnectResult>(*bytes.as_ptr().add(24))
         }
     }
 
@@ -1281,7 +1339,7 @@ impl ConnectResult {
         let discriminant_ptr: *mut discriminant_ConnectResult = (self as *mut ConnectResult).cast();
 
         unsafe {
-            *(discriminant_ptr.add(20)) = discriminant;
+            *(discriminant_ptr.add(24)) = discriminant;
         }
     }
 }
@@ -1321,7 +1379,7 @@ impl core::fmt::Debug for ConnectResult {
         unsafe {
             match self.discriminant {
                 Connected => {
-                    let field: &u32 = &self.payload.Connected;
+                    let field: &u64 = &self.payload.Connected;
                     f.debug_tuple("ConnectResult::Connected")
                         .field(field)
                         .finish()
@@ -1393,9 +1451,19 @@ impl core::hash::Hash for ConnectResult {
 }
 
 impl ConnectResult {
-    pub fn unwrap_Connected(mut self) -> u32 {
+    pub fn unwrap_Connected(mut self) -> u64 {
         debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
         unsafe { self.payload.Connected }
+    }
+
+    pub fn borrow_Connected(&self) -> u64 {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
+        unsafe { self.payload.Connected }
+    }
+
+    pub fn borrow_mut_Connected(&mut self) -> &mut u64 {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
+        unsafe { &mut self.payload.Connected }
     }
 
     pub fn is_Connected(&self) -> bool {
@@ -1407,13 +1475,25 @@ impl ConnectResult {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
     }
 
+    pub fn borrow_Error(&self) -> &ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Error);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Error);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Error.borrow_mut() }
+    }
+
     pub fn is_Error(&self) -> bool {
         matches!(self.discriminant, discriminant_ConnectResult::Error)
     }
 }
 
 impl ConnectResult {
-    pub fn Connected(payload: u32) -> Self {
+    pub fn Connected(payload: u64) -> Self {
         Self {
             discriminant: discriminant_ConnectResult::Connected,
             payload: union_ConnectResult { Connected: payload },
@@ -1598,6 +1678,18 @@ impl WriteResult {
     pub fn unwrap_Error(mut self) -> StreamErr {
         debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
+    }
+
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Error.borrow_mut() }
     }
 
     pub fn is_Error(&self) -> bool {
@@ -1797,6 +1889,18 @@ impl ReadResult {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
     }
 
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Error);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Error);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Error.borrow_mut() }
+    }
+
     pub fn is_Error(&self) -> bool {
         matches!(self.discriminant, discriminant_ReadResult::Error)
     }
@@ -1804,6 +1908,18 @@ impl ReadResult {
     pub fn unwrap_Read(mut self) -> roc_std::RocList<u8> {
         debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Read) }
+    }
+
+    pub fn borrow_Read(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Read.borrow() }
+    }
+
+    pub fn borrow_mut_Read(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Read.borrow_mut() }
     }
 
     pub fn is_Read(&self) -> bool {
@@ -2028,6 +2144,18 @@ impl ReadExactlyResult {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
     }
 
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Error);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Error);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Error.borrow_mut() }
+    }
+
     pub fn is_Error(&self) -> bool {
         matches!(self.discriminant, discriminant_ReadExactlyResult::Error)
     }
@@ -2035,6 +2163,18 @@ impl ReadExactlyResult {
     pub fn unwrap_Read(mut self) -> roc_std::RocList<u8> {
         debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Read) }
+    }
+
+    pub fn borrow_Read(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Read.borrow() }
+    }
+
+    pub fn borrow_mut_Read(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Read.borrow_mut() }
     }
 
     pub fn is_Read(&self) -> bool {
@@ -2444,6 +2584,18 @@ impl ReadErr {
     pub fn unwrap_Unrecognized(mut self) -> ConnectErr_Unrecognized {
         debug_assert_eq!(self.discriminant, discriminant_ReadErr::Unrecognized);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
+    }
+
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ReadErr::Unrecognized);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ReadErr::Unrecognized);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Unrecognized.borrow_mut() }
     }
 
     pub fn is_Unrecognized(&self) -> bool {
@@ -3118,6 +3270,18 @@ impl WriteErr {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
     }
 
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_WriteErr::Unrecognized);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_WriteErr::Unrecognized);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Unrecognized.borrow_mut() }
+    }
+
     pub fn is_Unrecognized(&self) -> bool {
         matches!(self.discriminant, discriminant_WriteErr::Unrecognized)
     }
@@ -3517,6 +3681,24 @@ impl UnwrappedPath {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ArbitraryBytes) }
     }
 
+    pub fn borrow_ArbitraryBytes(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_UnwrappedPath::ArbitraryBytes
+        );
+        use core::borrow::Borrow;
+        unsafe { self.payload.ArbitraryBytes.borrow() }
+    }
+
+    pub fn borrow_mut_ArbitraryBytes(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_UnwrappedPath::ArbitraryBytes
+        );
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.ArbitraryBytes.borrow_mut() }
+    }
+
     pub fn is_ArbitraryBytes(&self) -> bool {
         matches!(
             self.discriminant,
@@ -3532,6 +3714,24 @@ impl UnwrappedPath {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromOperatingSystem) }
     }
 
+    pub fn borrow_FromOperatingSystem(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_UnwrappedPath::FromOperatingSystem
+        );
+        use core::borrow::Borrow;
+        unsafe { self.payload.FromOperatingSystem.borrow() }
+    }
+
+    pub fn borrow_mut_FromOperatingSystem(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_UnwrappedPath::FromOperatingSystem
+        );
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.FromOperatingSystem.borrow_mut() }
+    }
+
     pub fn is_FromOperatingSystem(&self) -> bool {
         matches!(
             self.discriminant,
@@ -3542,6 +3742,18 @@ impl UnwrappedPath {
     pub fn unwrap_FromStr(mut self) -> roc_std::RocStr {
         debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromStr) }
+    }
+
+    pub fn borrow_FromStr(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        use core::borrow::Borrow;
+        unsafe { self.payload.FromStr.borrow() }
+    }
+
+    pub fn borrow_mut_FromStr(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.FromStr.borrow_mut() }
     }
 
     pub fn is_FromStr(&self) -> bool {
@@ -3833,28 +4045,40 @@ impl PartialOrd for SQLiteValue {
 }
 
 impl SQLiteValue {
-    pub fn ref_Bytes(&self) -> &roc_std::RocList<u8> {
-        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
-        unsafe { self.payload.Bytes.borrow() }
-    }
-
     pub fn unwrap_Bytes(mut self) -> roc_std::RocList<u8> {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Bytes) }
+    }
+
+    pub fn borrow_Bytes(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Bytes.borrow() }
+    }
+
+    pub fn borrow_mut_Bytes(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Bytes.borrow_mut() }
     }
 
     pub fn is_Bytes(&self) -> bool {
         matches!(self.discriminant, discriminant_SQLiteValue::Bytes)
     }
 
-    pub fn ref_Integer(&self) -> i64 {
+    pub fn unwrap_Integer(mut self) -> i64 {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
         unsafe { self.payload.Integer }
     }
 
-    pub fn unwrap_Integer(mut self) -> i64 {
+    pub fn borrow_Integer(&self) -> i64 {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
         unsafe { self.payload.Integer }
+    }
+
+    pub fn borrow_mut_Integer(&mut self) -> &mut i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { &mut self.payload.Integer }
     }
 
     pub fn is_Integer(&self) -> bool {
@@ -3865,28 +4089,40 @@ impl SQLiteValue {
         matches!(self.discriminant, discriminant_SQLiteValue::Null)
     }
 
-    pub fn ref_Real(&self) -> f64 {
+    pub fn unwrap_Real(mut self) -> f64 {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { self.payload.Real }
     }
 
-    pub fn unwrap_Real(mut self) -> f64 {
+    pub fn borrow_Real(&self) -> f64 {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { self.payload.Real }
+    }
+
+    pub fn borrow_mut_Real(&mut self) -> &mut f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { &mut self.payload.Real }
     }
 
     pub fn is_Real(&self) -> bool {
         matches!(self.discriminant, discriminant_SQLiteValue::Real)
     }
 
-    pub fn ref_String(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
-        unsafe { self.payload.String.borrow() }
-    }
-
     pub fn unwrap_String(mut self) -> roc_std::RocStr {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.String) }
+    }
+
+    pub fn borrow_String(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        use core::borrow::Borrow;
+        unsafe { self.payload.String.borrow() }
+    }
+
+    pub fn borrow_mut_String(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.String.borrow_mut() }
     }
 
     pub fn is_String(&self) -> bool {
@@ -4004,7 +4240,7 @@ pub union union_GlueTypes {
     B: core::mem::ManuallyDrop<InternalOutput>,
     C: core::mem::ManuallyDrop<InternalCommandErr>,
     D: core::mem::ManuallyDrop<InternalError>,
-    E: u32,
+    E: u64,
     F: core::mem::ManuallyDrop<ConnectErr>,
     G: core::mem::ManuallyDrop<StreamErr>,
     H: core::mem::ManuallyDrop<ConnectResult>,
@@ -4141,7 +4377,7 @@ impl core::fmt::Debug for GlueTypes {
                     f.debug_tuple("GlueTypes::D").field(field).finish()
                 }
                 E => {
-                    let field: &u32 = &self.payload.E;
+                    let field: &u64 = &self.payload.E;
                     f.debug_tuple("GlueTypes::E").field(field).finish()
                 }
                 F => {
@@ -4269,6 +4505,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.A) }
     }
 
+    pub fn borrow_A(&self) -> &InternalCommand {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::A);
+        use core::borrow::Borrow;
+        unsafe { self.payload.A.borrow() }
+    }
+
+    pub fn borrow_mut_A(&mut self) -> &mut InternalCommand {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::A);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.A.borrow_mut() }
+    }
+
     pub fn is_A(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::A)
     }
@@ -4276,6 +4524,18 @@ impl GlueTypes {
     pub fn unwrap_B(mut self) -> InternalOutput {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::B);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.B) }
+    }
+
+    pub fn borrow_B(&self) -> &InternalOutput {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::B);
+        use core::borrow::Borrow;
+        unsafe { self.payload.B.borrow() }
+    }
+
+    pub fn borrow_mut_B(&mut self) -> &mut InternalOutput {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::B);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.B.borrow_mut() }
     }
 
     pub fn is_B(&self) -> bool {
@@ -4287,6 +4547,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.C) }
     }
 
+    pub fn borrow_C(&self) -> &InternalCommandErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::C);
+        use core::borrow::Borrow;
+        unsafe { self.payload.C.borrow() }
+    }
+
+    pub fn borrow_mut_C(&mut self) -> &mut InternalCommandErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::C);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.C.borrow_mut() }
+    }
+
     pub fn is_C(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::C)
     }
@@ -4296,13 +4568,35 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.D) }
     }
 
+    pub fn borrow_D(&self) -> &InternalError {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::D);
+        use core::borrow::Borrow;
+        unsafe { self.payload.D.borrow() }
+    }
+
+    pub fn borrow_mut_D(&mut self) -> &mut InternalError {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::D);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.D.borrow_mut() }
+    }
+
     pub fn is_D(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::D)
     }
 
-    pub fn unwrap_E(mut self) -> u32 {
+    pub fn unwrap_E(mut self) -> u64 {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::E);
         unsafe { self.payload.E }
+    }
+
+    pub fn borrow_E(&self) -> u64 {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::E);
+        unsafe { self.payload.E }
+    }
+
+    pub fn borrow_mut_E(&mut self) -> &mut u64 {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::E);
+        unsafe { &mut self.payload.E }
     }
 
     pub fn is_E(&self) -> bool {
@@ -4314,6 +4608,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.F) }
     }
 
+    pub fn borrow_F(&self) -> &ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::F);
+        use core::borrow::Borrow;
+        unsafe { self.payload.F.borrow() }
+    }
+
+    pub fn borrow_mut_F(&mut self) -> &mut ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::F);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.F.borrow_mut() }
+    }
+
     pub fn is_F(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::F)
     }
@@ -4321,6 +4627,18 @@ impl GlueTypes {
     pub fn unwrap_G(mut self) -> StreamErr {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::G);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.G) }
+    }
+
+    pub fn borrow_G(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::G);
+        use core::borrow::Borrow;
+        unsafe { self.payload.G.borrow() }
+    }
+
+    pub fn borrow_mut_G(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::G);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.G.borrow_mut() }
     }
 
     pub fn is_G(&self) -> bool {
@@ -4332,6 +4650,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.H) }
     }
 
+    pub fn borrow_H(&self) -> &ConnectResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::H);
+        use core::borrow::Borrow;
+        unsafe { self.payload.H.borrow() }
+    }
+
+    pub fn borrow_mut_H(&mut self) -> &mut ConnectResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::H);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.H.borrow_mut() }
+    }
+
     pub fn is_H(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::H)
     }
@@ -4339,6 +4669,18 @@ impl GlueTypes {
     pub fn unwrap_I(mut self) -> WriteResult {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::I);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.I) }
+    }
+
+    pub fn borrow_I(&self) -> &WriteResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::I);
+        use core::borrow::Borrow;
+        unsafe { self.payload.I.borrow() }
+    }
+
+    pub fn borrow_mut_I(&mut self) -> &mut WriteResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::I);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.I.borrow_mut() }
     }
 
     pub fn is_I(&self) -> bool {
@@ -4350,6 +4692,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.J) }
     }
 
+    pub fn borrow_J(&self) -> &ReadResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::J);
+        use core::borrow::Borrow;
+        unsafe { self.payload.J.borrow() }
+    }
+
+    pub fn borrow_mut_J(&mut self) -> &mut ReadResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::J);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.J.borrow_mut() }
+    }
+
     pub fn is_J(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::J)
     }
@@ -4357,6 +4711,18 @@ impl GlueTypes {
     pub fn unwrap_K(mut self) -> ReadExactlyResult {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::K);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.K) }
+    }
+
+    pub fn borrow_K(&self) -> &ReadExactlyResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::K);
+        use core::borrow::Borrow;
+        unsafe { self.payload.K.borrow() }
+    }
+
+    pub fn borrow_mut_K(&mut self) -> &mut ReadExactlyResult {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::K);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.K.borrow_mut() }
     }
 
     pub fn is_K(&self) -> bool {
@@ -4368,6 +4734,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.L) }
     }
 
+    pub fn borrow_L(&self) -> &ReadErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::L);
+        use core::borrow::Borrow;
+        unsafe { self.payload.L.borrow() }
+    }
+
+    pub fn borrow_mut_L(&mut self) -> &mut ReadErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::L);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.L.borrow_mut() }
+    }
+
     pub fn is_L(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::L)
     }
@@ -4375,6 +4753,18 @@ impl GlueTypes {
     pub fn unwrap_M(mut self) -> WriteErr {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::M);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.M) }
+    }
+
+    pub fn borrow_M(&self) -> &WriteErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::M);
+        use core::borrow::Borrow;
+        unsafe { self.payload.M.borrow() }
+    }
+
+    pub fn borrow_mut_M(&mut self) -> &mut WriteErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::M);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.M.borrow_mut() }
     }
 
     pub fn is_M(&self) -> bool {
@@ -4386,6 +4776,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.N) }
     }
 
+    pub fn borrow_N(&self) -> &InternalDirReadErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::N);
+        use core::borrow::Borrow;
+        unsafe { self.payload.N.borrow() }
+    }
+
+    pub fn borrow_mut_N(&mut self) -> &mut InternalDirReadErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::N);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.N.borrow_mut() }
+    }
+
     pub fn is_N(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::N)
     }
@@ -4393,6 +4795,18 @@ impl GlueTypes {
     pub fn unwrap_O(mut self) -> InternalDirDeleteErr {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::O);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.O) }
+    }
+
+    pub fn borrow_O(&self) -> &InternalDirDeleteErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::O);
+        use core::borrow::Borrow;
+        unsafe { self.payload.O.borrow() }
+    }
+
+    pub fn borrow_mut_O(&mut self) -> &mut InternalDirDeleteErr {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::O);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.O.borrow_mut() }
     }
 
     pub fn is_O(&self) -> bool {
@@ -4404,6 +4818,18 @@ impl GlueTypes {
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.P) }
     }
 
+    pub fn borrow_P(&self) -> &UnwrappedPath {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::P);
+        use core::borrow::Borrow;
+        unsafe { self.payload.P.borrow() }
+    }
+
+    pub fn borrow_mut_P(&mut self) -> &mut UnwrappedPath {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::P);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.P.borrow_mut() }
+    }
+
     pub fn is_P(&self) -> bool {
         matches!(self.discriminant, discriminant_GlueTypes::P)
     }
@@ -4411,6 +4837,18 @@ impl GlueTypes {
     pub fn unwrap_Q(mut self) -> SQLiteValue {
         debug_assert_eq!(self.discriminant, discriminant_GlueTypes::Q);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Q) }
+    }
+
+    pub fn borrow_Q(&self) -> &SQLiteValue {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::Q);
+        use core::borrow::Borrow;
+        unsafe { self.payload.Q.borrow() }
+    }
+
+    pub fn borrow_mut_Q(&mut self) -> &mut SQLiteValue {
+        debug_assert_eq!(self.discriminant, discriminant_GlueTypes::Q);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.Q.borrow_mut() }
     }
 
     pub fn is_Q(&self) -> bool {
@@ -4455,7 +4893,7 @@ impl GlueTypes {
         }
     }
 
-    pub fn E(payload: u32) -> Self {
+    pub fn E(payload: u64) -> Self {
         Self {
             discriminant: discriminant_GlueTypes::E,
             payload: union_GlueTypes { E: payload },

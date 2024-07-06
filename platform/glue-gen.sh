@@ -8,6 +8,7 @@ roc glue ../roc/crates/glue/src/RustGlue.roc platform/src/glue_manual platform/m
 cp -r platform/src/glue_manual/roc_app/src/ platform/src/glue_manual/src/
 rm -rf platform/src/glue_manual/roc_app
 rm -rf platform/src/glue_manual/roc_std
+rustfmt platform/src/glue_manual/src/lib.rs
 
 # Generate manual glue Cargo.toml
 cat > platform/src/glue_manual/Cargo.toml << EOF 
@@ -23,3 +24,4 @@ EOF
 
 # Generate glue for the platform
 roc glue ../roc/crates/glue/src/RustGlue.roc platform/src/glue platform/main-glue.roc
+rustfmt platform/src/glue/roc_app/src/lib.rs

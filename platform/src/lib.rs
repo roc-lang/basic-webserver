@@ -1,6 +1,5 @@
 use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
@@ -746,16 +745,16 @@ impl sqlite::Bindable for &SQLiteBindings {
     fn bind(self, stmt: &mut sqlite::Statement) -> sqlite::Result<()> {
         match self.value.discriminant() {
             glue_manual::discriminant_SQLiteValue::Bytes => {
-                stmt.bind((self.name.as_str(), self.value.ref_Bytes().as_slice()))
+                stmt.bind((self.name.as_str(), self.value.borrow_Bytes().as_slice()))
             }
             glue_manual::discriminant_SQLiteValue::Integer => {
-                stmt.bind((self.name.as_str(), self.value.ref_Integer()))
+                stmt.bind((self.name.as_str(), self.value.borrow_Integer()))
             }
             glue_manual::discriminant_SQLiteValue::Real => {
-                stmt.bind((self.name.as_str(), self.value.ref_Real()))
+                stmt.bind((self.name.as_str(), self.value.borrow_Real()))
             }
             glue_manual::discriminant_SQLiteValue::String => {
-                stmt.bind((self.name.as_str(), self.value.ref_String().as_str()))
+                stmt.bind((self.name.as_str(), self.value.borrow_String().as_str()))
             }
             glue_manual::discriminant_SQLiteValue::Null => {
                 stmt.bind((self.name.as_str(), sqlite::Value::Null))
