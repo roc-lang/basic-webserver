@@ -53,5 +53,5 @@ SQLiteValue : [
 
 SQLiteBindings : {
     name : Str,
-    value : Str,
+    value : SQLiteValue,
 }

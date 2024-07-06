@@ -16,6 +16,8 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::clone_on_copy)]
 
+use std::borrow::Borrow;
+
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalCommand {
@@ -3833,6 +3835,11 @@ impl PartialOrd for SQLiteValue {
 }
 
 impl SQLiteValue {
+    pub fn ref_Bytes(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        unsafe { self.payload.Bytes.borrow() }
+    }
+
     pub fn unwrap_Bytes(mut self) -> roc_std::RocList<u8> {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Bytes) }
@@ -3840,6 +3847,11 @@ impl SQLiteValue {
 
     pub fn is_Bytes(&self) -> bool {
         matches!(self.discriminant, discriminant_SQLiteValue::Bytes)
+    }
+
+    pub fn ref_Integer(&self) -> i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { self.payload.Integer }
     }
 
     pub fn unwrap_Integer(mut self) -> i64 {
@@ -3855,6 +3867,11 @@ impl SQLiteValue {
         matches!(self.discriminant, discriminant_SQLiteValue::Null)
     }
 
+    pub fn ref_Real(&self) -> f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { self.payload.Real }
+    }
+
     pub fn unwrap_Real(mut self) -> f64 {
         debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { self.payload.Real }
@@ -3862,6 +3879,11 @@ impl SQLiteValue {
 
     pub fn is_Real(&self) -> bool {
         matches!(self.discriminant, discriminant_SQLiteValue::Real)
+    }
+
+    pub fn ref_String(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        unsafe { self.payload.String.borrow() }
     }
 
     pub fn unwrap_String(mut self) -> roc_std::RocStr {
