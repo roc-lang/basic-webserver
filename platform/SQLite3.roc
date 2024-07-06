@@ -3,9 +3,10 @@ module [
     Code,
     Error,
     Binding,
-    execute,
+    prepare,
+    bind,
     prepareAndBind,
-    decode,
+    execute,
     errToStr,
     taggedValue,
     str,
@@ -15,7 +16,6 @@ module [
     succeed,
     with,
     apply,
-    decode,
 ]
 
 import InternalTask
@@ -29,19 +29,6 @@ Error : [SQLError Code Str]
 Binding : InternalSQL.SQLiteBindings
 Stmt := Box {}
 
-execute :
-    {
-        path : Str,
-        query : Str,
-        bindings : List Binding,
-    }
-    -> Task (List (List InternalSQL.SQLiteValue)) Error
-execute = \{ path, query, bindings } ->
-    Effect.sqliteExecute path query bindings
-    |> InternalTask.fromEffect
-    |> Task.mapErr internalToExternalError
-
-# TODO: This should be split into a prepare and bind separately.
 prepareAndBind :
     {
         path : Str,
@@ -50,9 +37,26 @@ prepareAndBind :
     }
     -> Task Stmt Error
 prepareAndBind = \{ path, query, bindings } ->
-    Effect.sqlitePrepareAndBind path query bindings
+    stmt = prepare! { path, query }
+    bind! stmt bindings
+    Task.ok stmt
+
+prepare :
+    {
+        path : Str,
+        query : Str,
+    }
+    -> Task Stmt Error
+prepare = \{ path, query } ->
+    Effect.sqlitePrepare path query
     |> InternalTask.fromEffect
     |> Task.map @Stmt
+    |> Task.mapErr internalToExternalError
+
+bind : Stmt, List Binding -> Task {} Error
+bind = \@Stmt stmt, bindings ->
+    Effect.sqliteBind stmt bindings
+    |> InternalTask.fromEffect
     |> Task.mapErr internalToExternalError
 
 columnIndex : Stmt, Str -> Task U64 [FieldNotFound Str]
@@ -69,7 +73,13 @@ columnValue = \@Stmt stmt, i ->
 
 step : Stmt -> Task [Row, Done] Error
 step = \@Stmt stmt ->
-    Effect.sqliteStmtStep stmt
+    Effect.sqliteStep stmt
+    |> InternalTask.fromEffect
+    |> Task.mapErr internalToExternalError
+
+reset : Stmt -> Task {} Error
+reset = \@Stmt stmt ->
+    Effect.sqliteReset stmt
     |> InternalTask.fromEffect
     |> Task.mapErr internalToExternalError
 
@@ -83,10 +93,9 @@ Decode a err :=
         (DecodeCont a err)
         (DecodeErr err)
 
-# TODO: This should really be execute
-decode : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-decode = \stmt, @Decode getDecode ->
-    # TODO: reset stmt to a clean state before execution.
+execute : Stmt, Decode a err -> Task (List a) (DecodeErr err)
+execute = \stmt, @Decode getDecode ->
+    reset! stmt
     fn = getDecode! stmt
     decodeRows stmt fn
 
@@ -116,7 +125,7 @@ decoder = \fn -> \name ->
         fn val |> Task.fromResult
 
 taggedValue = decoder \val ->
-    val
+    Ok val
 
 str = decoder \val ->
     when val is

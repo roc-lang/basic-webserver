@@ -33,12 +33,18 @@ hosted Effect
         sleepMillis,
         commandStatus,
         commandOutput,
+<<<<<<< HEAD
         sqliteExecute,
         tempDir,
         sqlitePrepareAndBind,
+=======
+        sqlitePrepare,
+        sqliteBind,
+>>>>>>> d3003f3 (improve api and actually free stmts)
         sqliteColumnIndex,
         sqliteColumnValue,
-        sqliteStmtStep,
+        sqliteStep,
+        sqliteReset,
     ]
     imports [
         InternalHttp,
@@ -95,9 +101,11 @@ commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} Interna
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
 
 # SQLite3
-sqlitePrepareAndBind : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (Box {}) InternalSQL.SQLiteError)
+sqlitePrepare : Str, Str -> Effect (Result (Box {}) InternalSQL.SQLiteError)
+sqliteBind : Box {}, List InternalSQL.SQLiteBindings -> Effect (Result {} InternalSQL.SQLiteError)
 sqliteColumnIndex : Box {}, Str -> Effect (Result U64 {})
 sqliteColumnValue : Box {}, U64 -> Effect (Result InternalSQL.SQLiteValue InternalSQL.SQLiteError)
-sqliteStmtStep : Box {} -> Effect (Result InternalSQL.SQLiteState InternalSQL.SQLiteError)
+sqliteStep : Box {} -> Effect (Result InternalSQL.SQLiteState InternalSQL.SQLiteError)
+sqliteReset : Box {} -> Effect (Result {} InternalSQL.SQLiteError)
 
 tempDir : Effect (List U8)

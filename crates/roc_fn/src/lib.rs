@@ -149,14 +149,14 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocResult<roc_std::RocList<roc_std::RocList<u8>>, roc_app::InternalDirReadErr>",
     },
     HostedFn {
-        name: "sqliteExecute",
-        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
-        ret_type: "roc_std::RocResult<RocList<RocList<roc_app::SQLiteValue>>, SQLiteError>",
+        name: "sqlitePrepare",
+        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr"],
+        ret_type: "roc_std::RocResult<RocBox<()>, SQLiteError>",
     },
     HostedFn {
-        name: "sqlitePrepareAndBind",
-        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
-        ret_type: "roc_std::RocResult<RocBox<()>, SQLiteError>",
+        name: "sqliteBind",
+        arg_types: &["roc_std::RocBox<()>", "&roc_std::RocList<SQLiteBindings>"],
+        ret_type: "roc_std::RocResult<(), SQLiteError>",
     },
     HostedFn {
         name: "sqliteColumnIndex",
@@ -169,9 +169,14 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocResult<glue_manual::SQLiteValue, SQLiteError>",
     },
     HostedFn {
-        name: "sqliteStmtStep",
+        name: "sqliteStep",
         arg_types: &["roc_std::RocBox<()>"],
         ret_type: "roc_std::RocResult<glue_manual::SQLiteState, SQLiteError>",
+    },
+    HostedFn {
+        name: "sqliteReset",
+        arg_types: &["roc_std::RocBox<()>"],
+        ret_type: "roc_std::RocResult<(), SQLiteError>",
     },
     ];
 

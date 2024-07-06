@@ -15,7 +15,7 @@ pub struct RocBox<T>
 where
     T: RocRefcounted,
 {
-    contents: NonNull<T>,
+    pub contents: NonNull<T>,
 }
 
 impl<T> RocBox<T>
