@@ -870,7 +870,105 @@ fn sqlite_execute(
     RocResult::ok(roc_values)
 }
 
-fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
+#[roc_fn(name = "sqlitePrepareAndBind")]
+fn sqlite_prepare_and_bind(
+    db_path: &roc_std::RocStr,
+    query: &roc_std::RocStr,
+    bindings: &roc_std::RocList<SQLiteBindings>,
+) -> roc_std::RocResult<RocBox<()>, SQLiteError> {
+    // Get the connection
+    let connection = {
+        match get_connection(db_path.as_str()) {
+            Ok(c) => c,
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    };
+
+    // Prepare the query
+    let mut statement = {
+        match connection.prepare(query.as_str()) {
+            Ok(c) => c,
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    };
+
+    // Add bindings for the query
+    for binding in bindings {
+        match statement.bind(binding) {
+            Ok(()) => {}
+            Err(err) => {
+                return RocResult::err(SQLiteError {
+                    code: err.code.unwrap_or_default() as i64,
+                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
+                });
+            }
+        }
+    }
+
+    // TODO: actually free this when roc passes it to dealloc
+    let boxed_stmt: RocBox<sqlite::Statement> = RocBox::new(statement);
+    let opaque_box: RocBox<()> = unsafe { std::mem::transmute(boxed_stmt) };
+    RocResult::ok(opaque_box)
+}
+
+#[roc_fn(name = "sqliteColumnIndex")]
+fn sqlite_column_index(stmt: RocBox<()>, name: &roc_std::RocStr) -> roc_std::RocResult<u64, ()> {
+    let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
+    let stmt = unsafe { stmt.as_ref() };
+    for (i, col_name) in stmt.column_names().iter().enumerate() {
+        if name.as_str() == col_name {
+            return RocResult::ok(i as u64);
+        }
+    }
+    RocResult::err(())
+}
+
+#[roc_fn(name = "sqliteColumnValue")]
+fn sqlite_column_value(
+    stmt: RocBox<()>,
+    i: u64,
+) -> roc_std::RocResult<glue_manual::SQLiteValue, SQLiteError> {
+    let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
+    let stmt = unsafe { stmt.as_ref() };
+    match stmt.read(i as usize) {
+        Ok(val) => RocResult::ok(roc_sql_from_sqlite_value(val)),
+        Err(err) => RocResult::err(SQLiteError {
+            code: err.code.unwrap_or_default() as i64,
+            message: RocStr::from(err.message.unwrap_or_default().as_str()),
+        }),
+    }
+}
+
+#[roc_fn(name = "sqliteStmtStep")]
+fn sqlite_stmt_step(stmt: RocBox<()>) -> roc_std::RocResult<glue_manual::SQLiteState, SQLiteError> {
+    let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
+    let stmt = unsafe { stmt.as_mut() };
+    match stmt.next() {
+        Ok(state) => {
+            let state = match state {
+                sqlite::State::Row => glue_manual::SQLiteState::Row,
+                sqlite::State::Done => glue_manual::SQLiteState::Done,
+            };
+            RocResult::ok(state)
+        }
+        Err(err) => RocResult::err(SQLiteError {
+            code: err.code.unwrap_or_default() as i64,
+            message: RocStr::from(err.message.unwrap_or_default().as_str()),
+        }),
+    }
+}
+
+fn roc_sql_from_sqlite_value(value: sqlite::Value) -> glue_manual::SQLiteValue {
     match value {
         sqlite::Value::Binary(bytes) => {
             roc_app::SQLiteValue::Bytes(RocList::from_slice(&bytes[..]))

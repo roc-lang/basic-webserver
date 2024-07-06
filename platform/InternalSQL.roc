@@ -2,6 +2,7 @@ module [
     SQLiteErrCode,
     SQLiteError,
     SQLiteValue,
+    SQLiteState,
     SQLiteBindings,
 ]
 
@@ -49,6 +50,11 @@ SQLiteValue : [
     Integer I64,
     String Str,
     Bytes (List U8),
+]
+
+SQLiteState : [
+    Row,
+    Done,
 ]
 
 SQLiteBindings : {

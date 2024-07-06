@@ -16,24 +16,19 @@ respond = \_, _ ->
     maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
 
     # Query todos table
-    rows <-
-        SQLite3.execute {
-            path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
-            query: "SELECT id, task FROM todos WHERE status = :status;",
-            bindings: [{ name: ":status", value: String "completed" }],
-        }
-        |> Task.map \rows ->
-            # Parse each row into a string
-            List.map rows \cols ->
-                when cols is
-                    [Integer id, String task] -> "row $(Num.toStr id), task: $(task)"
-                    _ -> crash "unexpected values returned, expected Integer and String got $(Inspect.toStr cols)"
-        |> Task.onErr \err ->
-            # Crash on any errors for now
-            crash "$(SQLite3.errToStr err)"
-        |> Task.await
+    dbPath = maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment"
+    rows =
+        queryTodosByStatus dbPath "completed"
+            |> Task.onErr! \err ->
+                # Crash on any errors for now
+                # crash "$(SQLite3.errToStr err)"
+                crash "$(Inspect.toStr err)"
 
-    body = rows |> Str.joinWith "\n"
+    body =
+        rows
+        |> List.map \{ id, task } ->
+            "row $(Num.toStr id), task: $(task)"
+        |> Str.joinWith "\n"
     # Print out the results
     Stdout.line! body
 
@@ -42,3 +37,18 @@ respond = \_, _ ->
         headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
         body: Str.toUtf8 body,
     }
+
+queryTodosByStatus = \dbPath, status ->
+    stmt = SQLite3.prepareAndBind! {
+        path: dbPath,
+        query: "SELECT id, task FROM todos WHERE status = :status;",
+        bindings: [{ name: ":status", value: String status }],
+    }
+    SQLite3.decode!
+        stmt
+        (
+            SQLite3.succeed {
+                id: <- SQLite3.i64 "id" |> SQLite3.apply,
+                task: <- SQLite3.str "task" |> SQLite3.apply,
+            }
+        )

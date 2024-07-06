@@ -153,6 +153,26 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
         ret_type: "roc_std::RocResult<RocList<RocList<roc_app::SQLiteValue>>, SQLiteError>",
     },
+    HostedFn {
+        name: "sqlitePrepareAndBind",
+        arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
+        ret_type: "roc_std::RocResult<RocBox<()>, SQLiteError>",
+    },
+    HostedFn {
+        name: "sqliteColumnIndex",
+        arg_types: &["roc_std::RocBox<()>", "&roc_std::RocStr"],
+        ret_type: "roc_std::RocResult<u64, ()>",
+    },
+    HostedFn {
+        name: "sqliteColumnValue",
+        arg_types: &["roc_std::RocBox<()>", "u64"],
+        ret_type: "roc_std::RocResult<glue_manual::SQLiteValue, SQLiteError>",
+    },
+    HostedFn {
+        name: "sqliteStmtStep",
+        arg_types: &["roc_std::RocBox<()>"],
+        ret_type: "roc_std::RocResult<glue_manual::SQLiteState, SQLiteError>",
+    },
     ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

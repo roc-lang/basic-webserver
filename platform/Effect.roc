@@ -35,6 +35,10 @@ hosted Effect
         commandOutput,
         sqliteExecute,
         tempDir,
+        sqlitePrepareAndBind,
+        sqliteColumnIndex,
+        sqliteColumnValue,
+        sqliteStmtStep,
     ]
     imports [
         InternalHttp,
@@ -91,6 +95,9 @@ commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} Interna
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
 
 # SQLite3
-sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError)
+sqlitePrepareAndBind : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (Box {}) InternalSQL.SQLiteError)
+sqliteColumnIndex : Box {}, Str -> Effect (Result U64 {})
+sqliteColumnValue : Box {}, U64 -> Effect (Result InternalSQL.SQLiteValue InternalSQL.SQLiteError)
+sqliteStmtStep : Box {} -> Effect (Result InternalSQL.SQLiteState InternalSQL.SQLiteError)
 
 tempDir : Effect (List U8)

@@ -4,7 +4,18 @@ module [
     Error,
     Binding,
     execute,
+    prepareAndBind,
+    decode,
     errToStr,
+    taggedValue,
+    str,
+    bytes,
+    i64,
+    f64,
+    succeed,
+    with,
+    apply,
+    decode,
 ]
 
 import InternalTask
@@ -16,6 +27,7 @@ Value : InternalSQL.SQLiteValue
 Code : InternalSQL.SQLiteErrCode
 Error : [SQLError Code Str]
 Binding : InternalSQL.SQLiteBindings
+Stmt := Box {}
 
 execute :
     {
@@ -25,14 +37,133 @@ execute :
     }
     -> Task (List (List InternalSQL.SQLiteValue)) Error
 execute = \{ path, query, bindings } ->
-    result <-
-        Effect.sqliteExecute path query bindings
-        |> InternalTask.fromEffect
-        |> Task.attempt
+    Effect.sqliteExecute path query bindings
+    |> InternalTask.fromEffect
+    |> Task.mapErr internalToExternalError
 
-    when result is
-        Ok rows -> Task.ok rows
-        Err { code, message } -> Task.err (SQLError (codeFromI64 code) message)
+# TODO: This should be split into a prepare and bind separately.
+prepareAndBind :
+    {
+        path : Str,
+        query : Str,
+        bindings : List Binding,
+    }
+    -> Task Stmt Error
+prepareAndBind = \{ path, query, bindings } ->
+    Effect.sqlitePrepareAndBind path query bindings
+    |> InternalTask.fromEffect
+    |> Task.map @Stmt
+    |> Task.mapErr internalToExternalError
+
+columnIndex : Stmt, Str -> Task U64 [FieldNotFound Str]
+columnIndex = \@Stmt stmt, name ->
+    Effect.sqliteColumnIndex stmt name
+    |> InternalTask.fromEffect
+    |> Task.mapErr \{} -> FieldNotFound name
+
+columnValue : Stmt, U64 -> Task Value Error
+columnValue = \@Stmt stmt, i ->
+    Effect.sqliteColumnValue stmt i
+    |> InternalTask.fromEffect
+    |> Task.mapErr internalToExternalError
+
+step : Stmt -> Task [Row, Done] Error
+step = \@Stmt stmt ->
+    Effect.sqliteStmtStep stmt
+    |> InternalTask.fromEffect
+    |> Task.mapErr internalToExternalError
+
+DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
+DecodeCont a err : {} -> Task a (DecodeErr err)
+
+Decode a err :=
+    Stmt
+    ->
+    Task
+        (DecodeCont a err)
+        (DecodeErr err)
+
+# TODO: This should really be execute
+decode : Stmt, Decode a err -> Task (List a) (DecodeErr err)
+decode = \stmt, @Decode getDecode ->
+    # TODO: reset stmt to a clean state before execution.
+    fn = getDecode! stmt
+    decodeRows stmt fn
+
+decodeRows : Stmt, ({} -> Task a (DecodeErr err)) -> Task (List a) (DecodeErr err)
+decodeRows = \stmt, fn ->
+    Task.loop [] \out ->
+        when step! stmt is
+            Done ->
+                Task.ok (Done out)
+
+            Row ->
+                row = fn! {}
+
+                List.append out row
+                |> Step
+                |> Task.ok
+
+decoder = \fn -> \name ->
+        stmt <- @Decode
+
+        index = columnIndex! stmt name
+
+        {} <- Task.ok
+
+        val = columnValue! stmt index
+
+        fn val |> Task.fromResult
+
+taggedValue = decoder \val ->
+    val
+
+str = decoder \val ->
+    when val is
+        Str s -> Ok s
+        _ -> Err (UnexpectedType val)
+
+bytes = decoder \val ->
+    when val is
+        Bytes b -> Ok b
+        _ -> Err (UnexpectedType val)
+
+# TODO: other number decoders.
+# Just use Num.toXXChecked and return error if it doesn't fit.
+# Also, should we support any casting (int -> float) for example.
+i64 = decoder \val ->
+    when val is
+        Integer i -> Ok i
+        _ -> Err (UnexpectedType val)
+
+f64 = decoder \val ->
+    when val is
+        Real r -> Ok r
+        _ -> Err (UnexpectedType val)
+
+map2 = \@Decode a, @Decode b, cb ->
+    stmt <- @Decode
+
+    decodeA = a! stmt
+    decodeB = b! stmt
+
+    {} <- Task.ok
+
+    valueA = decodeA! {}
+    valueB = decodeB! {}
+
+    Task.ok (cb valueA valueB)
+
+succeed = \value ->
+    @Decode \_ -> Task.ok \_ -> Task.ok value
+
+with = \a, b -> map2 a b (\fn, val -> fn val)
+
+apply = \a -> \fn -> with fn a
+
+internalToExternalError : InternalSQL.SQLiteError -> Error
+internalToExternalError = \{ code, message } ->
+    SQLError (codeFromI64 code) message
 
 codeFromI64 : I64 -> InternalSQL.SQLiteErrCode
 codeFromI64 = \code ->
