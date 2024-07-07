@@ -18,6 +18,8 @@ app
 *.so
 *.so.*
 .DS_Store
+*.a
+*.dylib
 
 # roc linking files
 dynhost
