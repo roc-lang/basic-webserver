@@ -12,9 +12,9 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::let_and_return)]
 #![allow(clippy::missing_safety_doc)]
-#![allow(clippy::redundant_static_lifetimes)]
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::clone_on_copy)]
+#![allow(clippy::non_canonical_partial_ord_impl)]
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
@@ -207,6 +207,22 @@ impl InternalTimeoutConfig {
         unsafe { self.payload.TimeoutMilliseconds }
     }
 
+    pub fn borrow_TimeoutMilliseconds(&self) -> u64 {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
+        );
+        unsafe { self.payload.TimeoutMilliseconds }
+    }
+
+    pub fn borrow_mut_TimeoutMilliseconds(&mut self) -> &mut u64 {
+        debug_assert_eq!(
+            self.discriminant,
+            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
+        );
+        unsafe { &mut self.payload.TimeoutMilliseconds }
+    }
+
     pub fn is_TimeoutMilliseconds(&self) -> bool {
         matches!(
             self.discriminant,
@@ -284,11 +300,11 @@ pub struct InternalResponse {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct RocFunction_86 {
+pub struct RocFunction_82 {
     closure_data: Vec<u8>,
 }
 
-impl RocFunction_86 {
+impl RocFunction_82 {
     pub fn force_thunk(mut self) -> InternalResponse {
         extern "C" {
             fn roc__mainForHost_0_caller(
@@ -308,7 +324,7 @@ impl RocFunction_86 {
     }
 }
 
-pub fn mainForHost(arg0: InternalRequest) -> RocFunction_86 {
+pub fn mainForHost(arg0: InternalRequest) -> RocFunction_82 {
     extern "C" {
         fn roc__mainForHost_1_exposed_generic(
             _: *mut u8,
@@ -320,7 +336,7 @@ pub fn mainForHost(arg0: InternalRequest) -> RocFunction_86 {
     unsafe {
         let capacity = roc__mainForHost_1_exposed_size() as usize;
 
-        let mut ret = RocFunction_86 {
+        let mut ret = RocFunction_82 {
             closure_data: Vec::with_capacity(capacity),
         };
         ret.closure_data.resize(capacity, 0);

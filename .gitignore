@@ -17,10 +17,7 @@ app
 *.o
 *.so
 *.so.*
-*.a
-*.lib
-*.obj
-*.dylib
+.DS_Store
 
 # roc linking files
 dynhost
