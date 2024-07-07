@@ -12,7 +12,15 @@ module [
     str,
     bytes,
     i64,
+    i32,
+    i16,
+    i8,
+    u64,
+    u32,
+    u16,
+    u8,
     f64,
+    f32,
     succeed,
     with,
     apply,
@@ -137,18 +145,40 @@ bytes = decoder \val ->
         Bytes b -> Ok b
         _ -> Err (UnexpectedType val)
 
-# TODO: other number decoders.
-# Just use Num.toXXChecked and return error if it doesn't fit.
-# Also, should we support any casting (int -> float) for example.
-i64 = decoder \val ->
-    when val is
-        Integer i -> Ok i
-        _ -> Err (UnexpectedType val)
+intDecoder = \cast ->
+    decoder \val ->
+        when val is
+            Integer i -> cast i |> Result.mapErr FailedToDecodeInteger
+            _ -> Err (UnexpectedType val)
 
-f64 = decoder \val ->
-    when val is
-        Real r -> Ok r
-        _ -> Err (UnexpectedType val)
+i64 = intDecoder Ok
+
+i32 = intDecoder Num.toI32Checked
+
+i16 = intDecoder Num.toI16Checked
+
+i8 = intDecoder Num.toI8Checked
+
+u64 = intDecoder Num.toU64Checked
+
+u32 = intDecoder Num.toU32Checked
+
+u16 = intDecoder Num.toU16Checked
+
+u8 = intDecoder Num.toU8Checked
+
+realDecoder = \cast ->
+    decoder \val ->
+        when val is
+            Real r -> cast r |> Result.mapErr FailedToDecodeReal
+            _ -> Err (UnexpectedType val)
+
+f64 = realDecoder Ok
+
+f32 = realDecoder (\x -> Num.toF32 x |> Ok)
+
+# TODO: Mising Num.toDec and Num.toDecChecked
+# dec = realDecoder Ok
 
 map2 = \@Decode a, @Decode b, cb ->
     stmt <- @Decode
