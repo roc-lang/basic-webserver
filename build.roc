@@ -1,5 +1,5 @@
 app [main] {
-    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.12.0/cf_TpThUd4e69C7WzHxCbgsagnDmk3xlb_HmEKXTICw.tar.br",
+    cli: platform "TODO use updated basic-cli 0.12.0 (requires changes from github.com/roc-lang/basic-cli/pull/224)",
     weaver: "https://github.com/smores56/weaver/releases/download/0.2.0/BBDPvzgGrYp-AhIDw0qmwxT0pWZIQP_7KOrUrZfp_xw.tar.br",
 }
 
@@ -8,27 +8,32 @@ import cli.Cmd
 import cli.Stdout
 import cli.Env
 import cli.Arg
-import weaver.Opt
-import weaver.Cli
+import cli.Arg.Opt as Opt
+import cli.Arg.Cli as Cli
 
+## Builds the basic-webserver [platform](https://www.roc-lang.org/platforms).
+##
+## run with: roc ./build.roc --release
+##
+main : Task {} _
 main =
 
     cliParser =
-        Cli.weave {
-            release: <- Opt.flag { short: "r", long: "release", help: "Release build" },
-            maybeRoc: <- Opt.maybeStr { short: "c", long: "cli", help: "Path to the roc cli"},
+        Cli.build {
+            releaseMode: <- Opt.flag { short: "r", long: "release", help: "Release build. Passes `--release` to `cargo build`." },
+            maybeRoc: <- Opt.maybeStr { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path."},
         }
         |> Cli.finish {
-            name: "basic-webserver",
+            name: "basic-webserver-builder",
             version: "",
             authors: ["Luke Boswell <https://github.com/lukewilliamboswell>"],
-            description: "This build script generates the binaries and packages the platform for distribution.",
+            description: "Generates all files needed by Roc to use this basic-cli platform.",
         }
         |> Cli.assertValid
 
     when Cli.parseOrDisplayMessage cliParser (Arg.list!) is
         Ok args -> run args
-        Err message -> Task.err (Exit 1 message)
+        Err errMsg -> Task.err (Exit 1 errMsg)
 
 run = \{ release, maybeRoc } ->
 

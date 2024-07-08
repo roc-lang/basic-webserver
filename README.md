@@ -21,7 +21,7 @@ Then you need to replace the local path to the platform `"../platform/main.roc"`
 ```roc
 app [main] {
     # replaced the pf: "../platform/main.roc" with the following
-     pf: "https://github.com/roc-lang/basic-webserver/releases/<latest release hash>.tar.br"
+     pf: platform "https://github.com/roc-lang/basic-webserver/releases/<latest release hash>.tar.br"
 }
 
 import pf.Stdout
