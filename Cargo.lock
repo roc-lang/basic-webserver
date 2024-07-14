@@ -253,13 +253,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ecd4077b5ae9fd2e9e169b102c6c330d0605168eb0e8bf79952b256dbefffd"
 
 [[package]]
-name = "glue_manual"
-version = "1.0.0"
-dependencies = [
- "roc_std",
-]
-
-[[package]]
 name = "h2"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,7 +817,6 @@ dependencies = [
  "backtrace",
  "bytes",
  "futures",
- "glue_manual",
  "hyper",
  "libc",
  "reqwest",

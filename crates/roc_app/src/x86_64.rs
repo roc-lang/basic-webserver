@@ -16,85 +16,110 @@
 #![allow(clippy::clone_on_copy)]
 #![allow(clippy::non_canonical_partial_ord_impl)]
 
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+
+use roc_std::RocRefcounted;
+use roc_std::roc_refcounted_noop_impl;
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
 #[repr(C)]
-pub struct InternalHeader {
-    pub name: roc_std::RocStr,
-    pub value: roc_std::RocList<u8>,
+pub struct InternalCommand {
+    pub args: roc_std::RocList<roc_std::RocStr>,
+    pub envs: roc_std::RocList<roc_std::RocStr>,
+    pub program: roc_std::RocStr,
+    pub clearEnvs: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+impl roc_std::RocRefcounted for InternalCommand {
+    fn inc(&mut self) {
+         self.args.inc();
+     self.envs.inc();
+     self.program.inc();
+
+    }
+    fn dec(&mut self) {
+         self.args.dec();
+     self.envs.dec();
+     self.program.dec();
+
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
 #[repr(u8)]
-pub enum discriminant_InternalTimeoutConfig {
-    NoTimeout = 0,
-    TimeoutMilliseconds = 1,
+pub enum discriminant_InternalCommandErr {
+    ExitCode = 0,
+    IOError = 1,
+    KilledBySignal = 2,
 }
 
-impl core::fmt::Debug for discriminant_InternalTimeoutConfig {
+impl core::fmt::Debug for discriminant_InternalCommandErr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NoTimeout => f.write_str("discriminant_InternalTimeoutConfig::NoTimeout"),
-            Self::TimeoutMilliseconds => {
-                f.write_str("discriminant_InternalTimeoutConfig::TimeoutMilliseconds")
-            }
+            Self::ExitCode => f.write_str("discriminant_InternalCommandErr::ExitCode"),
+            Self::IOError => f.write_str("discriminant_InternalCommandErr::IOError"),
+            Self::KilledBySignal => f.write_str("discriminant_InternalCommandErr::KilledBySignal"),
         }
     }
 }
 
+roc_refcounted_noop_impl!(discriminant_InternalCommandErr);
+
 #[repr(C, align(8))]
-pub union union_InternalTimeoutConfig {
-    NoTimeout: (),
-    TimeoutMilliseconds: u64,
+pub union union_InternalCommandErr {
+    ExitCode: i32,
+    IOError: core::mem::ManuallyDrop<roc_std::RocStr>,
+    KilledBySignal: (),
 }
 
-const _SIZE_CHECK_union_InternalTimeoutConfig: () =
-    assert!(core::mem::size_of::<union_InternalTimeoutConfig>() == 8);
-const _ALIGN_CHECK_union_InternalTimeoutConfig: () =
-    assert!(core::mem::align_of::<union_InternalTimeoutConfig>() == 8);
+const _SIZE_CHECK_union_InternalCommandErr: () = assert!(core::mem::size_of::<union_InternalCommandErr>() == 24);
+const _ALIGN_CHECK_union_InternalCommandErr: () = assert!(core::mem::align_of::<union_InternalCommandErr>() == 8);
 
-const _SIZE_CHECK_InternalTimeoutConfig: () =
-    assert!(core::mem::size_of::<InternalTimeoutConfig>() == 16);
-const _ALIGN_CHECK_InternalTimeoutConfig: () =
-    assert!(core::mem::align_of::<InternalTimeoutConfig>() == 8);
+const _SIZE_CHECK_InternalCommandErr: () = assert!(core::mem::size_of::<InternalCommandErr>() == 32);
+const _ALIGN_CHECK_InternalCommandErr: () = assert!(core::mem::align_of::<InternalCommandErr>() == 8);
 
-impl InternalTimeoutConfig {
+impl InternalCommandErr {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
-    pub fn discriminant(&self) -> discriminant_InternalTimeoutConfig {
+    pub fn discriminant(&self) -> discriminant_InternalCommandErr {
         unsafe {
             let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
 
-            core::mem::transmute::<u8, discriminant_InternalTimeoutConfig>(*bytes.as_ptr().add(8))
+            core::mem::transmute::<u8, discriminant_InternalCommandErr>(*bytes.as_ptr().add(24))
         }
     }
 
     /// Internal helper
-    fn set_discriminant(&mut self, discriminant: discriminant_InternalTimeoutConfig) {
-        let discriminant_ptr: *mut discriminant_InternalTimeoutConfig =
-            (self as *mut InternalTimeoutConfig).cast();
+    fn set_discriminant(&mut self, discriminant: discriminant_InternalCommandErr) {
+        let discriminant_ptr: *mut discriminant_InternalCommandErr = (self as *mut InternalCommandErr).cast();
 
         unsafe {
-            *(discriminant_ptr.add(8)) = discriminant;
+            *(discriminant_ptr.add(24)) = discriminant;
         }
     }
 }
 
 #[repr(C)]
-pub struct InternalTimeoutConfig {
-    payload: union_InternalTimeoutConfig,
-    discriminant: discriminant_InternalTimeoutConfig,
+pub struct InternalCommandErr {
+    payload: union_InternalCommandErr,
+    discriminant: discriminant_InternalCommandErr,
 }
 
-impl Clone for InternalTimeoutConfig {
+impl Clone for InternalCommandErr {
     fn clone(&self) -> Self {
-        use discriminant_InternalTimeoutConfig::*;
+        use discriminant_InternalCommandErr::*;
 
         let payload = unsafe {
             match self.discriminant {
-                NoTimeout => union_InternalTimeoutConfig {
-                    NoTimeout: self.payload.NoTimeout.clone(),
+                ExitCode => union_InternalCommandErr {
+                    ExitCode: self.payload.ExitCode.clone(),
                 },
-                TimeoutMilliseconds => union_InternalTimeoutConfig {
-                    TimeoutMilliseconds: self.payload.TimeoutMilliseconds.clone(),
+                IOError => union_InternalCommandErr {
+                    IOError: self.payload.IOError.clone(),
+                },
+                KilledBySignal => union_InternalCommandErr {
+                    KilledBySignal: self.payload.KilledBySignal.clone(),
                 },
             }
         };
@@ -106,34 +131,34 @@ impl Clone for InternalTimeoutConfig {
     }
 }
 
-impl core::fmt::Debug for InternalTimeoutConfig {
+impl core::fmt::Debug for InternalCommandErr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use discriminant_InternalTimeoutConfig::*;
+        use discriminant_InternalCommandErr::*;
 
         unsafe {
             match self.discriminant {
-                NoTimeout => {
-                    let field: &() = &self.payload.NoTimeout;
-                    f.debug_tuple("InternalTimeoutConfig::NoTimeout")
-                        .field(field)
-                        .finish()
-                }
-                TimeoutMilliseconds => {
-                    let field: &u64 = &self.payload.TimeoutMilliseconds;
-                    f.debug_tuple("InternalTimeoutConfig::TimeoutMilliseconds")
-                        .field(field)
-                        .finish()
-                }
+                ExitCode => {
+                    let field: &i32 = &self.payload.ExitCode;
+                    f.debug_tuple("InternalCommandErr::ExitCode").field(field).finish()
+                },
+                IOError => {
+                    let field: &roc_std::RocStr = &self.payload.IOError;
+                    f.debug_tuple("InternalCommandErr::IOError").field(field).finish()
+                },
+                KilledBySignal => {
+                    let field: &() = &self.payload.KilledBySignal;
+                    f.debug_tuple("InternalCommandErr::KilledBySignal").field(field).finish()
+                },
             }
         }
     }
 }
 
-impl Eq for InternalTimeoutConfig {}
+impl Eq for InternalCommandErr {}
 
-impl PartialEq for InternalTimeoutConfig {
+impl PartialEq for InternalCommandErr {
     fn eq(&self, other: &Self) -> bool {
-        use discriminant_InternalTimeoutConfig::*;
+        use discriminant_InternalCommandErr::*;
 
         if self.discriminant != other.discriminant {
             return false;
@@ -141,24 +166,23 @@ impl PartialEq for InternalTimeoutConfig {
 
         unsafe {
             match self.discriminant {
-                NoTimeout => self.payload.NoTimeout == other.payload.NoTimeout,
-                TimeoutMilliseconds => {
-                    self.payload.TimeoutMilliseconds == other.payload.TimeoutMilliseconds
-                }
+                ExitCode => self.payload.ExitCode == other.payload.ExitCode,
+                IOError => self.payload.IOError == other.payload.IOError,
+                KilledBySignal => self.payload.KilledBySignal == other.payload.KilledBySignal,
             }
         }
     }
 }
 
-impl Ord for InternalTimeoutConfig {
+impl Ord for InternalCommandErr {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl PartialOrd for InternalTimeoutConfig {
+impl PartialOrd for InternalCommandErr {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use discriminant_InternalTimeoutConfig::*;
+        use discriminant_InternalCommandErr::*;
 
         use std::cmp::Ordering::*;
 
@@ -167,185 +191,2645 @@ impl PartialOrd for InternalTimeoutConfig {
             Greater => Option::Some(Greater),
             Equal => unsafe {
                 match self.discriminant {
-                    NoTimeout => self.payload.NoTimeout.partial_cmp(&other.payload.NoTimeout),
-                    TimeoutMilliseconds => self
-                        .payload
-                        .TimeoutMilliseconds
-                        .partial_cmp(&other.payload.TimeoutMilliseconds),
+                    ExitCode => self.payload.ExitCode.partial_cmp(&other.payload.ExitCode),
+                    IOError => self.payload.IOError.partial_cmp(&other.payload.IOError),
+                    KilledBySignal => self.payload.KilledBySignal.partial_cmp(&other.payload.KilledBySignal),
                 }
             },
         }
     }
 }
 
-impl core::hash::Hash for InternalTimeoutConfig {
+impl core::hash::Hash for InternalCommandErr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        use discriminant_InternalTimeoutConfig::*;
+        use discriminant_InternalCommandErr::*;
 
         unsafe {
             match self.discriminant {
-                NoTimeout => self.payload.NoTimeout.hash(state),
-                TimeoutMilliseconds => self.payload.TimeoutMilliseconds.hash(state),
+                ExitCode => self.payload.ExitCode.hash(state),
+                IOError => self.payload.IOError.hash(state),
+                KilledBySignal => self.payload.KilledBySignal.hash(state),
             }
         }
     }
 }
 
-impl InternalTimeoutConfig {
-    pub fn is_NoTimeout(&self) -> bool {
-        matches!(
-            self.discriminant,
-            discriminant_InternalTimeoutConfig::NoTimeout
-        )
+impl InternalCommandErr {
+
+    pub fn unwrap_ExitCode(mut self) -> i32 {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
+        unsafe { self.payload.ExitCode }
     }
 
-    pub fn unwrap_TimeoutMilliseconds(mut self) -> u64 {
-        debug_assert_eq!(
-            self.discriminant,
-            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
-        );
-        unsafe { self.payload.TimeoutMilliseconds }
+    pub fn borrow_ExitCode(&self) -> i32 {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
+        unsafe { self.payload.ExitCode }
     }
 
-    pub fn borrow_TimeoutMilliseconds(&self) -> u64 {
-        debug_assert_eq!(
-            self.discriminant,
-            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
-        );
-        unsafe { self.payload.TimeoutMilliseconds }
+    pub fn borrow_mut_ExitCode(&mut self) -> &mut i32 {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::ExitCode);
+        unsafe { &mut self.payload.ExitCode }
     }
 
-    pub fn borrow_mut_TimeoutMilliseconds(&mut self) -> &mut u64 {
-        debug_assert_eq!(
-            self.discriminant,
-            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
-        );
-        unsafe { &mut self.payload.TimeoutMilliseconds }
+    pub fn is_ExitCode(&self) -> bool {
+        matches!(self.discriminant, discriminant_InternalCommandErr::ExitCode)
     }
 
-    pub fn is_TimeoutMilliseconds(&self) -> bool {
-        matches!(
-            self.discriminant,
-            discriminant_InternalTimeoutConfig::TimeoutMilliseconds
-        )
+    pub fn unwrap_IOError(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.IOError) }
+    }
+
+    pub fn borrow_IOError(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
+        use core::borrow::Borrow;
+unsafe { self.payload.IOError.borrow() }
+    }
+
+    pub fn borrow_mut_IOError(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_InternalCommandErr::IOError);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.IOError.borrow_mut() }
+    }
+
+    pub fn is_IOError(&self) -> bool {
+        matches!(self.discriminant, discriminant_InternalCommandErr::IOError)
+    }
+
+    pub fn is_KilledBySignal(&self) -> bool {
+        matches!(self.discriminant, discriminant_InternalCommandErr::KilledBySignal)
     }
 }
 
-impl InternalTimeoutConfig {
-    pub fn NoTimeout() -> Self {
+
+
+impl InternalCommandErr {
+
+    pub fn ExitCode(payload: i32) -> Self {
         Self {
-            discriminant: discriminant_InternalTimeoutConfig::NoTimeout,
-            payload: union_InternalTimeoutConfig { NoTimeout: () },
+            discriminant: discriminant_InternalCommandErr::ExitCode,
+            payload: union_InternalCommandErr {
+                ExitCode: payload,
+            }
         }
     }
 
-    pub fn TimeoutMilliseconds(payload: u64) -> Self {
+    pub fn IOError(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_InternalTimeoutConfig::TimeoutMilliseconds,
-            payload: union_InternalTimeoutConfig {
-                TimeoutMilliseconds: payload,
+            discriminant: discriminant_InternalCommandErr::IOError,
+            payload: union_InternalCommandErr {
+                IOError: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn KilledBySignal() -> Self {
+        Self {
+            discriminant: discriminant_InternalCommandErr::KilledBySignal,
+            payload: union_InternalCommandErr {
+                KilledBySignal: (),
+            }
+        }
+    }
+}
+
+impl Drop for InternalCommandErr {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_InternalCommandErr::ExitCode => {}
+            discriminant_InternalCommandErr::IOError => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.IOError) },
+            discriminant_InternalCommandErr::KilledBySignal => {}
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for InternalCommandErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(C)]
+pub struct InternalOutput {
+    pub status: roc_std::RocResult<(), InternalCommandErr>,
+    pub stderr: roc_std::RocList<u8>,
+    pub stdout: roc_std::RocList<u8>,
+}
+
+impl roc_std::RocRefcounted for InternalOutput {
+    fn inc(&mut self) {
+         self.status.inc();
+     self.stderr.inc();
+     self.stdout.inc();
+
+    }
+    fn dec(&mut self) {
+         self.status.dec();
+     self.stderr.dec();
+     self.stdout.dec();
+
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(C)]
+pub struct ConnectErr_Unrecognized {
+    pub f1: roc_std::RocStr,
+    pub f0: i32,
+}
+
+impl roc_std::RocRefcounted for ConnectErr_Unrecognized {
+    fn inc(&mut self) {
+         self.f1.inc();
+
+    }
+    fn dec(&mut self) {
+         self.f1.dec();
+
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_ConnectErr {
+    AddrInUse = 0,
+    AddrNotAvailable = 1,
+    ConnectionRefused = 2,
+    Interrupted = 3,
+    PermissionDenied = 4,
+    TimedOut = 5,
+    Unrecognized = 6,
+    Unsupported = 7,
+}
+
+impl core::fmt::Debug for discriminant_ConnectErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::AddrInUse => f.write_str("discriminant_ConnectErr::AddrInUse"),
+            Self::AddrNotAvailable => f.write_str("discriminant_ConnectErr::AddrNotAvailable"),
+            Self::ConnectionRefused => f.write_str("discriminant_ConnectErr::ConnectionRefused"),
+            Self::Interrupted => f.write_str("discriminant_ConnectErr::Interrupted"),
+            Self::PermissionDenied => f.write_str("discriminant_ConnectErr::PermissionDenied"),
+            Self::TimedOut => f.write_str("discriminant_ConnectErr::TimedOut"),
+            Self::Unrecognized => f.write_str("discriminant_ConnectErr::Unrecognized"),
+            Self::Unsupported => f.write_str("discriminant_ConnectErr::Unsupported"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_ConnectErr);
+
+#[repr(C, align(8))]
+pub union union_ConnectErr {
+    AddrInUse: (),
+    AddrNotAvailable: (),
+    ConnectionRefused: (),
+    Interrupted: (),
+    PermissionDenied: (),
+    TimedOut: (),
+    Unrecognized: core::mem::ManuallyDrop<ConnectErr_Unrecognized>,
+    Unsupported: (),
+}
+
+const _SIZE_CHECK_union_ConnectErr: () = assert!(core::mem::size_of::<union_ConnectErr>() == 40);
+const _ALIGN_CHECK_union_ConnectErr: () = assert!(core::mem::align_of::<union_ConnectErr>() == 8);
+
+const _SIZE_CHECK_ConnectErr: () = assert!(core::mem::size_of::<ConnectErr>() == 40);
+const _ALIGN_CHECK_ConnectErr: () = assert!(core::mem::align_of::<ConnectErr>() == 8);
+
+impl ConnectErr {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_ConnectErr {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_ConnectErr>(*bytes.as_ptr().add(32))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_ConnectErr) {
+        let discriminant_ptr: *mut discriminant_ConnectErr = (self as *mut ConnectErr).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(32)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct ConnectErr {
+    payload: union_ConnectErr,
+    discriminant: discriminant_ConnectErr,
+}
+
+impl Clone for ConnectErr {
+    fn clone(&self) -> Self {
+        use discriminant_ConnectErr::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                AddrInUse => union_ConnectErr {
+                    AddrInUse: self.payload.AddrInUse.clone(),
+                },
+                AddrNotAvailable => union_ConnectErr {
+                    AddrNotAvailable: self.payload.AddrNotAvailable.clone(),
+                },
+                ConnectionRefused => union_ConnectErr {
+                    ConnectionRefused: self.payload.ConnectionRefused.clone(),
+                },
+                Interrupted => union_ConnectErr {
+                    Interrupted: self.payload.Interrupted.clone(),
+                },
+                PermissionDenied => union_ConnectErr {
+                    PermissionDenied: self.payload.PermissionDenied.clone(),
+                },
+                TimedOut => union_ConnectErr {
+                    TimedOut: self.payload.TimedOut.clone(),
+                },
+                Unrecognized => union_ConnectErr {
+                    Unrecognized: self.payload.Unrecognized.clone(),
+                },
+                Unsupported => union_ConnectErr {
+                    Unsupported: self.payload.Unsupported.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for ConnectErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_ConnectErr::*;
+
+        unsafe {
+            match self.discriminant {
+                AddrInUse => {
+                    let field: &() = &self.payload.AddrInUse;
+                    f.debug_tuple("ConnectErr::AddrInUse").field(field).finish()
+                },
+                AddrNotAvailable => {
+                    let field: &() = &self.payload.AddrNotAvailable;
+                    f.debug_tuple("ConnectErr::AddrNotAvailable").field(field).finish()
+                },
+                ConnectionRefused => {
+                    let field: &() = &self.payload.ConnectionRefused;
+                    f.debug_tuple("ConnectErr::ConnectionRefused").field(field).finish()
+                },
+                Interrupted => {
+                    let field: &() = &self.payload.Interrupted;
+                    f.debug_tuple("ConnectErr::Interrupted").field(field).finish()
+                },
+                PermissionDenied => {
+                    let field: &() = &self.payload.PermissionDenied;
+                    f.debug_tuple("ConnectErr::PermissionDenied").field(field).finish()
+                },
+                TimedOut => {
+                    let field: &() = &self.payload.TimedOut;
+                    f.debug_tuple("ConnectErr::TimedOut").field(field).finish()
+                },
+                Unrecognized => {
+                    let field: &ConnectErr_Unrecognized = &self.payload.Unrecognized;
+                    f.debug_tuple("ConnectErr::Unrecognized").field(field).finish()
+                },
+                Unsupported => {
+                    let field: &() = &self.payload.Unsupported;
+                    f.debug_tuple("ConnectErr::Unsupported").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for ConnectErr {}
+
+impl PartialEq for ConnectErr {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_ConnectErr::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                AddrInUse => self.payload.AddrInUse == other.payload.AddrInUse,
+                AddrNotAvailable => self.payload.AddrNotAvailable == other.payload.AddrNotAvailable,
+                ConnectionRefused => self.payload.ConnectionRefused == other.payload.ConnectionRefused,
+                Interrupted => self.payload.Interrupted == other.payload.Interrupted,
+                PermissionDenied => self.payload.PermissionDenied == other.payload.PermissionDenied,
+                TimedOut => self.payload.TimedOut == other.payload.TimedOut,
+                Unrecognized => self.payload.Unrecognized == other.payload.Unrecognized,
+                Unsupported => self.payload.Unsupported == other.payload.Unsupported,
+            }
+        }
+    }
+}
+
+impl Ord for ConnectErr {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for ConnectErr {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_ConnectErr::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    AddrInUse => self.payload.AddrInUse.partial_cmp(&other.payload.AddrInUse),
+                    AddrNotAvailable => self.payload.AddrNotAvailable.partial_cmp(&other.payload.AddrNotAvailable),
+                    ConnectionRefused => self.payload.ConnectionRefused.partial_cmp(&other.payload.ConnectionRefused),
+                    Interrupted => self.payload.Interrupted.partial_cmp(&other.payload.Interrupted),
+                    PermissionDenied => self.payload.PermissionDenied.partial_cmp(&other.payload.PermissionDenied),
+                    TimedOut => self.payload.TimedOut.partial_cmp(&other.payload.TimedOut),
+                    Unrecognized => self.payload.Unrecognized.partial_cmp(&other.payload.Unrecognized),
+                    Unsupported => self.payload.Unsupported.partial_cmp(&other.payload.Unsupported),
+                }
             },
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(u8)]
-pub enum InternalMethod {
-    Connect = 0,
-    Delete = 1,
-    Get = 2,
-    Head = 3,
-    Options = 4,
-    Patch = 5,
-    Post = 6,
-    Put = 7,
-    Trace = 8,
-}
-
-impl core::fmt::Debug for InternalMethod {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Connect => f.write_str("InternalMethod::Connect"),
-            Self::Delete => f.write_str("InternalMethod::Delete"),
-            Self::Get => f.write_str("InternalMethod::Get"),
-            Self::Head => f.write_str("InternalMethod::Head"),
-            Self::Options => f.write_str("InternalMethod::Options"),
-            Self::Patch => f.write_str("InternalMethod::Patch"),
-            Self::Post => f.write_str("InternalMethod::Post"),
-            Self::Put => f.write_str("InternalMethod::Put"),
-            Self::Trace => f.write_str("InternalMethod::Trace"),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(C)]
-pub struct InternalRequest {
-    pub body: roc_std::RocList<u8>,
-    pub headers: roc_std::RocList<InternalHeader>,
-    pub mimeType: roc_std::RocStr,
-    pub timeout: InternalTimeoutConfig,
-    pub url: roc_std::RocStr,
-    pub method: InternalMethod,
-}
-
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(C)]
-pub struct InternalResponse {
-    pub body: roc_std::RocList<u8>,
-    pub headers: roc_std::RocList<InternalHeader>,
-    pub status: u16,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct RocFunction_82 {
-    closure_data: Vec<u8>,
-}
-
-impl RocFunction_82 {
-    pub fn force_thunk(mut self) -> InternalResponse {
-        extern "C" {
-            fn roc__mainForHost_0_caller(
-                arg0: *const (),
-                closure_data: *mut u8,
-                output: *mut InternalResponse,
-            );
-        }
-
-        let mut output = core::mem::MaybeUninit::uninit();
+impl core::hash::Hash for ConnectErr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_ConnectErr::*;
 
         unsafe {
-            roc__mainForHost_0_caller(&(), self.closure_data.as_mut_ptr(), output.as_mut_ptr());
-
-            output.assume_init()
+            match self.discriminant {
+                AddrInUse => self.payload.AddrInUse.hash(state),
+                AddrNotAvailable => self.payload.AddrNotAvailable.hash(state),
+                ConnectionRefused => self.payload.ConnectionRefused.hash(state),
+                Interrupted => self.payload.Interrupted.hash(state),
+                PermissionDenied => self.payload.PermissionDenied.hash(state),
+                TimedOut => self.payload.TimedOut.hash(state),
+                Unrecognized => self.payload.Unrecognized.hash(state),
+                Unsupported => self.payload.Unsupported.hash(state),
+            }
         }
     }
 }
 
-pub fn mainForHost(arg0: InternalRequest) -> RocFunction_82 {
-    extern "C" {
-        fn roc__mainForHost_1_exposed_generic(
-            _: *mut u8,
-            _: &mut core::mem::ManuallyDrop<InternalRequest>,
-        );
-        fn roc__mainForHost_1_exposed_size() -> i64;
+impl ConnectErr {
+
+    pub fn is_AddrInUse(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::AddrInUse)
     }
 
-    unsafe {
-        let capacity = roc__mainForHost_1_exposed_size() as usize;
+    pub fn is_AddrNotAvailable(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::AddrNotAvailable)
+    }
 
-        let mut ret = RocFunction_82 {
-            closure_data: Vec::with_capacity(capacity),
+    pub fn is_ConnectionRefused(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::ConnectionRefused)
+    }
+
+    pub fn is_Interrupted(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::Interrupted)
+    }
+
+    pub fn is_PermissionDenied(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::PermissionDenied)
+    }
+
+    pub fn is_TimedOut(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::TimedOut)
+    }
+
+    pub fn unwrap_Unrecognized(mut self) -> ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
+    }
+
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
+        use core::borrow::Borrow;
+unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectErr::Unrecognized);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Unrecognized.borrow_mut() }
+    }
+
+    pub fn is_Unrecognized(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::Unrecognized)
+    }
+
+    pub fn is_Unsupported(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectErr::Unsupported)
+    }
+}
+
+
+
+impl ConnectErr {
+
+    pub fn AddrInUse() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::AddrInUse,
+            payload: union_ConnectErr {
+                AddrInUse: (),
+            }
+        }
+    }
+
+    pub fn AddrNotAvailable() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::AddrNotAvailable,
+            payload: union_ConnectErr {
+                AddrNotAvailable: (),
+            }
+        }
+    }
+
+    pub fn ConnectionRefused() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::ConnectionRefused,
+            payload: union_ConnectErr {
+                ConnectionRefused: (),
+            }
+        }
+    }
+
+    pub fn Interrupted() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::Interrupted,
+            payload: union_ConnectErr {
+                Interrupted: (),
+            }
+        }
+    }
+
+    pub fn PermissionDenied() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::PermissionDenied,
+            payload: union_ConnectErr {
+                PermissionDenied: (),
+            }
+        }
+    }
+
+    pub fn TimedOut() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::TimedOut,
+            payload: union_ConnectErr {
+                TimedOut: (),
+            }
+        }
+    }
+
+    pub fn Unrecognized(payload: ConnectErr_Unrecognized) -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::Unrecognized,
+            payload: union_ConnectErr {
+                Unrecognized: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Unsupported() -> Self {
+        Self {
+            discriminant: discriminant_ConnectErr::Unsupported,
+            payload: union_ConnectErr {
+                Unsupported: (),
+            }
+        }
+    }
+}
+
+impl Drop for ConnectErr {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_ConnectErr::AddrInUse => {}
+            discriminant_ConnectErr::AddrNotAvailable => {}
+            discriminant_ConnectErr::ConnectionRefused => {}
+            discriminant_ConnectErr::Interrupted => {}
+            discriminant_ConnectErr::PermissionDenied => {}
+            discriminant_ConnectErr::TimedOut => {}
+            discriminant_ConnectErr::Unrecognized => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Unrecognized) },
+            discriminant_ConnectErr::Unsupported => {}
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for ConnectErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_ConnectResult {
+    Connected = 0,
+    Error = 1,
+}
+
+impl core::fmt::Debug for discriminant_ConnectResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Connected => f.write_str("discriminant_ConnectResult::Connected"),
+            Self::Error => f.write_str("discriminant_ConnectResult::Error"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_ConnectResult);
+
+#[repr(C, align(8))]
+pub union union_ConnectResult {
+    Connected: u64,
+    Error: core::mem::ManuallyDrop<ConnectErr>,
+}
+
+const _SIZE_CHECK_union_ConnectResult: () = assert!(core::mem::size_of::<union_ConnectResult>() == 40);
+const _ALIGN_CHECK_union_ConnectResult: () = assert!(core::mem::align_of::<union_ConnectResult>() == 8);
+
+const _SIZE_CHECK_ConnectResult: () = assert!(core::mem::size_of::<ConnectResult>() == 48);
+const _ALIGN_CHECK_ConnectResult: () = assert!(core::mem::align_of::<ConnectResult>() == 8);
+
+impl ConnectResult {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_ConnectResult {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_ConnectResult>(*bytes.as_ptr().add(40))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_ConnectResult) {
+        let discriminant_ptr: *mut discriminant_ConnectResult = (self as *mut ConnectResult).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(40)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct ConnectResult {
+    payload: union_ConnectResult,
+    discriminant: discriminant_ConnectResult,
+}
+
+impl Clone for ConnectResult {
+    fn clone(&self) -> Self {
+        use discriminant_ConnectResult::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Connected => union_ConnectResult {
+                    Connected: self.payload.Connected.clone(),
+                },
+                Error => union_ConnectResult {
+                    Error: self.payload.Error.clone(),
+                },
+            }
         };
-        ret.closure_data.resize(capacity, 0);
 
-        roc__mainForHost_1_exposed_generic(
-            ret.closure_data.as_mut_ptr(),
-            &mut core::mem::ManuallyDrop::new(arg0),
-        );
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
 
-        ret
+impl core::fmt::Debug for ConnectResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_ConnectResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Connected => {
+                    let field: &u64 = &self.payload.Connected;
+                    f.debug_tuple("ConnectResult::Connected").field(field).finish()
+                },
+                Error => {
+                    let field: &ConnectErr = &self.payload.Error;
+                    f.debug_tuple("ConnectResult::Error").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for ConnectResult {}
+
+impl PartialEq for ConnectResult {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_ConnectResult::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Connected => self.payload.Connected == other.payload.Connected,
+                Error => self.payload.Error == other.payload.Error,
+            }
+        }
+    }
+}
+
+impl Ord for ConnectResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for ConnectResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_ConnectResult::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Connected => self.payload.Connected.partial_cmp(&other.payload.Connected),
+                    Error => self.payload.Error.partial_cmp(&other.payload.Error),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for ConnectResult {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_ConnectResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Connected => self.payload.Connected.hash(state),
+                Error => self.payload.Error.hash(state),
+            }
+        }
+    }
+}
+
+impl ConnectResult {
+
+    pub fn unwrap_Connected(mut self) -> u64 {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
+        unsafe { self.payload.Connected }
+    }
+
+    pub fn borrow_Connected(&self) -> u64 {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
+        unsafe { self.payload.Connected }
+    }
+
+    pub fn borrow_mut_Connected(&mut self) -> &mut u64 {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Connected);
+        unsafe { &mut self.payload.Connected }
+    }
+
+    pub fn is_Connected(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectResult::Connected)
+    }
+
+    pub fn unwrap_Error(mut self) -> ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Error);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
+    }
+
+    pub fn borrow_Error(&self) -> &ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Error);
+        use core::borrow::Borrow;
+unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut ConnectErr {
+        debug_assert_eq!(self.discriminant, discriminant_ConnectResult::Error);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Error.borrow_mut() }
+    }
+
+    pub fn is_Error(&self) -> bool {
+        matches!(self.discriminant, discriminant_ConnectResult::Error)
+    }
+}
+
+
+
+impl ConnectResult {
+
+    pub fn Connected(payload: u64) -> Self {
+        Self {
+            discriminant: discriminant_ConnectResult::Connected,
+            payload: union_ConnectResult {
+                Connected: payload,
+            }
+        }
+    }
+
+    pub fn Error(payload: ConnectErr) -> Self {
+        Self {
+            discriminant: discriminant_ConnectResult::Error,
+            payload: union_ConnectResult {
+                Error: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for ConnectResult {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_ConnectResult::Connected => {}
+            discriminant_ConnectResult::Error => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Error) },
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for ConnectResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_StreamErr {
+    BrokenPipe = 0,
+    ConnectionRefused = 1,
+    ConnectionReset = 2,
+    Interrupted = 3,
+    OutOfMemory = 4,
+    PermissionDenied = 5,
+    Unrecognized = 6,
+}
+
+impl core::fmt::Debug for discriminant_StreamErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BrokenPipe => f.write_str("discriminant_StreamErr::BrokenPipe"),
+            Self::ConnectionRefused => f.write_str("discriminant_StreamErr::ConnectionRefused"),
+            Self::ConnectionReset => f.write_str("discriminant_StreamErr::ConnectionReset"),
+            Self::Interrupted => f.write_str("discriminant_StreamErr::Interrupted"),
+            Self::OutOfMemory => f.write_str("discriminant_StreamErr::OutOfMemory"),
+            Self::PermissionDenied => f.write_str("discriminant_StreamErr::PermissionDenied"),
+            Self::Unrecognized => f.write_str("discriminant_StreamErr::Unrecognized"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_StreamErr);
+
+#[repr(C, align(8))]
+pub union union_StreamErr {
+    BrokenPipe: (),
+    ConnectionRefused: (),
+    ConnectionReset: (),
+    Interrupted: (),
+    OutOfMemory: (),
+    PermissionDenied: (),
+    Unrecognized: core::mem::ManuallyDrop<ConnectErr_Unrecognized>,
+}
+
+const _SIZE_CHECK_union_StreamErr: () = assert!(core::mem::size_of::<union_StreamErr>() == 40);
+const _ALIGN_CHECK_union_StreamErr: () = assert!(core::mem::align_of::<union_StreamErr>() == 8);
+
+const _SIZE_CHECK_StreamErr: () = assert!(core::mem::size_of::<StreamErr>() == 40);
+const _ALIGN_CHECK_StreamErr: () = assert!(core::mem::align_of::<StreamErr>() == 8);
+
+impl StreamErr {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_StreamErr {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_StreamErr>(*bytes.as_ptr().add(32))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_StreamErr) {
+        let discriminant_ptr: *mut discriminant_StreamErr = (self as *mut StreamErr).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(32)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct StreamErr {
+    payload: union_StreamErr,
+    discriminant: discriminant_StreamErr,
+}
+
+impl Clone for StreamErr {
+    fn clone(&self) -> Self {
+        use discriminant_StreamErr::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                BrokenPipe => union_StreamErr {
+                    BrokenPipe: self.payload.BrokenPipe.clone(),
+                },
+                ConnectionRefused => union_StreamErr {
+                    ConnectionRefused: self.payload.ConnectionRefused.clone(),
+                },
+                ConnectionReset => union_StreamErr {
+                    ConnectionReset: self.payload.ConnectionReset.clone(),
+                },
+                Interrupted => union_StreamErr {
+                    Interrupted: self.payload.Interrupted.clone(),
+                },
+                OutOfMemory => union_StreamErr {
+                    OutOfMemory: self.payload.OutOfMemory.clone(),
+                },
+                PermissionDenied => union_StreamErr {
+                    PermissionDenied: self.payload.PermissionDenied.clone(),
+                },
+                Unrecognized => union_StreamErr {
+                    Unrecognized: self.payload.Unrecognized.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for StreamErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_StreamErr::*;
+
+        unsafe {
+            match self.discriminant {
+                BrokenPipe => {
+                    let field: &() = &self.payload.BrokenPipe;
+                    f.debug_tuple("StreamErr::BrokenPipe").field(field).finish()
+                },
+                ConnectionRefused => {
+                    let field: &() = &self.payload.ConnectionRefused;
+                    f.debug_tuple("StreamErr::ConnectionRefused").field(field).finish()
+                },
+                ConnectionReset => {
+                    let field: &() = &self.payload.ConnectionReset;
+                    f.debug_tuple("StreamErr::ConnectionReset").field(field).finish()
+                },
+                Interrupted => {
+                    let field: &() = &self.payload.Interrupted;
+                    f.debug_tuple("StreamErr::Interrupted").field(field).finish()
+                },
+                OutOfMemory => {
+                    let field: &() = &self.payload.OutOfMemory;
+                    f.debug_tuple("StreamErr::OutOfMemory").field(field).finish()
+                },
+                PermissionDenied => {
+                    let field: &() = &self.payload.PermissionDenied;
+                    f.debug_tuple("StreamErr::PermissionDenied").field(field).finish()
+                },
+                Unrecognized => {
+                    let field: &ConnectErr_Unrecognized = &self.payload.Unrecognized;
+                    f.debug_tuple("StreamErr::Unrecognized").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for StreamErr {}
+
+impl PartialEq for StreamErr {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_StreamErr::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                BrokenPipe => self.payload.BrokenPipe == other.payload.BrokenPipe,
+                ConnectionRefused => self.payload.ConnectionRefused == other.payload.ConnectionRefused,
+                ConnectionReset => self.payload.ConnectionReset == other.payload.ConnectionReset,
+                Interrupted => self.payload.Interrupted == other.payload.Interrupted,
+                OutOfMemory => self.payload.OutOfMemory == other.payload.OutOfMemory,
+                PermissionDenied => self.payload.PermissionDenied == other.payload.PermissionDenied,
+                Unrecognized => self.payload.Unrecognized == other.payload.Unrecognized,
+            }
+        }
+    }
+}
+
+impl Ord for StreamErr {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for StreamErr {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_StreamErr::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    BrokenPipe => self.payload.BrokenPipe.partial_cmp(&other.payload.BrokenPipe),
+                    ConnectionRefused => self.payload.ConnectionRefused.partial_cmp(&other.payload.ConnectionRefused),
+                    ConnectionReset => self.payload.ConnectionReset.partial_cmp(&other.payload.ConnectionReset),
+                    Interrupted => self.payload.Interrupted.partial_cmp(&other.payload.Interrupted),
+                    OutOfMemory => self.payload.OutOfMemory.partial_cmp(&other.payload.OutOfMemory),
+                    PermissionDenied => self.payload.PermissionDenied.partial_cmp(&other.payload.PermissionDenied),
+                    Unrecognized => self.payload.Unrecognized.partial_cmp(&other.payload.Unrecognized),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for StreamErr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_StreamErr::*;
+
+        unsafe {
+            match self.discriminant {
+                BrokenPipe => self.payload.BrokenPipe.hash(state),
+                ConnectionRefused => self.payload.ConnectionRefused.hash(state),
+                ConnectionReset => self.payload.ConnectionReset.hash(state),
+                Interrupted => self.payload.Interrupted.hash(state),
+                OutOfMemory => self.payload.OutOfMemory.hash(state),
+                PermissionDenied => self.payload.PermissionDenied.hash(state),
+                Unrecognized => self.payload.Unrecognized.hash(state),
+            }
+        }
+    }
+}
+
+impl StreamErr {
+
+    pub fn is_BrokenPipe(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::BrokenPipe)
+    }
+
+    pub fn is_ConnectionRefused(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::ConnectionRefused)
+    }
+
+    pub fn is_ConnectionReset(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::ConnectionReset)
+    }
+
+    pub fn is_Interrupted(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::Interrupted)
+    }
+
+    pub fn is_OutOfMemory(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::OutOfMemory)
+    }
+
+    pub fn is_PermissionDenied(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::PermissionDenied)
+    }
+
+    pub fn unwrap_Unrecognized(mut self) -> ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_StreamErr::Unrecognized);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Unrecognized) }
+    }
+
+    pub fn borrow_Unrecognized(&self) -> &ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_StreamErr::Unrecognized);
+        use core::borrow::Borrow;
+unsafe { self.payload.Unrecognized.borrow() }
+    }
+
+    pub fn borrow_mut_Unrecognized(&mut self) -> &mut ConnectErr_Unrecognized {
+        debug_assert_eq!(self.discriminant, discriminant_StreamErr::Unrecognized);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Unrecognized.borrow_mut() }
+    }
+
+    pub fn is_Unrecognized(&self) -> bool {
+        matches!(self.discriminant, discriminant_StreamErr::Unrecognized)
+    }
+}
+
+
+
+impl StreamErr {
+
+    pub fn BrokenPipe() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::BrokenPipe,
+            payload: union_StreamErr {
+                BrokenPipe: (),
+            }
+        }
+    }
+
+    pub fn ConnectionRefused() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::ConnectionRefused,
+            payload: union_StreamErr {
+                ConnectionRefused: (),
+            }
+        }
+    }
+
+    pub fn ConnectionReset() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::ConnectionReset,
+            payload: union_StreamErr {
+                ConnectionReset: (),
+            }
+        }
+    }
+
+    pub fn Interrupted() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::Interrupted,
+            payload: union_StreamErr {
+                Interrupted: (),
+            }
+        }
+    }
+
+    pub fn OutOfMemory() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::OutOfMemory,
+            payload: union_StreamErr {
+                OutOfMemory: (),
+            }
+        }
+    }
+
+    pub fn PermissionDenied() -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::PermissionDenied,
+            payload: union_StreamErr {
+                PermissionDenied: (),
+            }
+        }
+    }
+
+    pub fn Unrecognized(payload: ConnectErr_Unrecognized) -> Self {
+        Self {
+            discriminant: discriminant_StreamErr::Unrecognized,
+            payload: union_StreamErr {
+                Unrecognized: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for StreamErr {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_StreamErr::BrokenPipe => {}
+            discriminant_StreamErr::ConnectionRefused => {}
+            discriminant_StreamErr::ConnectionReset => {}
+            discriminant_StreamErr::Interrupted => {}
+            discriminant_StreamErr::OutOfMemory => {}
+            discriminant_StreamErr::PermissionDenied => {}
+            discriminant_StreamErr::Unrecognized => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Unrecognized) },
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for StreamErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_ReadResult {
+    Error = 0,
+    Read = 1,
+}
+
+impl core::fmt::Debug for discriminant_ReadResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Error => f.write_str("discriminant_ReadResult::Error"),
+            Self::Read => f.write_str("discriminant_ReadResult::Read"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_ReadResult);
+
+#[repr(C, align(8))]
+pub union union_ReadResult {
+    Error: core::mem::ManuallyDrop<StreamErr>,
+    Read: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+}
+
+const _SIZE_CHECK_union_ReadResult: () = assert!(core::mem::size_of::<union_ReadResult>() == 40);
+const _ALIGN_CHECK_union_ReadResult: () = assert!(core::mem::align_of::<union_ReadResult>() == 8);
+
+const _SIZE_CHECK_ReadResult: () = assert!(core::mem::size_of::<ReadResult>() == 48);
+const _ALIGN_CHECK_ReadResult: () = assert!(core::mem::align_of::<ReadResult>() == 8);
+
+impl ReadResult {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_ReadResult {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_ReadResult>(*bytes.as_ptr().add(40))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_ReadResult) {
+        let discriminant_ptr: *mut discriminant_ReadResult = (self as *mut ReadResult).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(40)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct ReadResult {
+    payload: union_ReadResult,
+    discriminant: discriminant_ReadResult,
+}
+
+impl Clone for ReadResult {
+    fn clone(&self) -> Self {
+        use discriminant_ReadResult::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Error => union_ReadResult {
+                    Error: self.payload.Error.clone(),
+                },
+                Read => union_ReadResult {
+                    Read: self.payload.Read.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for ReadResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_ReadResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => {
+                    let field: &StreamErr = &self.payload.Error;
+                    f.debug_tuple("ReadResult::Error").field(field).finish()
+                },
+                Read => {
+                    let field: &roc_std::RocList<u8> = &self.payload.Read;
+                    f.debug_tuple("ReadResult::Read").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for ReadResult {}
+
+impl PartialEq for ReadResult {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_ReadResult::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error == other.payload.Error,
+                Read => self.payload.Read == other.payload.Read,
+            }
+        }
+    }
+}
+
+impl Ord for ReadResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for ReadResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_ReadResult::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Error => self.payload.Error.partial_cmp(&other.payload.Error),
+                    Read => self.payload.Read.partial_cmp(&other.payload.Read),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for ReadResult {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_ReadResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error.hash(state),
+                Read => self.payload.Read.hash(state),
+            }
+        }
+    }
+}
+
+impl ReadResult {
+
+    pub fn unwrap_Error(mut self) -> StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Error);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
+    }
+
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Error);
+        use core::borrow::Borrow;
+unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Error);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Error.borrow_mut() }
+    }
+
+    pub fn is_Error(&self) -> bool {
+        matches!(self.discriminant, discriminant_ReadResult::Error)
+    }
+
+    pub fn unwrap_Read(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Read) }
+    }
+
+    pub fn borrow_Read(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
+        use core::borrow::Borrow;
+unsafe { self.payload.Read.borrow() }
+    }
+
+    pub fn borrow_mut_Read(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadResult::Read);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Read.borrow_mut() }
+    }
+
+    pub fn is_Read(&self) -> bool {
+        matches!(self.discriminant, discriminant_ReadResult::Read)
+    }
+}
+
+
+
+impl ReadResult {
+
+    pub fn Error(payload: StreamErr) -> Self {
+        Self {
+            discriminant: discriminant_ReadResult::Error,
+            payload: union_ReadResult {
+                Error: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Read(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_ReadResult::Read,
+            payload: union_ReadResult {
+                Read: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for ReadResult {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_ReadResult::Error => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Error) },
+            discriminant_ReadResult::Read => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Read) },
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for ReadResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_ReadExactlyResult {
+    Error = 0,
+    Read = 1,
+    UnexpectedEOF = 2,
+}
+
+impl core::fmt::Debug for discriminant_ReadExactlyResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Error => f.write_str("discriminant_ReadExactlyResult::Error"),
+            Self::Read => f.write_str("discriminant_ReadExactlyResult::Read"),
+            Self::UnexpectedEOF => f.write_str("discriminant_ReadExactlyResult::UnexpectedEOF"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_ReadExactlyResult);
+
+#[repr(C, align(8))]
+pub union union_ReadExactlyResult {
+    Error: core::mem::ManuallyDrop<StreamErr>,
+    Read: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    UnexpectedEOF: (),
+}
+
+const _SIZE_CHECK_union_ReadExactlyResult: () = assert!(core::mem::size_of::<union_ReadExactlyResult>() == 40);
+const _ALIGN_CHECK_union_ReadExactlyResult: () = assert!(core::mem::align_of::<union_ReadExactlyResult>() == 8);
+
+const _SIZE_CHECK_ReadExactlyResult: () = assert!(core::mem::size_of::<ReadExactlyResult>() == 48);
+const _ALIGN_CHECK_ReadExactlyResult: () = assert!(core::mem::align_of::<ReadExactlyResult>() == 8);
+
+impl ReadExactlyResult {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_ReadExactlyResult {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_ReadExactlyResult>(*bytes.as_ptr().add(40))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_ReadExactlyResult) {
+        let discriminant_ptr: *mut discriminant_ReadExactlyResult = (self as *mut ReadExactlyResult).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(40)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct ReadExactlyResult {
+    payload: union_ReadExactlyResult,
+    discriminant: discriminant_ReadExactlyResult,
+}
+
+impl Clone for ReadExactlyResult {
+    fn clone(&self) -> Self {
+        use discriminant_ReadExactlyResult::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Error => union_ReadExactlyResult {
+                    Error: self.payload.Error.clone(),
+                },
+                Read => union_ReadExactlyResult {
+                    Read: self.payload.Read.clone(),
+                },
+                UnexpectedEOF => union_ReadExactlyResult {
+                    UnexpectedEOF: self.payload.UnexpectedEOF.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for ReadExactlyResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_ReadExactlyResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => {
+                    let field: &StreamErr = &self.payload.Error;
+                    f.debug_tuple("ReadExactlyResult::Error").field(field).finish()
+                },
+                Read => {
+                    let field: &roc_std::RocList<u8> = &self.payload.Read;
+                    f.debug_tuple("ReadExactlyResult::Read").field(field).finish()
+                },
+                UnexpectedEOF => {
+                    let field: &() = &self.payload.UnexpectedEOF;
+                    f.debug_tuple("ReadExactlyResult::UnexpectedEOF").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for ReadExactlyResult {}
+
+impl PartialEq for ReadExactlyResult {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_ReadExactlyResult::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error == other.payload.Error,
+                Read => self.payload.Read == other.payload.Read,
+                UnexpectedEOF => self.payload.UnexpectedEOF == other.payload.UnexpectedEOF,
+            }
+        }
+    }
+}
+
+impl Ord for ReadExactlyResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for ReadExactlyResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_ReadExactlyResult::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Error => self.payload.Error.partial_cmp(&other.payload.Error),
+                    Read => self.payload.Read.partial_cmp(&other.payload.Read),
+                    UnexpectedEOF => self.payload.UnexpectedEOF.partial_cmp(&other.payload.UnexpectedEOF),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for ReadExactlyResult {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_ReadExactlyResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error.hash(state),
+                Read => self.payload.Read.hash(state),
+                UnexpectedEOF => self.payload.UnexpectedEOF.hash(state),
+            }
+        }
+    }
+}
+
+impl ReadExactlyResult {
+
+    pub fn unwrap_Error(mut self) -> StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Error);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
+    }
+
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Error);
+        use core::borrow::Borrow;
+unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Error);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Error.borrow_mut() }
+    }
+
+    pub fn is_Error(&self) -> bool {
+        matches!(self.discriminant, discriminant_ReadExactlyResult::Error)
+    }
+
+    pub fn unwrap_Read(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Read) }
+    }
+
+    pub fn borrow_Read(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
+        use core::borrow::Borrow;
+unsafe { self.payload.Read.borrow() }
+    }
+
+    pub fn borrow_mut_Read(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_ReadExactlyResult::Read);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Read.borrow_mut() }
+    }
+
+    pub fn is_Read(&self) -> bool {
+        matches!(self.discriminant, discriminant_ReadExactlyResult::Read)
+    }
+
+    pub fn is_UnexpectedEOF(&self) -> bool {
+        matches!(self.discriminant, discriminant_ReadExactlyResult::UnexpectedEOF)
+    }
+}
+
+
+
+impl ReadExactlyResult {
+
+    pub fn Error(payload: StreamErr) -> Self {
+        Self {
+            discriminant: discriminant_ReadExactlyResult::Error,
+            payload: union_ReadExactlyResult {
+                Error: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Read(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_ReadExactlyResult::Read,
+            payload: union_ReadExactlyResult {
+                Read: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn UnexpectedEOF() -> Self {
+        Self {
+            discriminant: discriminant_ReadExactlyResult::UnexpectedEOF,
+            payload: union_ReadExactlyResult {
+                UnexpectedEOF: (),
+            }
+        }
+    }
+}
+
+impl Drop for ReadExactlyResult {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_ReadExactlyResult::Error => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Error) },
+            discriminant_ReadExactlyResult::Read => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Read) },
+            discriminant_ReadExactlyResult::UnexpectedEOF => {}
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for ReadExactlyResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_WriteResult {
+    Error = 0,
+    Wrote = 1,
+}
+
+impl core::fmt::Debug for discriminant_WriteResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Error => f.write_str("discriminant_WriteResult::Error"),
+            Self::Wrote => f.write_str("discriminant_WriteResult::Wrote"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_WriteResult);
+
+#[repr(C, align(8))]
+pub union union_WriteResult {
+    Error: core::mem::ManuallyDrop<StreamErr>,
+    Wrote: (),
+}
+
+const _SIZE_CHECK_union_WriteResult: () = assert!(core::mem::size_of::<union_WriteResult>() == 40);
+const _ALIGN_CHECK_union_WriteResult: () = assert!(core::mem::align_of::<union_WriteResult>() == 8);
+
+const _SIZE_CHECK_WriteResult: () = assert!(core::mem::size_of::<WriteResult>() == 48);
+const _ALIGN_CHECK_WriteResult: () = assert!(core::mem::align_of::<WriteResult>() == 8);
+
+impl WriteResult {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_WriteResult {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_WriteResult>(*bytes.as_ptr().add(40))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_WriteResult) {
+        let discriminant_ptr: *mut discriminant_WriteResult = (self as *mut WriteResult).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(40)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct WriteResult {
+    payload: union_WriteResult,
+    discriminant: discriminant_WriteResult,
+}
+
+impl Clone for WriteResult {
+    fn clone(&self) -> Self {
+        use discriminant_WriteResult::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Error => union_WriteResult {
+                    Error: self.payload.Error.clone(),
+                },
+                Wrote => union_WriteResult {
+                    Wrote: self.payload.Wrote.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for WriteResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_WriteResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => {
+                    let field: &StreamErr = &self.payload.Error;
+                    f.debug_tuple("WriteResult::Error").field(field).finish()
+                },
+                Wrote => {
+                    let field: &() = &self.payload.Wrote;
+                    f.debug_tuple("WriteResult::Wrote").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for WriteResult {}
+
+impl PartialEq for WriteResult {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_WriteResult::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error == other.payload.Error,
+                Wrote => self.payload.Wrote == other.payload.Wrote,
+            }
+        }
+    }
+}
+
+impl Ord for WriteResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for WriteResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_WriteResult::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Error => self.payload.Error.partial_cmp(&other.payload.Error),
+                    Wrote => self.payload.Wrote.partial_cmp(&other.payload.Wrote),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for WriteResult {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_WriteResult::*;
+
+        unsafe {
+            match self.discriminant {
+                Error => self.payload.Error.hash(state),
+                Wrote => self.payload.Wrote.hash(state),
+            }
+        }
+    }
+}
+
+impl WriteResult {
+
+    pub fn unwrap_Error(mut self) -> StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Error) }
+    }
+
+    pub fn borrow_Error(&self) -> &StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
+        use core::borrow::Borrow;
+unsafe { self.payload.Error.borrow() }
+    }
+
+    pub fn borrow_mut_Error(&mut self) -> &mut StreamErr {
+        debug_assert_eq!(self.discriminant, discriminant_WriteResult::Error);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Error.borrow_mut() }
+    }
+
+    pub fn is_Error(&self) -> bool {
+        matches!(self.discriminant, discriminant_WriteResult::Error)
+    }
+
+    pub fn is_Wrote(&self) -> bool {
+        matches!(self.discriminant, discriminant_WriteResult::Wrote)
+    }
+}
+
+
+
+impl WriteResult {
+
+    pub fn Error(payload: StreamErr) -> Self {
+        Self {
+            discriminant: discriminant_WriteResult::Error,
+            payload: union_WriteResult {
+                Error: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Wrote() -> Self {
+        Self {
+            discriminant: discriminant_WriteResult::Wrote,
+            payload: union_WriteResult {
+                Wrote: (),
+            }
+        }
+    }
+}
+
+impl Drop for WriteResult {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_WriteResult::Error => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Error) },
+            discriminant_WriteResult::Wrote => {}
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for WriteResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_UnwrappedPath {
+    ArbitraryBytes = 0,
+    FromOperatingSystem = 1,
+    FromStr = 2,
+}
+
+impl core::fmt::Debug for discriminant_UnwrappedPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ArbitraryBytes => f.write_str("discriminant_UnwrappedPath::ArbitraryBytes"),
+            Self::FromOperatingSystem => f.write_str("discriminant_UnwrappedPath::FromOperatingSystem"),
+            Self::FromStr => f.write_str("discriminant_UnwrappedPath::FromStr"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_UnwrappedPath);
+
+#[repr(C, align(8))]
+pub union union_UnwrappedPath {
+    ArbitraryBytes: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    FromOperatingSystem: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    FromStr: core::mem::ManuallyDrop<roc_std::RocStr>,
+}
+
+const _SIZE_CHECK_union_UnwrappedPath: () = assert!(core::mem::size_of::<union_UnwrappedPath>() == 24);
+const _ALIGN_CHECK_union_UnwrappedPath: () = assert!(core::mem::align_of::<union_UnwrappedPath>() == 8);
+
+const _SIZE_CHECK_UnwrappedPath: () = assert!(core::mem::size_of::<UnwrappedPath>() == 32);
+const _ALIGN_CHECK_UnwrappedPath: () = assert!(core::mem::align_of::<UnwrappedPath>() == 8);
+
+impl UnwrappedPath {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_UnwrappedPath {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_UnwrappedPath>(*bytes.as_ptr().add(24))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_UnwrappedPath) {
+        let discriminant_ptr: *mut discriminant_UnwrappedPath = (self as *mut UnwrappedPath).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(24)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct UnwrappedPath {
+    payload: union_UnwrappedPath,
+    discriminant: discriminant_UnwrappedPath,
+}
+
+impl Clone for UnwrappedPath {
+    fn clone(&self) -> Self {
+        use discriminant_UnwrappedPath::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                ArbitraryBytes => union_UnwrappedPath {
+                    ArbitraryBytes: self.payload.ArbitraryBytes.clone(),
+                },
+                FromOperatingSystem => union_UnwrappedPath {
+                    FromOperatingSystem: self.payload.FromOperatingSystem.clone(),
+                },
+                FromStr => union_UnwrappedPath {
+                    FromStr: self.payload.FromStr.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for UnwrappedPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_UnwrappedPath::*;
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => {
+                    let field: &roc_std::RocList<u8> = &self.payload.ArbitraryBytes;
+                    f.debug_tuple("UnwrappedPath::ArbitraryBytes").field(field).finish()
+                },
+                FromOperatingSystem => {
+                    let field: &roc_std::RocList<u8> = &self.payload.FromOperatingSystem;
+                    f.debug_tuple("UnwrappedPath::FromOperatingSystem").field(field).finish()
+                },
+                FromStr => {
+                    let field: &roc_std::RocStr = &self.payload.FromStr;
+                    f.debug_tuple("UnwrappedPath::FromStr").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl Eq for UnwrappedPath {}
+
+impl PartialEq for UnwrappedPath {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_UnwrappedPath::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => self.payload.ArbitraryBytes == other.payload.ArbitraryBytes,
+                FromOperatingSystem => self.payload.FromOperatingSystem == other.payload.FromOperatingSystem,
+                FromStr => self.payload.FromStr == other.payload.FromStr,
+            }
+        }
+    }
+}
+
+impl Ord for UnwrappedPath {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for UnwrappedPath {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_UnwrappedPath::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    ArbitraryBytes => self.payload.ArbitraryBytes.partial_cmp(&other.payload.ArbitraryBytes),
+                    FromOperatingSystem => self.payload.FromOperatingSystem.partial_cmp(&other.payload.FromOperatingSystem),
+                    FromStr => self.payload.FromStr.partial_cmp(&other.payload.FromStr),
+                }
+            },
+        }
+    }
+}
+
+impl core::hash::Hash for UnwrappedPath {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        use discriminant_UnwrappedPath::*;
+
+        unsafe {
+            match self.discriminant {
+                ArbitraryBytes => self.payload.ArbitraryBytes.hash(state),
+                FromOperatingSystem => self.payload.FromOperatingSystem.hash(state),
+                FromStr => self.payload.FromStr.hash(state),
+            }
+        }
+    }
+}
+
+impl UnwrappedPath {
+
+    pub fn unwrap_ArbitraryBytes(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ArbitraryBytes) }
+    }
+
+    pub fn borrow_ArbitraryBytes(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes);
+        use core::borrow::Borrow;
+unsafe { self.payload.ArbitraryBytes.borrow() }
+    }
+
+    pub fn borrow_mut_ArbitraryBytes(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.ArbitraryBytes.borrow_mut() }
+    }
+
+    pub fn is_ArbitraryBytes(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::ArbitraryBytes)
+    }
+
+    pub fn unwrap_FromOperatingSystem(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromOperatingSystem) }
+    }
+
+    pub fn borrow_FromOperatingSystem(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem);
+        use core::borrow::Borrow;
+unsafe { self.payload.FromOperatingSystem.borrow() }
+    }
+
+    pub fn borrow_mut_FromOperatingSystem(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.FromOperatingSystem.borrow_mut() }
+    }
+
+    pub fn is_FromOperatingSystem(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::FromOperatingSystem)
+    }
+
+    pub fn unwrap_FromStr(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.FromStr) }
+    }
+
+    pub fn borrow_FromStr(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        use core::borrow::Borrow;
+unsafe { self.payload.FromStr.borrow() }
+    }
+
+    pub fn borrow_mut_FromStr(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_UnwrappedPath::FromStr);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.FromStr.borrow_mut() }
+    }
+
+    pub fn is_FromStr(&self) -> bool {
+        matches!(self.discriminant, discriminant_UnwrappedPath::FromStr)
+    }
+}
+
+
+
+impl UnwrappedPath {
+
+    pub fn ArbitraryBytes(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::ArbitraryBytes,
+            payload: union_UnwrappedPath {
+                ArbitraryBytes: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn FromOperatingSystem(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::FromOperatingSystem,
+            payload: union_UnwrappedPath {
+                FromOperatingSystem: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn FromStr(payload: roc_std::RocStr) -> Self {
+        Self {
+            discriminant: discriminant_UnwrappedPath::FromStr,
+            payload: union_UnwrappedPath {
+                FromStr: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for UnwrappedPath {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_UnwrappedPath::ArbitraryBytes => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.ArbitraryBytes) },
+            discriminant_UnwrappedPath::FromOperatingSystem => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.FromOperatingSystem) },
+            discriminant_UnwrappedPath::FromStr => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.FromStr) },
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for UnwrappedPath {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(C)]
+pub struct InternalDirReadErr {
+     f0: UnwrappedPath,
+     f1: roc_std::RocStr,
+}
+
+impl InternalDirReadErr {
+    /// A tag named ``DirReadErr``, with the given payload.
+    pub fn DirReadErr(f0: UnwrappedPath, f1: roc_std::RocStr) -> Self {
+        Self {
+            f0,
+            f1
+        }
+    }
+
+    /// Since `InternalDirReadErr` only has one tag (namely, `DirReadErr`),
+    /// convert it to `DirReadErr`'s payload.
+    pub fn into_DirReadErr(self) -> (UnwrappedPath, roc_std::RocStr) {
+        (self.f0, self.f1)
+    }
+
+    /// Since `InternalDirReadErr` only has one tag (namely, `DirReadErr`),
+    /// convert it to `DirReadErr`'s payload.
+    pub fn as_DirReadErr(&self) -> (&UnwrappedPath, &roc_std::RocStr) {
+        (&self.f0, &self.f1)
+    }
+}
+
+
+impl core::fmt::Debug for InternalDirReadErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("InternalDirReadErr::DirReadErr")
+                .field(&self.f0)
+                .field(&self.f1)
+                .finish()
+    }
+}
+
+impl roc_std::RocRefcounted for InternalDirReadErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, )]
+#[repr(u8)]
+pub enum discriminant_SQLiteValue {
+    Bytes = 0,
+    Integer = 1,
+    Null = 2,
+    Real = 3,
+    String = 4,
+}
+
+impl core::fmt::Debug for discriminant_SQLiteValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bytes => f.write_str("discriminant_SQLiteValue::Bytes"),
+            Self::Integer => f.write_str("discriminant_SQLiteValue::Integer"),
+            Self::Null => f.write_str("discriminant_SQLiteValue::Null"),
+            Self::Real => f.write_str("discriminant_SQLiteValue::Real"),
+            Self::String => f.write_str("discriminant_SQLiteValue::String"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(discriminant_SQLiteValue);
+
+#[repr(C, align(8))]
+pub union union_SQLiteValue {
+    Bytes: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
+    Integer: i64,
+    Null: (),
+    Real: f64,
+    String: core::mem::ManuallyDrop<roc_std::RocStr>,
+}
+
+const _SIZE_CHECK_union_SQLiteValue: () = assert!(core::mem::size_of::<union_SQLiteValue>() == 24);
+const _ALIGN_CHECK_union_SQLiteValue: () = assert!(core::mem::align_of::<union_SQLiteValue>() == 8);
+
+const _SIZE_CHECK_SQLiteValue: () = assert!(core::mem::size_of::<SQLiteValue>() == 32);
+const _ALIGN_CHECK_SQLiteValue: () = assert!(core::mem::align_of::<SQLiteValue>() == 8);
+
+impl SQLiteValue {
+    /// Returns which variant this tag union holds. Note that this never includes a payload!
+    pub fn discriminant(&self) -> discriminant_SQLiteValue {
+        unsafe {
+            let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
+
+            core::mem::transmute::<u8, discriminant_SQLiteValue>(*bytes.as_ptr().add(24))
+        }
+    }
+
+    /// Internal helper
+    fn set_discriminant(&mut self, discriminant: discriminant_SQLiteValue) {
+        let discriminant_ptr: *mut discriminant_SQLiteValue = (self as *mut SQLiteValue).cast();
+
+        unsafe {
+            *(discriminant_ptr.add(24)) = discriminant;
+        }
+    }
+}
+
+#[repr(C)]
+pub struct SQLiteValue {
+    payload: union_SQLiteValue,
+    discriminant: discriminant_SQLiteValue,
+}
+
+impl Clone for SQLiteValue {
+    fn clone(&self) -> Self {
+        use discriminant_SQLiteValue::*;
+
+        let payload = unsafe {
+            match self.discriminant {
+                Bytes => union_SQLiteValue {
+                    Bytes: self.payload.Bytes.clone(),
+                },
+                Integer => union_SQLiteValue {
+                    Integer: self.payload.Integer.clone(),
+                },
+                Null => union_SQLiteValue {
+                    Null: self.payload.Null.clone(),
+                },
+                Real => union_SQLiteValue {
+                    Real: self.payload.Real.clone(),
+                },
+                String => union_SQLiteValue {
+                    String: self.payload.String.clone(),
+                },
+            }
+        };
+
+        Self {
+            discriminant: self.discriminant,
+            payload,
+        }
+    }
+}
+
+impl core::fmt::Debug for SQLiteValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use discriminant_SQLiteValue::*;
+
+        unsafe {
+            match self.discriminant {
+                Bytes => {
+                    let field: &roc_std::RocList<u8> = &self.payload.Bytes;
+                    f.debug_tuple("SQLiteValue::Bytes").field(field).finish()
+                },
+                Integer => {
+                    let field: &i64 = &self.payload.Integer;
+                    f.debug_tuple("SQLiteValue::Integer").field(field).finish()
+                },
+                Null => {
+                    let field: &() = &self.payload.Null;
+                    f.debug_tuple("SQLiteValue::Null").field(field).finish()
+                },
+                Real => {
+                    let field: &f64 = &self.payload.Real;
+                    f.debug_tuple("SQLiteValue::Real").field(field).finish()
+                },
+                String => {
+                    let field: &roc_std::RocStr = &self.payload.String;
+                    f.debug_tuple("SQLiteValue::String").field(field).finish()
+                },
+            }
+        }
+    }
+}
+
+impl PartialEq for SQLiteValue {
+    fn eq(&self, other: &Self) -> bool {
+        use discriminant_SQLiteValue::*;
+
+        if self.discriminant != other.discriminant {
+            return false;
+        }
+
+        unsafe {
+            match self.discriminant {
+                Bytes => self.payload.Bytes == other.payload.Bytes,
+                Integer => self.payload.Integer == other.payload.Integer,
+                Null => self.payload.Null == other.payload.Null,
+                Real => self.payload.Real == other.payload.Real,
+                String => self.payload.String == other.payload.String,
+            }
+        }
+    }
+}
+
+impl PartialOrd for SQLiteValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use discriminant_SQLiteValue::*;
+
+        use std::cmp::Ordering::*;
+
+        match self.discriminant.cmp(&other.discriminant) {
+            Less => Option::Some(Less),
+            Greater => Option::Some(Greater),
+            Equal => unsafe {
+                match self.discriminant {
+                    Bytes => self.payload.Bytes.partial_cmp(&other.payload.Bytes),
+                    Integer => self.payload.Integer.partial_cmp(&other.payload.Integer),
+                    Null => self.payload.Null.partial_cmp(&other.payload.Null),
+                    Real => self.payload.Real.partial_cmp(&other.payload.Real),
+                    String => self.payload.String.partial_cmp(&other.payload.String),
+                }
+            },
+        }
+    }
+}
+
+impl SQLiteValue {
+
+    pub fn unwrap_Bytes(mut self) -> roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Bytes) }
+    }
+
+    pub fn borrow_Bytes(&self) -> &roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        use core::borrow::Borrow;
+unsafe { self.payload.Bytes.borrow() }
+    }
+
+    pub fn borrow_mut_Bytes(&mut self) -> &mut roc_std::RocList<u8> {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.Bytes.borrow_mut() }
+    }
+
+    pub fn is_Bytes(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Bytes)
+    }
+
+    pub fn unwrap_Integer(mut self) -> i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { self.payload.Integer }
+    }
+
+    pub fn borrow_Integer(&self) -> i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { self.payload.Integer }
+    }
+
+    pub fn borrow_mut_Integer(&mut self) -> &mut i64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
+        unsafe { &mut self.payload.Integer }
+    }
+
+    pub fn is_Integer(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Integer)
+    }
+
+    pub fn is_Null(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Null)
+    }
+
+    pub fn unwrap_Real(mut self) -> f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { self.payload.Real }
+    }
+
+    pub fn borrow_Real(&self) -> f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { self.payload.Real }
+    }
+
+    pub fn borrow_mut_Real(&mut self) -> &mut f64 {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
+        unsafe { &mut self.payload.Real }
+    }
+
+    pub fn is_Real(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::Real)
+    }
+
+    pub fn unwrap_String(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.String) }
+    }
+
+    pub fn borrow_String(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        use core::borrow::Borrow;
+unsafe { self.payload.String.borrow() }
+    }
+
+    pub fn borrow_mut_String(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
+        use core::borrow::BorrowMut;
+unsafe { self.payload.String.borrow_mut() }
+    }
+
+    pub fn is_String(&self) -> bool {
+        matches!(self.discriminant, discriminant_SQLiteValue::String)
+    }
+}
+
+
+
+impl SQLiteValue {
+
+    pub fn Bytes(payload: roc_std::RocList<u8>) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Bytes,
+            payload: union_SQLiteValue {
+                Bytes: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+
+    pub fn Integer(payload: i64) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Integer,
+            payload: union_SQLiteValue {
+                Integer: payload,
+            }
+        }
+    }
+
+    pub fn Null() -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Null,
+            payload: union_SQLiteValue {
+                Null: (),
+            }
+        }
+    }
+
+    pub fn Real(payload: f64) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::Real,
+            payload: union_SQLiteValue {
+                Real: payload,
+            }
+        }
+    }
+
+    pub fn String(payload: roc_std::RocStr) -> Self {
+        Self {
+            discriminant: discriminant_SQLiteValue::String,
+            payload: union_SQLiteValue {
+                String: core::mem::ManuallyDrop::new(payload),
+            }
+        }
+    }
+}
+
+impl Drop for SQLiteValue {
+    fn drop(&mut self) {
+        // Drop the payloads
+        match self.discriminant() {
+            discriminant_SQLiteValue::Bytes => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.Bytes) },
+            discriminant_SQLiteValue::Integer => {}
+            discriminant_SQLiteValue::Null => {}
+            discriminant_SQLiteValue::Real => {}
+            discriminant_SQLiteValue::String => unsafe { core::mem::ManuallyDrop::drop(&mut self.payload.String) },
+        }
+    }
+}
+
+impl roc_std::RocRefcounted for SQLiteValue {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, )]
+#[repr(C)]
+pub struct GlueTypes {
+    pub a: InternalCommand,
+    pub b: InternalOutput,
+    pub c: InternalCommandErr,
+    pub d: ConnectResult,
+    pub e: ReadResult,
+    pub f: ReadExactlyResult,
+    pub g: WriteResult,
+    pub h: ConnectErr,
+    pub i: StreamErr,
+    pub j: InternalDirReadErr,
+    pub k: SQLiteValue,
+}
+
+impl roc_std::RocRefcounted for GlueTypes {
+    fn inc(&mut self) {
+         self.a.inc();
+     self.b.inc();
+     self.c.inc();
+     self.d.inc();
+     self.e.inc();
+     self.f.inc();
+     self.g.inc();
+     self.h.inc();
+     self.i.inc();
+     self.j.inc();
+     self.k.inc();
+
+    }
+    fn dec(&mut self) {
+         self.a.dec();
+     self.b.dec();
+     self.c.dec();
+     self.d.dec();
+     self.e.dec();
+     self.f.dec();
+     self.g.dec();
+     self.h.dec();
+     self.i.dec();
+     self.j.dec();
+     self.k.dec();
+
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+
+
+pub fn mainForHost() -> GlueTypes {
+    extern "C" {
+        fn roc__mainForHost_1_exposed_generic(_: *mut GlueTypes);
+    }
+
+    let mut ret = core::mem::MaybeUninit::uninit();
+
+    unsafe {
+        roc__mainForHost_1_exposed_generic(ret.as_mut_ptr(), );
+
+        ret.assume_init()
     }
 }

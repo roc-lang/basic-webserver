@@ -1,6 +1,7 @@
 app [main] {
-    cli: platform "TODO use updated basic-cli 0.12.0 (requires changes from github.com/roc-lang/basic-cli/pull/224)",
-    weaver: "https://github.com/smores56/weaver/releases/download/0.2.0/BBDPvzgGrYp-AhIDw0qmwxT0pWZIQP_7KOrUrZfp_xw.tar.br",
+    # TODO replace with a compatible release of basic-cli
+    # requires changes in roc from [#6894](https://github.com/roc-lang/roc/pull/6894)
+    cli: platform "../basic-cli/platform/main.roc",
 }
 
 import cli.Task exposing [Task]
@@ -8,8 +9,8 @@ import cli.Cmd
 import cli.Stdout
 import cli.Env
 import cli.Arg
-import cli.Arg.Opt as Opt
-import cli.Arg.Cli as Cli
+import cli.Arg.Opt
+import cli.Arg.Cli
 
 ## Builds the basic-webserver [platform](https://www.roc-lang.org/platforms).
 ##
@@ -18,31 +19,28 @@ import cli.Arg.Cli as Cli
 main : Task {} _
 main =
 
+    rawArgs = Arg.list! {}
+
     cliParser =
-        Cli.build {
-            releaseMode: <- Opt.flag { short: "r", long: "release", help: "Release build. Passes `--release` to `cargo build`." },
-            maybeRoc: <- Opt.maybeStr { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path."},
+        { Arg.Cli.combine <-
+            release: Arg.Opt.flag { short: "r", long: "release", help: "Release build. Passes `--release` to `cargo build`." },
+            maybeRoc: Arg.Opt.maybeStr { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path."},
         }
-        |> Cli.finish {
+        |> Arg.Cli.finish {
             name: "basic-webserver-builder",
             version: "",
             authors: ["Luke Boswell <https://github.com/lukewilliamboswell>"],
             description: "Generates all files needed by Roc to use this basic-cli platform.",
         }
-        |> Cli.assertValid
+        |> Arg.Cli.assertValid
 
-    when Cli.parseOrDisplayMessage cliParser (Arg.list!) is
-        Ok args -> run args
+    when Arg.Cli.parseOrDisplayMessage cliParser rawArgs is
+        Ok parsedArgs -> run parsedArgs
         Err errMsg -> Task.err (Exit 1 errMsg)
 
 run = \{ release, maybeRoc } ->
 
     roc = maybeRoc |> Result.withDefault "roc"
-
-    info! "Generating glue for builtins ..."
-    roc
-        |> Cmd.exec  ["glue", "glue.roc", "crates/", "platform/main.roc"]
-        |> Task.mapErr! ErrGeneratingGlue
 
     info! "Getting the native target ..."
     target =
