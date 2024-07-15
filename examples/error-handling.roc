@@ -29,7 +29,7 @@ main = \req ->
 
 AppError : [
     EnvVarNotSet Str,
-    HttpError Http.Error,
+    HttpErr Http.Err,
 ]
 
 logRequest : Request -> Task {} *
@@ -43,19 +43,18 @@ readEnvVar = \envVarName ->
     Env.var envVarName
     |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
-fetchContent : Str -> Task Str [HttpError Http.Error]
+fetchContent : Str -> Task Str [HttpErr Http.Err]
 fetchContent = \url ->
     Http.getUtf8 url
-    |> Task.mapErr \err -> HttpError err
 
-handleErr : AppError -> Task Response *
+handleErr : AppError -> Task Response []
 handleErr = \appErr ->
 
     # Build error message
     errMsg =
         when appErr is
             EnvVarNotSet envVarName -> "Environment variable \"$(envVarName)\" was not set."
-            HttpError err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
+            HttpErr err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
     _ <- Stderr.flush |> Task.attempt

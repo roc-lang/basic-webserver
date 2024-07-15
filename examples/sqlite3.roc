@@ -36,6 +36,6 @@ main = \_ ->
 
     Task.ok {
         status: 200,
-        headers: [{ name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" }],
+        headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
         body: Str.toUtf8 body,
     }

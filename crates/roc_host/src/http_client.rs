@@ -1,77 +1,51 @@
 use roc_std::{RocList, RocStr};
 use std::{iter::FromIterator, time::Duration};
 
-pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResponse {
+use crate::roc_http;
+
+pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::ResponseFromHost {
     let mut builder = reqwest::blocking::ClientBuilder::new();
 
-    if roc_request.timeout.is_TimeoutMilliseconds() {
-        let ms: u64 = roc_request.timeout.clone().unwrap_TimeoutMilliseconds();
+    if let Some(ms) = roc_request.has_timeout() {
         builder = builder.timeout(Duration::from_millis(ms));
     }
 
     let client = match builder.build() {
         Ok(c) => c,
         Err(_) => {
-            return roc_app::InternalResponse {
-                status: 500,
-                body: RocList::empty(),
-                headers: RocList::empty(),
-            }; // TLS backend cannot be initialized
+            return roc_http::ResponseFromHost::bad_status(
+                roc_http::Metadata::from_status_code(500),
+                "TLS backend cannot be initialized".as_bytes().into(),
+            )
         }
     };
 
-    let method = {
-        use reqwest::Method;
-        use roc_app::InternalMethod::*;
-
-        match roc_request.method {
-            Connect => Method::CONNECT,
-            Delete => Method::DELETE,
-            Get => Method::GET,
-            Head => Method::HEAD,
-            Options => Method::OPTIONS,
-            Patch => Method::PATCH,
-            Post => Method::POST,
-            Put => Method::PUT,
-            Trace => Method::TRACE,
-        }
-    };
-
-    let url = roc_request.url.as_str();
-
-    let mut req_builder = client.request(method, url);
+    let method = roc_request.to_reqwest_method();
+    let mut req_builder = client.request(method, roc_request.url.as_str());
 
     for header in roc_request.headers.iter() {
-        req_builder = req_builder.header(header.name.as_str(), header.value.as_slice());
+        req_builder = req_builder.header(header.key.as_str(), header.value.as_bytes());
     }
 
-    let mime_type_str = roc_request.mimeType.as_str();
-    let bytes = roc_request.body.as_slice().to_vec();
-
-    req_builder = req_builder.header("Content-Type", mime_type_str);
-    req_builder = req_builder.body(bytes);
+    req_builder = req_builder.header("Content-Type", roc_request.mime_type.as_str());
+    req_builder = req_builder.body(roc_request.body.as_slice().to_vec());
 
     let request = match req_builder.build() {
         Ok(req) => req,
-        Err(err) => {
-            return roc_app::InternalResponse {
-                status: 400,
-                body: RocList::from_slice(err.to_string().as_bytes()),
-                headers: RocList::empty(),
-            }; // Bad Request 400
-        }
+        Err(err) => return roc_http::ResponseFromHost::bad_request(err.to_string().as_str()),
     };
 
     match client.execute(request) {
         Ok(response) => {
-            let headers_iter =
-                response
-                    .headers()
-                    .iter()
-                    .map(|(name, value)| roc_app::InternalHeader {
-                        name: RocStr::from(name.as_str()),
-                        value: RocList::from(value.as_bytes()),
-                    });
+            let headers_iter = response.headers().iter().map(|(key, value)| {
+                roc_http::Header::new(
+                    key.as_str().into(),
+                    value
+                        .to_str()
+                        .expect("valid header value from response")
+                        .into(),
+                )
+            });
 
             let headers = RocList::from_iter(headers_iter);
 
@@ -79,33 +53,28 @@ pub fn send_req(roc_request: &roc_app::InternalRequest) -> roc_app::InternalResp
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
 
-            roc_app::InternalResponse {
-                status,
-                body,
+            let metadata = roc_http::Metadata {
                 headers,
-            }
+                url: roc_request.url.clone(),
+                status_code: status,
+                status_text: RocStr::empty(),
+            };
+
+            roc_http::ResponseFromHost::good_status(metadata, body)
         }
 
         Err(err) => {
             if err.is_timeout() {
-                roc_app::InternalResponse {
-                    status: 408, // 408 Request Timeout
-                    body: RocList::from_slice(err.to_string().as_bytes()),
-                    headers: RocList::empty(),
-                }
+                roc_http::ResponseFromHost::timeout()
             } else if err.is_request() {
-                roc_app::InternalResponse {
-                    status: 400, // 400 Bad Request
-                    body: RocList::from_slice(err.to_string().as_bytes()),
-                    headers: RocList::empty(),
-                }
+                roc_http::ResponseFromHost::bad_request(err.to_string().as_str())
+            } else if err.is_connect() {
+                roc_http::ResponseFromHost::network_error()
             } else {
-                // TODO handle more errors
-                roc_app::InternalResponse {
-                    status: 404, // 404 Not Found
-                    body: RocList::from_slice(err.to_string().as_bytes()),
-                    headers: RocList::empty(),
-                }
+                roc_http::ResponseFromHost::bad_status(
+                    roc_http::Metadata::from_status_code(404),
+                    RocList::from_slice(err.to_string().as_bytes()),
+                )
             }
         }
     }

@@ -1,7 +1,9 @@
+use crate::roc;
+use crate::roc_http;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
-use roc_std::{RocList, RocStr};
+use roc_std::RocList;
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
@@ -27,62 +29,50 @@ pub fn start() -> i32 {
 }
 
 fn call_roc<'a>(
-    method: &str,
-    url: &str,
+    method: reqwest::Method,
+    url: hyper::Uri,
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
 ) -> hyper::Response<hyper::Body> {
-    let roc_headers: RocList<roc_app::InternalHeader> = headers
-        .map(|(name, value)| roc_app::InternalHeader {
-            name: RocStr::from(name.as_str()),
-            value: RocList::from(value.as_bytes()),
+    let headers: RocList<roc_http::Header> = headers
+        .map(|(key, value)| {
+            roc_http::Header::new(
+                key.as_str().into(),
+                value
+                    .to_str()
+                    .expect("valid header value from hyper")
+                    .into(),
+            )
         })
-        .collect::<Vec<_>>() // TODO remove intermediate Vec if possible
-        .as_slice()
-        .into();
+        .collect();
 
-    let answer = roc_app::mainForHost(roc_app::InternalRequest {
-        body: body.to_vec().as_slice().into(),
-        mimeType: RocStr::from("text/plain"),
-        headers: roc_headers,
-        url: RocStr::from(url),
-        method: method_from_str(method),
-        timeout: roc_app::InternalTimeoutConfig::TimeoutMilliseconds(1_000), // TODO implement timeouts
-    })
-    .force_thunk();
-    to_server_response(answer)
+    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
+
+    dbg!(&roc_request);
+
+    let roc_response = roc::main_for_host(roc_request).force_thunk();
+
+    to_server_response(roc_response)
 }
 
-fn method_from_str(method: &str) -> roc_app::InternalMethod {
-    match method {
-        "DELETE" => roc_app::InternalMethod::Delete,
-        "GET" => roc_app::InternalMethod::Get,
-        "HEAD" => roc_app::InternalMethod::Head,
-        "OPTIONS" => roc_app::InternalMethod::Options,
-        "POST" => roc_app::InternalMethod::Post,
-        "PUT" => roc_app::InternalMethod::Put,
-        _ => todo!("handle unrecognized method from Roc: {method:?}"),
-    }
-}
-
-fn to_server_response(resp: roc_app::InternalResponse) -> hyper::Response<hyper::Body> {
+fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response<hyper::Body> {
     let mut builder = hyper::Response::builder();
 
-    match hyper::StatusCode::from_u16(resp.status) {
+    match roc_response.hyper_status() {
         Ok(status_code) => {
             builder = builder.status(status_code);
         }
         Err(_) => {
-            todo!("invalid status code from Roc: {:?}", resp.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
+            todo!("invalid status code from Roc: {:?}", roc_response.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
         }
     };
 
-    for header in resp.headers.iter() {
-        builder = builder.header(header.name.as_str(), header.value.as_slice());
+    for header in roc_response.headers.iter() {
+        builder = builder.header(header.key.as_str(), header.value.as_bytes());
     }
 
     builder
-        .body(Vec::from(resp.body.as_slice()).into()) // TODO try not to use Vec here
+        .body(Vec::from(roc_response.body.as_slice()).into()) // TODO try not to use Vec here
         .unwrap() // TODO don't unwrap this
 }
 
@@ -92,18 +82,11 @@ async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::
     #[allow(deprecated)]
     match hyper::body::to_bytes(body).await {
         Ok(body) => {
-            spawn_blocking(move || {
-                call_roc(
-                    parts.method.as_str(),
-                    &parts.uri.to_string(),
-                    parts.headers.iter(),
-                    body,
-                )
-            })
-            .then(|resp| async {
-                resp.unwrap() // TODO don't unwrap here
-            })
-            .await
+            spawn_blocking(move || call_roc(parts.method, parts.uri, parts.headers.iter(), body))
+                .then(|resp| async {
+                    resp.unwrap() // TODO don't unwrap here
+                })
+                .await
         }
         Err(_) => {
             hyper::Response::builder()

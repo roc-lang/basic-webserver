@@ -78,32 +78,6 @@ pub struct RocResult<T, E> {
     tag: RocResultTag,
 }
 
-impl<T, E> RocRefcounted for RocResult<T, E>
-where
-    T: RocRefcounted,
-    E: RocRefcounted,
-{
-    fn inc(&mut self) {
-        unsafe {
-            match self.tag {
-                RocResultTag::RocOk => (*self.payload.ok).inc(),
-                RocResultTag::RocErr => (*self.payload.err).inc(),
-            }
-        }
-    }
-    fn dec(&mut self) {
-        unsafe {
-            match self.tag {
-                RocResultTag::RocOk => (*self.payload.ok).dec(),
-                RocResultTag::RocErr => (*self.payload.err).dec(),
-            }
-        }
-    }
-    fn is_refcounted() -> bool {
-        true
-    }
-}
-
 impl<T, E> Debug for RocResult<T, E>
 where
     T: Debug,
@@ -675,3 +649,29 @@ roc_refcounted_tuple_impl!(0 A, 1 B, 3 C, 3 D, 4 E);
 roc_refcounted_tuple_impl!(0 A, 1 B, 3 C, 3 D, 4 E, 5 F);
 roc_refcounted_tuple_impl!(0 A, 1 B, 3 C, 3 D, 4 E, 5 F, 6 G);
 roc_refcounted_tuple_impl!(0 A, 1 B, 3 C, 3 D, 4 E, 5 F, 6 G, 7 H);
+
+impl<T, E> RocRefcounted for RocResult<T, E>
+where
+    T: RocRefcounted,
+    E: RocRefcounted,
+{
+    fn inc(&mut self) {
+        unsafe {
+            match self.tag {
+                RocResultTag::RocOk => (*self.payload.ok).inc(),
+                RocResultTag::RocErr => (*self.payload.err).inc(),
+            }
+        }
+    }
+    fn dec(&mut self) {
+        unsafe {
+            match self.tag {
+                RocResultTag::RocOk => (*self.payload.ok).dec(),
+                RocResultTag::RocErr => (*self.payload.err).dec(),
+            }
+        }
+    }
+    fn is_refcounted() -> bool {
+        T::is_refcounted() || E::is_refcounted()
+    }
+}

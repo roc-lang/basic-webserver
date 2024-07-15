@@ -9,6 +9,7 @@ import InternalCommand
 import InternalTcp
 import InternalSQL
 import InternalError
+import InternalFile
 
 GlueTypes : {
     a : InternalCommand.InternalCommand,
@@ -22,6 +23,8 @@ GlueTypes : {
     i : InternalTcp.StreamErr,
     j : InternalError.InternalDirReadErr,
     k : InternalSQL.SQLiteValue,
+    l : InternalFile.ReadErr,
+    m : InternalFile.WriteErr,
 }
 
 mainForHost : GlueTypes

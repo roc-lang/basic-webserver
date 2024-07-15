@@ -16,11 +16,6 @@ struct HostedFn {
 
 const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
-        name: "sendRequest",
-        arg_types: &["&roc_app::InternalRequest"],
-        ret_type: "roc_app::InternalResponse",
-    },
-    HostedFn {
         name: "envVar",
         arg_types: &["&roc_std::RocStr"],
         ret_type: "roc_std::RocResult<roc_std::RocStr, ()>",

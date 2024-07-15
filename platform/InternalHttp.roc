@@ -1,49 +1,143 @@
 module [
-    InternalRequest,
-    InternalMethod,
-    InternalHeader,
-    InternalTimeoutConfig,
-    InternalPart,
-    InternalResponse,
-    InternalMetadata,
-    InternalError,
+    Request,
+    RequestToAndFromHost,
+    fromHostRequest,
+    Response,
+    ResponseToHost,
+    ResponseFromHost,
+    Method,
+    Header,
+    TimeoutConfig,
+    Error,
+    ErrorBody,
+    errorBodyToUtf8,
+    errorBodyFromUtf8,
 ]
 
-InternalRequest : {
-    method : InternalMethod,
-    headers : List InternalHeader,
+Request : {
+    method : Method,
+    headers : List Header,
     url : Str,
     mimeType : Str,
     body : List U8,
-    timeout : InternalTimeoutConfig,
+    timeout : TimeoutConfig,
 }
 
-InternalMethod : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
+# requestFromInternal : RequestToAndFromHost -> Request
+# requestFromInternal = \{ method, headers, url, mimeType, body, timeoutMs } ->
+#    {
+#        method: methodFromStr method,
+#        headers,
+#        url,
+#        mimeType,
+#        body,
+#        timeout: if timeoutMs == 0 then NoTimeout else TimeoutMilliseconds timeoutMs,
+#    }
 
-InternalHeader : { name : Str, value : List U8 }
+RequestToAndFromHost : {
+    method : Str,
+    headers : List Header,
+    url : Str,
+    mimeType : Str,
+    body : List U8,
+    timeoutMs : U64,
+}
 
-# Name is distinguished from the Timeout tag used in InternalResponse and InternalError
-InternalTimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
+fromHostRequest : RequestToAndFromHost -> Request
 
-InternalPart : [Part Str (List U8)]
+# Name is distinguished from the Timeout tag used in Response and Error
+TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
-InternalResponse : {
+Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
+
+#methodFromStr : Str -> Method
+#methodFromStr = \str ->
+#    when str is
+#        "Options" -> Options
+#        "Get" -> Get
+#        "Post" -> Post
+#        "Put" -> Put
+#        "Delete" -> Delete
+#        "Head" -> Head
+#        "Trace" -> Trace
+#        "Connect" -> Connect
+#        "Patch" -> Patch
+#        _ -> crash "unrecognized method from host"
+
+Header : {
+    name : Str,
+    value : Str,
+}
+
+Response : ResponseToHost
+
+ResponseToHost : {
     status : U16,
-    headers : List InternalHeader,
+    headers : List Header,
     body : List U8,
 }
 
-InternalMetadata : {
+ResponseFromHost : {
+    variant : Str,
+    metadata : Metadata,
+    body : List U8,
+}
+
+# fromInternalResponse : InternalResponse, U64 -> Result Response Error
+# fromInternalResponse = \{ variant, body, metadata }, timeoutMs ->
+#    when variant is
+#        "Timeout" -> Err (Timeout timeoutMs)
+#        "NetworkErr" -> Err NetworkError
+#        "BadStatus" ->
+#            Err
+#                (
+#                    BadStatus {
+#                        code: metadata.statusCode,
+#                        body: errorBodyFromUtf8 body,
+#                    }
+#                )
+
+#        "GoodStatus" ->
+#            Ok {
+#                status: metadata.statusCode,
+#                headers: metadata.headers,
+#                body,
+#            }
+
+#        "BadRequest" -> Err (BadRequest metadata.statusText)
+
+#        _ -> Err (BadRequest metadata.statusText)
+
+Metadata : {
     url : Str,
     statusCode : U16,
     statusText : Str,
-    headers : List InternalHeader,
+    headers : List Header,
 }
 
-InternalError : [
+Error : [
     BadRequest Str,
-    Timeout,
+    Timeout U64,
     NetworkError,
-    BadStatus U16,
+    BadStatus { code : U16, body : ErrorBody },
     BadBody Str,
 ]
+
+ErrorBody := List U8 implements [
+        Inspect {
+            toInspector: errorBodyToInspector,
+        },
+    ]
+
+errorBodyToInspector : ErrorBody -> _
+errorBodyToInspector = \@ErrorBody val ->
+    fmt <- Inspect.custom
+    when val |> List.takeFirst 50 |> Str.fromUtf8 is
+        Ok str -> Inspect.apply (Inspect.str str) fmt
+        Err _ -> Inspect.apply (Inspect.str "Invalid UTF-8 data") fmt
+
+errorBodyToUtf8 : ErrorBody -> List U8
+errorBodyToUtf8 = \@ErrorBody body -> body
+
+errorBodyFromUtf8 : List U8 -> ErrorBody
+errorBodyFromUtf8 = \body -> @ErrorBody body
