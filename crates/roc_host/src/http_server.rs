@@ -48,8 +48,6 @@ fn call_roc<'a>(
 
     let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    dbg!(&roc_request);
-
     let roc_response = roc::main_for_host(roc_request).force_thunk();
 
     to_server_response(roc_response)

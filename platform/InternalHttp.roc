@@ -23,17 +23,6 @@ Request : {
     timeout : TimeoutConfig,
 }
 
-# requestFromInternal : RequestToAndFromHost -> Request
-# requestFromInternal = \{ method, headers, url, mimeType, body, timeoutMs } ->
-#    {
-#        method: methodFromStr method,
-#        headers,
-#        url,
-#        mimeType,
-#        body,
-#        timeout: if timeoutMs == 0 then NoTimeout else TimeoutMilliseconds timeoutMs,
-#    }
-
 RequestToAndFromHost : {
     method : Str,
     headers : List Header,
@@ -44,25 +33,34 @@ RequestToAndFromHost : {
 }
 
 fromHostRequest : RequestToAndFromHost -> Request
+fromHostRequest = \{ method, headers, url, mimeType, body, timeoutMs } ->
+    {
+        method: methodFromStr method,
+        headers,
+        url,
+        mimeType,
+        body,
+        timeout: if timeoutMs == 0 then NoTimeout else TimeoutMilliseconds timeoutMs,
+    }
 
 # Name is distinguished from the Timeout tag used in Response and Error
 TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
 Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
 
-#methodFromStr : Str -> Method
-#methodFromStr = \str ->
-#    when str is
-#        "Options" -> Options
-#        "Get" -> Get
-#        "Post" -> Post
-#        "Put" -> Put
-#        "Delete" -> Delete
-#        "Head" -> Head
-#        "Trace" -> Trace
-#        "Connect" -> Connect
-#        "Patch" -> Patch
-#        _ -> crash "unrecognized method from host"
+methodFromStr : Str -> Method
+methodFromStr = \str ->
+    when str is
+        "Options" -> Options
+        "Get" -> Get
+        "Post" -> Post
+        "Put" -> Put
+        "Delete" -> Delete
+        "Head" -> Head
+        "Trace" -> Trace
+        "Connect" -> Connect
+        "Patch" -> Patch
+        _ -> crash "unrecognized method from host"
 
 Header : {
     name : Str,
@@ -82,31 +80,6 @@ ResponseFromHost : {
     metadata : Metadata,
     body : List U8,
 }
-
-# fromInternalResponse : InternalResponse, U64 -> Result Response Error
-# fromInternalResponse = \{ variant, body, metadata }, timeoutMs ->
-#    when variant is
-#        "Timeout" -> Err (Timeout timeoutMs)
-#        "NetworkErr" -> Err NetworkError
-#        "BadStatus" ->
-#            Err
-#                (
-#                    BadStatus {
-#                        code: metadata.statusCode,
-#                        body: errorBodyFromUtf8 body,
-#                    }
-#                )
-
-#        "GoodStatus" ->
-#            Ok {
-#                status: metadata.statusCode,
-#                headers: metadata.headers,
-#                body,
-#            }
-
-#        "BadRequest" -> Err (BadRequest metadata.statusText)
-
-#        _ -> Err (BadRequest metadata.statusText)
 
 Metadata : {
     url : Str,
