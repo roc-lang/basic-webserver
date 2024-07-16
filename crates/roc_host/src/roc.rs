@@ -938,3 +938,10 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
         sqlite::Value::Null => roc_app::SQLiteValue::Null(),
     }
 }
+
+#[no_mangle]
+pub extern "C" fn roc_fx_tmpDir() -> RocStr {
+    format!("{}", std::env::temp_dir().display())
+        .as_str()
+        .into()
+}

@@ -1,4 +1,4 @@
-module [cwd, list, var, decode, exePath, setCwd]
+module [cwd, list, var, decode, exePath, setCwd, tmpDir]
 
 import Task exposing [Task]
 import Path exposing [Path]
@@ -130,3 +130,9 @@ list =
 # Alternatively, it could make sense to have some sort of tag union convention here, e.g.
 # if decoding into a tag union of [Present val, Missing], then it knows what to do.
 # decodeAll : Task val [] [EnvDecodingFailed Str] [Env] where val implements Decoding
+
+tmpDir : Task Str []_
+tmpDir =
+    Effect.tmpDir
+    |> Effect.map Ok
+    |> InternalTask.fromEffect
