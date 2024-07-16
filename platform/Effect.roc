@@ -34,7 +34,7 @@ hosted Effect
         commandStatus,
         commandOutput,
         sqliteExecute,
-        tmpDir,
+        tempDir,
     ]
     imports [
         InternalHttp,
@@ -93,4 +93,4 @@ commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.In
 # SQLite3
 sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError)
 
-tmpDir : Effect Str
+tempDir : Effect (List U8)

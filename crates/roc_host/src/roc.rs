@@ -940,8 +940,8 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tmpDir() -> RocStr {
-    format!("{}", std::env::temp_dir().display())
-        .as_str()
-        .into()
+pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
+    let path_os_string_bytes = std::env::temp_dir().into_os_string().into_encoded_bytes();
+
+    RocList::from(path_os_string_bytes.as_slice())
 }
