@@ -15,12 +15,14 @@ module [
     getUtf8,
     methodToStr,
     parseFormUrlEncoded,
+    parseMultipartFormData,
 ]
 
 import Effect
 import InternalTask
 import Task exposing [Task]
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
+import MultipartFormData
 
 ## Represents an HTTP request.
 Request : InternalHttp.Request
@@ -293,3 +295,12 @@ hexToDec = \byte ->
 
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
+
+parseMultipartFormData : {
+    body : List U8,
+    boundary : List U8,
+} -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData]
+parseMultipartFormData = \args ->
+    args
+    |> MultipartFormData.parse
+    |> Result.mapErr \_ -> InvalidMultipartFormData
