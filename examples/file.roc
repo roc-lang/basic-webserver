@@ -2,7 +2,6 @@ app [main] { pf: platform "../platform/main.roc" }
 
 import pf.File
 import pf.Path
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
 main : Request -> Task Response []

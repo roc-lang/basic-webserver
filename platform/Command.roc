@@ -11,10 +11,8 @@ module [
     output,
 ]
 
-import Task exposing [Task]
-import InternalTask
 import InternalCommand
-import Effect
+import PlatformTask
 
 ## Represents a command to be executed in a child process.
 ## ```
@@ -153,9 +151,7 @@ clearEnvs = \@Command cmd ->
 ## ```
 output : Command -> Task Output *
 output = \@Command cmd ->
-    Effect.commandOutput (Box.box cmd)
-    |> Effect.map (\out -> Ok out)
-    |> InternalTask.fromEffect
+    PlatformTask.commandOutput (Box.box cmd)
 
 ## Execute command and inheriting stdin, stdout and stderr from parent
 ## ```
@@ -175,5 +171,4 @@ output = \@Command cmd ->
 ## ```
 status : Command -> Task {} Error
 status = \@Command cmd ->
-    Effect.commandStatus (Box.box cmd)
-    |> InternalTask.fromEffect
+    PlatformTask.commandStatus (Box.box cmd)

@@ -5,7 +5,6 @@ import pf.Stderr
 import pf.Dir
 import pf.Env
 import pf.Path
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
 main : Request -> Task Response []

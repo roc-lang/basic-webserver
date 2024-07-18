@@ -16,9 +16,7 @@ module [
     parseFormUrlEncoded,
 ]
 
-import Effect
-import InternalTask
-import Task exposing [Task]
+import PlatformTask
 import InternalHttp
 
 ## Represents an HTTP request.
@@ -117,9 +115,8 @@ errorToString = \err ->
 send : Request -> Task Str Error
 send = \req ->
     # TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
-    Effect.sendRequest (Box.box req)
-    |> Effect.map handleStringResponse
-    |> InternalTask.fromEffect
+    PlatformTask.sendRequest (Box.box req)
+    |> Task.await \result -> result |> handleStringResponse |> Task.fromResult
 
 getUtf8 : Str -> Task Str Error
 getUtf8 = \url ->
