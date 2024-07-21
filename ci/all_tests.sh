@@ -19,7 +19,7 @@ fi
 
 if [ -z "${EXAMPLES_DIR}" ]; then
   echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
-  
+
   exit 1
 fi
 
@@ -33,7 +33,7 @@ architecture=$(uname -m)
 
 for roc_file in $EXAMPLES_DIR*.roc; do
     # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
-    $ROC build $roc_file --linker=legacy
+    $ROC build --prebuilt-platform --linker=legacy $roc_file
 done
 
 # `roc test` every roc file if it contains a test, skip roc_nightly folder
