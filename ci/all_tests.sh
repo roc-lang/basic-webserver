@@ -23,6 +23,9 @@ if [ -z "${EXAMPLES_DIR}" ]; then
   exit 1
 fi
 
+# build the basic-cli platform
+$ROC ./build.roc --prebuilt-platform -- --roc $ROC
+
 # roc check
 for roc_file in $EXAMPLES_DIR*.roc; do
     $ROC check $roc_file
