@@ -28,9 +28,6 @@ jobs:
           name: enigmaticsunrise
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
-      - name: Build platform binary
-        run: nix develop -c sh -c 'roc ./build.roc --release'
-
       #  the result folder is produced by the previous step
       - name: Run all tests
         run: nix develop -c sh -c 'export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'

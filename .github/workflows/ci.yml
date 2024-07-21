@@ -42,9 +42,6 @@ jobs:
       - name: print expect version
         run: expect -v
 
-      - name: Build platform binary
-        run: ./roc_nightly/roc ./build.roc --release --cli ./roc_nightly/roc
-
       # Run all tests
       - run: ROC=./roc_nightly/roc EXAMPLES_DIR=./examples/ ./ci/all_tests.sh
 # TODO clippy, rustfmt, roc fmt check
