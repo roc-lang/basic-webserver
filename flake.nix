@@ -26,8 +26,6 @@
 
         llvmPkgs = pkgs.llvmPackages_16;
 
-        # get current working directory
-        cwd = builtins.toString ./.;
         rust =
           pkgs.rust-bin.fromRustupToolchainFile "${toString ./rust-toolchain.toml}";
 

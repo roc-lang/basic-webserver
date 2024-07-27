@@ -75,17 +75,15 @@ handleStringResponse : Response -> Result Str Err
 handleStringResponse = \response ->
     response.body
     |> Str.fromUtf8
-    |> Result.mapErr \BadUtf8 _ pos ->
-        position = Num.toStr pos
-
-        BadBody "Invalid UTF-8 at byte offset $(position)"
+    |> Result.mapErr \BadUtf8 _ position ->
+        BadBody "Invalid UTF-8 at byte offset $(Num.toStr position)"
 
 ## Convert an [Err] to a [Str].
 errorToString : Err -> Str
 errorToString = \err ->
     when err is
         BadRequest e -> "Invalid Request: $(e)"
-        Timeout ms -> "Request timed out after $(Num.toStr ms) ms."
+        Timeout milliseconds -> "Request timed out after $(Num.toStr milliseconds) ms."
         NetworkError -> "Network error."
         BadStatus { code, body } ->
             when body |> errorBodyToUtf8 |> Str.fromUtf8 is
@@ -112,7 +110,7 @@ errorToString = \err ->
 send : Request -> Task Response [HttpErr Err]
 send = \req ->
 
-    timeoutMs =
+    timeoutMilliseconds =
         when req.timeout is
             NoTimeout -> 0
             TimeoutMilliseconds ms -> ms
@@ -126,7 +124,7 @@ send = \req ->
         url: req.url,
         mimeType: req.mimeType,
         body: req.body,
-        timeoutMs,
+        timeoutMilliseconds,
     }
 
     # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
@@ -135,7 +133,7 @@ send = \req ->
     |> InternalTask.fromEffect
     |> Task.await \{ variant, body, metadata } ->
         when variant is
-            "Timeout" -> Task.err (Timeout timeoutMs)
+            "Timeout" -> Task.err (Timeout timeoutMilliseconds)
             "NetworkErr" -> Task.err NetworkError
             "BadStatus" ->
                 Task.err

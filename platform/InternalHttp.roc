@@ -29,18 +29,18 @@ RequestToAndFromHost : {
     url : Str,
     mimeType : Str,
     body : List U8,
-    timeoutMs : U64,
+    timeoutMilliseconds : U64,
 }
 
 fromHostRequest : RequestToAndFromHost -> Request
-fromHostRequest = \{ method, headers, url, mimeType, body, timeoutMs } ->
+fromHostRequest = \{ method, headers, url, mimeType, body, timeoutMilliseconds } ->
     {
         method: methodFromStr method,
         headers,
         url,
         mimeType,
         body,
-        timeout: if timeoutMs == 0 then NoTimeout else TimeoutMilliseconds timeoutMs,
+        timeout: if timeoutMilliseconds == 0 then NoTimeout else TimeoutMilliseconds timeoutMilliseconds,
     }
 
 # Name is distinguished from the Timeout tag used in Response and Error

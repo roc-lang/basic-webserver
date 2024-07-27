@@ -61,7 +61,7 @@ impl RequestToAndFromHost {
             "Trace" => reqwest::Method::TRACE,
             "Connect" => reqwest::Method::CONNECT,
             "Patch" => reqwest::Method::PATCH,
-            _ => panic!("invalid http method Str from roc"),
+            other => panic!("The platform reveived an unknown HTTP method Str from Roc: {}.", other),
         }
     }
 }

@@ -4,6 +4,9 @@ version = "0.0.1"
 authors = ["The Roc Contributors"]
 license = "UPL-1.0"
 edition = "2018"
+description = "This provides the [host](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#host) implementation for the platform."
+
+links = "app"
 
 [lib]
 name = "roc_host"
