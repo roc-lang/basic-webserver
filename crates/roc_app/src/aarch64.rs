@@ -312,7 +312,17 @@ impl Drop for InternalCommandErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for InternalCommandErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
@@ -759,7 +769,17 @@ impl Drop for ConnectErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for ConnectErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -991,7 +1011,17 @@ impl Drop for ConnectResult {
     }
 }
 
-
+impl roc_std::RocRefcounted for ConnectResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -1370,7 +1400,17 @@ impl Drop for StreamErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for StreamErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -1604,7 +1644,17 @@ impl Drop for ReadResult {
     }
 }
 
-
+impl roc_std::RocRefcounted for ReadResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -1878,7 +1928,17 @@ impl Drop for ReadExactlyResult {
     }
 }
 
-
+impl roc_std::RocRefcounted for ReadExactlyResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -2091,7 +2151,17 @@ impl Drop for WriteResult {
     }
 }
 
-
+impl roc_std::RocRefcounted for WriteResult {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -2413,7 +2483,17 @@ impl Drop for UnwrappedPath {
     }
 }
 
-
+impl roc_std::RocRefcounted for UnwrappedPath {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
@@ -2450,7 +2530,17 @@ impl core::fmt::Debug for InternalDirReadErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for InternalDirReadErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -2765,7 +2855,17 @@ impl Drop for SQLiteValue {
     }
 }
 
-
+impl roc_std::RocRefcounted for SQLiteValue {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -3257,7 +3357,17 @@ impl Drop for ReadErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for ReadErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
@@ -4031,7 +4141,17 @@ impl Drop for WriteErr {
     }
 }
 
-
+impl roc_std::RocRefcounted for WriteErr {
+    fn inc(&mut self) {
+        unimplemented!();
+    }
+    fn dec(&mut self) {
+        unimplemented!();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[repr(C)]
