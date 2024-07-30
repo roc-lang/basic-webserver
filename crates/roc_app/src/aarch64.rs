@@ -2867,6 +2867,46 @@ impl roc_std::RocRefcounted for SQLiteValue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[repr(C)]
+pub struct SQLiteBindings {
+    pub name: roc_std::RocStr,
+    pub value: SQLiteValue,
+}
+
+impl roc_std::RocRefcounted for SQLiteBindings {
+    fn inc(&mut self) {
+        self.name.inc();
+        self.value.inc();
+    }
+    fn dec(&mut self) {
+        self.name.dec();
+        self.value.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(C)]
+pub struct SQLiteError {
+    pub code: i64,
+    pub message: roc_std::RocStr,
+}
+
+impl roc_std::RocRefcounted for SQLiteError {
+    fn inc(&mut self) {
+        self.message.inc();
+    }
+    fn dec(&mut self) {
+        self.message.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
 pub enum discriminant_ReadErr {
@@ -4153,6 +4193,24 @@ impl roc_std::RocRefcounted for WriteErr {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(u8)]
+pub enum SQLiteState {
+    Done = 0,
+    Row = 1,
+}
+
+impl core::fmt::Debug for SQLiteState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Done => f.write_str("SQLiteState::Done"),
+            Self::Row => f.write_str("SQLiteState::Row"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(SQLiteState);
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct GlueTypes {
@@ -4166,9 +4224,12 @@ pub struct GlueTypes {
     pub h: ConnectErr,
     pub i: StreamErr,
     pub j: InternalDirReadErr,
-    pub k: SQLiteValue,
-    pub l: ReadErr,
-    pub m: WriteErr,
+    pub k: SQLiteBindings,
+    pub l: SQLiteError,
+    pub n: SQLiteValue,
+    pub o: ReadErr,
+    pub p: WriteErr,
+    pub m: SQLiteState,
 }
 
 impl roc_std::RocRefcounted for GlueTypes {
@@ -4185,7 +4246,9 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.j.inc();
         self.k.inc();
         self.l.inc();
-        self.m.inc();
+        self.n.inc();
+        self.o.inc();
+        self.p.inc();
     }
     fn dec(&mut self) {
         self.a.dec();
@@ -4200,7 +4263,9 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.j.dec();
         self.k.dec();
         self.l.dec();
-        self.m.dec();
+        self.n.dec();
+        self.o.dec();
+        self.p.dec();
     }
     fn is_refcounted() -> bool {
         true

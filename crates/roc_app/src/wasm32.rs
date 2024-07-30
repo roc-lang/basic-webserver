@@ -1019,6 +1019,46 @@ impl roc_std::RocRefcounted for SQLiteValue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[repr(C)]
+pub struct SQLiteBindings {
+    pub value: SQLiteValue,
+    pub name: roc_std::RocStr,
+}
+
+impl roc_std::RocRefcounted for SQLiteBindings {
+    fn inc(&mut self) {
+        self.value.inc();
+        self.name.inc();
+    }
+    fn dec(&mut self) {
+        self.value.dec();
+        self.name.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(C)]
+pub struct SQLiteError {
+    pub code: i64,
+    pub message: roc_std::RocStr,
+}
+
+impl roc_std::RocRefcounted for SQLiteError {
+    fn inc(&mut self) {
+        self.message.inc();
+    }
+    fn dec(&mut self) {
+        self.message.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct InternalCommand {
@@ -4153,11 +4193,31 @@ impl roc_std::RocRefcounted for WriteErr {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(u8)]
+pub enum SQLiteState {
+    Done = 0,
+    Row = 1,
+}
+
+impl core::fmt::Debug for SQLiteState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Done => f.write_str("SQLiteState::Done"),
+            Self::Row => f.write_str("SQLiteState::Row"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(SQLiteState);
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct GlueTypes {
     pub d: ConnectResult,
-    pub k: SQLiteValue,
+    pub k: SQLiteBindings,
+    pub l: SQLiteError,
+    pub n: SQLiteValue,
     pub a: InternalCommand,
     pub b: InternalOutput,
     pub c: InternalCommandErr,
@@ -4167,14 +4227,17 @@ pub struct GlueTypes {
     pub h: ConnectErr,
     pub i: StreamErr,
     pub j: InternalDirReadErr,
-    pub l: ReadErr,
-    pub m: WriteErr,
+    pub o: ReadErr,
+    pub p: WriteErr,
+    pub m: SQLiteState,
 }
 
 impl roc_std::RocRefcounted for GlueTypes {
     fn inc(&mut self) {
         self.d.inc();
         self.k.inc();
+        self.l.inc();
+        self.n.inc();
         self.a.inc();
         self.b.inc();
         self.c.inc();
@@ -4184,12 +4247,14 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.h.inc();
         self.i.inc();
         self.j.inc();
-        self.l.inc();
-        self.m.inc();
+        self.o.inc();
+        self.p.inc();
     }
     fn dec(&mut self) {
         self.d.dec();
         self.k.dec();
+        self.l.dec();
+        self.n.dec();
         self.a.dec();
         self.b.dec();
         self.c.dec();
@@ -4199,8 +4264,8 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.h.dec();
         self.i.dec();
         self.j.dec();
-        self.l.dec();
-        self.m.dec();
+        self.o.dec();
+        self.p.dec();
     }
     fn is_refcounted() -> bool {
         true

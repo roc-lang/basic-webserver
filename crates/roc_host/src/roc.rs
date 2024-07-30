@@ -728,51 +728,28 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
     RocList::from(bytes.as_slice())
 }
 
-#[repr(C, align(8))]
-pub struct SQLiteError {
-    code: i64,
-    message: roc_std::RocStr,
-}
+#[repr(transparent)]
+struct BindableSQLiteBindings<'a>(&'a roc_app::SQLiteBindings)
 
-#[repr(C, align(8))]
-pub struct SQLiteBindings {
-    name: roc_std::RocStr,
-    value: roc_app::SQLiteValue,
-}
-
-impl sqlite::Bindable for &SQLiteBindings {
+impl sqlite::Bindable for &BindableSQLiteBindings<'_> {
     fn bind(self, stmt: &mut sqlite::Statement) -> sqlite::Result<()> {
-        match self.value.discriminant() {
+        match self.0.value.discriminant() {
             roc_app::discriminant_SQLiteValue::Bytes => {
-                stmt.bind((self.name.as_str(), self.value.borrow_Bytes().as_slice()))
+                stmt.bind((self.0.name.as_str(), self.0.value.borrow_Bytes().as_slice()))
             }
             roc_app::discriminant_SQLiteValue::Integer => {
-                stmt.bind((self.name.as_str(), self.value.borrow_Integer()))
+                stmt.bind((self.0.name.as_str(), self.0.value.borrow_Integer()))
             }
             roc_app::discriminant_SQLiteValue::Real => {
-                stmt.bind((self.name.as_str(), self.value.borrow_Real()))
+                stmt.bind((self.0.name.as_str(), self.0.value.borrow_Real()))
             }
             roc_app::discriminant_SQLiteValue::String => {
-                stmt.bind((self.name.as_str(), self.value.borrow_String().as_str()))
+                stmt.bind((self.0.name.as_str(), self.0.value.borrow_String().as_str()))
             }
             roc_app::discriminant_SQLiteValue::Null => {
-                stmt.bind((self.name.as_str(), sqlite::Value::Null))
+                stmt.bind((self.0.name.as_str(), sqlite::Value::Null))
             }
         }
-    }
-}
-
-impl roc_std::RocRefcounted for SQLiteBindings {
-    fn inc(&mut self) {
-        self.name.inc();
-        self.value.inc();
-    }
-    fn dec(&mut self) {
-        self.name.dec();
-        self.value.dec();
-    }
-    fn is_refcounted() -> bool {
-        true
     }
 }
 
@@ -825,7 +802,7 @@ fn get_connection(path: &str) -> Result<Rc<sqlite::Connection>, sqlite::Error> {
 fn sqlite_prepare(
     db_path: &roc_std::RocStr,
     query: &roc_std::RocStr,
-) -> roc_std::RocResult<RocBox<()>, SQLiteError> {
+) -> roc_std::RocResult<RocBox<()>, roc_app::SQLiteError> {
     // Get the connection
     let connection = {
         match get_connection(db_path.as_str()) {
@@ -855,7 +832,10 @@ fn sqlite_prepare(
 }
 
 #[roc_fn(name = "sqliteBind")]
-fn sqlite_bind(stmt: RocBox<()>, bindings: &RocList<SQLiteBindings>) -> RocResult<(), SQLiteError> {
+fn sqlite_bind(
+    stmt: RocBox<()>,
+    bindings: &RocList<roc_app::SQLiteBindings>,
+) -> RocResult<(), roc_app::SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     // First, clear all old bindings. Then bind new values.
@@ -866,7 +846,7 @@ fn sqlite_bind(stmt: RocBox<()>, bindings: &RocList<SQLiteBindings>) -> RocResul
         }
     }
     for binding in bindings {
-        match stmt.bind(binding) {
+        match stmt.bind(&BindableSQLiteBindings(binding)) {
             Ok(()) => {}
             Err(err) => return roc_err_from_sqlite_err(err),
         }
@@ -890,7 +870,7 @@ fn sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
 fn sqlite_column_value(
     stmt: RocBox<()>,
     i: u64,
-) -> RocResult<glue_manual::SQLiteValue, SQLiteError> {
+) -> RocResult<roc_app::SQLiteValue, roc_app::SQLiteError> {
     let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_ref() };
     match stmt.read(i as usize) {
@@ -900,14 +880,14 @@ fn sqlite_column_value(
 }
 
 #[roc_fn(name = "sqliteStep")]
-fn sqlite_step(stmt: RocBox<()>) -> RocResult<glue_manual::SQLiteState, SQLiteError> {
+fn sqlite_step(stmt: RocBox<()>) -> RocResult<roc_app::SQLiteState, roc_app::SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     match stmt.next() {
         Ok(state) => {
             let state = match state {
-                sqlite::State::Row => glue_manual::SQLiteState::Row,
-                sqlite::State::Done => glue_manual::SQLiteState::Done,
+                sqlite::State::Row => roc_app::SQLiteState::Row,
+                sqlite::State::Done => roc_app::SQLiteState::Done,
             };
             RocResult::ok(state)
         }
@@ -916,7 +896,7 @@ fn sqlite_step(stmt: RocBox<()>) -> RocResult<glue_manual::SQLiteState, SQLiteEr
 }
 
 #[roc_fn(name = "sqliteReset")]
-fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), SQLiteError> {
+fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_app::SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     match stmt.reset() {
@@ -925,14 +905,14 @@ fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), SQLiteError> {
     }
 }
 
-fn roc_err_from_sqlite_err<T>(err: sqlite::Error) -> RocResult<T, SQLiteError> {
-    RocResult::err(SQLiteError {
+fn roc_err_from_sqlite_err<T>(err: sqlite::Error) -> RocResult<T, roc_app::SQLiteError> {
+    RocResult::err(roc_app::SQLiteError {
         code: err.code.unwrap_or_default() as i64,
         message: RocStr::from(err.message.unwrap_or_default().as_str()),
     })
 }
 
-fn roc_sql_from_sqlite_value(value: sqlite::Value) -> glue_manual::SQLiteValue {
+fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
     match value {
         sqlite::Value::Binary(bytes) => {
             roc_app::SQLiteValue::Bytes(RocList::from_slice(&bytes[..]))

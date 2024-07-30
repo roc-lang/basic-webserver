@@ -22,9 +22,12 @@ GlueTypes : {
     h : InternalTcp.ConnectErr,
     i : InternalTcp.StreamErr,
     j : InternalError.InternalDirReadErr,
-    k : InternalSQL.SQLiteValue,
-    l : InternalFile.ReadErr,
-    m : InternalFile.WriteErr,
+    k : InternalSQL.SQLiteBindings,
+    l : InternalSQL.SQLiteError,
+    m : InternalSQL.SQLiteState,
+    n : InternalSQL.SQLiteValue,
+    o : InternalFile.ReadErr,
+    p : InternalFile.WriteErr,
 }
 
 mainForHost : GlueTypes
