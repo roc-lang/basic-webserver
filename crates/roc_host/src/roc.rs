@@ -1,18 +1,23 @@
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::env;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::rc::Rc;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::heap::ThreadSafeRefcountedResourceHeap;
 use crate::http_client;
 use crate::roc_http::{self, ResponseToHost};
+use roc_app;
+
+// Externs required by roc_std and by the Roc app
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_alloc(size: usize, _alignment: u32) -> *mut c_void {
@@ -32,16 +37,11 @@ pub unsafe extern "C" fn roc_realloc(
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
     // If this happens to be a boxed sqlite stmt free the stmt.
-    // TODO: there is probably a more performant way to do this.
-    // One where instead of scanning a list, we just check a pointer range.
-    SQLITE_STMT_ADDRS.with(|stmts| {
-        if let Some(i) = stmts.borrow().iter().position(|x| *x == c_ptr) {
-            stmts.borrow_mut().swap_remove(i);
-            let data_ptr: *mut sqlite::Statement = c_ptr.cast::<*mut usize>().offset(1).cast();
-            std::mem::drop(std::ptr::read(data_ptr));
-        }
-    });
-
+    let heap = sqlite_stmt_heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
     libc::free(c_ptr);
 }
 
@@ -729,7 +729,7 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
 }
 
 #[repr(transparent)]
-struct BindableSQLiteBindings<'a>(&'a roc_app::SQLiteBindings)
+struct BindableSQLiteBindings<'a>(&'a roc_app::SQLiteBindings);
 
 impl sqlite::Bindable for &BindableSQLiteBindings<'_> {
     fn bind(self, stmt: &mut sqlite::Statement) -> sqlite::Result<()> {
@@ -760,7 +760,19 @@ struct SQLiteConnection {
 
 thread_local! {
     static SQLITE_CONNECTIONS : RefCell<Vec<SQLiteConnection>> = RefCell::new(vec![]);
-    static SQLITE_STMT_ADDRS : RefCell<Vec<*const c_void>> = RefCell::new(vec![]);
+}
+
+fn sqlite_stmt_heap() -> &'static ThreadSafeRefcountedResourceHeap<sqlite::Statement<'static>> {
+    static STMT_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<sqlite::Statement>> =
+        OnceLock::new();
+    STMT_HEAP.get_or_init(|| {
+        let default_max_stmts = 65536;
+        let max_stmts = env::var("ROC_BASIC_CLI_MAX_STMTS")
+            .map(|v| v.parse().unwrap_or(default_max_stmts))
+            .unwrap_or(default_max_stmts);
+        ThreadSafeRefcountedResourceHeap::new(max_stmts)
+            .expect("Failed to allocate mmap for sqlite statement handle references.")
+    })
 }
 
 const _ALIGN_CHECK_SQLITE_STMT: () =
@@ -819,16 +831,18 @@ fn sqlite_prepare(
         }
     };
 
-    let boxed_stmt: RocBox<sqlite::Statement> = RocBox::new(stmt);
-    let opaque_box: RocBox<()> = unsafe { std::mem::transmute(boxed_stmt) };
-
-    SQLITE_STMT_ADDRS.with(|stmts| {
-        let data_ptr: *const usize = opaque_box.contents.as_ptr().cast();
-        let alloc_ptr: *const c_void = unsafe { data_ptr.offset(-1).cast() };
-        stmts.borrow_mut().push(alloc_ptr);
-    });
-
-    RocResult::ok(opaque_box)
+    let heap = sqlite_stmt_heap();
+    // This is definitely unsafe and we should find a better way to deal with this.
+    // We are transmuting the lifetime to static. This is ok today cause we never close sqlite connections.
+    // We should fix this. Probably should store an (RC<Connection>, Statment>) instaed.
+    let alloc_result = unsafe { heap.alloc_for(std::mem::transmute(stmt)) };
+    match alloc_result {
+        Ok(out) => RocResult::ok(out),
+        Err(_) => RocResult::err(roc_app::SQLiteError {
+            code: 7, /*sqlite no memory error code*/
+            message: "Ran out of memory allocating space for statement".into(),
+        }),
+    }
 }
 
 #[roc_fn(name = "sqliteBind")]
@@ -836,15 +850,7 @@ fn sqlite_bind(
     stmt: RocBox<()>,
     bindings: &RocList<roc_app::SQLiteBindings>,
 ) -> RocResult<(), roc_app::SQLiteError> {
-    let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
-    let stmt = unsafe { stmt.as_mut() };
-    // First, clear all old bindings. Then bind new values.
-    for i in 0..stmt.column_count() {
-        match stmt.bind((i, sqlite::Value::Null)) {
-            Ok(()) => {}
-            Err(err) => return roc_err_from_sqlite_err(err),
-        }
-    }
+    let stmt: &mut sqlite::Statement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     for binding in bindings {
         match stmt.bind(&BindableSQLiteBindings(binding)) {
             Ok(()) => {}
@@ -856,8 +862,7 @@ fn sqlite_bind(
 
 #[roc_fn(name = "sqliteColumns")]
 fn sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
-    let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
-    let stmt = unsafe { stmt.as_ref() };
+    let stmt: &sqlite::Statement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     let cols = stmt.column_names();
     let mut list = RocList::with_capacity(cols.len());
     for col_name in cols.into_iter() {
@@ -871,8 +876,7 @@ fn sqlite_column_value(
     stmt: RocBox<()>,
     i: u64,
 ) -> RocResult<roc_app::SQLiteValue, roc_app::SQLiteError> {
-    let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
-    let stmt = unsafe { stmt.as_ref() };
+    let stmt: &sqlite::Statement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     match stmt.read(i as usize) {
         Ok(val) => RocResult::ok(roc_sql_from_sqlite_value(val)),
         Err(err) => roc_err_from_sqlite_err(err),
@@ -881,8 +885,7 @@ fn sqlite_column_value(
 
 #[roc_fn(name = "sqliteStep")]
 fn sqlite_step(stmt: RocBox<()>) -> RocResult<roc_app::SQLiteState, roc_app::SQLiteError> {
-    let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
-    let stmt = unsafe { stmt.as_mut() };
+    let stmt: &mut sqlite::Statement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     match stmt.next() {
         Ok(state) => {
             let state = match state {
@@ -897,8 +900,7 @@ fn sqlite_step(stmt: RocBox<()>) -> RocResult<roc_app::SQLiteState, roc_app::SQL
 
 #[roc_fn(name = "sqliteReset")]
 fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_app::SQLiteError> {
-    let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
-    let stmt = unsafe { stmt.as_mut() };
+    let stmt: &mut sqlite::Statement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     match stmt.reset() {
         Ok(()) => RocResult::ok(()),
         Err(err) => roc_err_from_sqlite_err(err),

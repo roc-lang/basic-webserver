@@ -35,3 +35,4 @@ futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
 sqlite = { version = "0.33.0", features = ["bundled"] }
+memmap2 = "=0.9.4"
