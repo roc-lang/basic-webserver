@@ -46,9 +46,7 @@ queryTodosByStatus = \dbPath, status ->
     }
     SQLite3.execute!
         stmt
-        (
-            SQLite3.succeed {
-                id: <- SQLite3.i64 "id" |> SQLite3.apply,
-                task: <- SQLite3.str "task" |> SQLite3.apply,
-            }
-        )
+        { SQLite3.map2 <-
+            id: SQLite3.i64 "id",
+            task: SQLite3.str "task",
+        }
