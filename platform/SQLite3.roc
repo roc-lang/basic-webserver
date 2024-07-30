@@ -94,8 +94,7 @@ reset = \@Stmt stmt ->
 DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
 DecodeCont a err : {} -> Task a (DecodeErr err)
 
-Decode a err :=
-    Stmt
+Decode a err := Stmt
     ->
     Task
         (DecodeCont a err)
@@ -121,6 +120,7 @@ decodeRows = \stmt, fn ->
                 |> Step
                 |> Task.ok
 
+decoder : (Value -> Result a (DecodeErr err)) -> (Str -> Decode a err)
 decoder = \fn -> \name ->
         stmt <- @Decode
 
@@ -132,54 +132,70 @@ decoder = \fn -> \name ->
 
         fn val |> Task.fromResult
 
+taggedValue : Str -> Decode Value []
 taggedValue = decoder \val ->
     Ok val
 
+str : Str -> Decode Str [UnexpectedType Value]
 str = decoder \val ->
     when val is
-        Str s -> Ok s
+        String s -> Ok s
         _ -> Err (UnexpectedType val)
 
+bytes : Str -> Decode (List U8) [UnexpectedType Value]
 bytes = decoder \val ->
     when val is
         Bytes b -> Ok b
         _ -> Err (UnexpectedType val)
 
+intDecoder : (I64 -> Result a err) -> (Str -> Decode a [UnexpectedType Value, FailedToDecodeInteger err])
 intDecoder = \cast ->
     decoder \val ->
         when val is
             Integer i -> cast i |> Result.mapErr FailedToDecodeInteger
             _ -> Err (UnexpectedType val)
 
+i64 : Str -> Decode I64 [UnexpectedType Value, FailedToDecodeInteger []]
 i64 = intDecoder Ok
 
+i32 : Str -> Decode I32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i32 = intDecoder Num.toI32Checked
 
+i16 : Str -> Decode I16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i16 = intDecoder Num.toI16Checked
 
+i8 : Str -> Decode I8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i8 = intDecoder Num.toI8Checked
 
+u64 : Str -> Decode U64 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u64 = intDecoder Num.toU64Checked
 
+u32 : Str -> Decode U32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u32 = intDecoder Num.toU32Checked
 
+u16 : Str -> Decode U16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u16 = intDecoder Num.toU16Checked
 
+u8 : Str -> Decode U8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u8 = intDecoder Num.toU8Checked
 
+realDecoder : (F64 -> Result a err) -> (Str -> Decode a [UnexpectedType Value, FailedToDecodeReal err])
 realDecoder = \cast ->
     decoder \val ->
         when val is
             Real r -> cast r |> Result.mapErr FailedToDecodeReal
             _ -> Err (UnexpectedType val)
 
+f64 : Str -> Decode F64 [UnexpectedType Value, FailedToDecodeReal []]
 f64 = realDecoder Ok
 
+f32 : Str -> Decode F32 [UnexpectedType Value, FailedToDecodeReal []]
 f32 = realDecoder (\x -> Num.toF32 x |> Ok)
 
 # TODO: Mising Num.toDec and Num.toDecChecked
 # dec = realDecoder Ok
 
+map2 : Decode a err, Decode b err, (a, b -> c) -> Decode c err
 map2 = \@Decode a, @Decode b, cb ->
     stmt <- @Decode
 
@@ -193,11 +209,14 @@ map2 = \@Decode a, @Decode b, cb ->
 
     Task.ok (cb valueA valueB)
 
+succeed : a -> Decode a err
 succeed = \value ->
-    @Decode \_ -> Task.ok \_ -> Task.ok value
+    @Decode \_stmt -> Task.ok \{} -> Task.ok value
 
+with : Decode (a -> b) err, Decode a err -> Decode b err
 with = \a, b -> map2 a b (\fn, val -> fn val)
 
+apply : Decode a err -> (Decode (a -> b) err -> Decode b err)
 apply = \a -> \fn -> with fn a
 
 internalToExternalError : InternalSQL.SQLiteError -> Error
