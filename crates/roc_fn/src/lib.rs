@@ -159,9 +159,9 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocResult<(), SQLiteError>",
     },
     HostedFn {
-        name: "sqliteColumnIndex",
-        arg_types: &["roc_std::RocBox<()>", "&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<u64, ()>",
+        name: "sqliteColumns",
+        arg_types: &["roc_std::RocBox<()>"],
+        ret_type: "roc_std::RocList<roc_std::RocStr>",
     },
     HostedFn {
         name: "sqliteColumnValue",

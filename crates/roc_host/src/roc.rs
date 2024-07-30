@@ -877,16 +877,16 @@ fn sqlite_bind(
     RocResult::ok(())
 }
 
-#[roc_fn(name = "sqliteColumnIndex")]
-fn sqlite_column_index(stmt: RocBox<()>, name: &roc_std::RocStr) -> roc_std::RocResult<u64, ()> {
+#[roc_fn(name = "sqliteColumns")]
+fn sqlite_columns(stmt: RocBox<()>) -> roc_std::RocList<roc_std::RocStr> {
     let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_ref() };
-    for (i, col_name) in stmt.column_names().iter().enumerate() {
-        if name.as_str() == col_name {
-            return RocResult::ok(i as u64);
-        }
+    let cols = stmt.column_names();
+    let mut list = roc_std::RocList::with_capacity(cols.len());
+    for col_name in cols.into_iter() {
+        list.append(col_name.as_str().into());
     }
-    RocResult::err(())
+    list
 }
 
 #[roc_fn(name = "sqliteColumnValue")]

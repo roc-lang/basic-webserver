@@ -21,9 +21,7 @@ module [
     u8,
     f64,
     f32,
-    succeed,
-    with,
-    apply,
+    map2,
 ]
 
 import InternalTask
@@ -67,11 +65,11 @@ bind = \@Stmt stmt, bindings ->
     |> InternalTask.fromEffect
     |> Task.mapErr internalToExternalError
 
-columnIndex : Stmt, Str -> Task U64 [FieldNotFound Str]
-columnIndex = \@Stmt stmt, name ->
-    Effect.sqliteColumnIndex stmt name
+columns : Stmt -> Task (List Str) []
+columns = \@Stmt stmt ->
+    Effect.sqliteColumns stmt
+    |> Effect.map Ok
     |> InternalTask.fromEffect
-    |> Task.mapErr \{} -> FieldNotFound name
 
 columnValue : Stmt, U64 -> Task Value Error
 columnValue = \@Stmt stmt, i ->
@@ -92,29 +90,35 @@ reset = \@Stmt stmt ->
     |> Task.mapErr internalToExternalError
 
 DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
-DecodeCont a err : {} -> Task a (DecodeErr err)
+Decode a err := List Str -> (Stmt -> Task a (DecodeErr err))
 
-Decode a err := Stmt
-    ->
-    Task
-        (DecodeCont a err)
-        (DecodeErr err)
+map2 : Decode a err, Decode b err, (a, b -> c) -> Decode c err
+map2 = \@Decode genFirst, @Decode genSecond, mapper ->
+    cols <- @Decode
+    decodeFirst = genFirst cols
+    decodeSecond = genSecond cols
+
+    \stmt ->
+        first = decodeFirst! stmt
+        second = decodeSecond! stmt
+        Task.ok (mapper first second)
 
 execute : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-execute = \stmt, @Decode getDecode ->
+execute = \stmt, decode ->
     reset! stmt
-    fn = getDecode! stmt
-    decodeRows stmt fn
+    decodeRows stmt decode
 
-decodeRows : Stmt, ({} -> Task a (DecodeErr err)) -> Task (List a) (DecodeErr err)
-decodeRows = \stmt, fn ->
+decodeRows : Stmt, Decode a err -> Task (List a) (DecodeErr err)
+decodeRows = \stmt, @Decode genDecode ->
+    cols = columns! stmt
+    decodeRow = genDecode cols
     Task.loop [] \out ->
         when step! stmt is
             Done ->
                 Task.ok (Done out)
 
             Row ->
-                row = fn! {}
+                row = decodeRow! stmt
 
                 List.append out row
                 |> Step
@@ -122,15 +126,19 @@ decodeRows = \stmt, fn ->
 
 decoder : (Value -> Result a (DecodeErr err)) -> (Str -> Decode a err)
 decoder = \fn -> \name ->
-        stmt <- @Decode
+        cols <- @Decode
 
-        index = columnIndex! stmt name
+        found = List.findFirstIndex cols \x -> x == name
+        when found is
+            Ok index ->
+                \stmt ->
+                    columnValue! stmt index
+                        |> fn
+                        |> Task.fromResult
 
-        {} <- Task.ok
-
-        val = columnValue! stmt index
-
-        fn val |> Task.fromResult
+            Err NotFound ->
+                \_ ->
+                    Task.err (FieldNotFound name)
 
 taggedValue : Str -> Decode Value []
 taggedValue = decoder \val ->
@@ -194,30 +202,6 @@ f32 = realDecoder (\x -> Num.toF32 x |> Ok)
 
 # TODO: Mising Num.toDec and Num.toDecChecked
 # dec = realDecoder Ok
-
-map2 : Decode a err, Decode b err, (a, b -> c) -> Decode c err
-map2 = \@Decode a, @Decode b, cb ->
-    stmt <- @Decode
-
-    decodeA = a! stmt
-    decodeB = b! stmt
-
-    {} <- Task.ok
-
-    valueA = decodeA! {}
-    valueB = decodeB! {}
-
-    Task.ok (cb valueA valueB)
-
-succeed : a -> Decode a err
-succeed = \value ->
-    @Decode \_stmt -> Task.ok \{} -> Task.ok value
-
-with : Decode (a -> b) err, Decode a err -> Decode b err
-with = \a, b -> map2 a b (\fn, val -> fn val)
-
-apply : Decode a err -> (Decode (a -> b) err -> Decode b err)
-apply = \a -> \fn -> with fn a
 
 internalToExternalError : InternalSQL.SQLiteError -> Error
 internalToExternalError = \{ code, message } ->
