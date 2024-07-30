@@ -855,10 +855,7 @@ fn sqlite_prepare(
 }
 
 #[roc_fn(name = "sqliteBind")]
-fn sqlite_bind(
-    stmt: RocBox<()>,
-    bindings: &roc_std::RocList<SQLiteBindings>,
-) -> roc_std::RocResult<(), SQLiteError> {
+fn sqlite_bind(stmt: RocBox<()>, bindings: &RocList<SQLiteBindings>) -> RocResult<(), SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     // First, clear all old bindings. Then bind new values.
@@ -878,11 +875,11 @@ fn sqlite_bind(
 }
 
 #[roc_fn(name = "sqliteColumns")]
-fn sqlite_columns(stmt: RocBox<()>) -> roc_std::RocList<roc_std::RocStr> {
+fn sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
     let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_ref() };
     let cols = stmt.column_names();
-    let mut list = roc_std::RocList::with_capacity(cols.len());
+    let mut list = RocList::with_capacity(cols.len());
     for col_name in cols.into_iter() {
         list.append(col_name.as_str().into());
     }
@@ -893,7 +890,7 @@ fn sqlite_columns(stmt: RocBox<()>) -> roc_std::RocList<roc_std::RocStr> {
 fn sqlite_column_value(
     stmt: RocBox<()>,
     i: u64,
-) -> roc_std::RocResult<glue_manual::SQLiteValue, SQLiteError> {
+) -> RocResult<glue_manual::SQLiteValue, SQLiteError> {
     let stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_ref() };
     match stmt.read(i as usize) {
@@ -903,7 +900,7 @@ fn sqlite_column_value(
 }
 
 #[roc_fn(name = "sqliteStep")]
-fn sqlite_step(stmt: RocBox<()>) -> roc_std::RocResult<glue_manual::SQLiteState, SQLiteError> {
+fn sqlite_step(stmt: RocBox<()>) -> RocResult<glue_manual::SQLiteState, SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     match stmt.next() {
@@ -919,7 +916,7 @@ fn sqlite_step(stmt: RocBox<()>) -> roc_std::RocResult<glue_manual::SQLiteState,
 }
 
 #[roc_fn(name = "sqliteReset")]
-fn sqlite_reset(stmt: RocBox<()>) -> roc_std::RocResult<(), SQLiteError> {
+fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), SQLiteError> {
     let mut stmt: std::ptr::NonNull<sqlite::Statement> = unsafe { std::mem::transmute(stmt) };
     let stmt = unsafe { stmt.as_mut() };
     match stmt.reset() {
