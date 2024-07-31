@@ -1,4 +1,4 @@
-module [cwd, list, var, decode, exePath, setCwd]
+module [cwd, list, var, decode, exePath, setCwd, tempDir]
 
 import Task exposing [Task]
 import Path exposing [Path]
@@ -130,3 +130,18 @@ list =
 # Alternatively, it could make sense to have some sort of tag union convention here, e.g.
 # if decoding into a tag union of [Present val, Missing], then it knows what to do.
 # decodeAll : Task val [] [EnvDecodingFailed Str] [Env] where val implements Decoding
+
+## This uses rust's [`std::env::temp_dir()`](https://doc.rust-lang.org/std/env/fn.temp_dir.html)
+##
+## !! From the Rust documentation:
+##
+## The temporary directory may be shared among users, or between processes with different privileges;
+## thus, the creation of any files or directories in the temporary directory must use a secure method
+## to create a uniquely named file. Creating a file or directory with a fixed or predictable name may
+## result in “insecure temporary file” security vulnerabilities.
+##
+tempDir : Task Path []_
+tempDir =
+    Effect.tempDir
+    |> Effect.map (\pathOSStringBytes -> Ok (InternalPath.fromOsBytes pathOSStringBytes))
+    |> InternalTask.fromEffect

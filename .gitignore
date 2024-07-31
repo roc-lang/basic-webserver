@@ -11,11 +11,15 @@
 # Ignore generated docs
 generated-docs/
 
+target/
+
 app
 *.o
 *.so
 *.so.*
 .DS_Store
+*.a
+*.dylib
 
 # roc linking files
 dynhost
@@ -33,3 +37,11 @@ examples/env
 examples/command
 examples/sqlite3
 examples/hello-web
+
+.DS_Store
+
+# glue generated files
+crates/roc_std
+
+# build script artifacts
+build

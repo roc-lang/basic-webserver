@@ -1,4 +1,4 @@
-on: 
+on:
   pull_request:
   workflow_dispatch:
 
@@ -8,17 +8,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   build-and-test:
     runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v3
-          
+
       - id: try_fetching_testing_release
         continue-on-error: true
         run: |
           curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-TESTING.tar.gz
-    
+
       - name: There are no TESTING releases, checking regular releases instead
         if: steps.try_fetching_testing_release.outcome == 'failure'
         run: |
@@ -43,8 +42,37 @@ jobs:
       - name: print expect version
         run: expect -v
 
-      # Run all tests 
+      # Run all tests
       - run: ROC=./roc_nightly/roc EXAMPLES_DIR=./examples/ ./ci/all_tests.sh
 
-# TODO clippy, rustfmt, roc fmt check
+      - name: Install dependencies for musl build
+        run: |
+          sudo apt-get install -y musl-tools
+          rustup target add x86_64-unknown-linux-musl
 
+      - name: Test building with musl target
+        run: CARGO_BUILD_TARGET=x86_64-unknown-linux-musl ./roc_nightly/roc build.roc --prebuilt-platform -- --roc ./roc_nightly/roc
+
+      - name: Test using musl build
+        run: |
+          # no need to build platform anymore
+          sed -i '/build\.roc\|jump-start\.sh/d' ./ci/all_tests.sh
+          ROC=./roc_nightly/roc EXAMPLES_DIR=./examples/ ./ci/all_tests.sh
+
+    
+      - name: build example in README.md
+        run: |
+          roc_block_count=$(grep -c '```roc' README.md)
+          
+          # Error if more than one Roc code block
+          if [ $roc_block_count -gt 1 ]; then
+            echo "Error: Found $roc_block_count Roc code blocks in README.md. I only know how to test one. Modify this CI step to test them all."
+            exit 1
+          fi
+
+          # Extract roc code block from README.md
+          sed -n '/```roc/,/```/p' README.md | sed '1d;$d' > readme.roc
+
+          # Build the code to make sure it works
+          ./roc_nightly/roc build readme.roc --linker=legacy
+# TODO clippy, rustfmt, roc fmt check

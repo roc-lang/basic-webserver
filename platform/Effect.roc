@@ -34,6 +34,7 @@ hosted Effect
         commandStatus,
         commandOutput,
         sqliteExecute,
+        tempDir,
     ]
     imports [
         InternalHttp,
@@ -72,7 +73,7 @@ setCwd : List U8 -> Effect (Result {} {})
 cwd : Effect (List U8)
 
 # Http
-sendRequest : Box InternalHttp.InternalRequest -> Effect InternalHttp.InternalResponse
+sendRequest : Box InternalHttp.RequestToAndFromHost -> Effect InternalHttp.ResponseFromHost
 
 # Tcp
 tcpConnect : Str, U16 -> Effect InternalTcp.ConnectResult
@@ -91,3 +92,5 @@ commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.In
 
 # SQLite3
 sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError)
+
+tempDir : Effect (List U8)

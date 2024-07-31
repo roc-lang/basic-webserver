@@ -1,46 +1,47 @@
 module [
     Request,
     Method,
-    methodToStr,
     Header,
     TimeoutConfig,
     Response,
-    Metadata,
-    Error,
+    Err,
     header,
     handleStringResponse,
     defaultRequest,
     errorToString,
+    errorBodyToBytes,
     send,
+    get,
     getUtf8,
+    methodToStr,
     parseFormUrlEncoded,
 ]
 
 import Effect
 import InternalTask
 import Task exposing [Task]
-import InternalHttp
+import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
 
 ## Represents an HTTP request.
-Request : InternalHttp.InternalRequest
+Request : InternalHttp.Request
 
 ## Represents an HTTP method.
-Method : InternalHttp.InternalMethod
+Method : InternalHttp.Method
 
 ## Represents an HTTP header e.g. `Content-Type: application/json`
-Header : InternalHttp.InternalHeader
+Header : InternalHttp.Header
 
 ## Represents a timeout configuration for an HTTP request.
-TimeoutConfig : InternalHttp.InternalTimeoutConfig
+TimeoutConfig : InternalHttp.TimeoutConfig
 
 ## Represents an HTTP response.
-Response : InternalHttp.InternalResponse
-
-## Represents HTTP metadata, such as the URL or status code.
-Metadata : InternalHttp.InternalMetadata
+Response : InternalHttp.Response
 
 ## Represents an HTTP error.
-Error : InternalHttp.InternalError
+Err : InternalHttp.Error
+
+## Convert the ErrorBody of a BadStatus error to List U8.
+errorBodyToBytes = errorBodyFromUtf8
 
 ## A default [Request] value.
 ##
@@ -56,7 +57,7 @@ defaultRequest = {
     method: Get,
     headers: [],
     url: "",
-    mimeType: "text/plain",
+    mimeType: "",
     body: [],
     timeout: NoTimeout,
 }
@@ -66,77 +67,131 @@ defaultRequest = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : Str, Str -> Header
-header = \name, value -> { name, value: Str.toUtf8 value }
+header = \name, value ->
+    { name, value }
 
-## Map a [Response] body to a [Str] or return an [Error].
-handleStringResponse : Response -> Result Str Error
+## Map a [Response] body to a [Str] or return an [Err].
+handleStringResponse : Response -> Result Str Err
 handleStringResponse = \response ->
     response.body
     |> Str.fromUtf8
-    |> Result.mapErr \_ -> BadBody "" # TODO FIX THIS FUNCTION
+    |> Result.mapErr \BadUtf8 _ position ->
+        BadBody "Invalid UTF-8 at byte offset $(Num.toStr position)"
 
-# when response is
-#     BadRequest err -> Err (BadRequest err)
-#     Timeout -> Err Timeout
-#     NetworkError -> Err NetworkError
-#     BadStatus metadata _ -> Err (BadStatus metadata.statusCode)
-#     GoodStatus _ bodyBytes ->
-#         Str.fromUtf8 bodyBytes
-#         |> Result.mapErr
-#             \BadUtf8 _ pos ->
-#                 position = Num.toStr pos
-
-#                 BadBody "Invalid UTF-8 at byte offset $(position)"
-
-## Convert an [Error] to a [Str].
-errorToString : Error -> Str
+## Convert an [Err] to a [Str].
+errorToString : Err -> Str
 errorToString = \err ->
     when err is
         BadRequest e -> "Invalid Request: $(e)"
-        Timeout -> "Request timed out"
-        NetworkError -> "Network error"
-        BadStatus code -> Str.concat "Request failed with status " (Num.toStr code)
-        BadBody details -> Str.concat "Request failed. Invalid body. " details
+        Timeout milliseconds -> "Request timed out after $(Num.toStr milliseconds) ms."
+        NetworkError -> "Network error."
+        BadStatus { code, body } ->
+            when body |> errorBodyToUtf8 |> Str.fromUtf8 is
+                Ok bodyStr -> "Request failed with status $(Num.toStr code): $(bodyStr)"
+                Err _ -> "Request failed with status $(Num.toStr code)."
+
+        BadBody details -> "Request failed: Invalid body: $(details)"
 
 ## Task to send an HTTP request, succeeds with a value of [Str] or fails with an
-## [Error].
+## [Err].
 ##
 ## ```
 ## # Prints out the HTML of the Roc-lang website.
-## result <-
-##     { Http.defaultRequest &
-##         url: "https://www.roc-lang.org",
-##     }
+## response <-
+##     { Http.defaultRequest & url: "https://www.roc-lang.org" }
 ##     |> Http.send
-##     |> Task.attempt
+##     |> Task.await
 ##
-## when result is
-##     Ok responseBody -> Stdout.line responseBody
-##     Err _ -> Stdout.line "Oops, something went wrong!"
+## response.body
+## |> Str.fromUtf8
+## |> Result.withDefault "Invalid UTF-8"
+## |> Stdout.line
 ## ```
-send : Request -> Task Str Error
+send : Request -> Task Response [HttpErr Err]
 send = \req ->
-    # TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
-    Effect.sendRequest (Box.box req)
-    |> Effect.map handleStringResponse
-    |> InternalTask.fromEffect
 
-getUtf8 : Str -> Task Str Error
+    timeoutMilliseconds =
+        when req.timeout is
+            NoTimeout -> 0
+            TimeoutMilliseconds ms -> ms
+
+    method = methodToStr req.method
+
+    reqToHost : InternalHttp.RequestToAndFromHost
+    reqToHost = {
+        method,
+        headers: req.headers,
+        url: req.url,
+        mimeType: req.mimeType,
+        body: req.body,
+        timeoutMilliseconds,
+    }
+
+    # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
+    Effect.sendRequest (Box.box reqToHost)
+    |> Effect.map Ok
+    |> InternalTask.fromEffect
+    |> Task.await \{ variant, body, metadata } ->
+        when variant is
+            "Timeout" -> Task.err (Timeout timeoutMilliseconds)
+            "NetworkErr" -> Task.err NetworkError
+            "BadStatus" ->
+                Task.err
+                    (
+                        BadStatus {
+                            code: metadata.statusCode,
+                            body: errorBodyFromUtf8 body,
+                        }
+                    )
+
+            "GoodStatus" ->
+                Task.ok {
+                    status: metadata.statusCode,
+                    headers: metadata.headers,
+                    body,
+                }
+
+            "BadRequest" | _other -> Task.err (BadRequest metadata.statusText)
+    |> Task.mapErr HttpErr
+
+## Try to perform an HTTP get request and convert (decode) the received bytes into a Roc type.
+## Very useful for working with Json.
+##
+## ```
+## import json.Json
+##
+## # On the server side we send `Encode.toBytes {foo: "Hello Json!"} Json.utf8`
+## { foo } = Http.get! "http://localhost:8000" Json.utf8
+## ```
+get : Str, fmt -> Task body [HttpErr Http.Err, HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
+get = \url, fmt ->
+    response = send! { defaultRequest & url }
+
+    Decode.fromBytes response.body fmt
+    |> Result.mapErr \_ -> HttpDecodingFailed
+    |> Task.fromResult
+
+getUtf8 : Str -> Task Str [HttpErr Http.Err]
 getUtf8 = \url ->
-    send { defaultRequest & url }
+    response = send! { defaultRequest & url }
+
+    response.body
+    |> Str.fromUtf8
+    |> Result.mapErr \_ -> HttpErr (BadBody "Invalid UTF-8")
+    |> Task.fromResult
 
 methodToStr : Method -> Str
 methodToStr = \method ->
     when method is
-        Get -> "GET"
-        Post -> "POST"
-        Put -> "PUT"
-        Patch -> "PATCH"
-        Delete -> "DELETE"
-        Head -> "HEAD"
-        Options -> "OPTIONS"
-        Connect -> "CONNECT"
-        Trace -> "TRACE"
+        Options -> "Options"
+        Get -> "Get"
+        Post -> "Post"
+        Put -> "Put"
+        Delete -> "Delete"
+        Head -> "Head"
+        Trace -> "Trace"
+        Connect -> "Connect"
+        Patch -> "Patch"
 
 ## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
 ##

@@ -98,7 +98,7 @@ jsonResponse = \bytes ->
     Task.ok {
         status: 200,
         headers: [
-            { name: "Content-Type", value: Str.toUtf8 "application/json; charset=utf-8" },
+            { name: "Content-Type", value: "application/json; charset=utf-8" },
         ],
         body: bytes,
     }
@@ -108,7 +108,7 @@ textResponse = \status, str ->
     Task.ok {
         status,
         headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+            { name: "Content-Type", value: "text/html; charset=utf-8" },
         ],
         body: Str.toUtf8 str,
     }
@@ -118,7 +118,7 @@ byteResponse = \status, bytes ->
     Task.ok {
         status,
         headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+            { name: "Content-Type", value: "text/html; charset=utf-8" },
         ],
         body: bytes,
     }

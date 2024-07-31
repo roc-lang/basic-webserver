@@ -5,15 +5,14 @@
 
 set timeout 7
 
-spawn $env(EXAMPLES_DIR)echo
+spawn $env(EXAMPLES_DIR)temp-dir
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
-    set curlOutput [exec curl -sS localhost:8000 -d "echo me"]
+    set curlOutput [exec curl -sS localhost:8000]
 
-    if {$curlOutput eq "echo me"} {
-        expect "Z Post /\r\n" {
-            exit 0
-        }
+    if {[regexp {The temp dir path is /.+} $curlOutput]} {
+        puts "Success: temp dir is $curlOutput"
+        exit 0
     } else {
         puts "Error: curl output was different than expected: $curlOutput"
         exit 1

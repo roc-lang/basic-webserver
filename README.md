@@ -8,24 +8,21 @@
 
 A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) with a simple interface.
 
-Write a function which takes a `Http.Request`, perform I/O like fetching content or reading environment variables, and return a `Http.Response`. It's that easy!
-
-Behind the scenes, `basic-webserver` uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
+:racing_car: basic-webserver uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
 
 ## Example
 
-Hello world webserver:
+Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser.
 
-```elixir
-app "helloweb"
-    packages { pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.4.0/iAiYpbs5zdVB75golcg_YMtgexN3e2fwhsYPLPCeGzk.tar.br" }
-    imports [
-        pf.Stdout,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Utc,
-    ]
-    provides [main] to pf
+```roc
+app [main] {
+     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.6.0/LQS_Avcf8ogi1SqwmnytRD4SMYiZ4UcRCZwmAjj1RNY.tar.gz"
+}
+
+import pf.Stdout
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Utc
 
 main : Request -> Task Response []
 main = \req ->
@@ -35,17 +32,14 @@ main = \req ->
     Stdout.line! "$(date) $(Http.methodToStr req.method) $(req.url)"
 
     Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b>\n" }
+
 ```
 
-Run this example server with `$ roc run helloweb.roc --linker=legacy` and go to http://localhost:8000 in your browser.
 
 ## Contributing
 
 If you'd like to contribute, check out our [group chat](https://roc.zulipchat.com) and let us know what you're thinking, we're friendly!
 
-## Steps to re-generate glue
+## Developing / Building Locally
 
-Run the following from the repository root directory.
-
-1. Run `bash platform/glue-gen.sh`
-2. Manually fix any issues with glue generated code in `platform/glue-manual/*.rs`, this is a temporary workaround and should not be needed in future
+If you have cloned this repository and want to run the examples without using a packaged release (...tar.br), you will need to build the platform first by running `roc build.roc`. Run examples with `roc examples/hello.roc` (on linux, add `--linker=legacy`).

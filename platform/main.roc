@@ -1,5 +1,5 @@
 platform "webserver"
-    requires {} { main : Request -> Task Response [] }
+    requires {} { main : Http.Request -> InternalTask.Task Http.Response [] }
     exposes [
         Path,
         Dir,
@@ -20,9 +20,12 @@ platform "webserver"
     packages {}
     imports [
         Task.{ Task },
-        Http.{ Request, Response },
     ]
     provides [mainForHost]
 
-mainForHost : Request -> Task Response []
-mainForHost = \req -> main req
+import InternalTask
+import Http
+import InternalHttp
+
+mainForHost : InternalHttp.RequestToAndFromHost -> InternalTask.Task InternalHttp.ResponseToHost []
+mainForHost = \request -> request |> InternalHttp.fromHostRequest |> main
