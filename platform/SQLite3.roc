@@ -6,6 +6,7 @@ module [
     prepare,
     bind,
     prepareAndBind,
+    query,
     execute,
     errToStr,
     decodeRecord,
@@ -55,8 +56,8 @@ prepareAndBind :
         bindings : List Binding,
     }
     -> Task Stmt Error
-prepareAndBind = \{ path, query, bindings } ->
-    stmt = prepare! { path, query }
+prepareAndBind = \{ path, query: q, bindings } ->
+    stmt = prepare! { path, query: q }
     bind! stmt bindings
     Task.ok stmt
 
@@ -66,8 +67,8 @@ prepare :
         query : Str,
     }
     -> Task Stmt Error
-prepare = \{ path, query } ->
-    Effect.sqlitePrepare path query
+prepare = \{ path, query: q } ->
+    Effect.sqlitePrepare path q
     |> InternalTask.fromEffect
     |> Task.map @Stmt
     |> Task.mapErr internalToExternalError
@@ -116,8 +117,18 @@ decodeRecord = \@Decode genFirst, @Decode genSecond, mapper ->
         second = decodeSecond! stmt
         Task.ok (mapper first second)
 
-execute : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-execute = \stmt, decode ->
+execute : Stmt -> Task {} [SQLError Code Str, UnhandledRows]
+execute = \stmt ->
+    reset! stmt
+    when step! stmt is
+        Done ->
+            Task.ok {}
+
+        Row ->
+            Task.err UnhandledRows
+
+query : Stmt, Decode a err -> Task (List a) (DecodeErr err)
+query = \stmt, decode ->
     reset! stmt
     decodeRows stmt decode
 

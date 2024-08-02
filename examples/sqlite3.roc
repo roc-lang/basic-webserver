@@ -44,7 +44,7 @@ queryTodosByStatus = \dbPath, status ->
         query: "SELECT id, task FROM todos WHERE status = :status;",
         bindings: [{ name: ":status", value: String status }],
     }
-    SQLite3.execute!
+    SQLite3.query!
         stmt
         { SQLite3.decodeRecord <-
             id: SQLite3.i64 "id",
