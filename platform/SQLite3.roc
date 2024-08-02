@@ -3,9 +3,6 @@ module [
     Code,
     Error,
     Binding,
-    prepare,
-    bind,
-    prepareAndBind,
     query,
     execute,
     errToStr,
@@ -103,8 +100,15 @@ reset = \@Stmt stmt ->
     |> InternalTask.fromEffect
     |> Task.mapErr internalToExternalError
 
-execute : Stmt -> Task {} [SQLError Code Str, UnhandledRows]
-execute = \stmt ->
+execute :
+    {
+        path : Str,
+        query : Str,
+        bindings : List Binding,
+    }
+    -> Task {} [SQLError Code Str, UnhandledRows]
+execute = \{ path, query: q, bindings } ->
+    stmt = prepareAndBind! { path, query: q, bindings }
     res = step stmt |> Task.result!
     reset! stmt
     when res is
@@ -117,8 +121,16 @@ execute = \stmt ->
         Err e ->
             Task.err e
 
-query : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-query = \stmt, decode ->
+query :
+    {
+        path : Str,
+        query : Str,
+        bindings : List Binding,
+    },
+    Decode a err
+    -> Task (List a) (DecodeErr err)
+query = \{ path, query: q, bindings }, decode ->
+    stmt = prepareAndBind! { path, query: q, bindings }
     res = decodeRows stmt decode |> Task.result!
     reset! stmt
     Task.fromResult res
