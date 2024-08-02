@@ -46,3 +46,10 @@ crates/roc_std
 
 # build script artifacts
 build
+
+# sqlite database temp files
+*.db-*
+
+# profiler output
+profile.json
+*.svg
