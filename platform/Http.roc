@@ -296,11 +296,26 @@ hexToDec = \byte ->
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
 
-parseMultipartFormData : {
-    body : List U8,
-    boundary : List U8,
-} -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData]
+parseMultipartFormData :
+    {
+        headers : List Header,
+        body : List U8,
+    }
+    -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader]
 parseMultipartFormData = \args ->
-    args
-    |> MultipartFormData.parse
-    |> Result.mapErr \_ -> InvalidMultipartFormData
+    decodeMultipartFormDataBoundary args.headers
+    |> Result.try \boundary ->
+        { body: args.body, boundary }
+        |> MultipartFormData.parse
+        |> Result.mapErr \_ -> InvalidMultipartFormData
+
+decodeMultipartFormDataBoundary : List { name : Str, value : Str } -> Result (List U8) _
+decodeMultipartFormDataBoundary = \headers ->
+    headers
+    |> List.keepIf \{ name } -> name == "Content-Type" || name == "content-type"
+    |> List.first
+    |> Result.mapErr \ListWasEmpty -> ExpectedContentTypeHeader
+    |> Result.try \{ value } ->
+        when Str.splitLast value "=" is
+            Ok { after } -> Ok (Str.toUtf8 after)
+            Err NotFound -> Err InvalidContentTypeHeader
