@@ -13,7 +13,7 @@ name = "roc_host"
 path = "src/lib.rs"
 
 [dependencies]
-roc_std = { path = "../roc_std" }
+roc_std = { path = "../roc_std", features = ["std"] }
 roc_app = { path = "../roc_app" }
 roc_fn = { path = "../roc_fn" }
 libc = "0.2"
@@ -34,5 +34,5 @@ reqwest = { version = "=0.11.11", default-features = false, features = [
 futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
-sqlite = { version = "0.33.0", features = ["bundled"] }
+sqlite3-sys = { version = "0.17.0", features = ["bundled"] }
 memmap2 = "=0.9.4"

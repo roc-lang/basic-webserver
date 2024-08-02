@@ -5,7 +5,7 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-roc_std = { path = "../roc_std" }
+roc_std = { path = "../roc_std", features = ["std"] }
 syn = { version = "1.0.42", features = ["full"] }
 quote = "1.0.7"
 proc-macro2 = "1.0"
