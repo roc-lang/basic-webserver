@@ -730,14 +730,6 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
     RocList::from(bytes.as_slice())
 }
 
-// #[repr(transparent)]
-// struct BindableSQLiteBindings<'a>(&'a roc_app::SQLiteBindings);
-
-// impl sqlite::Bindable for &BindableSQLiteBindings<'_> {
-//     fn bind(self, stmt: &mut sqlite::Statement) -> sqlite::Result<()> {
-//     }
-// }
-
 type SQLiteConnection = *mut sqlite3_sys::sqlite3;
 type SQLiteError = c_int;
 
@@ -837,8 +829,14 @@ fn sqlite_bind(
     stmt: RocBox<()>,
     bindings: &RocList<roc_app::SQLiteBindings>,
 ) -> RocResult<(), roc_app::SQLiteError> {
-    // Open Question: Should we clear all bindings here? Reset to a blank state first.
     let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+
+    // Clear old bindings to ensure the users is setting all bindings
+    let err = unsafe { sqlite3_sys::sqlite3_clear_bindings(stmt.0) };
+    if err != sqlite3_sys::SQLITE_OK {
+        return roc_err_from_sqlite_err(err);
+    }
+
     for binding in bindings {
         // TODO: if there is extra capacity in the roc str, zero a byte and use the roc str directly.
         let name = CString::new(binding.name.as_str()).unwrap();
