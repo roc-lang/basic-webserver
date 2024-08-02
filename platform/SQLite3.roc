@@ -8,6 +8,7 @@ module [
     prepareAndBind,
     execute,
     errToStr,
+    map2,
     taggedValue,
     str,
     bytes,
@@ -21,7 +22,19 @@ module [
     u8,
     f64,
     f32,
-    map2,
+    Nullable,
+    nullableStr,
+    nullableBytes,
+    nullableI64,
+    nullableI32,
+    nullableI16,
+    nullableI8,
+    nullableU64,
+    nullableU32,
+    nullableU16,
+    nullableU8,
+    nullableF64,
+    nullableF32,
 ]
 
 import InternalTask
@@ -202,6 +215,74 @@ f32 = realDecoder (\x -> Num.toF32 x |> Ok)
 
 # TODO: Mising Num.toDec and Num.toDecChecked
 # dec = realDecoder Ok
+
+# These are the same decoders as above but Nullable.
+# If the sqlite field is `Null`, they will return `Null`.
+
+Nullable a : [NotNull a, Null]
+
+nullableStr : Str -> Decode (Nullable Str) [UnexpectedType Value, FailedToDecodeReal []]
+nullableStr = decoder \val ->
+    when val is
+        String s -> Ok (NotNull s)
+        Null -> Ok Null
+        _ -> Err (UnexpectedType val)
+
+nullableBytes : Str -> Decode (Nullable (List U8)) [UnexpectedType Value]
+nullableBytes = decoder \val ->
+    when val is
+        Bytes b -> Ok (NotNull b)
+        Null -> Ok Null
+        _ -> Err (UnexpectedType val)
+
+nullableIntDecoder : (I64 -> Result a err) -> (Str -> Decode (Nullable a) [UnexpectedType Value, FailedToDecodeInteger err])
+nullableIntDecoder = \cast ->
+    decoder \val ->
+        when val is
+            Integer i -> cast i |> Result.map NotNull |> Result.mapErr FailedToDecodeInteger
+            Null -> Ok Null
+            _ -> Err (UnexpectedType val)
+
+nullableI64 : Str -> Decode (Nullable I64) [UnexpectedType Value, FailedToDecodeInteger []]
+nullableI64 = nullableIntDecoder Ok
+
+nullableI32 : Str -> Decode (Nullable I32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI32 = nullableIntDecoder Num.toI32Checked
+
+nullableI16 : Str -> Decode (Nullable I16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI16 = nullableIntDecoder Num.toI16Checked
+
+nullableI8 : Str -> Decode (Nullable I8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI8 = nullableIntDecoder Num.toI8Checked
+
+nullableU64 : Str -> Decode (Nullable U64) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU64 = nullableIntDecoder Num.toU64Checked
+
+nullableU32 : Str -> Decode (Nullable U32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU32 = nullableIntDecoder Num.toU32Checked
+
+nullableU16 : Str -> Decode (Nullable U16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU16 = nullableIntDecoder Num.toU16Checked
+
+nullableU8 : Str -> Decode (Nullable U8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU8 = nullableIntDecoder Num.toU8Checked
+
+nullableRealDecoder : (F64 -> Result a err) -> (Str -> Decode (Nullable a) [UnexpectedType Value, FailedToDecodeReal err])
+nullableRealDecoder = \cast ->
+    decoder \val ->
+        when val is
+            Real r -> cast r |> Result.map NotNull |> Result.mapErr FailedToDecodeReal
+            Null -> Ok Null
+            _ -> Err (UnexpectedType val)
+
+nullableF64 : Str -> Decode (Nullable F64) [UnexpectedType Value, FailedToDecodeReal []]
+nullableF64 = nullableRealDecoder Ok
+
+nullableF32 : Str -> Decode (Nullable F32) [UnexpectedType Value, FailedToDecodeReal []]
+nullableF32 = nullableRealDecoder (\x -> Num.toF32 x |> Ok)
+
+# TODO: Mising Num.toDec and Num.toDecChecked
+# nullableDec = nullableRealDecoder Ok
 
 internalToExternalError : InternalSQL.SQLiteError -> Error
 internalToExternalError = \{ code, message } ->
