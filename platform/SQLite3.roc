@@ -103,6 +103,26 @@ reset = \@Stmt stmt ->
     |> InternalTask.fromEffect
     |> Task.mapErr internalToExternalError
 
+execute : Stmt -> Task {} [SQLError Code Str, UnhandledRows]
+execute = \stmt ->
+    res = step stmt |> Task.result!
+    reset! stmt
+    when res is
+        Ok Done ->
+            Task.ok {}
+
+        Ok Row ->
+            Task.err UnhandledRows
+
+        Err e ->
+            Task.err e
+
+query : Stmt, Decode a err -> Task (List a) (DecodeErr err)
+query = \stmt, decode ->
+    res = decodeRows stmt decode |> Task.result!
+    reset! stmt
+    Task.fromResult res
+
 DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
 Decode a err := List Str -> (Stmt -> Task a (DecodeErr err))
 
@@ -116,21 +136,6 @@ decodeRecord = \@Decode genFirst, @Decode genSecond, mapper ->
         first = decodeFirst! stmt
         second = decodeSecond! stmt
         Task.ok (mapper first second)
-
-execute : Stmt -> Task {} [SQLError Code Str, UnhandledRows]
-execute = \stmt ->
-    reset! stmt
-    when step! stmt is
-        Done ->
-            Task.ok {}
-
-        Row ->
-            Task.err UnhandledRows
-
-query : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-query = \stmt, decode ->
-    reset! stmt
-    decodeRows stmt decode
 
 decodeRows : Stmt, Decode a err -> Task (List a) (DecodeErr err)
 decodeRows = \stmt, @Decode genDecode ->
@@ -366,9 +371,7 @@ codeFromI64 = \code ->
 
 errToStr : Error -> Str
 errToStr = \err ->
-    (code, msg2) =
-        when err is
-            SQLError c m -> (c, m)
+    (SQLError code msg2) = err
 
     msg1 =
         when code is
