@@ -151,12 +151,12 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "sqlitePrepare",
         arg_types: &["&roc_std::RocStr", "&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<RocBox<()>, roc_app::SQLiteError>",
+        ret_type: "roc_std::RocResult<RocBox<()>, roc_app::SqliteError>",
     },
     HostedFn {
         name: "sqliteBind",
-        arg_types: &["roc_std::RocBox<()>", "&roc_std::RocList<roc_app::SQLiteBindings>"],
-        ret_type: "roc_std::RocResult<(), roc_app::SQLiteError>",
+        arg_types: &["roc_std::RocBox<()>", "&roc_std::RocList<roc_app::SqliteBindings>"],
+        ret_type: "roc_std::RocResult<(), roc_app::SqliteError>",
     },
     HostedFn {
         name: "sqliteColumns",
@@ -166,17 +166,17 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "sqliteColumnValue",
         arg_types: &["roc_std::RocBox<()>", "u64"],
-        ret_type: "roc_std::RocResult<roc_app::SQLiteValue, roc_app::SQLiteError>",
+        ret_type: "roc_std::RocResult<roc_app::SqliteValue, roc_app::SqliteError>",
     },
     HostedFn {
         name: "sqliteStep",
         arg_types: &["roc_std::RocBox<()>"],
-        ret_type: "roc_std::RocResult<roc_app::SQLiteState, roc_app::SQLiteError>",
+        ret_type: "roc_std::RocResult<roc_app::SqliteState, roc_app::SqliteError>",
     },
     HostedFn {
         name: "sqliteReset",
         arg_types: &["roc_std::RocBox<()>"],
-        ret_type: "roc_std::RocResult<(), roc_app::SQLiteError>",
+        ret_type: "roc_std::RocResult<(), roc_app::SqliteError>",
     },
     ];
 

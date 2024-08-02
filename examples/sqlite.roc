@@ -3,7 +3,7 @@ app [Model, server] { pf: platform "../platform/main.roc" }
 import pf.Stdout
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
-import pf.SQLite3
+import pf.Sqlite
 import pf.Env
 
 Model : {}
@@ -38,13 +38,13 @@ respond = \_, _ ->
     }
 
 queryTodosByStatus = \dbPath, status ->
-    SQLite3.query!
+    Sqlite.query!
         {
             path: dbPath,
             query: "SELECT id, task FROM todos WHERE status = :status;",
             bindings: [{ name: ":status", value: String status }],
         }
-        { SQLite3.decodeRecord <-
-            id: SQLite3.i64 "id",
-            task: SQLite3.str "task",
+        { Sqlite.decodeRecord <-
+            id: Sqlite.i64 "id",
+            task: Sqlite.str "task",
         }

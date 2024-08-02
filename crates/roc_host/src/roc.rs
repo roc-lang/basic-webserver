@@ -730,13 +730,13 @@ fn os_str_to_roc_path(os_str: &std::ffi::OsStr) -> RocList<u8> {
     RocList::from(bytes.as_slice())
 }
 
-type SQLiteConnection = *mut sqlite3_sys::sqlite3;
-type SQLiteError = c_int;
+type SqliteConnection = *mut sqlite3_sys::sqlite3;
+type SqliteError = c_int;
 
 #[repr(transparent)]
-struct SQLiteStatement(*mut sqlite3_sys::sqlite3_stmt);
+struct SqliteStatement(*mut sqlite3_sys::sqlite3_stmt);
 
-impl Drop for SQLiteStatement {
+impl Drop for SqliteStatement {
     fn drop(&mut self) {
         unsafe { sqlite3_sys::sqlite3_finalize(self.0) };
     }
@@ -745,11 +745,11 @@ impl Drop for SQLiteStatement {
 thread_local! {
     // TODO: once basic-webserver has state, make this a heap just load connections on init.
     // Will also require making sure that statements keep connections alive.
-    static SQLITE_CONNECTIONS : RefCell<Vec<(CString, SQLiteConnection)>> = RefCell::new(vec![]);
+    static SQLITE_CONNECTIONS : RefCell<Vec<(CString, SqliteConnection)>> = RefCell::new(vec![]);
 }
 
-fn sqlite_stmt_heap() -> &'static ThreadSafeRefcountedResourceHeap<SQLiteStatement> {
-    static STMT_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<SQLiteStatement>> = OnceLock::new();
+fn sqlite_stmt_heap() -> &'static ThreadSafeRefcountedResourceHeap<SqliteStatement> {
+    static STMT_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<SqliteStatement>> = OnceLock::new();
     STMT_HEAP.get_or_init(|| {
         let default_max_stmts = 65536;
         let max_stmts = env::var("ROC_BASIC_CLI_MAX_STMTS")
@@ -760,7 +760,7 @@ fn sqlite_stmt_heap() -> &'static ThreadSafeRefcountedResourceHeap<SQLiteStateme
     })
 }
 
-fn get_connection(path: &str) -> Result<SQLiteConnection, SQLiteError> {
+fn get_connection(path: &str) -> Result<SqliteConnection, SqliteError> {
     SQLITE_CONNECTIONS.with(|connections| {
         for (conn_path, connection) in connections.borrow().iter() {
             if path.as_bytes() == conn_path.as_c_str().to_bytes() {
@@ -769,7 +769,7 @@ fn get_connection(path: &str) -> Result<SQLiteConnection, SQLiteError> {
         }
 
         let path = CString::new(path).unwrap();
-        let mut connection: SQLiteConnection = std::ptr::null_mut();
+        let mut connection: SqliteConnection = std::ptr::null_mut();
         let flags = sqlite3_sys::SQLITE_OPEN_CREATE
             | sqlite3_sys::SQLITE_OPEN_READWRITE
             | sqlite3_sys::SQLITE_OPEN_NOMUTEX;
@@ -789,7 +789,7 @@ fn get_connection(path: &str) -> Result<SQLiteConnection, SQLiteError> {
 fn sqlite_prepare(
     db_path: &roc_std::RocStr,
     query: &roc_std::RocStr,
-) -> roc_std::RocResult<RocBox<()>, roc_app::SQLiteError> {
+) -> roc_std::RocResult<RocBox<()>, roc_app::SqliteError> {
     // Get the connection
     let connection = {
         match get_connection(db_path.as_str()) {
@@ -799,7 +799,7 @@ fn sqlite_prepare(
     };
 
     // Prepare the query
-    let mut stmt = SQLiteStatement(std::ptr::null_mut());
+    let mut stmt = SqliteStatement(std::ptr::null_mut());
     let err = unsafe {
         sqlite3_sys::sqlite3_prepare_v2(
             connection,
@@ -817,7 +817,7 @@ fn sqlite_prepare(
     let alloc_result = heap.alloc_for(stmt);
     match alloc_result {
         Ok(out) => RocResult::ok(out),
-        Err(_) => RocResult::err(roc_app::SQLiteError {
+        Err(_) => RocResult::err(roc_app::SqliteError {
             code: sqlite3_sys::SQLITE_NOMEM as i64,
             message: "Ran out of memory allocating space for statement".into(),
         }),
@@ -827,9 +827,9 @@ fn sqlite_prepare(
 #[roc_fn(name = "sqliteBind")]
 fn sqlite_bind(
     stmt: RocBox<()>,
-    bindings: &RocList<roc_app::SQLiteBindings>,
-) -> RocResult<(), roc_app::SQLiteError> {
-    let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+    bindings: &RocList<roc_app::SqliteBindings>,
+) -> RocResult<(), roc_app::SqliteError> {
+    let stmt: &SqliteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
 
     // Clear old bindings to ensure the users is setting all bindings
     let err = unsafe { sqlite3_sys::sqlite3_clear_bindings(stmt.0) };
@@ -842,19 +842,19 @@ fn sqlite_bind(
         let name = CString::new(binding.name.as_str()).unwrap();
         let index = unsafe { sqlite3_sys::sqlite3_bind_parameter_index(stmt.0, name.as_ptr()) };
         if index == 0 {
-            return RocResult::err(roc_app::SQLiteError {
+            return RocResult::err(roc_app::SqliteError {
                 code: sqlite3_sys::SQLITE_ERROR as i64,
                 message: RocStr::from(format!("unknown paramater: {:?}", name).as_str()),
             });
         }
         let err = match binding.value.discriminant() {
-            roc_app::discriminant_SQLiteValue::Integer => unsafe {
+            roc_app::discriminant_SqliteValue::Integer => unsafe {
                 sqlite3_sys::sqlite3_bind_int64(stmt.0, index, binding.value.borrow_Integer())
             },
-            roc_app::discriminant_SQLiteValue::Real => unsafe {
+            roc_app::discriminant_SqliteValue::Real => unsafe {
                 sqlite3_sys::sqlite3_bind_double(stmt.0, index, binding.value.borrow_Real())
             },
-            roc_app::discriminant_SQLiteValue::String => unsafe {
+            roc_app::discriminant_SqliteValue::String => unsafe {
                 let str = binding.value.borrow_String().as_str();
                 let transient = std::mem::transmute(!0 as *const core::ffi::c_void);
                 sqlite3_sys::sqlite3_bind_text64(
@@ -866,7 +866,7 @@ fn sqlite_bind(
                     sqlite3_sys::SQLITE_UTF8 as u8,
                 )
             },
-            roc_app::discriminant_SQLiteValue::Bytes => unsafe {
+            roc_app::discriminant_SqliteValue::Bytes => unsafe {
                 let str = binding.value.borrow_Bytes().as_slice();
                 let transient = std::mem::transmute(!0 as *const core::ffi::c_void);
                 sqlite3_sys::sqlite3_bind_blob64(
@@ -877,7 +877,7 @@ fn sqlite_bind(
                     transient,
                 )
             },
-            roc_app::discriminant_SQLiteValue::Null => unsafe {
+            roc_app::discriminant_SqliteValue::Null => unsafe {
                 sqlite3_sys::sqlite3_bind_null(stmt.0, index)
             },
         };
@@ -890,7 +890,7 @@ fn sqlite_bind(
 
 #[roc_fn(name = "sqliteColumns")]
 fn sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
-    let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+    let stmt: &SqliteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     let count = unsafe { sqlite3_sys::sqlite3_column_count(stmt.0) } as usize;
     let mut list = RocList::with_capacity(count);
     for i in 0..count {
@@ -907,11 +907,11 @@ fn sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
 fn sqlite_column_value(
     stmt: RocBox<()>,
     i: u64,
-) -> RocResult<roc_app::SQLiteValue, roc_app::SQLiteError> {
-    let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+) -> RocResult<roc_app::SqliteValue, roc_app::SqliteError> {
+    let stmt: &SqliteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     let count = unsafe { sqlite3_sys::sqlite3_column_count(stmt.0) } as u64;
     if i >= count {
-        return RocResult::err(roc_app::SQLiteError {
+        return RocResult::err(roc_app::SqliteError {
             code: sqlite3_sys::SQLITE_ERROR as i64,
             message: RocStr::from(
                 format!("column index out of range: {} of {}", i, count).as_str(),
@@ -922,48 +922,48 @@ fn sqlite_column_value(
     let value = match unsafe { sqlite3_sys::sqlite3_column_type(stmt.0, i) } {
         sqlite3_sys::SQLITE_INTEGER => {
             let val = unsafe { sqlite3_sys::sqlite3_column_int64(stmt.0, i) };
-            roc_app::SQLiteValue::Integer(val)
+            roc_app::SqliteValue::Integer(val)
         }
         sqlite3_sys::SQLITE_FLOAT => {
             let val = unsafe { sqlite3_sys::sqlite3_column_double(stmt.0, i) };
-            roc_app::SQLiteValue::Real(val)
+            roc_app::SqliteValue::Real(val)
         }
         sqlite3_sys::SQLITE_TEXT => unsafe {
             let len = sqlite3_sys::sqlite3_column_bytes(stmt.0, i);
             let text = sqlite3_sys::sqlite3_column_text(stmt.0, i);
             let slice = std::slice::from_raw_parts(text, len as usize);
             let val = RocStr::from(str::from_utf8_unchecked(slice));
-            roc_app::SQLiteValue::String(val)
+            roc_app::SqliteValue::String(val)
         },
         sqlite3_sys::SQLITE_BLOB => unsafe {
             let len = sqlite3_sys::sqlite3_column_bytes(stmt.0, i);
             let blob = sqlite3_sys::sqlite3_column_blob(stmt.0, i) as *const u8;
             let slice = std::slice::from_raw_parts(blob, len as usize);
             let val = RocList::<u8>::from(slice);
-            roc_app::SQLiteValue::Bytes(val)
+            roc_app::SqliteValue::Bytes(val)
         },
-        sqlite3_sys::SQLITE_NULL => roc_app::SQLiteValue::Null(),
+        sqlite3_sys::SQLITE_NULL => roc_app::SqliteValue::Null(),
         _ => unreachable!(),
     };
     RocResult::ok(value)
 }
 
 #[roc_fn(name = "sqliteStep")]
-fn sqlite_step(stmt: RocBox<()>) -> RocResult<roc_app::SQLiteState, roc_app::SQLiteError> {
-    let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+fn sqlite_step(stmt: RocBox<()>) -> RocResult<roc_app::SqliteState, roc_app::SqliteError> {
+    let stmt: &SqliteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     let err = unsafe { sqlite3_sys::sqlite3_step(stmt.0) };
     if err == sqlite3_sys::SQLITE_ROW {
-        return RocResult::ok(roc_app::SQLiteState::Row);
+        return RocResult::ok(roc_app::SqliteState::Row);
     }
     if err == sqlite3_sys::SQLITE_DONE {
-        return RocResult::ok(roc_app::SQLiteState::Done);
+        return RocResult::ok(roc_app::SqliteState::Done);
     }
     roc_err_from_sqlite_err(err)
 }
 
 #[roc_fn(name = "sqliteReset")]
-fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_app::SQLiteError> {
-    let stmt: &SQLiteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
+fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_app::SqliteError> {
+    let stmt: &SqliteStatement = ThreadSafeRefcountedResourceHeap::box_to_resource(stmt);
     let err = unsafe { sqlite3_sys::sqlite3_reset(stmt.0) };
     if err != sqlite3_sys::SQLITE_OK {
         return roc_err_from_sqlite_err(err);
@@ -971,9 +971,9 @@ fn sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_app::SQLiteError> {
     RocResult::ok(())
 }
 
-fn roc_err_from_sqlite_err<T>(code: SQLiteError) -> RocResult<T, roc_app::SQLiteError> {
+fn roc_err_from_sqlite_err<T>(code: SqliteError) -> RocResult<T, roc_app::SqliteError> {
     let msg = unsafe { CStr::from_ptr(sqlite3_sys::sqlite3_errstr(code)) };
-    RocResult::err(roc_app::SQLiteError {
+    RocResult::err(roc_app::SqliteError {
         code: code as i64,
         message: RocStr::try_from(msg).unwrap_or(RocStr::empty()),
     })

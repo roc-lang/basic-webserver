@@ -37,13 +37,13 @@ module [
 
 import InternalTask
 import Task exposing [Task]
-import InternalSQL
+import InternalSql
 import Effect
 
-Value : InternalSQL.SQLiteValue
-Code : InternalSQL.SQLiteErrCode
-Error : [SQLError Code Str]
-Binding : InternalSQL.SQLiteBindings
+Value : InternalSql.SqliteValue
+Code : InternalSql.SqliteErrCode
+Error : [SqlError Code Str]
+Binding : InternalSql.SqliteBindings
 Stmt := Box {}
 
 prepareAndBind :
@@ -106,7 +106,7 @@ execute :
         query : Str,
         bindings : List Binding,
     }
-    -> Task {} [SQLError Code Str, UnhandledRows]
+    -> Task {} [SqlError Code Str, UnhandledRows]
 execute = \{ path, query: q, bindings } ->
     stmt = prepareAndBind! { path, query: q, bindings }
     res = step stmt |> Task.result!
@@ -127,20 +127,20 @@ query :
         query : Str,
         bindings : List Binding,
     },
-    Decode a err
-    -> Task (List a) (DecodeErr err)
+    SqlDecode a err
+    -> Task (List a) (SqlDecodeErr err)
 query = \{ path, query: q, bindings }, decode ->
     stmt = prepareAndBind! { path, query: q, bindings }
     res = decodeRows stmt decode |> Task.result!
     reset! stmt
     Task.fromResult res
 
-DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
-Decode a err := List Str -> (Stmt -> Task a (DecodeErr err))
+SqlDecodeErr err : [FieldNotFound Str, SqlError Code Str]err
+SqlDecode a err := List Str -> (Stmt -> Task a (SqlDecodeErr err))
 
-decodeRecord : Decode a err, Decode b err, (a, b -> c) -> Decode c err
-decodeRecord = \@Decode genFirst, @Decode genSecond, mapper ->
-    cols <- @Decode
+decodeRecord : SqlDecode a err, SqlDecode b err, (a, b -> c) -> SqlDecode c err
+decodeRecord = \@SqlDecode genFirst, @SqlDecode genSecond, mapper ->
+    cols <- @SqlDecode
     decodeFirst = genFirst cols
     decodeSecond = genSecond cols
 
@@ -149,8 +149,8 @@ decodeRecord = \@Decode genFirst, @Decode genSecond, mapper ->
         second = decodeSecond! stmt
         Task.ok (mapper first second)
 
-decodeRows : Stmt, Decode a err -> Task (List a) (DecodeErr err)
-decodeRows = \stmt, @Decode genDecode ->
+decodeRows : Stmt, SqlDecode a err -> Task (List a) (SqlDecodeErr err)
+decodeRows = \stmt, @SqlDecode genDecode ->
     cols = columns! stmt
     decodeRow = genDecode cols
     Task.loop [] \out ->
@@ -165,9 +165,9 @@ decodeRows = \stmt, @Decode genDecode ->
                 |> Step
                 |> Task.ok
 
-decoder : (Value -> Result a (DecodeErr err)) -> (Str -> Decode a err)
+decoder : (Value -> Result a (SqlDecodeErr err)) -> (Str -> SqlDecode a err)
 decoder = \fn -> \name ->
-        cols <- @Decode
+        cols <- @SqlDecode
 
         found = List.findFirstIndex cols \x -> x == name
         when found is
@@ -181,89 +181,89 @@ decoder = \fn -> \name ->
                 \_ ->
                     Task.err (FieldNotFound name)
 
-taggedValue : Str -> Decode Value []
+taggedValue : Str -> SqlDecode Value []
 taggedValue = decoder \val ->
     Ok val
 
-str : Str -> Decode Str [UnexpectedType Value]
+str : Str -> SqlDecode Str [UnexpectedType Value]
 str = decoder \val ->
     when val is
         String s -> Ok s
         _ -> Err (UnexpectedType val)
 
-bytes : Str -> Decode (List U8) [UnexpectedType Value]
+bytes : Str -> SqlDecode (List U8) [UnexpectedType Value]
 bytes = decoder \val ->
     when val is
         Bytes b -> Ok b
         _ -> Err (UnexpectedType val)
 
-intDecoder : (I64 -> Result a err) -> (Str -> Decode a [UnexpectedType Value, FailedToDecodeInteger err])
+intDecoder : (I64 -> Result a err) -> (Str -> SqlDecode a [UnexpectedType Value, FailedToDecodeInteger err])
 intDecoder = \cast ->
     decoder \val ->
         when val is
             Integer i -> cast i |> Result.mapErr FailedToDecodeInteger
             _ -> Err (UnexpectedType val)
 
-i64 : Str -> Decode I64 [UnexpectedType Value, FailedToDecodeInteger []]
+i64 : Str -> SqlDecode I64 [UnexpectedType Value, FailedToDecodeInteger []]
 i64 = intDecoder Ok
 
-i32 : Str -> Decode I32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+i32 : Str -> SqlDecode I32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i32 = intDecoder Num.toI32Checked
 
-i16 : Str -> Decode I16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+i16 : Str -> SqlDecode I16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i16 = intDecoder Num.toI16Checked
 
-i8 : Str -> Decode I8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+i8 : Str -> SqlDecode I8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 i8 = intDecoder Num.toI8Checked
 
-u64 : Str -> Decode U64 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+u64 : Str -> SqlDecode U64 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u64 = intDecoder Num.toU64Checked
 
-u32 : Str -> Decode U32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+u32 : Str -> SqlDecode U32 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u32 = intDecoder Num.toU32Checked
 
-u16 : Str -> Decode U16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+u16 : Str -> SqlDecode U16 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u16 = intDecoder Num.toU16Checked
 
-u8 : Str -> Decode U8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+u8 : Str -> SqlDecode U8 [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 u8 = intDecoder Num.toU8Checked
 
-realDecoder : (F64 -> Result a err) -> (Str -> Decode a [UnexpectedType Value, FailedToDecodeReal err])
+realDecoder : (F64 -> Result a err) -> (Str -> SqlDecode a [UnexpectedType Value, FailedToDecodeReal err])
 realDecoder = \cast ->
     decoder \val ->
         when val is
             Real r -> cast r |> Result.mapErr FailedToDecodeReal
             _ -> Err (UnexpectedType val)
 
-f64 : Str -> Decode F64 [UnexpectedType Value, FailedToDecodeReal []]
+f64 : Str -> SqlDecode F64 [UnexpectedType Value, FailedToDecodeReal []]
 f64 = realDecoder Ok
 
-f32 : Str -> Decode F32 [UnexpectedType Value, FailedToDecodeReal []]
+f32 : Str -> SqlDecode F32 [UnexpectedType Value, FailedToDecodeReal []]
 f32 = realDecoder (\x -> Num.toF32 x |> Ok)
 
 # TODO: Mising Num.toDec and Num.toDecChecked
-# dec = realDecoder Ok
+# dec = realSqlDecoder Ok
 
 # These are the same decoders as above but Nullable.
 # If the sqlite field is `Null`, they will return `Null`.
 
 Nullable a : [NotNull a, Null]
 
-nullableStr : Str -> Decode (Nullable Str) [UnexpectedType Value, FailedToDecodeReal []]
+nullableStr : Str -> SqlDecode (Nullable Str) [UnexpectedType Value, FailedToDecodeReal []]
 nullableStr = decoder \val ->
     when val is
         String s -> Ok (NotNull s)
         Null -> Ok Null
         _ -> Err (UnexpectedType val)
 
-nullableBytes : Str -> Decode (Nullable (List U8)) [UnexpectedType Value]
+nullableBytes : Str -> SqlDecode (Nullable (List U8)) [UnexpectedType Value]
 nullableBytes = decoder \val ->
     when val is
         Bytes b -> Ok (NotNull b)
         Null -> Ok Null
         _ -> Err (UnexpectedType val)
 
-nullableIntDecoder : (I64 -> Result a err) -> (Str -> Decode (Nullable a) [UnexpectedType Value, FailedToDecodeInteger err])
+nullableIntDecoder : (I64 -> Result a err) -> (Str -> SqlDecode (Nullable a) [UnexpectedType Value, FailedToDecodeInteger err])
 nullableIntDecoder = \cast ->
     decoder \val ->
         when val is
@@ -271,31 +271,31 @@ nullableIntDecoder = \cast ->
             Null -> Ok Null
             _ -> Err (UnexpectedType val)
 
-nullableI64 : Str -> Decode (Nullable I64) [UnexpectedType Value, FailedToDecodeInteger []]
+nullableI64 : Str -> SqlDecode (Nullable I64) [UnexpectedType Value, FailedToDecodeInteger []]
 nullableI64 = nullableIntDecoder Ok
 
-nullableI32 : Str -> Decode (Nullable I32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI32 : Str -> SqlDecode (Nullable I32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableI32 = nullableIntDecoder Num.toI32Checked
 
-nullableI16 : Str -> Decode (Nullable I16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI16 : Str -> SqlDecode (Nullable I16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableI16 = nullableIntDecoder Num.toI16Checked
 
-nullableI8 : Str -> Decode (Nullable I8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableI8 : Str -> SqlDecode (Nullable I8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableI8 = nullableIntDecoder Num.toI8Checked
 
-nullableU64 : Str -> Decode (Nullable U64) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU64 : Str -> SqlDecode (Nullable U64) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableU64 = nullableIntDecoder Num.toU64Checked
 
-nullableU32 : Str -> Decode (Nullable U32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU32 : Str -> SqlDecode (Nullable U32) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableU32 = nullableIntDecoder Num.toU32Checked
 
-nullableU16 : Str -> Decode (Nullable U16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU16 : Str -> SqlDecode (Nullable U16) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableU16 = nullableIntDecoder Num.toU16Checked
 
-nullableU8 : Str -> Decode (Nullable U8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
+nullableU8 : Str -> SqlDecode (Nullable U8) [UnexpectedType Value, FailedToDecodeInteger [OutOfBounds]]
 nullableU8 = nullableIntDecoder Num.toU8Checked
 
-nullableRealDecoder : (F64 -> Result a err) -> (Str -> Decode (Nullable a) [UnexpectedType Value, FailedToDecodeReal err])
+nullableRealDecoder : (F64 -> Result a err) -> (Str -> SqlDecode (Nullable a) [UnexpectedType Value, FailedToDecodeReal err])
 nullableRealDecoder = \cast ->
     decoder \val ->
         when val is
@@ -303,20 +303,20 @@ nullableRealDecoder = \cast ->
             Null -> Ok Null
             _ -> Err (UnexpectedType val)
 
-nullableF64 : Str -> Decode (Nullable F64) [UnexpectedType Value, FailedToDecodeReal []]
+nullableF64 : Str -> SqlDecode (Nullable F64) [UnexpectedType Value, FailedToDecodeReal []]
 nullableF64 = nullableRealDecoder Ok
 
-nullableF32 : Str -> Decode (Nullable F32) [UnexpectedType Value, FailedToDecodeReal []]
+nullableF32 : Str -> SqlDecode (Nullable F32) [UnexpectedType Value, FailedToDecodeReal []]
 nullableF32 = nullableRealDecoder (\x -> Num.toF32 x |> Ok)
 
 # TODO: Mising Num.toDec and Num.toDecChecked
 # nullableDec = nullableRealDecoder Ok
 
-internalToExternalError : InternalSQL.SQLiteError -> Error
+internalToExternalError : InternalSql.SqliteError -> Error
 internalToExternalError = \{ code, message } ->
-    SQLError (codeFromI64 code) message
+    SqlError (codeFromI64 code) message
 
-codeFromI64 : I64 -> InternalSQL.SQLiteErrCode
+codeFromI64 : I64 -> InternalSql.SqliteErrCode
 codeFromI64 = \code ->
     if code == 1 || code == 0 then
         ERROR
@@ -379,16 +379,16 @@ codeFromI64 = \code ->
     else if code == 101 then
         DONE
     else
-        crash "unsupported SQLite error code $(Num.toStr code)"
+        crash "unsupported Sqlite error code $(Num.toStr code)"
 
 errToStr : Error -> Str
 errToStr = \err ->
-    (SQLError code msg2) = err
+    (SqlError code msg2) = err
 
     msg1 =
         when code is
-            ERROR -> "ERROR: SQL error or missing database"
-            INTERNAL -> "INTERNAL: Internal logic error in SQLite"
+            ERROR -> "ERROR: Sql error or missing database"
+            INTERNAL -> "INTERNAL: Internal logic error in Sqlite"
             PERM -> "PERM: Access permission denied"
             ABORT -> "ABORT: Callback routine requested an abort"
             BUSY -> "BUSY: The database file is locked"

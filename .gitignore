@@ -36,6 +36,7 @@ examples/file
 examples/dir
 examples/env
 examples/command
+examples/sqlite
 examples/sqlite3
 examples/hello-web
 
