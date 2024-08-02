@@ -8,6 +8,7 @@ module [
     execute,
     errToStr,
     decodeRecord,
+    mapValue,
     taggedValue,
     str,
     bytes,
@@ -163,6 +164,15 @@ decodeRecord = \@SqlDecode genFirst, @SqlDecode genSecond, mapper ->
         first = decodeFirst! stmt
         second = decodeSecond! stmt
         Task.ok (mapper first second)
+
+mapValue : SqlDecode a err, (a -> b) -> SqlDecode b err
+mapValue = \@SqlDecode genDecode, mapper ->
+    cols <- @SqlDecode
+    decode = genDecode cols
+
+    \stmt ->
+        val = decode! stmt
+        Task.ok (mapper val)
 
 RowCountErr err : [NoRowsReturned, TooManyRowsReturned]err
 decodeExactlyOneRow : Stmt, SqlDecode a (RowCountErr err) -> Task a (SqlDecodeErr (RowCountErr err))
