@@ -8,7 +8,7 @@ module [
     prepareAndBind,
     execute,
     errToStr,
-    map2,
+    decodeRecord,
     taggedValue,
     str,
     bytes,
@@ -105,8 +105,8 @@ reset = \@Stmt stmt ->
 DecodeErr err : [FieldNotFound Str, SQLError Code Str]err
 Decode a err := List Str -> (Stmt -> Task a (DecodeErr err))
 
-map2 : Decode a err, Decode b err, (a, b -> c) -> Decode c err
-map2 = \@Decode genFirst, @Decode genSecond, mapper ->
+decodeRecord : Decode a err, Decode b err, (a, b -> c) -> Decode c err
+decodeRecord = \@Decode genFirst, @Decode genSecond, mapper ->
     cols <- @Decode
     decodeFirst = genFirst cols
     decodeSecond = genSecond cols
