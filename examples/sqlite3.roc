@@ -21,7 +21,6 @@ respond = \_, _ ->
         queryTodosByStatus dbPath "completed"
             |> Task.onErr! \err ->
                 # Crash on any errors for now
-                # crash "$(SQLite3.errToStr err)"
                 crash "$(Inspect.toStr err)"
 
     body =
