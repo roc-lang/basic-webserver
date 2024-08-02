@@ -4,6 +4,7 @@ module [
     Error,
     Binding,
     query,
+    queryExactlyOne,
     execute,
     errToStr,
     decodeRecord,
@@ -126,12 +127,26 @@ query :
         path : Str,
         query : Str,
         bindings : List Binding,
-    },
-    SqlDecode a err
+        rows : SqlDecode a err,
+    }
     -> Task (List a) (SqlDecodeErr err)
-query = \{ path, query: q, bindings }, decode ->
+query = \{ path, query: q, bindings, rows: decode } ->
     stmt = prepareAndBind! { path, query: q, bindings }
     res = decodeRows stmt decode |> Task.result!
+    reset! stmt
+    Task.fromResult res
+
+queryExactlyOne :
+    {
+        path : Str,
+        query : Str,
+        bindings : List Binding,
+        row : SqlDecode a (RowCountErr err),
+    }
+    -> Task a (SqlDecodeErr (RowCountErr err))
+queryExactlyOne = \{ path, query: q, bindings, row: decode } ->
+    stmt = prepareAndBind! { path, query: q, bindings }
+    res = decodeExactlyOneRow stmt decode |> Task.result!
     reset! stmt
     Task.fromResult res
 
@@ -148,6 +163,25 @@ decodeRecord = \@SqlDecode genFirst, @SqlDecode genSecond, mapper ->
         first = decodeFirst! stmt
         second = decodeSecond! stmt
         Task.ok (mapper first second)
+
+RowCountErr err : [NoRowsReturned, TooManyRowsReturned]err
+decodeExactlyOneRow : Stmt, SqlDecode a (RowCountErr err) -> Task a (SqlDecodeErr (RowCountErr err))
+decodeExactlyOneRow = \stmt, @SqlDecode genDecode ->
+    cols = columns! stmt
+    decodeRow = genDecode cols
+
+    when step! stmt is
+        Row ->
+            row = decodeRow! stmt
+            when step! stmt is
+                Done ->
+                    Task.ok row
+
+                Row ->
+                    Task.err TooManyRowsReturned
+
+        Done ->
+            Task.err NoRowsReturned
 
 decodeRows : Stmt, SqlDecode a err -> Task (List a) (SqlDecodeErr err)
 decodeRows = \stmt, @SqlDecode genDecode ->

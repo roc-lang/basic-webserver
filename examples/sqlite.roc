@@ -38,13 +38,12 @@ respond = \_, _ ->
     }
 
 queryTodosByStatus = \dbPath, status ->
-    Sqlite.query!
-        {
-            path: dbPath,
-            query: "SELECT id, task FROM todos WHERE status = :status;",
-            bindings: [{ name: ":status", value: String status }],
-        }
-        { Sqlite.decodeRecord <-
+    Sqlite.query! {
+        path: dbPath,
+        query: "SELECT id, task FROM todos WHERE status = :status;",
+        bindings: [{ name: ":status", value: String status }],
+        rows: { Sqlite.decodeRecord <-
             id: Sqlite.i64 "id",
             task: Sqlite.str "task",
-        }
+        },
+    }
