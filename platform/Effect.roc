@@ -47,7 +47,7 @@ hosted Effect
         InternalTcp,
         InternalCommand,
         InternalError,
-        InternalSQL,
+        InternalSql,
     ]
     generates Effect with [after, map, always, forever, loop]
 
@@ -96,11 +96,11 @@ commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} Interna
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
 
 # Sqlite
-sqlitePrepare : Str, Str -> Effect (Result (Box {}) InternalSQL.SqliteError)
-sqliteBind : Box {}, List InternalSQL.SqliteBindings -> Effect (Result {} InternalSQL.SqliteError)
+sqlitePrepare : Str, Str -> Effect (Result (Box {}) InternalSql.SqliteError)
+sqliteBind : Box {}, List InternalSql.SqliteBindings -> Effect (Result {} InternalSql.SqliteError)
 sqliteColumns : Box {} -> Effect (List Str)
-sqliteColumnValue : Box {}, U64 -> Effect (Result InternalSQL.SqliteValue InternalSQL.SqliteError)
-sqliteStep : Box {} -> Effect (Result InternalSQL.SqliteState InternalSQL.SqliteError)
-sqliteReset : Box {} -> Effect (Result {} InternalSQL.SqliteError)
+sqliteColumnValue : Box {}, U64 -> Effect (Result InternalSql.SqliteValue InternalSql.SqliteError)
+sqliteStep : Box {} -> Effect (Result InternalSql.SqliteState InternalSql.SqliteError)
+sqliteReset : Box {} -> Effect (Result {} InternalSql.SqliteError)
 
 tempDir : Effect (List U8)
