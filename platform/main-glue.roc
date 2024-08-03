@@ -7,7 +7,7 @@ platform "glue-types"
 
 import InternalCommand
 import InternalTcp
-import InternalSql
+import InternalSQL
 import InternalError
 import InternalFile
 
@@ -22,10 +22,10 @@ GlueTypes : {
     h : InternalTcp.ConnectErr,
     i : InternalTcp.StreamErr,
     j : InternalError.InternalDirReadErr,
-    k : InternalSql.SqliteBindings,
-    l : InternalSql.SqliteError,
-    m : InternalSql.SqliteState,
-    n : InternalSql.SqliteValue,
+    k : InternalSQL.SqliteBindings,
+    l : InternalSQL.SqliteError,
+    m : InternalSQL.SqliteState,
+    n : InternalSQL.SqliteValue,
     o : InternalFile.ReadErr,
     p : InternalFile.WriteErr,
 }
