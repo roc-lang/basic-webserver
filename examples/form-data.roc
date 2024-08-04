@@ -69,7 +69,7 @@ main = \req ->
             |> Http.parseMultipartFormData
             |> Result.try List.first
             |> Result.map .data
-            |> Result.try Base64.fromBytes
+            |> Result.map Base64.encode
 
         when maybeImage is
             Ok img ->
