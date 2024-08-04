@@ -26,7 +26,7 @@ respond = \_, _ ->
     body =
         rows
         |> List.map \{ id, task } ->
-            "row $(Num.toStr id), task: $(task)"
+            "row $(id), task: $(task)"
         |> Str.joinWith "<br/>"
     # Print out the results
     Stdout.line! body
@@ -43,7 +43,7 @@ queryTodosByStatus = \dbPath, status ->
         query: "SELECT id, task FROM todos WHERE status = :status;",
         bindings: [{ name: ":status", value: String status }],
         rows: { Sqlite.decodeRecord <-
-            id: Sqlite.i64 "id",
+            id: Sqlite.i64 "id" |> Sqlite.mapValue Num.toStr,
             task: Sqlite.str "task",
         },
     }
