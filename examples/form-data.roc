@@ -1,6 +1,9 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [main] {
+    pf: platform "../platform/main.roc",
+    utils: "https://github.com/quelgar/roc-utils/releases/download/v0.1.0/keYHFjUG1pMAT8ECePEAIS-ncYxEV0DdhTvENUf0USs.tar.br",
+}
 
-import pf.Base64
+import utils.Base64
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 

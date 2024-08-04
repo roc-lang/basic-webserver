@@ -16,7 +16,6 @@ platform "webserver"
         Sleep,
         Command,
         SQLite3,
-        Base64,
     ]
     packages {}
     imports [
