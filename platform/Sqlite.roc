@@ -267,16 +267,36 @@ realDecoder = \cast ->
             Real r -> cast r |> Result.mapErr FailedToDecodeReal
             _ -> toUnexpectedTypeErr val
 
+i64 : Str -> SqlDecode I64 [FailedToDecodeInteger []]UnexpectedTypeErr
 i64 = intDecoder Ok
+
+i32 : Str -> SqlDecode I32 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 i32 = intDecoder Num.toI32Checked
+
+i16 : Str -> SqlDecode I16 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 i16 = intDecoder Num.toI16Checked
+
+i8 : Str -> SqlDecode I8 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 i8 = intDecoder Num.toI8Checked
+
+u64 : Str -> SqlDecode U64 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 u64 = intDecoder Num.toU64Checked
+
+u32 : Str -> SqlDecode U32 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 u32 = intDecoder Num.toU32Checked
+
+u16 : Str -> SqlDecode U16 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 u16 = intDecoder Num.toU16Checked
+
+u8 : Str -> SqlDecode U8 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 u8 = intDecoder Num.toU8Checked
+
+f64 : Str -> SqlDecode F64 [FailedToDecodeReal []]UnexpectedTypeErr
 f64 = realDecoder Ok
+
+f32 : Str -> SqlDecode F32 [FailedToDecodeReal []]UnexpectedTypeErr
 f32 = realDecoder (\x -> Num.toF32 x |> Ok)
+
 # TODO: Mising Num.toDec and Num.toDecChecked
 # dec = realSqlDecoder Ok
 
@@ -315,16 +335,36 @@ nullableRealDecoder = \cast ->
             Null -> Ok Null
             _ -> toUnexpectedTypeErr val
 
+nullableI64 : Str -> SqlDecode (Nullable I64) [FailedToDecodeInteger []]UnexpectedTypeErr
 nullableI64 = nullableIntDecoder Ok
+
+nullableI32 : Str -> SqlDecode (Nullable I32) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableI32 = nullableIntDecoder Num.toI32Checked
+
+nullableI16 : Str -> SqlDecode (Nullable I16) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableI16 = nullableIntDecoder Num.toI16Checked
+
+nullableI8 : Str -> SqlDecode (Nullable I8) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableI8 = nullableIntDecoder Num.toI8Checked
+
+nullableU64 : Str -> SqlDecode (Nullable U64) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableU64 = nullableIntDecoder Num.toU64Checked
+
+nullableU32 : Str -> SqlDecode (Nullable U32) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableU32 = nullableIntDecoder Num.toU32Checked
+
+nullableU16 : Str -> SqlDecode (Nullable U16) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableU16 = nullableIntDecoder Num.toU16Checked
+
+nullableU8 : Str -> SqlDecode (Nullable U8) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
 nullableU8 = nullableIntDecoder Num.toU8Checked
+
+nullableF64 : Str -> SqlDecode (Nullable F64) [FailedToDecodeReal []]UnexpectedTypeErr
 nullableF64 = nullableRealDecoder Ok
+
+nullableF32 : Str -> SqlDecode (Nullable F32) [FailedToDecodeReal []]UnexpectedTypeErr
 nullableF32 = nullableRealDecoder (\x -> Num.toF32 x |> Ok)
+
 # TODO: Mising Num.toDec and Num.toDecChecked
 # nullableDec = nullableRealDecoder Ok
 
