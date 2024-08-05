@@ -1,3 +1,4 @@
+mod heap;
 mod http_client;
 mod http_server;
 mod roc;

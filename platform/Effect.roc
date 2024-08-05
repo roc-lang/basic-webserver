@@ -33,8 +33,13 @@ hosted Effect
         sleepMillis,
         commandStatus,
         commandOutput,
-        sqliteExecute,
         tempDir,
+        sqlitePrepare,
+        sqliteBind,
+        sqliteColumns,
+        sqliteColumnValue,
+        sqliteStep,
+        sqliteReset,
     ]
     imports [
         InternalHttp,
@@ -42,7 +47,7 @@ hosted Effect
         InternalTcp,
         InternalCommand,
         InternalError,
-        InternalSQL,
+        InternalSql,
     ]
     generates Effect with [after, map, always, forever, loop]
 
@@ -90,7 +95,12 @@ sleepMillis : U64 -> Effect {}
 commandStatus : Box InternalCommand.InternalCommand -> Effect (Result {} InternalCommand.InternalCommandErr)
 commandOutput : Box InternalCommand.InternalCommand -> Effect InternalCommand.InternalOutput
 
-# SQLite3
-sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Effect (Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError)
+# Sqlite
+sqlitePrepare : Str, Str -> Effect (Result (Box {}) InternalSql.SqliteError)
+sqliteBind : Box {}, List InternalSql.SqliteBindings -> Effect (Result {} InternalSql.SqliteError)
+sqliteColumns : Box {} -> Effect (List Str)
+sqliteColumnValue : Box {}, U64 -> Effect (Result InternalSql.SqliteValue InternalSql.SqliteError)
+sqliteStep : Box {} -> Effect (Result InternalSql.SqliteState InternalSql.SqliteError)
+sqliteReset : Box {} -> Effect (Result {} InternalSql.SqliteError)
 
 tempDir : Effect (List U8)

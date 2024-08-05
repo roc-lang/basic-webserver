@@ -7,6 +7,7 @@ import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Env
+import pf.Sqlite
 import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
@@ -58,32 +59,81 @@ routeTodos = \dbPath, req ->
 
 listTodos : Str -> Task Response *
 listTodos = \dbPath ->
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg "SELECT id, task, status FROM todos;"
-        |> Command.output
-        |> Task.await
+    result = listTodosQuery dbPath |> Task.result!
 
-    when output.status is
-        Ok {} -> jsonResponse output.stdout
-        Err _ -> byteResponse 500 output.stderr
+    when result is
+        Ok tasks ->
+            tasks
+            |> List.map encodeTask
+            |> Str.joinWith ","
+            |> \list -> "[$(list)]"
+            |> Str.toUtf8
+            |> jsonResponse
+
+        Err err ->
+            errResponse err
+
+listTodosQuery : Str -> Task (List { id : I64, task : Str, status : Str }) _
+listTodosQuery = \dbPath ->
+    Sqlite.query {
+        path: dbPath,
+        query: "SELECT id, task, status FROM todos",
+        bindings: [],
+        rows: { Sqlite.decodeRecord <-
+            id: Sqlite.i64 "id",
+            task: Sqlite.str "task",
+            status: Sqlite.str "status",
+        },
+    }
 
 createTodo : Str, { task : Str, status : Str } -> Task Response *
-createTodo = \dbPath, { task, status } ->
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
-        |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
-        |> Command.output
-        |> Task.await
+createTodo = \dbPath, params ->
+    result = createTodoTransaction dbPath params |> Task.result!
 
-    when output.status is
-        Ok {} -> jsonResponse output.stdout
-        Err _ -> byteResponse 500 output.stderr
+    when result is
+        Ok task ->
+            task
+            |> encodeTask
+            |> Str.toUtf8
+            |> jsonResponse
+
+        Err err ->
+            errResponse err
+
+createTodoTransaction : Str, { task : Str, status : Str } -> Task { id : I64, task : Str, status : Str } _
+createTodoTransaction = \dbPath, { task, status } ->
+    # TODO: create a nice transaction wrapper that will rollback if any intermediate stage fails
+    # Currently, if this fails part way through, it will just lock the database with a left open trasaction.
+    Sqlite.execute! {
+        path: dbPath,
+        query: "BEGIN",
+        bindings: [],
+    }
+    Sqlite.execute! {
+        path: dbPath,
+        query: "INSERT INTO todos (task, status) VALUES (:task, :status)",
+        bindings: [
+            { name: ":task", value: String task },
+            { name: ":status", value: String status },
+        ],
+    }
+    createdTask =
+        Sqlite.queryExactlyOne! {
+            path: dbPath,
+            query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()",
+            bindings: [],
+            row: { Sqlite.decodeRecord <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
+    Sqlite.execute! {
+        path: dbPath,
+        query: "END",
+        bindings: [],
+    }
+    Task.ok createdTask
 
 taskFromQuery : Str -> Result { task : Str, status : Str } [InvalidQuery]
 taskFromQuery = \url ->
@@ -92,6 +142,13 @@ taskFromQuery = \url ->
     when (params |> Dict.get "task", params |> Dict.get "status") is
         (Ok task, Ok status) -> Ok { task: Str.replaceEach task "%20" " ", status: Str.replaceEach status "%20" " " }
         _ -> Err InvalidQuery
+
+encodeTask : { id : I64, task : Str, status : Str } -> Str
+encodeTask = \{ id, task, status } ->
+    # Maybe this should use our json encoder
+    """
+    {"id":$(Num.toStr id),"task":"$(task)","status":"$(status)"}
+    """
 
 jsonResponse : List U8 -> Task Response *
 jsonResponse = \bytes ->
@@ -112,6 +169,10 @@ textResponse = \status, str ->
         ],
         body: Str.toUtf8 str,
     }
+
+errResponse : err -> Task Response * where err implements Inspect
+errResponse = \err ->
+    byteResponse 500 (Str.toUtf8 (Inspect.toStr err))
 
 byteResponse : U16, List U8 -> Task Response *
 byteResponse = \status, bytes ->
