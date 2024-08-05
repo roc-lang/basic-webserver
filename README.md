@@ -12,7 +12,7 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 
 ## Example
 
-Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser.
+Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
 app [main] {
