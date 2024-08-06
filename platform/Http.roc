@@ -15,12 +15,14 @@ module [
     getUtf8,
     methodToStr,
     parseFormUrlEncoded,
+    parseMultipartFormData,
 ]
 
 import Effect
 import InternalTask
 import Task exposing [Task]
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
+import MultipartFormData
 
 ## Represents an HTTP request.
 Request : InternalHttp.Request
@@ -293,3 +295,30 @@ hexToDec = \byte ->
 
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
+
+## For HTML forms that include files or large amounts of text.
+##
+## See usage in examples/file-upload-form.roc
+parseMultipartFormData :
+    {
+        headers : List Header,
+        body : List U8,
+    }
+    -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader]
+parseMultipartFormData = \args ->
+    decodeMultipartFormDataBoundary args.headers
+    |> Result.try \boundary ->
+        { body: args.body, boundary }
+        |> MultipartFormData.parse
+        |> Result.mapErr \_ -> InvalidMultipartFormData
+
+decodeMultipartFormDataBoundary : List { name : Str, value : Str } -> Result (List U8) _
+decodeMultipartFormDataBoundary = \headers ->
+    headers
+    |> List.keepIf \{ name } -> name == "Content-Type" || name == "content-type"
+    |> List.first
+    |> Result.mapErr \ListWasEmpty -> ExpectedContentTypeHeader
+    |> Result.try \{ value } ->
+        when Str.splitLast value "=" is
+            Ok { after } -> Ok (Str.toUtf8 after)
+            Err NotFound -> Err InvalidContentTypeHeader

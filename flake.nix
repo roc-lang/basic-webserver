@@ -9,7 +9,6 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
 
     # to easily make configs for multiple architectures
@@ -46,6 +45,7 @@
           expect
           rocPkgs.cli
           sqlite
+          imagemagick # for file-upload-form example
         ]);
       in {
 
