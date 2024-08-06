@@ -5,98 +5,130 @@ module [
     parse,
 ]
 
-import SplitSeq exposing [splitOnSeq]
+import SplitList exposing [splitOnList]
 
 FormData : {
+    ## Content-Disposition response header
+    ## Indicates if content expects to be displayed inline or as attachment.
+    ##
+    ## Example: `inline` or `attachment; filename="filename.jpg"`
     disposition : List U8,
+    
+    ## Content-Type header
+    ## Original media type of the resource.
+    ##
+    ## Example: `multipart/form-data; boundary=ExampleBoundaryString`
     type : List U8,
+
+    ## Content-Transfer-Encoding
+    ## Specifies how the body is encoded.
+    ##
+    ## Example: `base64` or `binary`
     encoding : List U8,
+
+    ## Acutal data that was entered in the form, in encoded form.
     data : List U8,
 }
 
 newline = ['\r', '\n']
 doubledash = ['-', '-']
 
-# parse each header individually - Content-Disposition, Content-Type, Content-Transfer-Encoding
-parseContent : _ -> (List U8 -> Result { val : List U8, rest : List U8 } _)
-parseContent = \{ upper, lower } -> \bytes ->
+## Produces function that extracts the header value. 
+##
+## Example call:
+## ```roc
+## parseContentF {
+##    upper: Str.toUtf8 "Content-Disposition:",
+##    lower: Str.toUtf8 "content-disposition:",
+## }
+##
+## input = Str.toUtf8 "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here..."
+## actual = parseContentDispositionF input
+## expected = Ok {
+##    value: Str.toUtf8 " form-data; name=\"sometext\"",
+##    rest: Str.toUtf8 "\r\nSome text here...",
+## }
+## ```
+##
+parseContentF : { upper: List U8, lower: List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
+parseContentF = \{ upper, lower } -> \bytes ->
 
-        searchUpper = List.concat newline upper
-        searchLower = List.concat newline lower
-        searchLength = List.len searchUpper
-        listWithoutSearch = List.sublist bytes { start: searchLength, len: Num.maxU64 }
+        toSearchUpper = List.concat newline upper
+        toSearchLower = List.concat newline lower
+        searchLength = List.len toSearchUpper
+        afterSearch = List.sublist bytes { start: searchLength, len: Num.maxU64 }
 
         if
-            List.startsWith bytes searchUpper
-            || List.startsWith bytes searchLower
+            List.startsWith bytes toSearchUpper
+            || List.startsWith bytes toSearchLower
         then
             nextLineStart <-
-                listWithoutSearch
+                afterSearch
                 |> List.findFirstIndex \b -> b == '\r'
                 |> Result.try
 
             Ok {
-                val: List.sublist listWithoutSearch { start: 0, len: nextLineStart },
-                rest: List.sublist listWithoutSearch { start: nextLineStart, len: Num.maxU64 },
+                value: List.sublist afterSearch { start: 0, len: nextLineStart },
+                rest: List.sublist afterSearch { start: nextLineStart, len: Num.maxU64 },
             }
         else
             Err ExpectedContent
 
-parseContentDisposition = parseContent {
+parseContentDispositionF = parseContentF {
     upper: Str.toUtf8 "Content-Disposition:",
     lower: Str.toUtf8 "content-disposition:",
 }
 
 expect
     input = Str.toUtf8 "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here..."
-    actual = parseContentDisposition input
+    actual = parseContentDispositionF input
     expected = Ok {
-        val: Str.toUtf8 " form-data; name=\"sometext\"",
+        value: Str.toUtf8 " form-data; name=\"sometext\"",
         rest: Str.toUtf8 "\r\nSome text here...",
     }
 
     actual == expected
 
-parseContentType = parseContent {
+parseContentTypeF = parseContentF {
     upper: Str.toUtf8 "Content-Type:",
     lower: Str.toUtf8 "content-type:",
 }
 
 expect
     input = Str.toUtf8 "\r\ncontent-type: multipart/mixed; boundary=abcde\r\nSome text here..."
-    actual = parseContentType input
+    actual = parseContentTypeF input
     expected = Ok {
-        val: Str.toUtf8 " multipart/mixed; boundary=abcde",
+        value: Str.toUtf8 " multipart/mixed; boundary=abcde",
         rest: Str.toUtf8 "\r\nSome text here...",
     }
 
     actual == expected
 
-parseContentTransferEncoding = parseContent {
+parseContentTransferEncodingF = parseContentF {
     upper: Str.toUtf8 "Content-Transfer-Encoding:",
     lower: Str.toUtf8 "content-transfer-encoding:",
 }
 
 expect
     input = Str.toUtf8 "\r\nContent-Transfer-Encoding: binary\r\nSome text here..."
-    actual = parseContentTransferEncoding input
+    actual = parseContentTransferEncodingF input
     expected = Ok {
-        val: Str.toUtf8 " binary",
+        value: Str.toUtf8 " binary",
         rest: Str.toUtf8 "\r\nSome text here...",
     }
 
     actual == expected
 
-# parse headers combined
-parseHeaders : List U8 -> Result FormData _
-parseHeaders = \bytes ->
+## Parses all headers: Content-Disposition, Content-Type and Content-Transfer-Encoding.
+parseAllHeaders : List U8 -> Result FormData _
+parseAllHeaders = \bytes ->
 
     doubleNewlineLength = 4 # \r\n\r\n
 
-    when parseContentDisposition bytes is
+    when parseContentDispositionF bytes is
         Err err -> Err (ExpectedContentDisposition bytes err)
-        Ok { val: disposition, rest: first } ->
-            when parseContentType first is
+        Ok { value: disposition, rest: first } ->
+            when parseContentTypeF first is
                 Err _ ->
                     Ok {
                         disposition,
@@ -105,8 +137,8 @@ parseHeaders = \bytes ->
                         data: List.dropFirst first doubleNewlineLength,
                     }
 
-                Ok { val: type, rest: second } ->
-                    when parseContentTransferEncoding second is
+                Ok { value: type, rest: second } ->
+                    when parseContentTransferEncodingF second is
                         Err _ ->
                             Ok {
                                 disposition,
@@ -115,7 +147,7 @@ parseHeaders = \bytes ->
                                 data: List.dropFirst second doubleNewlineLength,
                             }
 
-                        Ok { val: encoding, rest } ->
+                        Ok { value: encoding, rest } ->
                             Ok {
                                 disposition,
                                 type,
@@ -124,8 +156,8 @@ parseHeaders = \bytes ->
                             }
 
 expect
-    input = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\n\r\n<FILE CONTENTS>"
-    actual = parseHeaders (Str.toUtf8 input)
+    header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\n\r\n<FILE CONTENTS>"
+    actual = parseAllHeaders (Str.toUtf8 header)
     expected = Ok {
         disposition: Str.toUtf8 " form-data; name=\"sometext\"",
         type: Str.toUtf8 "",
@@ -136,8 +168,8 @@ expect
     actual == expected
 
 expect
-    input = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\n\r\n<FILE CONTENTS>"
-    actual = parseHeaders (Str.toUtf8 input)
+    header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\n\r\n<FILE CONTENTS>"
+    actual = parseAllHeaders (Str.toUtf8 header)
     expected = Ok {
         disposition: Str.toUtf8 " form-data; name=\"sometext\"",
         type: Str.toUtf8 " multipart/mixed; boundary=abcde",
@@ -148,8 +180,8 @@ expect
     actual == expected
 
 expect
-    input = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\nContent-Transfer-Encoding: binary\r\n\r\n<FILE CONTENTS>"
-    actual = parseHeaders (Str.toUtf8 input)
+    header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\nContent-Transfer-Encoding: binary\r\n\r\n<FILE CONTENTS>"
+    actual = parseAllHeaders (Str.toUtf8 header)
     expected = Ok {
         disposition: Str.toUtf8 " form-data; name=\"sometext\"",
         type: Str.toUtf8 " multipart/mixed; boundary=abcde",
@@ -159,11 +191,10 @@ expect
 
     actual == expected
 
-## Parses the body of a multipart/form-data request
+## Parses the body of a multipart/form-data request.
 ##
+## Example body with boundary 12345:
 ## ```
-## Content-Type: multipart/form-data; boundary=12345
-##
 ## --12345
 ## Content-Disposition: form-data; name="sometext"
 ##
@@ -173,28 +204,29 @@ expect
 parse :
     {
         body : List U8,
-        boundary : List U8,
+        ## Each part of the form is enclosed between two boundary markers.
+        boundary : List U8, 
     }
-    -> Result (List FormData) _ # [InvalidMultipartFormData]
+    -> Result (List FormData) [ExpectedEnclosedByBoundary]
 parse = \{ body, boundary } ->
 
-    start = List.join [doubledash, boundary]
-    end = List.join [newline, doubledash, boundary, doubledash, newline]
+    startMarker = List.join [doubledash, boundary]
+    endMarker = List.join [newline, doubledash, boundary, doubledash, newline]
     boundaryWithPrefix = List.join [newline, doubledash, boundary]
 
-    isFencedByBoundary =
-        List.startsWith body start
-        && List.endsWith body end
+    isEnclosedByBoundary =
+        List.startsWith body startMarker
+        && List.endsWith body endMarker
 
-    if isFencedByBoundary then
+    if isEnclosedByBoundary then
         body
-        |> List.dropFirst (List.len start)
-        |> splitOnSeq boundaryWithPrefix
+        |> List.dropFirst (List.len startMarker)
+        |> splitOnList boundaryWithPrefix
         |> List.dropIf \part -> part == doubledash
-        |> List.keepOks parseHeaders
+        |> List.keepOks parseAllHeaders
         |> Ok
     else
-        Err ExpectedFendedByBoundary
+        Err ExpectedEnclosedByBoundary
 
 expect
     # """

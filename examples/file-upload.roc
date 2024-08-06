@@ -7,6 +7,8 @@ import utils.Base64
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
+# Demonstrates uploading of an image using an HTML form
+
 main : Request -> Task Response []
 main = \req ->
 
@@ -60,7 +62,7 @@ main = \req ->
                     </style>
                 </head>
                 <body>
-                    <h1>You uploaded</h1>
+                    <h1>You uploaded:</h1>
                     <div class="image-container"></div>
                 </body>
             </html>
