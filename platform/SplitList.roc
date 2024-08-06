@@ -104,8 +104,7 @@ walkSplitHelp = \input, markers ->
                 [Start start] ->
                     List.append state (List.sublist input {start, len: ((List.len input) - start)})
 
-                # should have matched Start and Stop pairs
-                _ -> crash "Unreachable:\n\tThis list have matched earlier branches: $(Inspect.toStr remainingMarkers)"
+                _ -> crash "Unreachable:\n\tThis list should have matched earlier when branches: $(Inspect.toStr remainingMarkers)"
 
     go markers []
 
