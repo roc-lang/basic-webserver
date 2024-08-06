@@ -296,6 +296,9 @@ hexToDec = \byte ->
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
 
+## For HTML forms that include files or large amounts of text.
+##
+## See usage in examples/file-upload.roc
 parseMultipartFormData :
     {
         headers : List Header,

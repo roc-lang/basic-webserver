@@ -69,7 +69,7 @@ respond = \req, _ ->
                     </style>
                 </head>
                 <body>
-                    <h1>You uploaded</h1>
+                    <h1>You uploaded:</h1>
                     <div class="image-container"></div>
                 </body>
             </html>
