@@ -45,6 +45,7 @@
           expect
           rocPkgs.cli
           sqlite
+          imagemagick # for file-upload-form example
         ]);
       in {
 

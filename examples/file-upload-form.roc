@@ -60,11 +60,11 @@ respond = \req, _ ->
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <style>
                         .image-container {
-                            width: 100%;
-                            height: 500px;
+                            height: 200px;
                             background-image: url('data:image/png;base64,$(src)');
-                            background-repeat: repeat;
-                            background-size: auto; /* Keeps the original image size */
+                            background-repeat: no-repeat;
+                            background-size: contain; /*scales the image to fit within the container while maintaining its aspect ratio*/
+                            background-position: center;
                         }
                     </style>
                 </head>
