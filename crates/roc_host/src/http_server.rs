@@ -28,6 +28,7 @@ pub fn start() -> i32 {
     }
 }
 
+#[allow(dead_code)]
 fn call_roc<'a>(
     method: reqwest::Method,
     url: hyper::Uri,
@@ -46,13 +47,20 @@ fn call_roc<'a>(
         })
         .collect();
 
-    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
+    let _roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    let roc_response = roc::main_for_host(roc_request).force_thunk();
+    // TODO RESTORE
+    // let roc_response = roc::main_for_host(roc_request).force_thunk();
+    let roc_response = roc_http::ResponseToHost {
+        body: RocList::empty(),
+        headers: RocList::empty(),
+        status: 500,
+    };
 
     to_server_response(roc_response)
 }
 
+#[allow(dead_code)]
 fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response<hyper::Body> {
     let mut builder = hyper::Response::builder();
 
