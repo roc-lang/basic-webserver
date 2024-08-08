@@ -1,11 +1,8 @@
-use libc::memcpy;
 use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
-use std::mem::transmute;
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::rc::Rc;
@@ -13,8 +10,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::http_client;
 use crate::roc_http;
-use roc_app;
-// Externs required by roc_std and by the Roc app
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_alloc(size: usize, _alignment: u32) -> *mut c_void {
@@ -37,7 +32,7 @@ pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
 }
 
 thread_local! {
-    static ROC_CRASH_MSG: RefCell<RocStr> = RefCell::new(RocStr::empty());
+    static ROC_CRASH_MSG: RefCell<RocStr> = const { RefCell::new(RocStr::empty())};
 }
 
 #[no_mangle]
@@ -47,7 +42,7 @@ pub unsafe extern "C" fn roc_panic(msg: &RocStr, _tag_id: u32) {
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_dbg(loc: &RocStr, msg: &RocStr) {
-    eprintln!("[{}] {}", &*loc, &*msg);
+    eprintln!("[{}] {}", loc, msg);
 }
 
 #[no_mangle]
@@ -256,7 +251,7 @@ fn cwd() -> roc_std::RocList<u8> {
 
 #[roc_fn(name = "stdoutLine")]
 fn stdout_line(roc_str: &RocStr) {
-    print!("{}\n", roc_str.as_str());
+    println!("{}", roc_str.as_str());
 }
 
 #[roc_fn(name = "stdoutWrite")]
@@ -348,7 +343,7 @@ fn command_output(roc_cmd: &roc_app::InternalCommand) -> roc_app::InternalOutput
             };
 
             roc_app::InternalOutput {
-                status: status,
+                status,
                 stdout: RocList::from(&output.stdout[..]),
                 stderr: RocList::from(&output.stderr[..]),
             }
@@ -688,23 +683,18 @@ fn dir_list(
 
         let mut entries = Vec::new();
 
-        for entry in dir {
-            match entry {
-                Ok(entry) => {
-                    let path = entry.path();
-                    let str = path.as_os_str();
-                    entries.push(os_str_to_roc_path(str));
-                }
-                Err(_) => {} // TODO should we ignore errors reading directory??
-            }
+        for entry in dir.flatten() {
+            let path = entry.path();
+            let str = path.as_os_str();
+            entries.push(os_str_to_roc_path(str));
         }
 
-        return roc_std::RocResult::ok(RocList::from_iter(entries));
+        roc_std::RocResult::ok(RocList::from_iter(entries))
     } else {
-        return roc_std::RocResult::err(roc_app::InternalDirReadErr::DirReadErr(
+        roc_std::RocResult::err(roc_app::InternalDirReadErr::DirReadErr(
             current_path,
             RocStr::from("Path is not a directory"),
-        ));
+        ))
     }
 }
 
@@ -778,7 +768,7 @@ struct SQLiteConnection {
 }
 
 thread_local! {
-    static SQLITE_CONNECTIONS : RefCell<Vec<SQLiteConnection>> = RefCell::new(vec![]);
+    static SQLITE_CONNECTIONS : RefCell<Vec<SQLiteConnection>> = const {RefCell::new(vec![])};
 }
 
 fn get_connection(path: &str) -> Result<Rc<sqlite::Connection>, sqlite::Error> {

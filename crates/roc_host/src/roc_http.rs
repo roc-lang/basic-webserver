@@ -1,4 +1,3 @@
-use reqwest;
 use roc_std::{RocList, RocStr};
 
 #[derive(Debug)]
