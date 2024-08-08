@@ -61,7 +61,10 @@ impl RequestToAndFromHost {
             "Trace" => reqwest::Method::TRACE,
             "Connect" => reqwest::Method::CONNECT,
             "Patch" => reqwest::Method::PATCH,
-            other => panic!("The platform reveived an unknown HTTP method Str from Roc: {}.", other),
+            other => panic!(
+                "The platform reveived an unknown HTTP method Str from Roc: {}.",
+                other
+            ),
         }
     }
 }
@@ -173,6 +176,7 @@ impl ResponseFromHost {
     }
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct ResponseToHost {
     pub body: roc_std::RocList<u8>,

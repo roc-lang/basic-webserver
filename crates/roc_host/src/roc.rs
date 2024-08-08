@@ -1,5 +1,7 @@
+use libc::memcpy;
 use roc_fn::roc_fn;
 use roc_std::{RocList, RocResult, RocStr};
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
@@ -895,137 +897,68 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
-use roc_std::roc_refcounted_noop_impl;
-use roc_std::RocRefcounted;
+pub type Model = *mut c_void;
+pub type Captures = Vec<u8>;
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct RocServerInit {
-    closure_data: Vec<u8>,
-}
-
-impl RocServerInit {
-    pub fn force_thunk(mut self) -> roc_std::RocResult<*mut c_void, i32> {
-        extern "C" {
-            fn roc__forHost_0_caller(
-                arg0: *const (),
-                closure_data: *mut u8,
-                output: *mut roc_std::RocResult<*mut c_void, i32>,
-            );
-            fn roc__forHost_0_size() -> usize;
-        }
-
-        let mut output = core::mem::MaybeUninit::uninit();
-
-        unsafe {
-            roc__forHost_0_caller(&(), self.closure_data.as_mut_ptr(), output.as_mut_ptr());
-
-            output.assume_init()
-        }
-    }
-}
-roc_refcounted_noop_impl!(RocServerInit);
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct RocServerRespondThunk {
-    closure_data: Vec<u8>,
-}
-
-impl RocServerRespondThunk {
-    pub fn force_thunk(mut self) -> roc_http::ResponseToHost {
-        extern "C" {
-            fn roc__forHost_2_caller(
-                arg0: *const (),
-                closure_data: *mut u8,
-                output: *mut roc_http::ResponseToHost,
-            );
-            fn roc__forHost_2_size() -> usize;
-        }
-
-        let mut output = core::mem::MaybeUninit::uninit();
-
-        unsafe {
-            roc__forHost_2_caller(&(), self.closure_data.as_mut_ptr(), output.as_mut_ptr());
-
-            output.assume_init()
-        }
-    }
-}
-roc_refcounted_noop_impl!(RocServerRespondThunk);
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct RocServerRespond {
-    closure_data: Vec<u8>,
-}
-
-impl RocServerRespond {
-    pub fn force_thunk(
-        mut self,
-        arg0: roc_http::RequestToAndFromHost,
-        arg1: *mut c_void,
-    ) -> RocServerRespondThunk {
-        extern "C" {
-            fn roc__forHost_1_caller(
-                arg0: &mut core::mem::ManuallyDrop<roc_http::RequestToAndFromHost>,
-                arg1: *mut c_void,
-                closure_data: *mut u8,
-                output: *mut RocServerRespondThunk,
-            );
-            fn roc__forHost_1_size() -> usize;
-        }
-
-        let mut output = core::mem::MaybeUninit::uninit();
-
-        unsafe {
-            roc__forHost_1_caller(
-                &mut core::mem::ManuallyDrop::new(arg0),
-                arg1,
-                self.closure_data.as_mut_ptr(),
-                output.as_mut_ptr(),
-            );
-
-            output.assume_init()
-        }
-    }
-}
-roc_refcounted_noop_impl!(RocServerRespond);
-
-#[derive(Debug)]
-#[repr(C)]
-pub struct RocServerFns {
-    pub init: RocServerInit,
-    pub respond: RocServerRespond,
-}
-
-roc_refcounted_noop_impl!(RocServerFns);
-
-pub fn call_roc() -> RocServerFns {
+pub fn call_roc_init() -> (Model, Captures) {
     extern "C" {
-        fn roc__forHost_1_exposed_generic(_: *mut RocServerFns);
+        fn roc__forHost_1_exposed_generic(_: *mut u8);
         fn roc__forHost_1_exposed_size() -> usize;
+        fn roc__forHost_0_caller(flags: *const (), captures: *mut u8, model: *mut c_void);
     }
 
     unsafe {
         let size = roc__forHost_1_exposed_size();
-        let layout =
-            std::alloc::Layout::from_size_align(size, std::mem::align_of::<RocServerFns>())
-                .expect("Invalid layout for RocServerFns");
-        let ptr = std::alloc::alloc(layout) as *mut RocServerFns;
 
-        if ptr.is_null() {
-            std::alloc::handle_alloc_error(layout);
+        let mut captures = Vec::from_raw_parts(roc_alloc(size, 0) as *mut u8, size, size);
+
+        let model = std::mem::MaybeUninit::<*mut c_void>::uninit();
+
+        roc__forHost_1_exposed_generic(captures.as_mut_ptr());
+        roc__forHost_0_caller(
+            // This flags pointer will never get dereferenced
+            std::mem::MaybeUninit::uninit().as_ptr(),
+            captures.as_mut_ptr(),
+            model.assume_init(),
+        );
+
+        (model.assume_init(), captures)
+    }
+}
+
+pub fn call_roc_respond(
+    request: &mut roc_http::RequestToAndFromHost,
+    model: Model,
+    captures_1: &mut Captures,
+) -> roc_http::ResponseToHost {
+    extern "C" {
+        fn roc__forHost_1_caller(
+            arg0: *mut roc_http::RequestToAndFromHost,
+            arg1: *mut c_void,
+            closure_data: *mut u8,
+            output: *mut u8,
+        );
+        fn roc__forHost_2_caller(
+            arg0: *const (),
+            closure_data: *mut u8,
+            output: *mut roc_http::ResponseToHost,
+        );
+        fn roc__forHost_2_size() -> usize;
+    }
+
+    unsafe {
+        let captures_2 = roc_alloc(roc__forHost_2_size(), 0) as *mut u8;
+        if captures_2.is_null() {
+            panic!("Memory allocation failed");
         }
 
-        roc__forHost_1_exposed_generic(ptr);
+        let mut response = std::mem::MaybeUninit::<roc_http::ResponseToHost>::uninit();
 
-        // Safety: We've just allocated and initialized this memory
-        let server_fns = std::ptr::read(ptr);
+        roc__forHost_1_caller(request, model, captures_1.as_mut_ptr(), captures_2);
+        roc__forHost_2_caller(&(), captures_2, response.as_mut_ptr());
 
-        // Deallocate the temporary memory
-        std::alloc::dealloc(ptr as *mut u8, layout);
+        roc_dealloc(captures_2 as *mut c_void, 0);
 
-        server_fns
+        response.assume_init()
     }
 }
