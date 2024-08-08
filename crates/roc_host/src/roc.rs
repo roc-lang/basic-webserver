@@ -902,20 +902,6 @@ pub struct RocServer {
     pub captures: RocList<u8>,
 }
 
-impl roc_std::RocRefcounted for RocServer {
-    fn inc(&mut self) {
-        self.model.inc();
-        self.captures.inc();
-    }
-    fn dec(&mut self) {
-        self.model.dec();
-        self.captures.dec();
-    }
-    fn is_refcounted() -> bool {
-        true
-    }
-}
-
 pub fn call_roc_init() -> RocServer {
     extern "C" {
         fn roc__forHost_1_exposed_generic(_: *mut u8);
@@ -944,17 +930,20 @@ pub fn call_roc_init() -> RocServer {
             model.as_mut_ptr(),
         );
 
+        model.set_readonly();
+        captures.set_readonly();
+
         RocServer { model, captures }
     }
 }
 
 pub fn call_roc_respond(
-    request: &mut roc_http::RequestToAndFromHost,
+    request: &roc_http::RequestToAndFromHost,
     server: &RocServer,
 ) -> roc_http::ResponseToHost {
     extern "C" {
         fn roc__forHost_1_caller(
-            flags: *mut roc_http::RequestToAndFromHost,
+            flags: *const roc_http::RequestToAndFromHost,
             model: *const u8,
             closure_data: *const u8,
             output: *mut u8,
