@@ -897,10 +897,26 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
-pub type Model = RocList<u8>;
-pub type Captures = RocList<u8>;
+pub struct RocServer {
+    pub model: RocList<u8>,
+    pub captures: RocList<u8>,
+}
 
-pub fn call_roc_init() -> (Model, Captures) {
+impl roc_std::RocRefcounted for RocServer {
+    fn inc(&mut self) {
+        self.model.inc();
+        self.captures.inc();
+    }
+    fn dec(&mut self) {
+        self.model.dec();
+        self.captures.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+pub fn call_roc_init() -> RocServer {
     extern "C" {
         fn roc__forHost_1_exposed_generic(_: *mut u8);
         fn roc__forHost_1_exposed_size() -> usize;
@@ -928,20 +944,19 @@ pub fn call_roc_init() -> (Model, Captures) {
             model.as_mut_ptr(),
         );
 
-        (model, captures)
+        RocServer { model, captures }
     }
 }
 
 pub fn call_roc_respond(
     request: &mut roc_http::RequestToAndFromHost,
-    model: &mut Model,
-    captures_1: &mut Captures,
+    server: &RocServer,
 ) -> roc_http::ResponseToHost {
     extern "C" {
         fn roc__forHost_1_caller(
             flags: *mut roc_http::RequestToAndFromHost,
-            model: *mut u8,
-            closure_data: *mut u8,
+            model: *const u8,
+            closure_data: *const u8,
             output: *mut u8,
         );
         fn roc__forHost_2_caller(
@@ -962,8 +977,8 @@ pub fn call_roc_respond(
 
         roc__forHost_1_caller(
             request,
-            model.as_mut_ptr(),
-            captures_1.as_mut_ptr(),
+            server.model.as_ptr(),
+            server.captures.as_ptr(),
             captures_2,
         );
         roc__forHost_2_caller(&(), captures_2, response.as_mut_ptr());
