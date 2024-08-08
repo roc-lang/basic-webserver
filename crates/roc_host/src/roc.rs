@@ -897,49 +897,55 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
-pub type Model = *mut c_void;
+pub type Model = Vec<u8>;
 pub type Captures = Vec<u8>;
 
 pub fn call_roc_init() -> (Model, Captures) {
     extern "C" {
         fn roc__forHost_1_exposed_generic(_: *mut u8);
         fn roc__forHost_1_exposed_size() -> usize;
-        fn roc__forHost_0_caller(flags: *const (), captures: *mut u8, model: *mut c_void);
+        fn roc__forHost_0_caller(flags: *const (), captures: *mut u8, model: *mut u8);
+        fn roc__forHost_0_size() -> usize;
     }
 
     unsafe {
-        let size = roc__forHost_1_exposed_size();
+        let captures_size = roc__forHost_1_exposed_size();
+        let mut captures = Vec::from_raw_parts(
+            roc_alloc(captures_size, 0) as *mut u8,
+            captures_size,
+            captures_size,
+        );
 
-        let mut captures = Vec::from_raw_parts(roc_alloc(size, 0) as *mut u8, size, size);
-
-        let model = std::mem::MaybeUninit::<*mut c_void>::uninit();
+        let model_size = roc__forHost_0_size();
+        let mut model =
+            Vec::from_raw_parts(roc_alloc(model_size, 0) as *mut u8, model_size, model_size);
 
         roc__forHost_1_exposed_generic(captures.as_mut_ptr());
         roc__forHost_0_caller(
             // This flags pointer will never get dereferenced
             std::mem::MaybeUninit::uninit().as_ptr(),
             captures.as_mut_ptr(),
-            model.assume_init(),
+            model.as_mut_ptr(),
         );
 
-        (model.assume_init(), captures)
+        (model, captures)
     }
 }
 
 pub fn call_roc_respond(
     request: &mut roc_http::RequestToAndFromHost,
-    model: Model,
+    model: &mut Model,
     captures_1: &mut Captures,
 ) -> roc_http::ResponseToHost {
     extern "C" {
         fn roc__forHost_1_caller(
-            arg0: *mut roc_http::RequestToAndFromHost,
-            arg1: *mut c_void,
+            flags: *mut roc_http::RequestToAndFromHost,
+            model: *mut u8,
             closure_data: *mut u8,
             output: *mut u8,
         );
         fn roc__forHost_2_caller(
-            arg0: *const (),
+            flags: *const (),
             closure_data: *mut u8,
             output: *mut roc_http::ResponseToHost,
         );
@@ -954,7 +960,12 @@ pub fn call_roc_respond(
 
         let mut response = std::mem::MaybeUninit::<roc_http::ResponseToHost>::uninit();
 
-        roc__forHost_1_caller(request, model, captures_1.as_mut_ptr(), captures_2);
+        roc__forHost_1_caller(
+            request,
+            model.as_mut_ptr(),
+            captures_1.as_mut_ptr(),
+            captures_2,
+        );
         roc__forHost_2_caller(&(), captures_2, response.as_mut_ptr());
 
         roc_dealloc(captures_2 as *mut c_void, 0);
