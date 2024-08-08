@@ -1,4 +1,4 @@
-use roc_std::{roc_dealloc, RocList, RocStr};
+use roc_std::{roc_dealloc, RocList, RocRefcounted, RocStr};
 
 mod http_client;
 mod http_server;
@@ -7,7 +7,7 @@ mod roc_http;
 
 #[no_mangle]
 pub extern "C" fn rust_main() -> i32 {
-    let (model, captures) = roc::call_roc_init();
+    let (mut model, mut captures) = roc::call_roc_init();
 
     let mut request = roc_http::RequestToAndFromHost {
         body: RocList::empty(),
@@ -17,9 +17,18 @@ pub extern "C" fn rust_main() -> i32 {
         timeout_ms: 0,
         url: RocStr::from("http://localhost:8080"),
     };
-    _ = roc::call_roc_respond(&mut request, &mut model.clone(), &mut captures.clone());
-    _ = roc::call_roc_respond(&mut request, &mut model.clone(), &mut captures.clone());
-    _ = roc::call_roc_respond(&mut request, &mut model.clone(), &mut captures.clone());
+
+    model.inc();
+    captures.inc();
+    _ = roc::call_roc_respond(&mut request, &mut model, &mut captures);
+
+    model.inc();
+    captures.inc();
+    _ = roc::call_roc_respond(&mut request, &mut model, &mut captures);
+
+    model.inc();
+    captures.inc();
+    _ = roc::call_roc_respond(&mut request, &mut model, &mut captures);
 
     println!("DONE");
 

@@ -897,8 +897,8 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
-pub type Model = Vec<u8>;
-pub type Captures = Vec<u8>;
+pub type Model = RocList<u8>;
+pub type Captures = RocList<u8>;
 
 pub fn call_roc_init() -> (Model, Captures) {
     extern "C" {
@@ -910,7 +910,7 @@ pub fn call_roc_init() -> (Model, Captures) {
 
     unsafe {
         let captures_size = roc__forHost_1_exposed_size();
-        let mut captures = Vec::from_raw_parts(
+        let mut captures = RocList::from_raw_parts(
             roc_alloc(captures_size, 0) as *mut u8,
             captures_size,
             captures_size,
@@ -918,7 +918,7 @@ pub fn call_roc_init() -> (Model, Captures) {
 
         let model_size = roc__forHost_0_size();
         let mut model =
-            Vec::from_raw_parts(roc_alloc(model_size, 0) as *mut u8, model_size, model_size);
+            RocList::from_raw_parts(roc_alloc(model_size, 0) as *mut u8, model_size, model_size);
 
         roc__forHost_1_exposed_generic(captures.as_mut_ptr());
         roc__forHost_0_caller(
