@@ -1,6 +1,7 @@
 use core::mem::MaybeUninit;
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
+use std::alloc::Layout;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
@@ -903,49 +904,52 @@ unsafe impl Sync for Model {}
 pub fn call_roc_init() -> Model {
     extern "C" {
         #[link_name = "roc__forHost_1_exposed_generic"]
-        fn forHost_exposed_generic(_: *mut u8);
+        fn exposed_generic(_: *mut c_void);
 
         #[link_name = "roc__forHost_1_exposed_size"]
-        fn forHost_exposed_size() -> usize;
+        fn exposed_size() -> usize;
 
         #[link_name = "roc__forHost_0_caller"]
-        fn roc_server_init_caller(
+        fn init_caller(
             flags: *const u8,
-            roc_captures: *const u8,
+            captures: *const u8,
             model: *mut RocResult<RocBox<()>, i32>,
         );
 
-        // not needed because Model is representated
-        // as a RocBox<()> opaque to the host
-        //
-        // fn roc__forHost_0_size() -> usize;
+        #[link_name = "roc__forHost_0_size"]
+        fn init_captures_size() -> usize;
+
+        #[link_name = "roc__forHost_0_result_size"]
+        fn init_result_size() -> usize;
     }
 
     unsafe {
-        // allocate memory for captures
-        let for_host_captures_ptr = roc_alloc(forHost_exposed_size(), 1) as *mut u8;
-        if for_host_captures_ptr.is_null() {
-            eprintln!("SERVER ERROR: memory allocation failed");
-            std::process::exit(-1);
-        }
-
-        // init always returns an i32. just allocate for that.
-        let mut init_result: RocResult<RocBox<()>, i32> = RocResult::err(-99);
-
         // initialise roc
-        forHost_exposed_generic(for_host_captures_ptr);
+        // Q? -- we only need to do this once right??
+        exposed_generic(roc_alloc(exposed_size(), 1));
+
+        // allocate memory for captures
+        let captures_size = init_captures_size();
+        let captures_layout = Layout::array::<u8>(captures_size).unwrap();
+        let captures_ptr = std::alloc::alloc(captures_layout);
+
+        // allocated memory for return value
+        let result_layout = Layout::new::<RocResult<RocBox<()>, i32>>();
+        assert!(result_layout.size() == init_result_size());
+        let result_ptr = std::alloc::alloc(result_layout) as *mut RocResult<RocBox<()>, i32>;
 
         // call server init to get the model RocBox<()>
-        roc_server_init_caller(
+        init_caller(
             // This flags pointer will never get dereferenced
             std::mem::MaybeUninit::uninit().as_ptr(),
-            for_host_captures_ptr,
-            &mut init_result,
+            captures_ptr,
+            result_ptr,
         );
 
-        roc_dealloc(for_host_captures_ptr as *mut c_void, 1);
+        // deallocate captures
+        std::alloc::dealloc(captures_ptr, captures_layout);
 
-        match init_result.into() {
+        match result_ptr.read().into() {
             Err(exit_code) => {
                 std::process::exit(exit_code);
             }
@@ -968,34 +972,40 @@ pub fn call_roc_respond(
         fn respond_fn_caller(
             flags: *const roc_http::RequestToAndFromHost,
             model: *const RocBox<()>,
-            roc_captures: *const u8,
+            captures: *const u8,
             output: *mut u8,
         );
 
         #[link_name = "roc__forHost_1_size"]
         fn respond_fn_size() -> usize;
 
+        #[link_name = "roc__forHost_1_result_size"]
+        fn respond_fn_result_size() -> usize;
+
         #[link_name = "roc__forHost_2_caller"]
         fn respond_task_caller(
             flags: *const u8,
-            closure_data: *const u8,
+            captures: *const u8,
             output: *mut roc_http::ResponseToHost,
         );
 
         #[link_name = "roc__forHost_2_size"]
         fn respond_task_size() -> usize;
+
+        #[link_name = "roc__forHost_2_result_size"]
+        fn respond_task_result_size() -> usize;
     }
 
     unsafe {
-        // assert the responde_fn has no captures
-        // TODO change to debug_assert
-        assert!(respond_fn_size() == 0);
+        // allocate memory for captures
+        let mut captures_size = respond_fn_size();
+        let mut captures_layout = Layout::array::<u8>(captures_size).unwrap();
+        let mut captures_ptr = std::alloc::alloc(captures_layout);
 
-        // allocate memory for the respond_task captures
-        let respond_task_captures = roc_alloc(respond_task_size(), 1) as *mut u8;
-        if respond_task_captures.is_null() {
-            return Err("SERVER ERROR: memory allocation failed for respond_task_captures");
-        }
+        // allocated memory for return value
+        let intermediate_result_size = respond_fn_result_size();
+        let intermediate_result_layout = Layout::array::<u8>(intermediate_result_size).unwrap();
+        let intermediate_result_ptr = std::alloc::alloc(intermediate_result_layout);
 
         let model_arc = model.model.clone();
         let mut model_guard = model_arc.lock().unwrap();
@@ -1003,30 +1013,31 @@ pub fn call_roc_respond(
         // increment the model Box<()> to stop roc from deallocating
         model_guard.inc();
 
+        // call the respond function to get the Task
         respond_fn_caller(
             request,
             &*model_guard as *const RocBox<()>,
-            // the captures size is zero, so we can pass an uninitialised pointer
-            MaybeUninit::uninit().as_ptr(),
-            respond_task_captures,
+            captures_ptr,
+            intermediate_result_ptr,
         );
 
-        // allocate memory for the response
-        let roc_response_size = core::mem::size_of::<roc_http::ResponseToHost>();
-        let roc_response_ptr = roc_alloc(roc_response_size, 8) as *mut roc_http::ResponseToHost;
+        // allocated memory for return value
+        let result_layout = Layout::new::<roc_http::ResponseToHost>();
+        assert!(result_layout.size() == respond_task_result_size());
+        let result_ptr = std::alloc::alloc(result_layout) as *mut roc_http::ResponseToHost;
 
-        respond_task_caller(
-            // This flags pointer will never get dereferenced
-            MaybeUninit::uninit().as_ptr(),
-            respond_task_captures,
-            roc_response_ptr,
-        );
+        // (re)allocate memory for captures
+        captures_size = respond_task_size();
+        captures_layout = Layout::array::<u8>(captures_size).unwrap();
+        captures_ptr = std::alloc::realloc(captures_ptr, captures_layout, captures_size);
 
-        // deallocate memory for captures
-        roc_dealloc(respond_task_captures as *mut c_void, 8);
+        // call the Task
+        respond_task_caller(captures_ptr, intermediate_result_ptr, result_ptr);
 
-        let roc_response = roc_response_ptr.read();
+        // deallocate captures
+        std::alloc::dealloc(captures_ptr, captures_layout);
+        std::alloc::dealloc(intermediate_result_ptr, intermediate_result_layout);
 
-        Ok(roc_response)
+        Ok(result_ptr.read())
     }
 }

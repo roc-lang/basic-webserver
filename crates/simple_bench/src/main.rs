@@ -7,10 +7,10 @@ use tokio::task;
 
 const PORT: &str = "8001";
 const URL: &str = "http://localhost:8001";
+const NUM_REQUESTS: usize = 25;
 const ROC_TEST_EXAMPLE: &str = "examples/hello-web.roc";
-const NUM_REQUESTS: usize = 100;
-const EXPECTED_STATUS: u16 = 25;
-const DELAY_WAIT_SERVER_STARTUP: u64 = 5;
+const DELAY_WAIT_SERVER_STARTUP: u64 = 2;
+const EXPECTED_HTTP_OK_STATUS: u16 = 200;
 
 #[tokio::main]
 async fn main() {
@@ -21,12 +21,15 @@ async fn main() {
         .expect("Failed to build the host");
 
     // Start the server
-    let mut server_process = Command::new("roc")
-        .arg("--optimize")
-        .arg(ROC_TEST_EXAMPLE)
-        .env("ROC_BASIC_WEBSERVER_PORT", PORT)
-        .spawn()
-        .expect("Failed to start the server process");
+    let mut server_process = {
+        Command::new("roc")
+            // .arg("--optimize")
+            .arg("--profiling")
+            .arg(ROC_TEST_EXAMPLE)
+            .env("ROC_BASIC_WEBSERVER_PORT", PORT)
+            .spawn()
+            .expect("Failed to start the server process")
+    };
 
     // Ensure the server has some time to start up
     tokio::time::sleep(Duration::from_secs(DELAY_WAIT_SERVER_STARTUP)).await;
@@ -48,7 +51,7 @@ async fn main() {
 
             let response = client.get(URL).send().await;
             if let Ok(resp) = response {
-                if resp.status() == EXPECTED_STATUS {
+                if resp.status() == EXPECTED_HTTP_OK_STATUS {
                     success_count.fetch_add(1, Ordering::SeqCst);
                 }
             }
