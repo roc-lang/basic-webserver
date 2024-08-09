@@ -76,8 +76,11 @@ fn call_roc<'a>(
         .map_err(|_poisoned_lock_err| "SERVER ERROR: Poisoned RwLock for RocServer")
         .and_then(|roc_server| roc::call_roc_respond(&roc_request, &roc_server))
         .unwrap_or_else(|err_msg| {
+            // report the server error
             std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
+            std::io::stderr().write_all(&[b'\n']).unwrap();
 
+            // respond with a http 500 error
             roc_http::ResponseToHost {
                 body: RocList::empty(),
                 headers: RocList::empty(),
