@@ -7,6 +7,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use roc_std::RocList;
 use std::convert::Infallible;
 use std::env;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use tokio::task::spawn_blocking;
@@ -72,12 +73,16 @@ fn call_roc<'a>(
     // when we cannot allocate memory or the lock is poisoned return a 500
     let roc_response: ResponseToHost = server
         .read()
-        .map_err(|_poisoned_lock_err| "poisoned RwLock for RocServer")
+        .map_err(|_poisoned_lock_err| "SERVER ERROR: Poisoned RwLock for RocServer")
         .and_then(|roc_server| roc::call_roc_respond(&roc_request, &roc_server))
-        .unwrap_or_else(|err_msg| roc_http::ResponseToHost {
-            body: RocList::from(err_msg.to_string().as_bytes()),
-            headers: RocList::empty(),
-            status: 500,
+        .unwrap_or_else(|err_msg| {
+            std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
+
+            roc_http::ResponseToHost {
+                body: RocList::empty(),
+                headers: RocList::empty(),
+                status: 500,
+            }
         });
 
     to_server_response(roc_response)

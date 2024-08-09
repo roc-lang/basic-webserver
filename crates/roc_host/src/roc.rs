@@ -954,7 +954,7 @@ pub fn call_roc_respond(
     unsafe {
         let captures_2 = roc_alloc(roc__forHost_2_size(), 0) as *mut u8;
         if captures_2.is_null() {
-            return Err("Memory allocation failed");
+            return Err("SERVER ERROR: memory allocation failed for captures in call_roc_respond");
         }
 
         let mut response = std::mem::MaybeUninit::<roc_http::ResponseToHost>::uninit();
