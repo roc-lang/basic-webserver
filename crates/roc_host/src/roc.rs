@@ -935,7 +935,7 @@ pub fn call_roc_init() -> RocServer {
 pub fn call_roc_respond(
     request: &roc_http::RequestToAndFromHost,
     server: &RocServer,
-) -> roc_http::ResponseToHost {
+) -> Result<roc_http::ResponseToHost, &'static str> {
     extern "C" {
         fn roc__forHost_1_caller(
             flags: *const roc_http::RequestToAndFromHost,
@@ -954,7 +954,7 @@ pub fn call_roc_respond(
     unsafe {
         let captures_2 = roc_alloc(roc__forHost_2_size(), 0) as *mut u8;
         if captures_2.is_null() {
-            panic!("Memory allocation failed");
+            return Err("Memory allocation failed");
         }
 
         let mut response = std::mem::MaybeUninit::<roc_http::ResponseToHost>::uninit();
@@ -969,6 +969,6 @@ pub fn call_roc_respond(
 
         roc_dealloc(captures_2 as *mut c_void, 0);
 
-        response.assume_init()
+        Ok(response.assume_init())
     }
 }

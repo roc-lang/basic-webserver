@@ -1,5 +1,6 @@
 use crate::roc;
 use crate::roc_http;
+use crate::roc_http::ResponseToHost;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
@@ -65,28 +66,19 @@ fn call_roc<'a>(
 
     let server = get_roc_server();
 
-    // let server = get_roc_server();
-
     // we don't need to increment as we made the RocList's
     // readonly when we created them
     //
-    // So we don't need to do this... which wouldn't be thread safe
-    // server.borrow_mut().captures.inc();
-    // server.borrow_mut().model.inc();
-    // debug_assert!(server.borrow().captures.is_readonly());
-    // debug_assert!(server.borrow().model.is_readonly());
-
-    let roc_response = match server.read() {
-        Ok(roc_server) => roc::call_roc_respond(&roc_request, &roc_server),
-        Err(..) => {
-            // Handle the case where the lock is poisoned (optional)
-            roc_http::ResponseToHost {
-                body: RocList::empty(),
-                headers: RocList::empty(),
-                status: 500,
-            }
-        }
-    };
+    // when we cannot allocate memory or the lock is poisoned return a 500
+    let roc_response: ResponseToHost = server
+        .read()
+        .map_err(|_poisoned_lock_err| "poisoned RwLock for RocServer")
+        .and_then(|roc_server| roc::call_roc_respond(&roc_request, &roc_server))
+        .unwrap_or_else(|err_msg| roc_http::ResponseToHost {
+            body: RocList::from(err_msg.to_string().as_bytes()),
+            headers: RocList::empty(),
+            status: 500,
+        });
 
     to_server_response(roc_response)
 }

@@ -5,7 +5,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task;
 
-const URL: &str = "http://localhost:8000"; // Replace with your server's URL
+const URL: &str = "http://localhost:8000";
+const ROC_TEST_EXAMPLE: &str = "examples/hello-web.roc";
+const NUM_REQUESTS: usize = 1000;
+const EXPECTED_STATUS: u16 = 200;
+const DELAY_WAIT_SERVER_STARTUP: u64 = 5;
 
 #[tokio::main]
 async fn main() {
@@ -18,12 +22,12 @@ async fn main() {
     // Start the server
     let mut server_process = Command::new("roc")
         .arg("--optimize")
-        .arg("examples/hello-web.roc")
+        .arg(ROC_TEST_EXAMPLE)
         .spawn()
         .expect("Failed to start the server process");
 
     // Ensure the server has some time to start up
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(DELAY_WAIT_SERVER_STARTUP)).await;
 
     let client = Client::new();
     let request_count = Arc::new(AtomicUsize::new(0));
@@ -31,7 +35,7 @@ async fn main() {
 
     let mut handles = vec![];
 
-    for _ in 0..1000 {
+    for _ in 0..NUM_REQUESTS {
         // Number of parallel requests
         let client = client.clone();
         let request_count = Arc::clone(&request_count);
@@ -42,7 +46,7 @@ async fn main() {
 
             let response = client.get(URL).send().await;
             if let Ok(resp) = response {
-                if resp.status() == 200 {
+                if resp.status() == EXPECTED_STATUS {
                     success_count.fetch_add(1, Ordering::SeqCst);
                 }
             }
