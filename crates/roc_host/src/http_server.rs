@@ -57,7 +57,7 @@ fn call_roc<'a>(
 
     let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    let roc_response: ResponseToHost = roc::call_roc_respond(&roc_request, &ROC_MODEL)
+    let roc_response: ResponseToHost = roc::call_roc_respond(roc_request, &ROC_MODEL)
         .unwrap_or_else(|err_msg| {
             // report the server error
             std::io::stderr().write_all(err_msg.as_bytes()).unwrap();

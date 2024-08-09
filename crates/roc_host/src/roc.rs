@@ -4,6 +4,7 @@ use std::alloc::Layout;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::rc::Rc;
@@ -954,7 +955,7 @@ pub fn call_roc_init() -> Model {
         // call server init to get the model RocBox<()>
         init_caller(
             // This inputs pointer will never get dereferenced
-            std::mem::MaybeUninit::uninit().as_ptr(),
+            MaybeUninit::uninit().as_ptr(),
             captures_ptr,
             &mut result,
         );
@@ -972,13 +973,13 @@ pub fn call_roc_init() -> Model {
 }
 
 pub fn call_roc_respond(
-    request: &roc_http::RequestToAndFromHost,
+    request: roc_http::RequestToAndFromHost,
     model: &Model,
 ) -> Result<roc_http::ResponseToHost, &'static str> {
     extern "C" {
         #[link_name = "roc__forHost_1_caller"]
         fn respond_fn_caller(
-            inputs: *const roc_http::RequestToAndFromHost,
+            inputs: *const ManuallyDrop<roc_http::RequestToAndFromHost>,
             model: *const RocBox<()>,
             captures: *const u8,
             output: *mut u8,
@@ -1010,10 +1011,10 @@ pub fn call_roc_respond(
         // call the respond function to get the Task
         debug_assert_eq!(intermediate_result_size, respond_task_size());
         respond_fn_caller(
-            request,
+            &ManuallyDrop::new(request),
             &model.model,
             // In init, we ensured that respond never has captures.
-            std::mem::MaybeUninit::uninit().as_ptr(),
+            MaybeUninit::uninit().as_ptr(),
             intermediate_result_ptr,
         );
 
@@ -1028,7 +1029,7 @@ pub fn call_roc_respond(
         // call the Task
         respond_task_caller(
             // This inputs pointer will never get dereferenced
-            std::mem::MaybeUninit::uninit().as_ptr(),
+            MaybeUninit::uninit().as_ptr(),
             intermediate_result_ptr,
             &mut result,
         );
