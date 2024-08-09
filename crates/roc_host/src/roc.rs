@@ -1,4 +1,3 @@
-use core::mem::MaybeUninit;
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -11,7 +10,7 @@ use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::http_client;
-use crate::roc_http::{self};
+use crate::roc_http::{self, ResponseToHost};
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_alloc(size: usize, _alignment: u32) -> *mut c_void {
@@ -889,76 +888,85 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
-use roc_std::RocRefcounted;
-use std::sync::{Arc, Mutex};
-
 pub struct Model {
-    pub model: Arc<Mutex<RocBox<()>>>,
+    model: RocBox<()>,
+}
+impl Model {
+    unsafe fn init(model: RocBox<()>) -> Self {
+        // Set the refcount to constant to ensure this never gets freed.
+        // This also makes it thread-safe.
+        let data_ptr: *mut usize = std::mem::transmute(model);
+        let rc_ptr = data_ptr.offset(-1);
+        let max_refcount = 0;
+        *rc_ptr = max_refcount;
+        Self {
+            model: std::mem::transmute(data_ptr),
+        }
+    }
 }
 
-// I'm not sure if we can do this...
-// the Arc/Mutex should protect the pointer, right?
 unsafe impl Send for Model {}
 unsafe impl Sync for Model {}
 
 pub fn call_roc_init() -> Model {
     extern "C" {
         #[link_name = "roc__forHost_1_exposed_generic"]
-        fn exposed_generic(_: *mut c_void);
+        fn load_init_captures(init_captures: *mut u8);
 
         #[link_name = "roc__forHost_1_exposed_size"]
         fn exposed_size() -> usize;
 
         #[link_name = "roc__forHost_0_caller"]
         fn init_caller(
-            flags: *const u8,
-            captures: *const u8,
+            inputs: *const u8,
+            init_captures: *const u8,
             model: *mut RocResult<RocBox<()>, i32>,
         );
 
         #[link_name = "roc__forHost_0_size"]
         fn init_captures_size() -> usize;
 
+        #[link_name = "roc__forHost_1_size"]
+        fn respond_captures_size() -> usize;
+
         #[link_name = "roc__forHost_0_result_size"]
         fn init_result_size() -> usize;
     }
 
     unsafe {
-        // initialise roc
-        // Q? -- we only need to do this once right??
-        exposed_generic(roc_alloc(exposed_size(), 1));
-
+        let respond_captures_size = respond_captures_size();
+        if respond_captures_size != 0 {
+            panic!("This platform does not allow for the respond function to have captures, but respond has {} bytes of captures. Ensure respond is a top level function and not a lambda.", respond_captures_size);
+        }
         // allocate memory for captures
         let captures_size = init_captures_size();
         let captures_layout = Layout::array::<u8>(captures_size).unwrap();
         let captures_ptr = std::alloc::alloc(captures_layout);
 
-        // allocated memory for return value
-        let result_layout = Layout::new::<RocResult<RocBox<()>, i32>>();
-        assert!(result_layout.size() == init_result_size());
-        let result_ptr = std::alloc::alloc(result_layout) as *mut RocResult<RocBox<()>, i32>;
+        // initialise roc
+        debug_assert_eq!(captures_size, exposed_size());
+        load_init_captures(captures_ptr);
+
+        // save stack space for return value
+        let mut result: RocResult<RocBox<()>, i32> = RocResult::err(-1);
+        debug_assert_eq!(std::mem::size_of_val(&result), init_result_size());
 
         // call server init to get the model RocBox<()>
         init_caller(
-            // This flags pointer will never get dereferenced
+            // This inputs pointer will never get dereferenced
             std::mem::MaybeUninit::uninit().as_ptr(),
             captures_ptr,
-            result_ptr,
+            &mut result,
         );
 
         // deallocate captures
         std::alloc::dealloc(captures_ptr, captures_layout);
 
-        match result_ptr.read().into() {
+        match result.into() {
             Err(exit_code) => {
                 std::process::exit(exit_code);
             }
-            Ok(mut model) => {
-                model.inc(); // maybe we need to inc here to prevent the first call from deallocating?
-                Model {
-                    model: Arc::new(Mutex::new(model)),
-                }
-            }
+            Ok(model) => Model::init(model),
         }
     }
 }
@@ -970,21 +978,18 @@ pub fn call_roc_respond(
     extern "C" {
         #[link_name = "roc__forHost_1_caller"]
         fn respond_fn_caller(
-            flags: *const roc_http::RequestToAndFromHost,
+            inputs: *const roc_http::RequestToAndFromHost,
             model: *const RocBox<()>,
             captures: *const u8,
             output: *mut u8,
         );
-
-        #[link_name = "roc__forHost_1_size"]
-        fn respond_fn_size() -> usize;
 
         #[link_name = "roc__forHost_1_result_size"]
         fn respond_fn_result_size() -> usize;
 
         #[link_name = "roc__forHost_2_caller"]
         fn respond_task_caller(
-            flags: *const u8,
+            inputs: *const u8,
             captures: *const u8,
             output: *mut roc_http::ResponseToHost,
         );
@@ -997,47 +1002,40 @@ pub fn call_roc_respond(
     }
 
     unsafe {
-        // allocate memory for captures
-        let mut captures_size = respond_fn_size();
-        let mut captures_layout = Layout::array::<u8>(captures_size).unwrap();
-        let mut captures_ptr = std::alloc::alloc(captures_layout);
-
         // allocated memory for return value
         let intermediate_result_size = respond_fn_result_size();
         let intermediate_result_layout = Layout::array::<u8>(intermediate_result_size).unwrap();
         let intermediate_result_ptr = std::alloc::alloc(intermediate_result_layout);
 
-        let model_arc = model.model.clone();
-        let mut model_guard = model_arc.lock().unwrap();
-
-        // increment the model Box<()> to stop roc from deallocating
-        model_guard.inc();
-
         // call the respond function to get the Task
+        debug_assert_eq!(intermediate_result_size, respond_task_size());
         respond_fn_caller(
             request,
-            &*model_guard as *const RocBox<()>,
-            captures_ptr,
+            &model.model,
+            // In init, we ensured that respond never has captures.
+            std::mem::MaybeUninit::uninit().as_ptr(),
             intermediate_result_ptr,
         );
 
-        // allocated memory for return value
-        let result_layout = Layout::new::<roc_http::ResponseToHost>();
-        assert!(result_layout.size() == respond_task_result_size());
-        let result_ptr = std::alloc::alloc(result_layout) as *mut roc_http::ResponseToHost;
-
-        // (re)allocate memory for captures
-        captures_size = respond_task_size();
-        captures_layout = Layout::array::<u8>(captures_size).unwrap();
-        captures_ptr = std::alloc::realloc(captures_ptr, captures_layout, captures_size);
+        // save stack space for return value
+        let mut result = ResponseToHost {
+            body: RocList::empty(),
+            headers: RocList::empty(),
+            status: 500,
+        };
+        debug_assert_eq!(std::mem::size_of_val(&result), respond_task_result_size());
 
         // call the Task
-        respond_task_caller(captures_ptr, intermediate_result_ptr, result_ptr);
+        respond_task_caller(
+            // This inputs pointer will never get dereferenced
+            std::mem::MaybeUninit::uninit().as_ptr(),
+            intermediate_result_ptr,
+            &mut result,
+        );
 
         // deallocate captures
-        std::alloc::dealloc(captures_ptr, captures_layout);
         std::alloc::dealloc(intermediate_result_ptr, intermediate_result_layout);
 
-        Ok(result_ptr.read())
+        Ok(result)
     }
 }

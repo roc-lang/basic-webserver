@@ -21,9 +21,6 @@ use once_cell::sync::Lazy;
 static ROC_SERVER: Lazy<roc::Model> = Lazy::new(|| roc::call_roc_init());
 
 pub fn start() -> i32 {
-    // hold onto the model so it doesn't get dropped
-    let _model = &ROC_SERVER.model.clone();
-
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
