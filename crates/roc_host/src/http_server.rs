@@ -4,6 +4,7 @@ use crate::roc_http::ResponseToHost;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
+use once_cell::sync::Lazy;
 use roc_std::RocList;
 use std::convert::Infallible;
 use std::env;
@@ -16,11 +17,12 @@ const DEFAULT_PORT: u16 = 8000;
 const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
 const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
 
-use once_cell::sync::Lazy;
-
-static ROC_SERVER: Lazy<roc::Model> = Lazy::new(|| roc::call_roc_init());
+static ROC_MODEL: Lazy<roc::Model> = Lazy::new(|| roc::call_roc_init());
 
 pub fn start() -> i32 {
+    // Ensure the model is loaded right at startup.
+    Lazy::force(&ROC_MODEL);
+
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -55,7 +57,7 @@ fn call_roc<'a>(
 
     let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    let roc_response: ResponseToHost = roc::call_roc_respond(&roc_request, &ROC_SERVER)
+    let roc_response: ResponseToHost = roc::call_roc_respond(&roc_request, &ROC_MODEL)
         .unwrap_or_else(|err_msg| {
             // report the server error
             std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
