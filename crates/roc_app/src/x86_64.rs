@@ -4206,17 +4206,3 @@ impl roc_std::RocRefcounted for GlueTypes {
         true
     }
 }
-
-pub fn mainForHost() -> GlueTypes {
-    extern "C" {
-        fn roc__mainForHost_1_exposed_generic(_: *mut GlueTypes);
-    }
-
-    let mut ret = core::mem::MaybeUninit::uninit();
-
-    unsafe {
-        roc__mainForHost_1_exposed_generic(ret.as_mut_ptr());
-
-        ret.assume_init()
-    }
-}

@@ -1,0 +1,8 @@
+[package]
+name = "simple_bench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = "0.12.5"
+tokio = "1.39.2"

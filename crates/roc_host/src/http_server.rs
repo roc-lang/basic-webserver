@@ -1,11 +1,14 @@
 use crate::roc;
 use crate::roc_http;
+use crate::roc_http::ResponseToHost;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
+use once_cell::sync::Lazy;
 use roc_std::RocList;
 use std::convert::Infallible;
 use std::env;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use tokio::task::spawn_blocking;
@@ -14,7 +17,12 @@ const DEFAULT_PORT: u16 = 8000;
 const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
 const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
 
+static ROC_MODEL: Lazy<roc::Model> = Lazy::new(|| roc::call_roc_init());
+
 pub fn start() -> i32 {
+    // Ensure the model is loaded right at startup.
+    Lazy::force(&ROC_MODEL);
+
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -28,6 +36,7 @@ pub fn start() -> i32 {
     }
 }
 
+#[allow(dead_code)]
 fn call_roc<'a>(
     method: reqwest::Method,
     url: hyper::Uri,
@@ -48,11 +57,24 @@ fn call_roc<'a>(
 
     let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    let roc_response = roc::main_for_host(roc_request).force_thunk();
+    let roc_response: ResponseToHost = roc::call_roc_respond(&roc_request, &ROC_MODEL)
+        .unwrap_or_else(|err_msg| {
+            // report the server error
+            std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
+            std::io::stderr().write_all(&[b'\n']).unwrap();
+
+            // respond with a http 500 error
+            roc_http::ResponseToHost {
+                body: RocList::empty(),
+                headers: RocList::empty(),
+                status: 500,
+            }
+        });
 
     to_server_response(roc_response)
 }
 
+#[allow(dead_code)]
 fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response<hyper::Body> {
     let mut builder = hyper::Response::builder();
 

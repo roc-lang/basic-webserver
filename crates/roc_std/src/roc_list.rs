@@ -858,6 +858,15 @@ pub struct SendSafeRocList<T>(RocList<T>)
 where
     T: RocRefcounted;
 
+impl<T> SendSafeRocList<T>
+where
+    T: RocRefcounted,
+{
+    pub fn get_inner_pointer(&self) -> *const T {
+        self.0.as_slice().as_ptr()
+    }
+}
+
 unsafe impl<T> Send for SendSafeRocList<T> where T: Send + RocRefcounted {}
 
 impl<T> Clone for SendSafeRocList<T>
