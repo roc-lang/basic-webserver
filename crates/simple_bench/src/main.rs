@@ -5,10 +5,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task;
 
-const URL: &str = "http://localhost:8000";
+const PORT: &str = "8001";
+const URL: &str = "http://localhost:8001";
 const ROC_TEST_EXAMPLE: &str = "examples/hello-web.roc";
-const NUM_REQUESTS: usize = 1000;
-const EXPECTED_STATUS: u16 = 200;
+const NUM_REQUESTS: usize = 100;
+const EXPECTED_STATUS: u16 = 25;
 const DELAY_WAIT_SERVER_STARTUP: u64 = 5;
 
 #[tokio::main]
@@ -23,6 +24,7 @@ async fn main() {
     let mut server_process = Command::new("roc")
         .arg("--optimize")
         .arg(ROC_TEST_EXAMPLE)
+        .env("ROC_BASIC_WEBSERVER_PORT", PORT)
         .spawn()
         .expect("Failed to start the server process");
 

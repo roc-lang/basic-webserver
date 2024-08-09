@@ -1,6 +1,6 @@
 use core::mem::MaybeUninit;
 use roc_fn::roc_fn;
-use roc_std::{RocBox, RocList, RocRefcounted, RocResult, RocStr};
+use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
@@ -888,18 +888,19 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
+use roc_std::RocRefcounted;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Debug)]
-pub struct RocServer {
+pub struct Model {
     pub model: Arc<Mutex<RocBox<()>>>,
-    pub captures: Vec<u8>,
 }
 
-unsafe impl Send for RocServer {}
-unsafe impl Sync for RocServer {}
+// I'm not sure if we can do this...
+// the Arc/Mutex should protect the pointer, right?
+unsafe impl Send for Model {}
+unsafe impl Sync for Model {}
 
-pub fn call_roc_init() -> RocServer {
+pub fn call_roc_init() -> Model {
     extern "C" {
         #[link_name = "roc__forHost_1_exposed_generic"]
         fn forHost_exposed_generic(_: *mut u8);
@@ -910,59 +911,64 @@ pub fn call_roc_init() -> RocServer {
         #[link_name = "roc__forHost_0_caller"]
         fn roc_server_init_caller(
             flags: *const u8,
-            captures: *const u8,
+            roc_captures: *const u8,
             model: *mut RocResult<RocBox<()>, i32>,
         );
 
-        // not needed because Model is opaque to the host
-        // #[link_name = "roc__forHost_0_size"]
-        // fn init_size() -> usize;
+        // not needed because Model is representated
+        // as a RocBox<()> opaque to the host
+        //
+        // fn roc__forHost_0_size() -> usize;
     }
 
     unsafe {
         // allocate memory for captures
-        let captures_size = forHost_exposed_size();
-        let mut captures = Vec::from_raw_parts(
-            roc_alloc(captures_size, 0) as *mut u8,
-            captures_size,
-            captures_size,
-        );
+        let for_host_captures_ptr = roc_alloc(forHost_exposed_size(), 1) as *mut u8;
+        if for_host_captures_ptr.is_null() {
+            eprintln!("SERVER ERROR: memory allocation failed");
+            std::process::exit(-1);
+        }
 
         // init always returns an i32. just allocate for that.
         let mut init_result: RocResult<RocBox<()>, i32> = RocResult::err(-99);
 
-        // initialise roc captures
-        forHost_exposed_generic(captures.as_mut_ptr());
+        // initialise roc
+        forHost_exposed_generic(for_host_captures_ptr);
 
+        // call server init to get the model RocBox<()>
         roc_server_init_caller(
             // This flags pointer will never get dereferenced
             std::mem::MaybeUninit::uninit().as_ptr(),
-            captures.as_ptr(),
+            for_host_captures_ptr,
             &mut init_result,
         );
+
+        roc_dealloc(for_host_captures_ptr as *mut c_void, 1);
 
         match init_result.into() {
             Err(exit_code) => {
                 std::process::exit(exit_code);
             }
-            Ok(model) => RocServer {
-                model: Arc::new(Mutex::new(model)),
-                captures: captures.into(),
-            },
+            Ok(mut model) => {
+                model.inc(); // maybe we need to inc here to prevent the first call from deallocating?
+                Model {
+                    model: Arc::new(Mutex::new(model)),
+                }
+            }
         }
     }
 }
 
 pub fn call_roc_respond(
     request: &roc_http::RequestToAndFromHost,
-    server: &RocServer,
+    model: &Model,
 ) -> Result<roc_http::ResponseToHost, &'static str> {
     extern "C" {
         #[link_name = "roc__forHost_1_caller"]
         fn respond_fn_caller(
             flags: *const roc_http::RequestToAndFromHost,
             model: *const RocBox<()>,
-            closure_data: *const u8,
+            roc_captures: *const u8,
             output: *mut u8,
         );
 
@@ -973,47 +979,54 @@ pub fn call_roc_respond(
         fn respond_task_caller(
             flags: *const u8,
             closure_data: *const u8,
-            output: *mut RocResult<roc_http::ResponseToHost, ()>,
+            output: *mut roc_http::ResponseToHost,
         );
 
-        // not needed because we know the size of the output as a RocResult
-        // #[link_name = "roc__forHost_2_size"]
-        // fn respond_task_size() -> usize;
+        #[link_name = "roc__forHost_2_size"]
+        fn respond_task_size() -> usize;
     }
 
     unsafe {
-        // allocate memory for captures
-        let respond_task_captures = roc_alloc(respond_fn_size(), 0) as *mut u8;
+        // assert the responde_fn has no captures
+        // TODO change to debug_assert
+        assert!(respond_fn_size() == 0);
+
+        // allocate memory for the respond_task captures
+        let respond_task_captures = roc_alloc(respond_task_size(), 1) as *mut u8;
         if respond_task_captures.is_null() {
             return Err("SERVER ERROR: memory allocation failed for respond_task_captures");
         }
 
-        let model_arc = server.model.clone();
+        let model_arc = model.model.clone();
         let mut model_guard = model_arc.lock().unwrap();
 
-        // increment the Model to stop Roc from deallocating
+        // increment the model Box<()> to stop roc from deallocating
         model_guard.inc();
 
         respond_fn_caller(
             request,
             &*model_guard as *const RocBox<()>,
-            server.captures.clone().as_ptr(),
+            // the captures size is zero, so we can pass an uninitialised pointer
+            MaybeUninit::uninit().as_ptr(),
             respond_task_captures,
         );
 
         // allocate memory for the response
-        let mut roc_response: RocResult<roc_http::ResponseToHost, ()> = RocResult::err(());
+        let roc_response_size = core::mem::size_of::<roc_http::ResponseToHost>();
+        let roc_response_ptr = roc_alloc(roc_response_size, 8) as *mut roc_http::ResponseToHost;
 
         respond_task_caller(
             // This flags pointer will never get dereferenced
             MaybeUninit::uninit().as_ptr(),
             respond_task_captures,
-            &mut roc_response,
+            roc_response_ptr,
         );
 
         // deallocate memory for captures
-        roc_dealloc(respond_task_captures as *mut c_void, 0);
+        roc_dealloc(respond_task_captures as *mut c_void, 8);
 
-        Result::from(roc_response).map_err(|_| "SERVER ERROR: respond_task_caller failed")
+        let roc_response = roc_response_ptr.read();
+
+        Ok(roc_response)
     }
 }

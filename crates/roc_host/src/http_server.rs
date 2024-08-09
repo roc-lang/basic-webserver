@@ -17,19 +17,12 @@ const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
 const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
 
 use once_cell::sync::Lazy;
-use std::sync::{Arc, RwLock};
 
-static ROC_SERVER: Lazy<Arc<RwLock<roc::RocServer>>> =
-    Lazy::new(|| Arc::new(RwLock::new(roc::call_roc_init())));
-
-fn get_roc_server() -> Arc<RwLock<roc::RocServer>> {
-    Arc::clone(&ROC_SERVER)
-}
+static ROC_SERVER: Lazy<roc::Model> = Lazy::new(|| roc::call_roc_init());
 
 pub fn start() -> i32 {
-    // hold a reference to the server so it doesn't get dropped
-    #[allow(unused_variables)]
-    let persistent_server_ref = get_roc_server();
+    // hold onto the model so it doesn't get dropped
+    let _model = &ROC_SERVER.model.clone();
 
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -65,16 +58,7 @@ fn call_roc<'a>(
 
     let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
 
-    let server = get_roc_server();
-
-    // we don't need to increment as we made the RocList's
-    // readonly when we created them
-    //
-    // when we cannot allocate memory or the lock is poisoned return a 500
-    let roc_response: ResponseToHost = server
-        .read()
-        .map_err(|_poisoned_lock_err| "SERVER ERROR: Poisoned RwLock for RocServer")
-        .and_then(|roc_server| roc::call_roc_respond(&roc_request, &roc_server))
+    let roc_response: ResponseToHost = roc::call_roc_respond(&roc_request, &ROC_SERVER)
         .unwrap_or_else(|err_msg| {
             // report the server error
             std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
