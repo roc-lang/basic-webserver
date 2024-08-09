@@ -14,18 +14,21 @@ const DEFAULT_PORT: u16 = 8000;
 const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
 const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use once_cell::sync::Lazy;
+use std::sync::{Arc, RwLock};
 
-thread_local! {
-    static ROC_SERVER: Rc<RefCell<roc::RocServer>> = Rc::new(RefCell::new(roc::call_roc_init()));
-}
+static ROC_SERVER: Lazy<Arc<RwLock<roc::RocServer>>> =
+    Lazy::new(|| Arc::new(RwLock::new(roc::call_roc_init())));
 
-fn get_roc_server() -> Rc<RefCell<roc::RocServer>> {
-    ROC_SERVER.with(|s| s.clone())
+fn get_roc_server() -> Arc<RwLock<roc::RocServer>> {
+    Arc::clone(&ROC_SERVER)
 }
 
 pub fn start() -> i32 {
+    // hold a reference to the server so it doesn't get dropped
+    #[allow(unused_variables)]
+    let persistent_server_ref = get_roc_server();
+
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -62,16 +65,28 @@ fn call_roc<'a>(
 
     let server = get_roc_server();
 
+    // let server = get_roc_server();
+
     // we don't need to increment as we made the RocList's
     // readonly when we created them
     //
     // So we don't need to do this... which wouldn't be thread safe
     // server.borrow_mut().captures.inc();
     // server.borrow_mut().model.inc();
-    debug_assert!(server.borrow().captures.is_readonly());
-    debug_assert!(server.borrow().model.is_readonly());
+    // debug_assert!(server.borrow().captures.is_readonly());
+    // debug_assert!(server.borrow().model.is_readonly());
 
-    let roc_response = roc::call_roc_respond(&roc_request, &server.borrow());
+    let roc_response = match server.read() {
+        Ok(roc_server) => roc::call_roc_respond(&roc_request, &roc_server),
+        Err(..) => {
+            // Handle the case where the lock is poisoned (optional)
+            roc_http::ResponseToHost {
+                body: RocList::empty(),
+                headers: RocList::empty(),
+                status: 500,
+            }
+        }
+    };
 
     to_server_response(roc_response)
 }

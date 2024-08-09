@@ -888,9 +888,11 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
 }
 
 pub struct RocServer {
-    pub model: RocList<u8>,
-    pub captures: RocList<u8>,
+    pub model: roc_std::SendSafeRocList<u8>,
+    pub captures: roc_std::SendSafeRocList<u8>,
 }
+
+unsafe impl Sync for RocServer {}
 
 pub fn call_roc_init() -> RocServer {
     extern "C" {
@@ -923,7 +925,10 @@ pub fn call_roc_init() -> RocServer {
         model.set_readonly();
         captures.set_readonly();
 
-        RocServer { model, captures }
+        RocServer {
+            model: model.into(),
+            captures: captures.into(),
+        }
     }
 }
 
@@ -956,8 +961,8 @@ pub fn call_roc_respond(
 
         roc__forHost_1_caller(
             request,
-            server.model.as_ptr(),
-            server.captures.as_ptr(),
+            server.model.get_inner_pointer(),
+            server.captures.get_inner_pointer(),
             captures_2,
         );
         roc__forHost_2_caller(&(), captures_2, response.as_mut_ptr());
