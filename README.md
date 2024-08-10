@@ -15,7 +15,7 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
-app [main] {
+app [Model, server] {
      pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.6.0/LQS_Avcf8ogi1SqwmnytRD4SMYiZ4UcRCZwmAjj1RNY.tar.gz"
 }
 
@@ -24,14 +24,23 @@ import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Utc
 
-main : Request -> Task Response []
-main = \req ->
+Model : Str
 
-    # Log request date, method and url
-    date = Utc.now! |> Utc.toIso8601Str
-    Stdout.line! "$(date) $(Http.methodToStr req.method) $(req.url)"
+server = { init, respond }
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b><\br>" }
+init : Task Model [Exit I32 Str]_
+init =
+    Stdout.line! "SERVER INFO: Doing stuff before the server starts..."
+    Task.ok "This is from init!"
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, model ->
+    # Log request datetime, method and url
+    datetime = Utc.now! |> Utc.toIso8601Str
+
+    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b></br>$(model)" }
 
 ```
 
