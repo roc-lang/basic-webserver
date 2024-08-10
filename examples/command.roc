@@ -23,9 +23,14 @@ respond = \req, _ ->
         |> Task.attempt
 
     when result is
-        Ok {} -> okHttp "Command succeeded\n"
-        Err (ExitCode code) -> okHttp "Command exited with code $(Num.toStr code)\n"
-        Err KilledBySignal -> okHttp "Command was killed by signal\n"
-        Err (IOError str) -> okHttp "IO Error: $(str)\n"
+        Ok {} -> okHttp "Command succeeded"
+        Err (ExitCode code) ->
+            Task.err (ServerErr "Command exited with code $(Num.toStr code)")
+
+        Err KilledBySignal ->
+            Task.err (ServerErr "Command was killed by signal")
+
+        Err (IOError str) ->
+            Task.err (ServerErr "IO Error: $(str)")
 
 okHttp = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }
