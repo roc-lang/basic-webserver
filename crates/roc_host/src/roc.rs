@@ -889,6 +889,7 @@ pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
     RocList::from(path_os_string_bytes.as_slice())
 }
 
+#[derive(Debug)]
 pub struct Model {
     model: RocBox<()>,
 }

@@ -35,4 +35,3 @@ futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
 sqlite = { version = "0.33.0", features = ["bundled"] }
-once_cell = "1.19.0"

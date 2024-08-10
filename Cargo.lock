@@ -1062,7 +1062,6 @@ dependencies = [
  "futures",
  "hyper 0.14.29",
  "libc",
- "once_cell",
  "reqwest 0.11.11",
  "roc_app",
  "roc_fn",
