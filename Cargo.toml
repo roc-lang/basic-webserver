@@ -7,7 +7,6 @@ members = [
     "crates/roc_host",
     "crates/roc_host_lib",
     "crates/roc_host_bin",
-    "crates/simple_bench",
 ]
 
 [profile.release]
