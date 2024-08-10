@@ -1,13 +1,19 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.File
 import pf.Path
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
-main : Request -> Task Response []
-main = \_ ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init = Task.ok {}
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \_, _ ->
     # Read the contents of examples/file.roc
     File.readUtf8 (Path.fromStr "examples/file.roc")
     |> Task.attempt \result ->

@@ -1,13 +1,19 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Utc
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init = Task.ok {}
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     # Log request datetime, method and url
     datetime = Utc.now! |> Utc.toIso8601Str
     Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"

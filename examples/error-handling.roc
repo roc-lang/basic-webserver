@@ -1,5 +1,5 @@
 # This example demonstrates error handling and fetching content from another website.
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
@@ -8,9 +8,15 @@ import pf.Http exposing [Request, Response]
 import pf.Utc
 import pf.Env
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init = Task.ok {}
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     handleReq =
         # Log the date, time, method, and url to stdout
         logRequest! req
@@ -22,7 +28,7 @@ main = \req ->
         content = fetchContent! url
 
         # Respond with the website content
-        respond 200 content
+        responseWithCode 200 content
 
     # Handle any application errors
     handleReq |> Task.onErr handleErr
@@ -67,8 +73,8 @@ handleErr = \appErr ->
     }
 
 # Respond with the given status code and body
-respond : U16, Str -> Task Response *
-respond = \code, body ->
+responseWithCode : U16, Str -> Task Response *
+responseWithCode = \code, body ->
     Task.ok {
         status: code,
         headers: [],

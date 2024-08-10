@@ -1,13 +1,19 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Utc
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init = Task.ok {}
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     # Log request date, method and url using echo program
     datetime = Utc.now! |> Utc.toIso8601Str
     result <-
@@ -17,9 +23,9 @@ main = \req ->
         |> Task.attempt
 
     when result is
-        Ok {} -> respond "Command succeeded\n"
-        Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)\n"
-        Err KilledBySignal -> respond "Command was killed by signal\n"
-        Err (IOError str) -> respond "IO Error: $(str)\n"
+        Ok {} -> okHttp "Command succeeded\n"
+        Err (ExitCode code) -> okHttp "Command exited with code $(Num.toStr code)\n"
+        Err KilledBySignal -> okHttp "Command was killed by signal\n"
+        Err (IOError str) -> okHttp "IO Error: $(str)\n"
 
-respond = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }
+okHttp = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }

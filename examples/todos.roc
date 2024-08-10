@@ -1,5 +1,5 @@
 # Webapp for todos using a SQLite 3 database
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
@@ -11,9 +11,15 @@ import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init = Task.ok {}
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     responseTask =
         logRequest! req
         isSqliteInstalled!

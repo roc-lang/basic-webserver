@@ -16,7 +16,6 @@ init =
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, model ->
-
     # Log request datetime, method and url
     datetime = Utc.now! |> Utc.toIso8601Str
 
