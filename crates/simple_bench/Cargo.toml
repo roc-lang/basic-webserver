@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-reqwest = {version = "0.12.5", default-features = false, features = ["http2", "charset", "rustls-tls"]}
-tokio = "1.39.2"
+reqwest = {version = "=0.11.11", default-features = false, features = ["rustls-tls"]}
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
