@@ -10,7 +10,7 @@ spawn $env(EXAMPLES_DIR)hello-web
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
 
-    if {$curlOutput eq "<b>Hello, world!</b>"} {
+    if {$curlOutput eq "<b>Hello, world!</b></br>This is from init!"} {
         expect "Z Get /\r\n" {
             exit 0
         }
