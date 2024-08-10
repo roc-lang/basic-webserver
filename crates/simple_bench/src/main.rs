@@ -23,7 +23,7 @@ async fn main() {
     // Start the server
     let mut server_process = {
         Command::new("roc")
-            // .arg("--optimize")
+            .arg("--optimize")
             .arg("--profiling")
             .arg(ROC_TEST_EXAMPLE)
             .env("ROC_BASIC_WEBSERVER_PORT", PORT)
