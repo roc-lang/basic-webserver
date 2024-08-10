@@ -69,7 +69,7 @@ handleErr = \appErr ->
     Task.ok {
         status: 500,
         headers: [],
-        body: Str.toUtf8 "Internal Server Error.\n",
+        body: Str.toUtf8 "Internal Server Error.",
     }
 
 # Respond with the given status code and body

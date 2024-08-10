@@ -36,7 +36,7 @@ respond = \req, _ ->
         when splitUrl is
             ["", ""] -> byteResponse 200 todoHtml
             ["", "todos", ..] -> routeTodos dbPath req
-            _ -> textResponse 404 "URL Not Found (404)\n"
+            _ -> textResponse 404 "URL Not Found (404)"
 
     # Handle any application errors
     responseTask |> Task.onErr handleErr
@@ -60,7 +60,7 @@ routeTodos = \dbPath, req ->
 
         otherMethod ->
             # Not supported
-            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)\n"
+            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)"
 
 listTodos : Str -> Task Response *
 listTodos = \dbPath ->
@@ -168,5 +168,5 @@ handleErr = \appErr ->
     Task.ok {
         status: 500,
         headers: [],
-        body: Str.toUtf8 "Internal Server Error.\n",
+        body: Str.toUtf8 "Internal Server Error.",
     }

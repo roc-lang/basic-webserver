@@ -44,4 +44,4 @@ respond = \_, _ ->
             Stderr.line "Error reading directory $(Path.display path):\n\t$(err)"
         |> Task.await
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request\n" }
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request" }

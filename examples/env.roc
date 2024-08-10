@@ -38,4 +38,4 @@ respond = \_, _ ->
 
         NonDebugMode ->
             # Respond with a message that DEBUG is not set
-            Task.ok { status: 200, headers: [], body: Str.toUtf8 "DEBUG var not set\n" }
+            Task.ok { status: 200, headers: [], body: Str.toUtf8 "DEBUG var not set" }
