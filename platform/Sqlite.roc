@@ -3,9 +3,16 @@ module [
     Code,
     Error,
     Binding,
+    Stmt,
+    prepare,
+    prepareAndBind,
+    bind,
     query,
     queryExactlyOne,
     execute,
+    queryPrepared,
+    queryExactlyOnePrepared,
+    executePrepared,
     errToStr,
     decodeRecord,
     mapValue,
@@ -110,7 +117,17 @@ execute :
     }
     -> Task {} [SqlError Code Str, UnhandledRows]
 execute = \{ path, query: q, bindings } ->
-    stmt = prepareAndBind! { path, query: q, bindings }
+    stmt = prepare! { path, query: q }
+    executePrepared { stmt, bindings }
+
+executePrepared :
+    {
+        stmt : Stmt,
+        bindings : List Binding,
+    }
+    -> Task {} [SqlError Code Str, UnhandledRows]
+executePrepared = \{ stmt, bindings } ->
+    bind! stmt bindings
     res = step stmt |> Task.result!
     reset! stmt
     when res is
@@ -131,8 +148,19 @@ query :
         rows : SqlDecode a err,
     }
     -> Task (List a) (SqlDecodeErr err)
-query = \{ path, query: q, bindings, rows: decode } ->
-    stmt = prepareAndBind! { path, query: q, bindings }
+query = \{ path, query: q, bindings, rows } ->
+    stmt = prepare! { path, query: q }
+    queryPrepared { stmt, bindings, rows }
+
+queryPrepared :
+    {
+        stmt : Stmt,
+        bindings : List Binding,
+        rows : SqlDecode a err,
+    }
+    -> Task (List a) (SqlDecodeErr err)
+queryPrepared = \{ stmt, bindings, rows: decode } ->
+    bind! stmt bindings
     res = decodeRows stmt decode |> Task.result!
     reset! stmt
     Task.fromResult res
@@ -145,8 +173,19 @@ queryExactlyOne :
         row : SqlDecode a (RowCountErr err),
     }
     -> Task a (SqlDecodeErr (RowCountErr err))
-queryExactlyOne = \{ path, query: q, bindings, row: decode } ->
-    stmt = prepareAndBind! { path, query: q, bindings }
+queryExactlyOne = \{ path, query: q, bindings, row } ->
+    stmt = prepare! { path, query: q }
+    queryExactlyOnePrepared { stmt, bindings, row }
+
+queryExactlyOnePrepared :
+    {
+        stmt : Stmt,
+        bindings : List Binding,
+        row : SqlDecode a (RowCountErr err),
+    }
+    -> Task a (SqlDecodeErr (RowCountErr err))
+queryExactlyOnePrepared = \{ stmt, bindings, row: decode } ->
+    bind! stmt bindings
     res = decodeExactlyOneRow stmt decode |> Task.result!
     reset! stmt
     Task.fromResult res

@@ -6,19 +6,28 @@ import pf.Http exposing [Request, Response]
 import pf.Sqlite
 import pf.Env
 
-Model : {}
+Model : { stmt : Sqlite.Stmt }
 
-server = { init: Task.ok {}, respond }
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init =
+    dbPath = Env.var "DB_PATH" |> Task.mapErr! \_ -> Exit -1 "<DB_PATH> not set on environment"
+    stmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "SELECT id, task FROM todos WHERE status = :status;",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    Task.ok {
+        stmt,
+    }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \_, _ ->
-    # Read DB_PATH environment variable
-    maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
-
-    # Query todos table
-    dbPath = maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment"
+respond = \_, { stmt } ->
     rows =
-        queryTodosByStatus dbPath "completed"
+        queryTodosByStatus stmt "completed"
             |> Task.onErr! \err ->
                 # Crash on any errors for now
                 crash "$(Inspect.toStr err)"
@@ -37,10 +46,9 @@ respond = \_, _ ->
         body: Str.toUtf8 body,
     }
 
-queryTodosByStatus = \dbPath, status ->
-    Sqlite.query! {
-        path: dbPath,
-        query: "SELECT id, task FROM todos WHERE status = :status;",
+queryTodosByStatus = \stmt, status ->
+    Sqlite.queryPrepared! {
+        stmt,
         bindings: [{ name: ":status", value: String status }],
         rows: { Sqlite.decodeRecord <-
             id: Sqlite.i64 "id" |> Sqlite.mapValue Num.toStr,
