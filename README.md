@@ -16,7 +16,7 @@ Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legac
 
 ```roc
 app [Model, server] {
-     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.7.0/vUnq0H5KAITUGuzI3av6AHYLS8LnaYI6qzIMsTNHq3M.tar.br"
+     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.7.0/wBzpUZavn70SpVSh8GpfH0YaXM3ydMbu8s4eAiPC-Ko.tar.br"
 }
 
 import pf.Stdout
