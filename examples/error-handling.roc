@@ -10,10 +10,7 @@ import pf.Env
 
 Model : {}
 
-server = { init, respond }
-
-init : Task Model [Exit I32 Str]_
-init = Task.ok {}
+server = { init: Task.ok {}, respond }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, _ ->
