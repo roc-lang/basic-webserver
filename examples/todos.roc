@@ -13,15 +13,22 @@ import "todos.html" as todoHtml : List U8
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init =
+    when isSqliteInstalled |> Task.result! is
+        Ok _ -> Task.ok {}
+        Err err -> Task.err err
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, _ ->
     responseTask =
         logRequest! req
-        isSqliteInstalled!
 
         dbPath = readEnvVar! "DB_PATH"
+
+        # TODO check if dbPath exists
 
         splitUrl =
             req.url
@@ -39,7 +46,6 @@ respond = \req, _ ->
     responseTask |> Task.onErr handleErr
 
 AppError : [
-    Sqlite3NotInstalled,
     EnvVarNotSet Str,
 ]
 
@@ -128,13 +134,14 @@ byteResponse = \status, bytes ->
 
 isSqliteInstalled : Task {} [Sqlite3NotInstalled]_
 isSqliteInstalled =
-    sqlite3Res <-
+    Stdout.line! "INFO: Checking if sqlite3 is installed..."
+
+    sqlite3T =
         Command.new "sqlite3"
         |> Command.arg "--version"
         |> Command.status
-        |> Task.attempt
 
-    when sqlite3Res is
+    when sqlite3T |> Task.result! is
         Ok {} -> Task.ok {}
         Err _ -> Task.err Sqlite3NotInstalled
 
@@ -142,7 +149,7 @@ logRequest : Request -> Task {} *
 logRequest = \req ->
     datetime = Utc.now! |> Utc.toIso8601Str
 
-    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
 readEnvVar = \envVarName ->
@@ -156,7 +163,7 @@ handleErr = \appErr ->
     errMsg =
         when appErr is
             EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
-            Sqlite3NotInstalled -> "I failed to call `sqlite3 --version`, is sqlite installed?"
+
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
     _ <- Stderr.flush |> Task.attempt

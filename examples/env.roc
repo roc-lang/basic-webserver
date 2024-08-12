@@ -4,6 +4,7 @@ import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 
+# We'll set this based on env var at server startup
 Model : {
     debug : [DebugPrintMode, NonDebugMode]
 }
@@ -24,7 +25,7 @@ init =
     Task.ok { debug }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \_, {debug} ->
+respond = \_, { debug } ->
     when debug is
         DebugPrintMode ->
             # Respond with all the current environment variables

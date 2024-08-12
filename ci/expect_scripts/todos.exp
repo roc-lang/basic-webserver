@@ -5,7 +5,13 @@
 
 set timeout 7
 
+set env(DB_PATH) "$env(EXAMPLES_DIR)todos.db"
+
 spawn $env(EXAMPLES_DIR)todos
+
+expect "INFO: Checking if sqlite3 is installed...\r\n"
+
+expect "3*" # sqlite3 version
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
@@ -16,7 +22,9 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
             set curlOutputTodos [exec curl -sS localhost:8000/todos]
 
-            if {[string match "*AoC*" $curlOutputTodos]} {
+            puts $curlOutputTodos
+
+            if {[string match "*Prepare for AoC*" $curlOutputTodos]} {
                  expect "Z Get /todos\r\n" {
 
                     set curlOutputPost [exec curl -sSX POST "localhost:8000/todos?task=Task%206&status=planned"]
@@ -32,10 +40,12 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
                         }
                     }
                  }
+            } else {
+                puts "curlOutputTodos did not contain 'Prepare for Aoc'. curlOutputTodos:\n\t$curlOutputTodos" 
             }
         }
     } else {
-        puts "Error: curl output was different than expected: $curlOutput"
+        puts "Error: curl output was different than expected: $curlOutputIndex"
         exit 1
     }
 }

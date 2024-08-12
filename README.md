@@ -24,7 +24,12 @@ import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Utc
 
+# Model is produced by `init`.
 Model : {}
+
+# With `init` you can set up a database connection once at server startup,
+# generate css by running `tailwindcss`,...
+# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
 
 server = { init: Task.ok {}, respond }
 

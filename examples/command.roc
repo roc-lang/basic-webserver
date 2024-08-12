@@ -20,14 +20,20 @@ respond = \req, _ ->
         |> Task.attempt
 
     when result is
-        Ok {} -> okHttp "Command succeeded"
+        Ok {} -> okHttp "Command succeeded."
         Err (ExitCode code) ->
-            Task.err (ServerErr "Command exited with code $(Num.toStr code)")
+            Task.err (ServerErr "Command exited with code $(Num.toStr code).")
 
         Err KilledBySignal ->
-            Task.err (ServerErr "Command was killed by signal")
+            Task.err (ServerErr """Command was killed by signal. This can happen for everal reasons:
+                                    - User intervention (e.g., Ctrl+C)
+                                    - Exceeding resource limits
+                                    - System shutdown
+                                    - Parent process terminating child processes
+                                    - ...
+                                    """)
 
         Err (IOError str) ->
-            Task.err (ServerErr "IO Error: $(str)")
+            Task.err (ServerErr "IO Error: $(str).")
 
 okHttp = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }
