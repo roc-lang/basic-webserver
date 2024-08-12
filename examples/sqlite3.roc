@@ -1,4 +1,4 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Task exposing [Task]
@@ -6,9 +6,12 @@ import pf.Http exposing [Request, Response]
 import pf.SQLite3
 import pf.Env
 
-main : Request -> Task Response []
-main = \_ ->
+Model : {}
 
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \_, _ ->
     # Read DB_PATH environment variable
     maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
 

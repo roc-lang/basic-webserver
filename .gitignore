@@ -20,6 +20,7 @@ app
 .DS_Store
 *.a
 *.dylib
+*.ll
 
 # roc linking files
 dynhost

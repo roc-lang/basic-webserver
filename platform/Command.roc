@@ -168,10 +168,10 @@ output = \@Command cmd ->
 ##     |> Task.attempt
 ##
 ## when result is
-##     Ok {} -> respond "Command succeeded\n"
-##     Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)\n"
-##     Err (KilledBySignal) -> respond "Command was killed by signal\n"
-##     Err (IOError str) -> respond "IO Error: $(str)\n"
+##     Ok {} -> respond "Command succeeded"
+##     Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)"
+##     Err (KilledBySignal) -> respond "Command was killed by signal"
+##     Err (IOError str) -> respond "IO Error: $(str)"
 ## ```
 status : Command -> Task {} Error
 status = \@Command cmd ->

@@ -5,12 +5,12 @@
 
 set timeout 7
 
-spawn $env(EXAMPLES_DIR)command
+spawn $env(EXAMPLES_DIR)init-basic
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
 
-    if {$curlOutput eq "Command succeeded."} {
+    if {$curlOutput eq "<b>init gave me 🎁</b>"} {
         expect "Z Get /\r\n" {
             exit 0
         }

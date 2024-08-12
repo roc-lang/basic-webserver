@@ -1,5 +1,5 @@
 # Webapp for todos using a SQLite 3 database
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
@@ -11,14 +11,24 @@ import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init, respond }
+
+init : Task Model [Exit I32 Str]_
+init =
+    when isSqliteInstalled |> Task.result! is
+        Ok _ -> Task.ok {}
+        Err err -> Task.err err
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     responseTask =
         logRequest! req
-        isSqliteInstalled!
 
         dbPath = readEnvVar! "DB_PATH"
+
+        # TODO check if dbPath exists
 
         splitUrl =
             req.url
@@ -30,13 +40,12 @@ main = \req ->
         when splitUrl is
             ["", ""] -> byteResponse 200 todoHtml
             ["", "todos", ..] -> routeTodos dbPath req
-            _ -> textResponse 404 "URL Not Found (404)\n"
+            _ -> textResponse 404 "URL Not Found (404)"
 
     # Handle any application errors
     responseTask |> Task.onErr handleErr
 
 AppError : [
-    Sqlite3NotInstalled,
     EnvVarNotSet Str,
 ]
 
@@ -54,7 +63,7 @@ routeTodos = \dbPath, req ->
 
         otherMethod ->
             # Not supported
-            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)\n"
+            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)"
 
 listTodos : Str -> Task Response *
 listTodos = \dbPath ->
@@ -125,13 +134,14 @@ byteResponse = \status, bytes ->
 
 isSqliteInstalled : Task {} [Sqlite3NotInstalled]_
 isSqliteInstalled =
-    sqlite3Res <-
+    Stdout.line! "INFO: Checking if sqlite3 is installed..."
+
+    sqlite3T =
         Command.new "sqlite3"
         |> Command.arg "--version"
         |> Command.status
-        |> Task.attempt
 
-    when sqlite3Res is
+    when sqlite3T |> Task.result! is
         Ok {} -> Task.ok {}
         Err _ -> Task.err Sqlite3NotInstalled
 
@@ -139,7 +149,7 @@ logRequest : Request -> Task {} *
 logRequest = \req ->
     datetime = Utc.now! |> Utc.toIso8601Str
 
-    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
 readEnvVar = \envVarName ->
@@ -153,7 +163,7 @@ handleErr = \appErr ->
     errMsg =
         when appErr is
             EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
-            Sqlite3NotInstalled -> "I failed to call `sqlite3 --version`, is sqlite installed?"
+
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
     _ <- Stderr.flush |> Task.attempt
@@ -162,5 +172,5 @@ handleErr = \appErr ->
     Task.ok {
         status: 500,
         headers: [],
-        body: Str.toUtf8 "Internal Server Error.\n",
+        body: Str.toUtf8 "Internal Server Error.",
     }

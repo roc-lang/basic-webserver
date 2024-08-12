@@ -1,4 +1,4 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
@@ -8,9 +8,12 @@ import pf.Path
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
-main : Request -> Task Response []
-main = \_ ->
+Model : {}
 
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \_, _ ->
     # Get current working directory
     {} <-
         Env.cwd
@@ -38,4 +41,4 @@ main = \_ ->
             Stderr.line "Error reading directory $(Path.display path):\n\t$(err)"
         |> Task.await
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request\n" }
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "Logged request" }
