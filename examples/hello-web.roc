@@ -10,9 +10,7 @@ Model : Str
 server = { init, respond }
 
 init : Task Model [Exit I32 Str]_
-init =
-    Stdout.line! "SERVER INFO: Doing stuff before the server starts..."
-    Task.ok "This is from init!"
+init = Task.ok "Web Server"
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, model ->
@@ -21,4 +19,4 @@ respond = \req, model ->
 
     Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b></br>$(model)" }
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, $(model)!</b>" }
