@@ -5,31 +5,73 @@ import pf.Stdout
 import pf.Stderr
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
-import pf.Command
 import pf.Env
 import pf.Sqlite
 import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
 
-Model : {}
+Model : {
+    listTodosStmt : Sqlite.Stmt,
+    beginStmt : Sqlite.Stmt,
+    createTodoStmt : Sqlite.Stmt,
+    lastCreatedTodoStmt : Sqlite.Stmt,
+    endStmt : Sqlite.Stmt,
+}
 
 server = { init, respond }
 
 init : Task Model [Exit I32 Str]_
 init =
-    when isSqliteInstalled |> Task.result! is
-        Ok _ -> Task.ok {}
-        Err err -> Task.err err
+    dbPath = Env.var "DB_PATH" |> Task.mapErr! \_ -> Exit -1 "<DB_PATH> not set on environment"
+
+    listTodosStmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "SELECT id, task, status FROM todos",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    beginStmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "BEGIN",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    createTodoStmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "INSERT INTO todos (task, status) VALUES (:task, :status)",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    lastCreatedTodoStmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    endStmt =
+        Sqlite.prepare {
+            path: dbPath,
+            query: "END",
+        }
+            |> Task.mapErr! \err -> Exit -2 "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+
+    Task.ok {
+        listTodosStmt,
+        beginStmt,
+        createTodoStmt,
+        lastCreatedTodoStmt,
+        endStmt,
+    }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
+respond = \req, model ->
     responseTask =
         logRequest! req
-
-        dbPath = readEnvVar! "DB_PATH"
-
-        # TODO check if dbPath exists
 
         splitUrl =
             req.url
@@ -40,7 +82,7 @@ respond = \req, _ ->
         # Route to handler based on url path
         when splitUrl is
             ["", ""] -> byteResponse 200 todoHtml
-            ["", "todos", ..] -> routeTodos dbPath req
+            ["", "todos", ..] -> routeTodos model req
             _ -> textResponse 404 "URL Not Found (404)"
 
     # Handle any application errors
@@ -50,25 +92,25 @@ AppError : [
     EnvVarNotSet Str,
 ]
 
-routeTodos : Str, Request -> Task Response *
-routeTodos = \dbPath, req ->
+routeTodos : Model, Request -> Task Response *
+routeTodos = \model, req ->
     when req.method is
         Get ->
-            listTodos dbPath
+            listTodos model
 
         Post ->
             # Create todo
             when taskFromQuery req.url is
-                Ok props -> createTodo dbPath props
+                Ok props -> createTodo model props
                 Err InvalidQuery -> textResponse 400 "Invalid query string, I expected: ?task=foo&status=bar"
 
         otherMethod ->
             # Not supported
             textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)"
 
-listTodos : Str -> Task Response *
-listTodos = \dbPath ->
-    result = listTodosQuery dbPath |> Task.result!
+listTodos : Model -> Task Response *
+listTodos = \model ->
+    result = listTodosQuery model |> Task.result!
 
     when result is
         Ok tasks ->
@@ -82,11 +124,10 @@ listTodos = \dbPath ->
         Err err ->
             errResponse err
 
-listTodosQuery : Str -> Task (List { id : I64, task : Str, status : Str }) _
-listTodosQuery = \dbPath ->
-    Sqlite.query {
-        path: dbPath,
-        query: "SELECT id, task, status FROM todos",
+listTodosQuery : Model -> Task (List { id : I64, task : Str, status : Str }) _
+listTodosQuery = \{ listTodosStmt } ->
+    Sqlite.queryPrepared {
+        stmt: listTodosStmt,
         bindings: [],
         rows: { Sqlite.decodeRecord <-
             id: Sqlite.i64 "id",
@@ -95,9 +136,9 @@ listTodosQuery = \dbPath ->
         },
     }
 
-createTodo : Str, { task : Str, status : Str } -> Task Response *
-createTodo = \dbPath, params ->
-    result = createTodoTransaction dbPath params |> Task.result!
+createTodo : Model, { task : Str, status : Str } -> Task Response *
+createTodo = \model, params ->
+    result = createTodoTransaction model params |> Task.result!
 
     when result is
         Ok task ->
@@ -109,27 +150,24 @@ createTodo = \dbPath, params ->
         Err err ->
             errResponse err
 
-createTodoTransaction : Str, { task : Str, status : Str } -> Task { id : I64, task : Str, status : Str } _
-createTodoTransaction = \dbPath, { task, status } ->
+createTodoTransaction : Model, { task : Str, status : Str } -> Task { id : I64, task : Str, status : Str } _
+createTodoTransaction = \{ beginStmt, createTodoStmt, lastCreatedTodoStmt, endStmt }, { task, status } ->
     # TODO: create a nice transaction wrapper that will rollback if any intermediate stage fails
     # Currently, if this fails part way through, it will just lock the database with a left open trasaction.
-    Sqlite.execute! {
-        path: dbPath,
-        query: "BEGIN",
+    Sqlite.executePrepared! {
+        stmt: beginStmt,
         bindings: [],
     }
-    Sqlite.execute! {
-        path: dbPath,
-        query: "INSERT INTO todos (task, status) VALUES (:task, :status)",
+    Sqlite.executePrepared! {
+        stmt: createTodoStmt,
         bindings: [
             { name: ":task", value: String task },
             { name: ":status", value: String status },
         ],
     }
     createdTask =
-        Sqlite.queryExactlyOne! {
-            path: dbPath,
-            query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()",
+        Sqlite.queryExactlyOnePrepared! {
+            stmt: lastCreatedTodoStmt,
             bindings: [],
             row: { Sqlite.decodeRecord <-
                 id: Sqlite.i64 "id",
@@ -137,9 +175,8 @@ createTodoTransaction = \dbPath, { task, status } ->
                 status: Sqlite.str "status",
             },
         }
-    Sqlite.execute! {
-        path: dbPath,
-        query: "END",
+    Sqlite.executePrepared! {
+        stmt: endStmt,
         bindings: [],
     }
     Task.ok createdTask
@@ -193,29 +230,11 @@ byteResponse = \status, bytes ->
         body: bytes,
     }
 
-isSqliteInstalled : Task {} [Sqlite3NotInstalled]_
-isSqliteInstalled =
-    Stdout.line! "INFO: Checking if sqlite3 is installed..."
-
-    sqlite3T =
-        Command.new "sqlite3"
-        |> Command.arg "--version"
-        |> Command.status
-
-    when sqlite3T |> Task.result! is
-        Ok {} -> Task.ok {}
-        Err _ -> Task.err Sqlite3NotInstalled
-
 logRequest : Request -> Task {} *
 logRequest = \req ->
     datetime = Utc.now! |> Utc.toIso8601Str
 
     Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-
-readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
-readEnvVar = \envVarName ->
-    Env.var envVarName
-    |> Task.mapErr \_ -> EnvVarNotSet envVarName
 
 handleErr : AppError -> Task Response *
 handleErr = \appErr ->
