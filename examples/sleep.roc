@@ -15,7 +15,7 @@ main = \_ ->
     # Sleep for 1 second
     Sleep.millis! 1000
 
-    # Deplayed Http response
+    # Delayed Http response
     body = Str.toUtf8 "Response delayed by 1 second\n"
     headers = []
     status = 200
