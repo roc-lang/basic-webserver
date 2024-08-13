@@ -122,23 +122,6 @@ readUtf8 = \path ->
         Ok (Err _) -> Task.err (FileReadUtf8Err path)
         Err readErr -> Task.err (FileReadErr path readErr)
 
-# read :
-#     Path,
-#     fmt
-#     -> Task
-#         Str
-#         [FileReadErr Path ReadErr, FileReadDecodeErr Path [Leftover (List U8)]Decode.DecodeError ]
-#         [Read [File]]
-#     where val implements Decode.Decoding, fmt implements Decode.DecoderFormatting
-# read = \path, fmt ->
-#     effect = Effect.map (Effect.fileReadBytes (InternalPath.toBytes path)) \result ->
-#         when result is
-#             Ok bytes ->
-#                 when Decode.fromBytes bytes fmt is
-#                     Ok val -> Ok val
-#                     Err decodingErr -> Err (FileReadDecodeErr decodingErr)
-#             Err readErr -> Err (FileReadErr readErr)
-#     InternalTask.fromEffect effect
 toWriteTask : Path, (List U8 -> Task ok err) -> Task ok [FileWriteErr Path err]
 toWriteTask = \path, toTask ->
     InternalPath.toBytes path

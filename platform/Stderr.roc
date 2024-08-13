@@ -7,8 +7,7 @@ import PlatformTask
 ##
 ## > To write to `stderr` without the newline, see [Stderr.write].
 line : Str -> Task {} *
-line = \str ->
-    PlatformTask.stderrLine str
+line = PlatformTask.stderrLine
 
 ## Write the given string to [standard error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)).
 ##
@@ -17,8 +16,7 @@ line = \str ->
 ##
 ## > To write to `stderr` with a newline at the end, see [Stderr.line].
 write : Str -> Task {} *
-write = \str ->
-    PlatformTask.stderrWrite str
+write = PlatformTask.stderrWrite
 
 ## Flush the [standard error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)).
 ## This will cause any buffered output to be written out. This is typically to
@@ -27,5 +25,4 @@ write = \str ->
 ## This may fail if the buffered output could not be written due to I/O
 ## errors or EOF being reached.
 flush : Task {} *
-flush =
-    PlatformTask.stderrFlush
+flush = PlatformTask.stderrFlush

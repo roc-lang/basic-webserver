@@ -24,13 +24,19 @@ respond = \req, _ ->
             Task.err (ServerErr "Command exited with code $(Num.toStr code).")
 
         Err KilledBySignal ->
-            Task.err (ServerErr """Command was killed by signal. This can happen for everal reasons:
-                                    - User intervention (e.g., Ctrl+C)
-                                    - Exceeding resource limits
-                                    - System shutdown
-                                    - Parent process terminating child processes
-                                    - ...
-                                    """)
+            Task.err
+                (
+                    ServerErr
+                        """
+                        Command was killed by signal. This can happen for everal reasons:
+                            - User intervention (e.g., Ctrl+C)
+                            - Exceeding resource limits
+                            - System shutdown
+                            - Parent process terminating child processes
+                            - ...
+                            
+                        """
+                )
 
         Err (IOError str) ->
             Task.err (ServerErr "IO Error: $(str).")
