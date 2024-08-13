@@ -17,9 +17,7 @@ module [
     parseFormUrlEncoded,
 ]
 
-import Effect
-import InternalTask
-import Task exposing [Task]
+import PlatformTask
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
 
 ## Represents an HTTP request.
@@ -128,31 +126,31 @@ send = \req ->
     }
 
     # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
-    Effect.sendRequest (Box.box reqToHost)
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
-    |> Task.await \{ variant, body, metadata } ->
-        when variant is
-            "Timeout" -> Task.err (Timeout timeoutMilliseconds)
-            "NetworkErr" -> Task.err NetworkError
-            "BadStatus" ->
-                Task.err
-                    (
-                        BadStatus {
-                            code: metadata.statusCode,
-                            body: errorBodyFromUtf8 body,
-                        }
-                    )
+    { variant, body, metadata } = PlatformTask.sendRequest! (Box.box reqToHost)
 
-            "GoodStatus" ->
-                Task.ok {
-                    status: metadata.statusCode,
-                    headers: metadata.headers,
-                    body,
-                }
+    when variant is
+        "Timeout" -> Task.err (HttpErr (Timeout timeoutMilliseconds))
+        "NetworkErr" -> Task.err (HttpErr NetworkError)
+        "BadStatus" ->
+            Task.err
+                (
+                    HttpErr
+                        (
+                            BadStatus {
+                                code: metadata.statusCode,
+                                body: errorBodyFromUtf8 body,
+                            }
+                        )
+                )
 
-            "BadRequest" | _other -> Task.err (BadRequest metadata.statusText)
-    |> Task.mapErr HttpErr
+        "GoodStatus" ->
+            Task.ok {
+                status: metadata.statusCode,
+                headers: metadata.headers,
+                body,
+            }
+
+        "BadRequest" | _other -> Task.err (HttpErr (BadRequest metadata.statusText))
 
 ## Try to perform an HTTP get request and convert (decode) the received bytes into a Roc type.
 ## Very useful for working with Json.

@@ -1,11 +1,9 @@
 module [deleteEmptyDir, deleteRecursive, list]
 
-import Effect
-import Task exposing [Task]
-import InternalTask
 import Path exposing [Path]
 import InternalPath
 import InternalError
+import PlatformTask
 
 ReadErr : InternalError.InternalDirReadErr
 
@@ -14,12 +12,8 @@ DeleteErr : InternalError.InternalDirDeleteErr
 ## Lists the files and directories inside the directory.
 list : Path -> Task (List Path) ReadErr
 list = \path ->
-    effect = Effect.map (Effect.dirList (InternalPath.toBytes path)) \result ->
-        when result is
-            Ok entries -> Ok (List.map entries InternalPath.fromOsBytes)
-            Err err -> Err err
-
-    InternalTask.fromEffect effect
+    PlatformTask.dirList (InternalPath.toBytes path)
+    |> Task.map \entries -> List.map entries InternalPath.fromOsBytes
 
 ## Deletes a directory if it's empty.
 deleteEmptyDir : Path -> Task {} DeleteErr

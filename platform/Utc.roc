@@ -10,10 +10,8 @@ module [
     toIso8601Str,
 ]
 
-import Effect
-import InternalTask
+import PlatformTask
 import InternalDateTime
-import Task exposing [Task]
 
 ## Stores a timestamp as nanoseconds since UNIX EPOCH
 Utc := I128
@@ -21,11 +19,9 @@ Utc := I128
 ## Duration since UNIX EPOCH
 now : Task Utc *
 now =
-    Effect.posixTime
-    |> Effect.map Num.toI128
-    |> Effect.map @Utc
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
+    PlatformTask.posixTime
+    |> Task.map Num.toI128
+    |> Task.map @Utc
 
 ## Convert Utc timestamp to ISO 8601 string
 ## Example: 2023-11-14T23:39:39Z

@@ -1,8 +1,6 @@
 module [line, write, flush]
 
-import Effect
-import Task exposing [Task]
-import InternalTask
+import PlatformTask
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)),
 ## followed by a newline.
@@ -10,9 +8,7 @@ import InternalTask
 ## > To write to `stdout` without the newline, see [Stdout.write].
 line : Str -> Task {} *
 line = \str ->
-    Effect.stdoutLine str
-    |> Effect.map (\_ -> Ok {})
-    |> InternalTask.fromEffect
+    PlatformTask.stdoutLine str
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
 ##
@@ -22,9 +18,7 @@ line = \str ->
 ## > To write to `stdout` with a newline at the end, see [Stdout.line].
 write : Str -> Task {} *
 write = \str ->
-    Effect.stdoutWrite str
-    |> Effect.map (\_ -> Ok {})
-    |> InternalTask.fromEffect
+    PlatformTask.stdoutWrite str
 
 ## Flush the [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
 ## This will cause any buffered output to be written out. This is typically to
@@ -33,4 +27,5 @@ write = \str ->
 ## This may fail if the buffered output could not be written due to I/O
 ## errors or EOF being reached.
 flush : Task {} *
-flush = Effect.stdoutFlush |> Effect.map (\_ -> Ok {}) |> InternalTask.fromEffect
+flush =
+    PlatformTask.stdoutFlush

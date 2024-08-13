@@ -1,8 +1,7 @@
 app [main] {
-    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.13.0/nW9yMRtZuCYf1Oa9vbE5XoirMwzLbtoSgv7NGhUlqYA.tar.br",
+    cli: platform "../basic-cli/platform/main.roc",
 }
 
-import cli.Task exposing [Task]
 import cli.Cmd
 import cli.Stdout
 import cli.Env
@@ -90,9 +89,9 @@ getRustTargetFolder =
                 Task.ok "target/release/"
             else
                 Task.ok "target/$(targetEnvVar)/release/"
-        Err e -> 
+        Err e ->
             info! "Failed to get env var CARGO_BUILD_TARGET with error \(Inspect.toStr e). Assuming default CARGO_BUILD_TARGET (native)..."
-            
+
             Task.ok "target/release/"
 
 cargoBuildHost : Task {} _

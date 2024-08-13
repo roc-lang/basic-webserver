@@ -1,6 +1,5 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Path
 import pf.Env

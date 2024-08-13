@@ -12,7 +12,6 @@ platform "webserver"
         Http,
         Stderr,
         Stdout,
-        Task,
         Tcp,
         Url,
         Utc,
@@ -21,19 +20,15 @@ platform "webserver"
         SQLite3,
     ]
     packages {}
-    imports [
-        Task.{ Task },
-        Stderr,
-    ]
+    imports [Stderr]
     provides [forHost]
 
-import InternalTask
 import Http
 import InternalHttp
 
 ForHost : {
     init : Task (Box Model) I32,
-    respond : InternalHttp.RequestToAndFromHost, Box Model -> InternalTask.Task InternalHttp.ResponseToHost [],
+    respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost [],
 }
 
 forHost : ForHost
@@ -64,7 +59,7 @@ init =
                 |> Task.onErr \_ -> Task.err 1
                 |> Task.await \_ -> Task.err 1
 
-respond : InternalHttp.RequestToAndFromHost, Box Model -> InternalTask.Task InternalHttp.ResponseToHost []
+respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost []
 respond = \request, boxedModel ->
     when server.respond (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) |> Task.result! is
         Ok response -> Task.ok response
@@ -72,7 +67,7 @@ respond = \request, boxedModel ->
             Stderr.line! msg
 
             # returns a http server error response
-            InternalTask.ok {
+            Task.ok {
                 status: 500,
                 headers: [],
                 body: [],
@@ -88,7 +83,7 @@ respond = \request, boxedModel ->
                 Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
                 """
 
-            InternalTask.ok {
+            Task.ok {
                 status: 500,
                 headers: [],
                 body: [],
