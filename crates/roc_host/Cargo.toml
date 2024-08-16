@@ -36,3 +36,4 @@ backtrace = "0.3.68"
 bytes = "1.0"
 sqlite3-sys = { version = "0.17.0", features = ["bundled"] }
 memmap2 = "=0.9.4"
+thread_local = "1.1.8"
