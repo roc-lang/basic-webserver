@@ -88,8 +88,7 @@ err = \a -> InternalTask.err a
 ## We can use [attempt] to handle the failure cases using the following;
 ##
 ## ```
-## result <- canFail |> Task.attempt
-## when result is
+## when canFail |> Task.result! is
 ##     Ok Success -> Stdout.line "Success!"
 ##     Err Failure -> Stdout.line "Oops, failed!"
 ##     Err AnotherFail -> Stdout.line "Ooooops, another failure!"
@@ -117,8 +116,8 @@ attempt = \task, transform ->
 ##
 ## ```
 ## # Prints "Hello World!\n" to standard output.
-## {} <- Stdout.write "Hello "|> Task.await
-## {} <- Stdout.write "World!\n"|> Task.await
+## Stdout.write! "Hello "
+## Stdout.write! "World!\n"
 ##
 ## Task.ok {}
 ## ```

@@ -31,7 +31,7 @@ StreamErr : InternalTcp.StreamErr
 ##
 ## ```
 ## # Connect to localhost:8080 and send "Hi from Roc!"
-## stream <- Tcp.withConnect "localhost" 8080
+## stream = Tcp.withConnect! "localhost" 8080
 ## Tcp.writeUtf8 "Hi from Roc!" stream
 ## ```
 ##
@@ -74,7 +74,7 @@ close = \stream ->
 ##
 ## ```
 ## # Read up to 64 bytes from the stream and convert to a Str
-## received <- File.readUpTo 64 stream |> Task.await
+## received = File.readUpTo! 64 stream
 ## Str.fromUtf8 received
 ## ```
 ##
@@ -133,7 +133,7 @@ readUntil = \byte, stream ->
 ##
 ## ```
 ## # Read a line and then print it to `stdout`
-## lineStr <- File.readLine stream |> Task.await
+## lineStr = File.readLine! stream
 ## Stdout.line lineStr
 ## ```
 ##
