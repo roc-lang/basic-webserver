@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
-set -euxo pipefail
+set -exo pipefail
 
 
 if [ -z "${ROC}" ]; then
@@ -31,8 +31,15 @@ cd basic-cli
 git checkout builtin-task
 popd # back to original dir
 
-echo "build the platform"
-$ROC ./build.roc --prebuilt-platform -- --roc $ROC
+
+if [ "$NO_BUILD" != "1" ]; then
+  echo "building platform..."
+  # temporary; remove once build.roc uses basic-cli throuh a URL
+  ./jump-start.sh
+  
+  # build the basic-cli platform
+  $ROC ./build.roc --prebuilt-platform -- --roc $ROC
+fi
 
 echo "roc check"
 for roc_file in $EXAMPLES_DIR*.roc; do
