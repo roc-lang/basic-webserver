@@ -35,7 +35,7 @@ popd # back to original dir
 if [ "$NO_BUILD" != "1" ]; then
   echo "building platform..."
   # temporary; remove once build.roc uses basic-cli throuh a URL
-  ./jump-start.sh
+  bash jump-start.sh
   
   # build the basic-cli platform
   $ROC ./build.roc --prebuilt-platform -- --roc $ROC
