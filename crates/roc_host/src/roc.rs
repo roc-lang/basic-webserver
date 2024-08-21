@@ -614,15 +614,15 @@ fn to_roc_write_error(err: std::io::Error) -> roc_app::WriteErr {
         // TODO investigate support the following IO errors may need to update API
         ErrorKind::WriteZero => roc_app::WriteErr::WriteZero(),
         // TODO investigate support the following IO errors
-        // std::io::ErrorKind::FileTooLarge <- unstable language feature
-        // std::io::ErrorKind::ExecutableFileBusy <- unstable language feature
-        // std::io::ErrorKind::FilesystemQuotaExceeded <- unstable language feature
-        // std::io::ErrorKind::InvalidFilename <- unstable language feature
-        // std::io::ErrorKind::ResourceBusy <- unstable language feature
-        // std::io::ErrorKind::ReadOnlyFilesystem <- unstable language feature
-        // std::io::ErrorKind::TooManyLinks <- unstable language feature
-        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
-        // std::io::ErrorKind::StorageFull <- unstable language feature
+        // std::io::ErrorKind::FileTooLarge -- unstable language feature
+        // std::io::ErrorKind::ExecutableFileBusy -- unstable language feature
+        // std::io::ErrorKind::FilesystemQuotaExceeded -- unstable language feature
+        // std::io::ErrorKind::InvalidFilename -- unstable language feature
+        // std::io::ErrorKind::ResourceBusy -- unstable language feature
+        // std::io::ErrorKind::ReadOnlyFilesystem -- unstable language feature
+        // std::io::ErrorKind::TooManyLinks -- unstable language feature
+        // std::io::ErrorKind::StaleNetworkFileHandle -- unstable language feature
+        // std::io::ErrorKind::StorageFull -- unstable language feature
         _ => roc_app::WriteErr::Unsupported(),
     }
 }
@@ -659,8 +659,8 @@ fn to_roc_read_error(err: std::io::Error) -> roc_app::ReadErr {
         // std::io::ErrorKind:: => roc_app::ReadErr::TooManyHardlinks,
         // std::io::ErrorKind:: => roc_app::ReadErr::TooManySymlinks,
         // std::io::ErrorKind:: => roc_app::ReadErr::Unrecognized,
-        // std::io::ErrorKind::StaleNetworkFileHandle <- unstable language feature
-        // std::io::ErrorKind::InvalidFilename <- unstable language feature
+        // std::io::ErrorKind::StaleNetworkFileHandle -- unstable language feature
+        // std::io::ErrorKind::InvalidFilename -- unstable language feature
         _ => roc_app::ReadErr::Unsupported(),
     }
 }

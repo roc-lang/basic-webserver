@@ -59,7 +59,7 @@ handleErr = \appErr ->
             HttpErr err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    _ <- Stderr.flush |> Task.attempt
+    Stderr.flush!
 
     # Respond with Http 500 Error
     Task.ok {

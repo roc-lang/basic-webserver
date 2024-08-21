@@ -137,13 +137,12 @@ clearEnvs = \@Command cmd ->
 ## > Stdin is not inherited from the parent and any attempt by the child process
 ## > to read from the stdin stream will result in the stream immediately closing.
 ## ```
-## output <-
+## output =
 ##     Command.new "sqlite3"
 ##     |> Command.arg dbPath
 ##     |> Command.arg ".mode json"
 ##     |> Command.arg "SELECT id, task, status FROM todos;"
-##     |> Command.output
-##     |> Task.await
+##     |> Command.output!
 ##
 ## when output.status is
 ##     Ok {} -> jsonResponse output.stdout
@@ -156,12 +155,12 @@ output = \@Command cmd ->
 ## Execute command and inheriting stdin, stdout and stderr from parent
 ## ```
 ## # Log request date, method and url using echo program
-## date <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
-## result <-
+## date = Utc.now |> Task.map! Utc.toIso8601Str
+## result =
 ##     Command.new "echo"
 ##     |> Command.arg "$(date) $(Http.methodToStr req.method) $(req.url)"
 ##     |> Command.status
-##     |> Task.attempt
+##     |> Task.result!
 ##
 ## when result is
 ##     Ok {} -> respond "Command succeeded"

@@ -95,10 +95,9 @@ errorToString = \err ->
 ##
 ## ```
 ## # Prints out the HTML of the Roc-lang website.
-## response <-
+## response =
 ##     { Http.defaultRequest & url: "https://www.roc-lang.org" }
-##     |> Http.send
-##     |> Task.await
+##     |> Http.send!
 ##
 ## response.body
 ## |> Str.fromUtf8
@@ -215,17 +214,15 @@ parseFormUrlEncoded = \bytes ->
             [] if List.isEmpty chomped -> dict |> Ok
             [] ->
                 # chomped last value
-                keyStr <- key |> chainUtf8
-                valueStr <- chomped |> chainUtf8
-
-                Dict.insert dict keyStr valueStr |> Ok
+                key |> chainUtf8 \keyStr ->
+                    chomped |> chainUtf8 \valueStr ->
+                        Dict.insert dict keyStr valueStr |> Ok
 
             ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
             ['&', ..] ->
-                keyStr <- key |> chainUtf8
-                valueStr <- chomped |> chainUtf8
-
-                parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
+                key |> chainUtf8 \keyStr ->
+                    chomped |> chainUtf8 \valueStr ->
+                        parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
             ['%', secondByte, thirdByte, ..] ->
                 hex = Num.toU8 (hexBytesToU32 [secondByte, thirdByte])

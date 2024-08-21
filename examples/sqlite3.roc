@@ -12,10 +12,13 @@ server = { init: Task.ok {}, respond }
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \_, _ ->
     # Read DB_PATH environment variable
-    maybeDbPath <- Env.var "DB_PATH" |> Task.attempt
+    maybeDbPath =
+        Env.var "DB_PATH"
+        |> Task.result
+        |> Task.mapErr! \_ -> ServerErr "DB_PATH not set on environment"
 
     # Query todos table
-    rows <-
+    rows =
         SQLite3.execute {
             path: maybeDbPath |> Result.withDefault "<DB_PATH> not set on environment",
             query: "SELECT id, task FROM todos WHERE status = :status;",
@@ -27,10 +30,9 @@ respond = \_, _ ->
                 when cols is
                     [Integer id, String task] -> "row $(Num.toStr id), task: $(task)"
                     _ -> crash "unexpected values returned, expected Integer and String got $(Inspect.toStr cols)"
-        |> Task.onErr \err ->
+        |> Task.onErr! \err ->
             # Crash on any errors for now
             crash "$(SQLite3.errToStr err)"
-        |> Task.await
 
     body = rows |> Str.joinWith "\n"
     # Print out the results

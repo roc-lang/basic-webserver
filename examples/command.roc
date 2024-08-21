@@ -12,11 +12,11 @@ respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, _ ->
     # Log request date, method and url using echo program
     datetime = Utc.now! |> Utc.toIso8601Str
-    result <-
+    result =
         Command.new "echo"
         |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
         |> Command.status
-        |> Task.attempt
+        |> Task.result!
 
     when result is
         Ok {} -> okHttp "Command succeeded."
