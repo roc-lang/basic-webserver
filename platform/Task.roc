@@ -13,7 +13,7 @@ module [
     fromResult,
     batch,
     result,
-    sequence, 
+    sequence,
     forEach,
 ]
 
@@ -218,9 +218,7 @@ awaitResult = \res, transform ->
 ## ```
 batch : Task a c -> (Task (a -> b) c -> Task b c)
 batch = \current -> \next ->
-        f <- next |> await
-
-        map current f
+        next |> await \f -> map current f
 
 ## Transform a task that can either succeed with `ok`, or fail with `err`, into
 ## a task that succeeds with `Result ok err`.
@@ -249,7 +247,7 @@ result = \task ->
 
 
 ## Apply each task in a list sequentially, and return a [Task] with the list of the resulting values.
-## Each task will be awaited (see [Task.await]) before beginning the next task, 
+## Each task will be awaited (see [Task.await]) before beginning the next task,
 ## execution will stop if an error occurs.
 ##
 ## ```
@@ -262,9 +260,8 @@ result = \task ->
 sequence : List (Task ok err) -> Task (List ok) err
 sequence = \tasks ->
     List.walk tasks (InternalTask.ok []) \state, task ->
-        value <- task |> await
-
-        state |> map \values -> List.append values value
+        task |> await \value ->
+            state |> map \values -> List.append values value
 
 ## Apply a function that returns `Task {} _` for each item in a list.
 ## Each task will be awaited (see [Task.await]) before beginning the next task,

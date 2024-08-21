@@ -25,10 +25,10 @@ execute :
     }
     -> Task (List (List InternalSQL.SQLiteValue)) Error
 execute = \{ path, query, bindings } ->
-    result <-
+    result =
         Effect.sqliteExecute path query bindings
         |> InternalTask.fromEffect
-        |> Task.attempt
+        |> Task.result!
 
     when result is
         Ok rows -> Task.ok rows
@@ -139,4 +139,3 @@ errToStr = \err ->
             DONE -> "DONE: sqlite3_step() has finished executing"
 
     "$(msg1) - $(msg2)"
-

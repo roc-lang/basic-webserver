@@ -44,18 +44,16 @@ StreamErr : InternalTcp.StreamErr
 ##
 withConnect : Str, U16, (Stream -> Task a err) -> Task a [TcpConnectErr ConnectErr, TcpPerformErr err]
 withConnect = \hostname, port, callback ->
-    stream <- connect hostname port
-        |> Task.mapErr TcpConnectErr
-        |> Task.await
+    stream = connect hostname port
+        |> Task.mapErr! TcpConnectErr
 
-    result <- callback stream
+    result = callback stream
         |> Task.mapErr TcpPerformErr
-        |> Task.onErr
+        |> Task.onErr!
             (\err ->
-                _ <- close stream |> Task.await
+                close! stream
                 Task.err err
             )
-        |> Task.await
 
     close stream
     |> Task.map \_ -> result
@@ -143,7 +141,7 @@ readUntil = \byte, stream ->
 ##
 readLine : Stream -> Task Str [TcpReadErr StreamErr, TcpReadBadUtf8 _]
 readLine = \stream ->
-    bytes <- readUntil '\n' stream |> Task.await
+    bytes = readUntil! '\n' stream
 
     Str.fromUtf8 bytes
     |> Result.mapErr TcpReadBadUtf8
@@ -223,4 +221,3 @@ streamErrToStr = \err ->
         Unrecognized code message ->
             codeStr = Num.toStr code
             "Unrecognized Error: $(codeStr) - $(message)"
-
