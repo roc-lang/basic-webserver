@@ -18,7 +18,8 @@ fi
 
 $ROC build --lib ./platform/libapp.roc
 
-$ROC glue ./platform/main-glue.roc crates ./platform/main.roc
+# @Anton - GLUE NEEDS TO BE MANUALLY UPDATED, IT GENERATES BROKEN RUST
+# $ROC glue ./platform/main-glue.roc crates ./platform/main.roc
 
 cargo build --release
 
