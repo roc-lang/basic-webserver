@@ -1,4 +1,4 @@
-app [main] {
+app [Model, server] {
     pf: platform "../platform/main.roc",
     utils: "https://github.com/quelgar/roc-utils/releases/download/v0.1.0/keYHFjUG1pMAT8ECePEAIS-ncYxEV0DdhTvENUf0USs.tar.br",
 }
@@ -7,8 +7,17 @@ import utils.Base64
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 
-main : Request -> Task Response []
-main = \req ->
+# Model is produced by `init`.
+Model : {}
+
+# With `init` you can set up a database connection once at server startup,
+# generate css by running `tailwindcss`,...
+# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
+
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
 
     if req.method == Get then
         body =
