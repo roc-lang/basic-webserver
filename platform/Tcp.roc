@@ -31,7 +31,7 @@ StreamErr : InternalTcp.StreamErr
 ##
 ## ```
 ## # Connect to localhost:8080 and send "Hi from Roc!"
-## stream <- Tcp.withConnect "localhost" 8080
+## stream = Tcp.withConnect! "localhost" 8080
 ## Tcp.writeUtf8 "Hi from Roc!" stream
 ## ```
 ##
@@ -44,18 +44,16 @@ StreamErr : InternalTcp.StreamErr
 ##
 withConnect : Str, U16, (Stream -> Task a err) -> Task a [TcpConnectErr ConnectErr, TcpPerformErr err]
 withConnect = \hostname, port, callback ->
-    stream <- connect hostname port
-        |> Task.mapErr TcpConnectErr
-        |> Task.await
+    stream = connect hostname port
+        |> Task.mapErr! TcpConnectErr
 
-    result <- callback stream
+    result = callback stream
         |> Task.mapErr TcpPerformErr
-        |> Task.onErr
+        |> Task.onErr!
             (\err ->
-                _ <- close stream |> Task.await
+                close! stream
                 Task.err err
             )
-        |> Task.await
 
     close stream
     |> Task.map \_ -> result
@@ -76,7 +74,7 @@ close = \stream ->
 ##
 ## ```
 ## # Read up to 64 bytes from the stream and convert to a Str
-## received <- File.readUpTo 64 stream |> Task.await
+## received = File.readUpTo! 64 stream
 ## Str.fromUtf8 received
 ## ```
 ##
@@ -135,7 +133,7 @@ readUntil = \byte, stream ->
 ##
 ## ```
 ## # Read a line and then print it to `stdout`
-## lineStr <- File.readLine stream |> Task.await
+## lineStr = File.readLine! stream
 ## Stdout.line lineStr
 ## ```
 ##
@@ -143,7 +141,7 @@ readUntil = \byte, stream ->
 ##
 readLine : Stream -> Task Str [TcpReadErr StreamErr, TcpReadBadUtf8 _]
 readLine = \stream ->
-    bytes <- readUntil '\n' stream |> Task.await
+    bytes = readUntil! '\n' stream
 
     Str.fromUtf8 bytes
     |> Result.mapErr TcpReadBadUtf8
@@ -223,4 +221,3 @@ streamErrToStr = \err ->
         Unrecognized code message ->
             codeStr = Num.toStr code
             "Unrecognized Error: $(codeStr) - $(message)"
-
