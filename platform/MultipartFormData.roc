@@ -13,7 +13,7 @@ FormData : {
     ##
     ## Example: `inline` or `attachment; filename="filename.jpg"`
     disposition : List U8,
-    
+
     ## Content-Type header
     ## Original media type of the resource.
     ##
@@ -33,7 +33,7 @@ FormData : {
 newline = ['\r', '\n']
 doubledash = ['-', '-']
 
-## Produces function that extracts the header value. 
+## Produces function that extracts the header value.
 ##
 ## Example call:
 ## ```roc
@@ -62,10 +62,7 @@ parseContentF = \{ upper, lower } -> \bytes ->
             List.startsWith bytes toSearchUpper
             || List.startsWith bytes toSearchLower
         then
-            nextLineStart <-
-                afterSearch
-                |> List.findFirstIndex \b -> b == '\r'
-                |> Result.try
+            nextLineStart = afterSearch |> List.findFirstIndex? \b -> b == '\r'
 
             Ok {
                 value: List.sublist afterSearch { start: 0, len: nextLineStart },
@@ -205,7 +202,7 @@ parse :
     {
         body : List U8,
         ## Each part of the form is enclosed between two boundary markers.
-        boundary : List U8, 
+        boundary : List U8,
     }
     -> Result (List FormData) [ExpectedEnclosedByBoundary]
 parse = \{ body, boundary } ->
