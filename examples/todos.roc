@@ -67,13 +67,12 @@ routeTodos = \dbPath, req ->
 
 listTodos : Str -> Task Response *
 listTodos = \dbPath ->
-    output <-
+    output =
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
         |> Command.arg "SELECT id, task, status FROM todos;"
-        |> Command.output
-        |> Task.await
+        |> Command.output!
 
     when output.status is
         Ok {} -> jsonResponse output.stdout
@@ -81,14 +80,13 @@ listTodos = \dbPath ->
 
 createTodo : Str, { task : Str, status : Str } -> Task Response *
 createTodo = \dbPath, { task, status } ->
-    output <-
+    output =
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
         |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
         |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
-        |> Command.output
-        |> Task.await
+        |> Command.output!
 
     when output.status is
         Ok {} -> jsonResponse output.stdout
@@ -166,7 +164,7 @@ handleErr = \appErr ->
 
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    _ <- Stderr.flush |> Task.attempt
+    Stderr.flush!
 
     # Respond with Http 500 Error
     Task.ok {
