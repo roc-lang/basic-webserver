@@ -1,4 +1,4 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
@@ -7,8 +7,12 @@ import pf.Http exposing [Request, Response]
 # It transforms a task that can either succeed with `ok`, or fail with `err`, into
 # a task that succeeds with `Result ok err`.
 
-main : Request -> Task Response []
-main = \_ ->
+Model : {}
+
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \_, _ ->
     when checkFile "good" |> Task.result! is
         Ok Good -> Task.ok { status: 200, headers: [], body: Str.toUtf8 "GOOD" }
         Ok Bad -> Task.ok { status: 200, headers: [], body: Str.toUtf8 "BAD" }

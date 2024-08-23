@@ -1,13 +1,16 @@
-app [main] { pf: platform "../platform/main.roc" }
+app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Utc
 
-main : Request -> Task Response []
-main = \req ->
+Model : {}
 
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [ServerErr Str]_
+respond = \req, _ ->
     # Log request date, method and url using echo program
     datetime = Utc.now! |> Utc.toIso8601Str
     result <-
@@ -17,9 +20,20 @@ main = \req ->
         |> Task.attempt
 
     when result is
-        Ok {} -> respond "Command succeeded\n"
-        Err (ExitCode code) -> respond "Command exited with code $(Num.toStr code)\n"
-        Err KilledBySignal -> respond "Command was killed by signal\n"
-        Err (IOError str) -> respond "IO Error: $(str)\n"
+        Ok {} -> okHttp "Command succeeded."
+        Err (ExitCode code) ->
+            Task.err (ServerErr "Command exited with code $(Num.toStr code).")
 
-respond = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }
+        Err KilledBySignal ->
+            Task.err (ServerErr """Command was killed by signal. This can happen for everal reasons:
+                                    - User intervention (e.g., Ctrl+C)
+                                    - Exceeding resource limits
+                                    - System shutdown
+                                    - Parent process terminating child processes
+                                    - ...
+                                    """)
+
+        Err (IOError str) ->
+            Task.err (ServerErr "IO Error: $(str).")
+
+okHttp = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }

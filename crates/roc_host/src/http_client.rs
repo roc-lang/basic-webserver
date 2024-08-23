@@ -51,7 +51,7 @@ pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::Respo
 
             let status = response.status().as_u16();
             let bytes = response.bytes().unwrap_or_default();
-            let body: RocList<u8> = RocList::from_iter(bytes.into_iter());
+            let body: RocList<u8> = RocList::from_iter(bytes);
 
             let metadata = roc_http::Metadata {
                 headers,
