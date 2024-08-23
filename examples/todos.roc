@@ -246,7 +246,7 @@ handleErr = \appErr ->
 
     # Log error to stderr
     Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    _ <- Stderr.flush |> Task.attempt
+    Stderr.flush!
 
     # Respond with Http 500 Error
     Task.ok {
