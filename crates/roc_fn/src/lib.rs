@@ -23,7 +23,7 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "envList",
         arg_types: &[],
-        ret_type: "roc_std::RocList<(roc_std::RocStr, roc_std::RocStr)>",
+        ret_type: "roc_std::RocResult<roc_std::RocList<(roc_std::RocStr, roc_std::RocStr)>, ()>",
     },
     HostedFn {
         name: "exePath",
@@ -38,42 +38,42 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "cwd",
         arg_types: &[],
-        ret_type: "roc_std::RocList<u8>",
+        ret_type: "roc_std::RocResult<roc_std::RocList<u8>,()>",
     },
     HostedFn {
         name: "stdoutLine",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "stdoutWrite",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "stdoutFlush",
         arg_types: &[],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "stderrLine",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "stderrWrite",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "stderrFlush",
         arg_types: &[],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "commandOutput",
         arg_types: &["&roc_app::InternalCommand"],
-        ret_type: "roc_app::InternalOutput",
+        ret_type: "roc_std::RocResult<roc_app::InternalOutput,()>",
     },
     HostedFn {
         name: "commandStatus",
@@ -83,32 +83,32 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "posixTime",
         arg_types: &[],
-        ret_type: "roc_std::U128",
+        ret_type: "roc_std::RocResult<roc_std::U128,()>",
     },
     HostedFn {
         name: "tcpConnect",
         arg_types: &["&roc_std::RocStr", "u16"],
-        ret_type: "roc_app::ConnectResult",
+        ret_type: "roc_std::RocResult<roc_app::ConnectResult,()>",
     },
     HostedFn {
         name: "tcpClose",
         arg_types: &["*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "tcpReadUpTo",
         arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "roc_app::ReadResult",
+        ret_type: "roc_std::RocResult<roc_app::ReadResult,()>",
     },
     HostedFn {
         name: "tcpReadExactly",
         arg_types: &["usize", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "roc_app::ReadExactlyResult",
+        ret_type: "roc_std::RocResult<roc_app::ReadExactlyResult,()>",
     },
     HostedFn {
         name: "tcpReadUntil",
         arg_types: &["u8", "*mut std::io::BufReader<std::net::TcpStream>"],
-        ret_type: "roc_app::ReadResult",
+        ret_type: "roc_std::RocResult<roc_app::ReadResult,()>",
     },
     HostedFn {
         name: "tcpWrite",
@@ -116,12 +116,12 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
             "&roc_std::RocList<u8>",
             "*mut std::io::BufReader<std::net::TcpStream>",
         ],
-        ret_type: "roc_app::WriteResult",
+        ret_type: "roc_std::RocResult<roc_app::WriteResult,()>",
     },
     HostedFn {
         name: "sleepMillis",
         arg_types: &["u64"],
-        ret_type: "()",
+        ret_type: "roc_std::RocResult<(),()>",
     },
     HostedFn {
         name: "fileWriteUtf8",
