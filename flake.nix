@@ -3,7 +3,7 @@
 
   inputs = {
     # TODO change this back to github:roc-lang/roc
-    roc.url = "github:smores56/roc?rev=9511334167c75b6f0504e966381037ac77a20461";
+    roc.url = "github:smores56/roc?rev=10241b3f988e2c88b3ba3ad131348e80a990351b";
     nixpkgs.follows = "roc/nixpkgs";
 
     # rust from nixpkgs has some libc problems, this is patched in the rust-overlay
