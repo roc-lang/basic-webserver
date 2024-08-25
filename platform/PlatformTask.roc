@@ -8,7 +8,6 @@ hosted PlatformTask
         exePath,
         stdoutLine,
         stdoutWrite,
-        stdoutFlush,
         stderrLine,
         stderrWrite,
         stderrFlush,
@@ -40,9 +39,8 @@ import InternalError
 import InternalSQL
 
 # Stdout
-stdoutLine : Str -> Task {} *
-stdoutWrite : Str -> Task {} *
-stdoutFlush : Task {} *
+stdoutLine : Str -> Task {} Str
+stdoutWrite : Str -> Task {} Str
 
 # Stderr
 stderrLine : Str -> Task {} *

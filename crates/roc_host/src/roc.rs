@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -252,25 +253,43 @@ fn cwd() -> RocResult<roc_std::RocList<u8>, ()> {
 }
 
 #[roc_fn(name = "stdoutLine")]
-fn stdout_line(roc_str: &RocStr) -> RocResult<(), ()> {
-    println!("{}", roc_str.as_str());
+fn stdout_line(line: &RocStr) -> RocResult<(), RocStr> {
+    let stdout = std::io::stdout();
 
-    RocResult::ok(())
+    let mut handle = stdout.lock();
+
+    handle
+        .write_all(line.as_bytes())
+        .and_then(|()| handle.write_all("\n".as_bytes()))
+        .and_then(|()| handle.flush())
+        .map_err(handleStdoutErr)
+        .into()
 }
 
 #[roc_fn(name = "stdoutWrite")]
-fn stdout_write(roc_str: &RocStr) -> RocResult<(), ()> {
-    let string = roc_str.as_str();
-    print!("{}", string);
+fn stdout_write(text: &RocStr) -> RocResult<(), ()> {
+    let stdout = std::io::stdout();
 
-    RocResult::ok(())
+    let mut handle = stdout.lock();
+
+    handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.flush())
+        .map_err(handleStdoutErr)
+        .into()
 }
 
-#[roc_fn(name = "stdoutFlush")]
-fn stdout_flush() -> RocResult<(), ()> {
-    std::io::stdout().flush().unwrap();
-
-    RocResult::ok(())
+/// See docs in `platform/Stdout.roc` for descriptions
+fn handleStdoutErr(io_err: std::io::Error) -> RocStr {
+    match io_err.kind() {
+        ErrorKind::BrokenPipe => "ErrorKind::BrokenPipe".into(),
+        ErrorKind::WouldBlock => "ErrorKind::WouldBlock".into(),
+        ErrorKind::WriteZero => "ErrorKind::WriteZero".into(),
+        ErrorKind::Unsupported => "ErrorKind::Unsupported".into(),
+        ErrorKind::Interrupted => "ErrorKind::Interrupted".into(),
+        ErrorKind::OutOfMemory => "ErrorKind::OutOfMemory".into(),
+        _ => format!("{:?}", io_err).as_str().into(),
+    }
 }
 
 #[roc_fn(name = "stderrLine")]
