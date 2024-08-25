@@ -62,7 +62,7 @@ setCwd : List U8 -> Task {} {}
 cwd : Task (List U8) {}
 
 # Http
-sendRequest : Box InternalHttp.RequestToAndFromHost -> Task InternalHttp.ResponseFromHost *
+sendRequest : Box InternalHttp.RequestToAndFromHost -> Task InternalHttp.ResponseFromHost {}
 
 # Tcp
 tcpConnect : Str, U16 -> Task InternalTcp.ConnectResult *

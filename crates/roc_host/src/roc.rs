@@ -199,8 +199,8 @@ pub unsafe extern "C" fn roc_getppid() -> libc::pid_t {
 #[no_mangle]
 pub extern "C" fn roc_fx_sendRequest(
     roc_request: &roc_http::RequestToAndFromHost,
-) -> roc_http::ResponseFromHost {
-    http_client::send_req(roc_request)
+) -> RocResult<roc_http::ResponseFromHost, ()> {
+    RocResult::ok(http_client::send_req(roc_request))
 }
 
 #[roc_fn(name = "envVar")]
