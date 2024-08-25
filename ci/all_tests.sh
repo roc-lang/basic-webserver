@@ -23,13 +23,16 @@ if [ -z "${EXAMPLES_DIR}" ]; then
   exit 1
 fi
 
-if [ "$NO_BUILD" != "1" ]; then
+if [ "$JUMP_START" == "1" ]; then
   echo "building platform..."
-  # temporary; remove once build.roc uses basic-cli throuh a URL
+
+  # we can't use a release of basic-cli becuase we are making a breaking change
+  # let's build the platform using bash instead
   bash jump-start.sh
 
-  # build the basic-cli platform
-  $ROC ./build.roc --prebuilt-platform -- --roc $ROC
+else
+    # run build script for the platform which uses basic-cli
+    $ROC ./build.roc --prebuilt-platform -- --roc $ROC
 fi
 
 echo "roc check"
