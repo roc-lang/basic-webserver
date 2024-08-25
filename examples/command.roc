@@ -28,13 +28,13 @@ respond = \req, _ ->
                 (
                     ServerErr
                         """
-                        Command was killed by signal. This can happen for everal reasons:
+                        Command was killed by signal. This can happen for several reasons:
                             - User intervention (e.g., Ctrl+C)
                             - Exceeding resource limits
                             - System shutdown
                             - Parent process terminating child processes
                             - ...
-                            
+
                         """
                 )
 
