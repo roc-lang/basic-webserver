@@ -10,7 +10,6 @@ hosted PlatformTask
         stdoutWrite,
         stderrLine,
         stderrWrite,
-        stderrFlush,
         sendRequest,
         fileReadBytes,
         fileDelete,
@@ -43,9 +42,8 @@ stdoutLine : Str -> Task {} Str
 stdoutWrite : Str -> Task {} Str
 
 # Stderr
-stderrLine : Str -> Task {} *
-stderrWrite : Str -> Task {} *
-stderrFlush : Task {} *
+stderrLine : Str -> Task {} Str
+stderrWrite : Str -> Task {} Str
 
 # File
 fileWriteBytes : List U8, List U8 -> Task {} InternalFile.WriteErr

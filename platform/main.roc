@@ -64,7 +64,8 @@ respond = \request, boxedModel ->
     when server.respond (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) |> Task.result! is
         Ok response -> Task.ok response
         Err (ServerErr msg) ->
-            Stderr.line! msg
+            Stderr.line msg
+            |> Task.onErr! \_ -> crash "unable to write to stderr"
 
             # returns a http server error response
             Task.ok {
@@ -74,14 +75,16 @@ respond = \request, boxedModel ->
             }
 
         Err err ->
-            Stderr.line!
-                """
-                Server error:
-                    $(Inspect.toStr err)
 
-                Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
-                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
-                """
+            """
+            Server error:
+                $(Inspect.toStr err)
+
+            Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
+            Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+            """
+                |> Stderr.line
+                |> Task.onErr! \_ -> crash "unable to write to stderr"
 
             Task.ok {
                 status: 500,

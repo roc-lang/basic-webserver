@@ -293,26 +293,43 @@ fn handleStdoutErr(io_err: std::io::Error) -> RocStr {
 }
 
 #[roc_fn(name = "stderrLine")]
-fn stderr_line(roc_str: &RocStr) -> RocResult<(), ()> {
-    let string = roc_str.as_str();
-    eprintln!("{}", string);
+fn stderr_line(line: &RocStr) -> RocResult<(), RocStr> {
+    let stderr = std::io::stderr();
 
-    RocResult::ok(())
+    let mut handle = stderr.lock();
+
+    handle
+        .write_all(line.as_bytes())
+        .and_then(|()| handle.write_all("\n".as_bytes()))
+        .and_then(|()| handle.flush())
+        .map_err(handleStderrErr)
+        .into()
 }
 
 #[roc_fn(name = "stderrWrite")]
-fn stderr_write(roc_str: &RocStr) -> RocResult<(), ()> {
-    let string = roc_str.as_str();
-    eprint!("{}", string);
+fn stderr_write(text: &RocStr) -> RocResult<(), RocStr> {
+    let stderr = std::io::stderr();
 
-    RocResult::ok(())
+    let mut handle = stderr.lock();
+
+    handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.flush())
+        .map_err(handleStderrErr)
+        .into()
 }
 
-#[roc_fn(name = "stderrFlush")]
-fn stderr_flush() -> RocResult<(), ()> {
-    std::io::stderr().flush().unwrap();
-
-    RocResult::ok(())
+/// See docs in `platform/Stdout.roc` for descriptions
+fn handleStderrErr(io_err: std::io::Error) -> RocStr {
+    match io_err.kind() {
+        ErrorKind::BrokenPipe => "ErrorKind::BrokenPipe".into(),
+        ErrorKind::WouldBlock => "ErrorKind::WouldBlock".into(),
+        ErrorKind::WriteZero => "ErrorKind::WriteZero".into(),
+        ErrorKind::Unsupported => "ErrorKind::Unsupported".into(),
+        ErrorKind::Interrupted => "ErrorKind::Interrupted".into(),
+        ErrorKind::OutOfMemory => "ErrorKind::OutOfMemory".into(),
+        _ => format!("{:?}", io_err).as_str().into(),
+    }
 }
 
 #[roc_fn(name = "posixTime")]

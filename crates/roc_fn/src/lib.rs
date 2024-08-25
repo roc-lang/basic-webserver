@@ -53,17 +53,12 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "stderrLine",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<(),()>",
+        ret_type: "roc_std::RocResult<(),RocStr>",
     },
     HostedFn {
         name: "stderrWrite",
         arg_types: &["&roc_std::RocStr"],
-        ret_type: "roc_std::RocResult<(),()>",
-    },
-    HostedFn {
-        name: "stderrFlush",
-        arg_types: &[],
-        ret_type: "roc_std::RocResult<(),()>",
+        ret_type: "roc_std::RocResult<(),RocStr>",
     },
     HostedFn {
         name: "commandOutput",
