@@ -55,11 +55,11 @@ fileReadBytes : List U8 -> Task (List U8) InternalFile.ReadErr
 dirList : List U8 -> Task (List (List U8)) InternalError.InternalDirReadErr
 
 # Env
-envList : Task (List (Str, Str)) *
+envList : Task (List (Str, Str)) {}
 envVar : Str -> Task Str {}
 exePath : Task (List U8) {}
 setCwd : List U8 -> Task {} {}
-cwd : Task (List U8) *
+cwd : Task (List U8) {}
 
 # Http
 sendRequest : Box InternalHttp.RequestToAndFromHost -> Task InternalHttp.ResponseFromHost *

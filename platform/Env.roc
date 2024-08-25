@@ -10,6 +10,7 @@ import EnvDecoding
 cwd : Task Path [CwdUnavailable]
 cwd =
     PlatformTask.cwd
+    |> Task.mapErr \_ -> crash "unreachable"
     |> Task.await \bytes ->
         if List.isEmpty bytes then
             Task.err CwdUnavailable
@@ -81,6 +82,7 @@ decode = \name ->
 list : Task (List (Str, Str)) *
 list =
     PlatformTask.envList
+    |> Task.mapErr \_ -> crash "unreachable"
 
 # ## Walks over the process's environment variables as key-value arguments to the walking function.
 # ##
