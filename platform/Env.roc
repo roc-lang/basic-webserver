@@ -130,3 +130,4 @@ tempDir : Task Path []_
 tempDir =
     PlatformTask.tempDir
     |> Task.map InternalPath.fromOsBytes
+    |> Task.mapErr \_ -> crash "unreachable"

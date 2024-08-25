@@ -82,4 +82,4 @@ commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.Inte
 # SQLite3
 sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError
 
-tempDir : Task (List U8) *
+tempDir : Task (List U8) {}
