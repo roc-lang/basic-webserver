@@ -2,7 +2,6 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Stderr
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Env
@@ -42,11 +41,18 @@ respond = \req, _ ->
             _ -> textResponse 404 "URL Not Found (404)"
 
     # Handle any application errors
-    responseTask |> Task.onErr handleErr
+    responseTask |> Task.mapErr mapAppErr
 
 AppError : [
     EnvVarNotSet Str,
+    StdoutErr Str,
 ]
+
+mapAppErr : AppError -> [ServerErr Str]
+mapAppErr = \appErr ->
+    when appErr is
+        EnvVarNotSet varName -> ServerErr "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
+        StdoutErr msg -> ServerErr msg
 
 routeTodos : Str, Request -> Task Response *
 routeTodos = \dbPath, req ->
@@ -80,6 +86,7 @@ listTodos = \dbPath ->
 createTodo : Str, { task : Str, status : Str } -> Task Response *
 createTodo = \dbPath, { task, status } ->
     output =
+        # TODO upgrade this to use the Sqlite API
         Command.new "sqlite3"
             |> Command.arg dbPath
             |> Command.arg ".mode json"
@@ -142,32 +149,14 @@ isSqliteInstalled =
         Ok {} -> Task.ok {}
         Err _ -> Task.err Sqlite3NotInstalled
 
-logRequest : Request -> Task {} *
+logRequest : Request -> Task {} [StdoutErr Str]
 logRequest = \req ->
     datetime = Utc.now! |> Utc.toIso8601Str
 
-    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    |> Task.mapErr \err -> StdoutErr (Inspect.toStr err)
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
 readEnvVar = \envVarName ->
     Env.var envVarName
     |> Task.mapErr \_ -> EnvVarNotSet envVarName
-
-handleErr : AppError -> Task Response *
-handleErr = \appErr ->
-
-    # Build error message
-    errMsg =
-        when appErr is
-            EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
-
-    # Log error to stderr
-    Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    Stderr.flush!
-
-    # Respond with Http 500 Error
-    Task.ok {
-        status: 500,
-        headers: [],
-        body: Str.toUtf8 "Internal Server Error.",
-    }
