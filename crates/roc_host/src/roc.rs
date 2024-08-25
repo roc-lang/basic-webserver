@@ -267,7 +267,7 @@ fn stdout_line(line: &RocStr) -> RocResult<(), RocStr> {
 }
 
 #[roc_fn(name = "stdoutWrite")]
-fn stdout_write(text: &RocStr) -> RocResult<(), ()> {
+fn stdout_write(text: &RocStr) -> RocResult<(), RocStr> {
     let stdout = std::io::stdout();
 
     let mut handle = stdout.lock();
@@ -938,7 +938,7 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, {}> {
+pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
     let path_os_string_bytes = std::env::temp_dir().into_os_string().into_encoded_bytes();
 
     RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
