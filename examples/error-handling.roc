@@ -2,7 +2,6 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Stderr
 import pf.Http exposing [Request, Response]
 import pf.Utc
 import pf.Env
@@ -12,33 +11,42 @@ Model : {}
 server = { init: Task.ok {}, respond }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
-    handleReq =
-        # Log the date, time, method, and url to stdout
-        logRequest! req
-
-        # Read environment variable
-        url = readEnvVar! "TARGET_URL"
-
-        # Fetch content of url
-        content = fetchContent! url
-
-        # Respond with the website content
-        responseWithCode 200 content
-
-    # Handle any application errors
-    handleReq |> Task.onErr handleErr
+respond = \req, _ -> handleReq req |> Task.mapErr mapAppErr
 
 AppError : [
     EnvVarNotSet Str,
     HttpErr Http.Err,
+    StdoutErr Str,
 ]
 
-logRequest : Request -> Task {} *
+mapAppErr : AppError -> [ServerErr Str]
+mapAppErr = \appErr ->
+    when appErr is
+        EnvVarNotSet envVarName -> ServerErr "Environment variable \"$(envVarName)\" was not set."
+        HttpErr err -> ServerErr "Http error fetching content:\n\t$(Inspect.toStr err)"
+        StdoutErr err -> ServerErr "Stdout error logging request:\n\t$(err)"
+
+# Here we use AppError to ensure all errors must be handled within our application.
+handleReq : Request -> Task Response AppError
+handleReq = \req ->
+    # Log the date, time, method, and url to stdout
+    logRequest! req
+
+    # Read environment variable
+    url = readEnvVar! "TARGET_URL"
+
+    # Fetch content of url
+    content = fetchContent! url
+
+    # Respond with the website content
+    responseWithCode 200 content
+
+logRequest : Request -> Task {} [StdoutErr Str]
 logRequest = \req ->
     datetime = Utc.now! |> Utc.toIso8601Str
 
     Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    |> Task.mapErr \err -> StdoutErr (Inspect.toStr err)
 
 readEnvVar : Str -> Task Str [EnvVarNotSet Str]
 readEnvVar = \envVarName ->
@@ -48,25 +56,6 @@ readEnvVar = \envVarName ->
 fetchContent : Str -> Task Str [HttpErr Http.Err]
 fetchContent = \url ->
     Http.getUtf8 url
-
-handleErr : AppError -> Task Response []
-handleErr = \appErr ->
-
-    # Build error message
-    errMsg =
-        when appErr is
-            EnvVarNotSet envVarName -> "Environment variable \"$(envVarName)\" was not set."
-            HttpErr err -> "Http error fetching content:\n\t$(Inspect.toStr err)"
-    # Log error to stderr
-    Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    Stderr.flush!
-
-    # Respond with Http 500 Error
-    Task.ok {
-        status: 500,
-        headers: [],
-        body: Str.toUtf8 "Internal Server Error.",
-    }
 
 # Respond with the given status code and body
 responseWithCode : U16, Str -> Task Response *
