@@ -65,7 +65,7 @@ respond = \request, boxedModel ->
         Ok response -> Task.ok response
         Err (ServerErr msg) ->
             Stderr.line msg
-            |> Task.onErr! \_ -> crash "unable to write to stderr"
+                |> Task.onErr! \_ -> crash "unable to write to stderr"
 
             # returns a http server error response
             Task.ok {
@@ -75,7 +75,6 @@ respond = \request, boxedModel ->
             }
 
         Err err ->
-
             """
             Server error:
                 $(Inspect.toStr err)

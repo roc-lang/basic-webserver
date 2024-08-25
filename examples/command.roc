@@ -14,9 +14,9 @@ respond = \req, _ ->
     datetime = Utc.now! |> Utc.toIso8601Str
     result =
         Command.new "echo"
-        |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-        |> Command.status
-        |> Task.result!
+            |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+            |> Command.status
+            |> Task.result!
 
     when result is
         Ok {} -> okHttp "Command succeeded."

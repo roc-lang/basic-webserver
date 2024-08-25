@@ -65,12 +65,12 @@ cwd : Task (List U8) {}
 sendRequest : Box InternalHttp.RequestToAndFromHost -> Task InternalHttp.ResponseFromHost {}
 
 # Tcp
-tcpConnect : Str, U16 -> Task InternalTcp.ConnectResult *
-tcpClose : InternalTcp.Stream -> Task {} *
-tcpReadUpTo : U64, InternalTcp.Stream -> Task InternalTcp.ReadResult *
-tcpReadExactly : U64, InternalTcp.Stream -> Task InternalTcp.ReadExactlyResult *
-tcpReadUntil : U8, InternalTcp.Stream -> Task InternalTcp.ReadResult *
-tcpWrite : List U8, InternalTcp.Stream -> Task InternalTcp.WriteResult *
+tcpConnect : Str, U16 -> Task InternalTcp.ConnectResult {}
+tcpClose : InternalTcp.Stream -> Task {} {}
+tcpReadUpTo : U64, InternalTcp.Stream -> Task InternalTcp.ReadResult {}
+tcpReadExactly : U64, InternalTcp.Stream -> Task InternalTcp.ReadExactlyResult {}
+tcpReadUntil : U8, InternalTcp.Stream -> Task InternalTcp.ReadResult {}
+tcpWrite : List U8, InternalTcp.Stream -> Task InternalTcp.WriteResult {}
 
 # Utc
 posixTime : Task U128 *

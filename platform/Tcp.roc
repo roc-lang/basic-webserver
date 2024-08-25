@@ -42,23 +42,27 @@ StreamErr : InternalTcp.StreamErr
 ##
 withConnect : Str, U16, (Stream -> Task a err) -> Task a [TcpConnectErr ConnectErr, TcpPerformErr err]
 withConnect = \hostname, port, callback ->
-    stream = connect hostname port
-        |> Task.mapErr! TcpConnectErr
+    stream =
+        connect hostname port
+            |> Task.mapErr! TcpConnectErr
 
-    result = callback stream
-        |> Task.mapErr TcpPerformErr
-        |> Task.onErr!
-            (\err ->
-                close! stream
-                Task.err err
-            )
+    result =
+        callback stream
+            |> Task.mapErr TcpPerformErr
+            |> Task.onErr!
+                (\err ->
+                    close! stream
+                    Task.err err
+                )
 
     close stream
     |> Task.map \_ -> result
 
 connect : Str, U16 -> Task Stream ConnectErr
 connect = \host, port ->
-    cr = PlatformTask.tcpConnect! host port
+    cr =
+        PlatformTask.tcpConnect host port
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromConnectResult cr
     |> Task.fromResult
@@ -66,6 +70,7 @@ connect = \host, port ->
 close : Stream -> Task {} *
 close = \stream ->
     PlatformTask.tcpClose stream
+    |> Task.mapErr \_ -> crash "unreachable"
 
 ## Read up to a number of bytes from the TCP stream.
 ##
@@ -78,7 +83,9 @@ close = \stream ->
 ## > To read an exact number of bytes or fail, you can use [Tcp.readExactly] instead.
 readUpTo : U64, Stream -> Task (List U8) [TcpReadErr StreamErr]
 readUpTo = \bytesToRead, stream ->
-    rr = PlatformTask.tcpReadUpTo! bytesToRead stream
+    rr =
+        PlatformTask.tcpReadUpTo bytesToRead stream
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromReadResult rr
     |> Task.fromResult
@@ -94,7 +101,9 @@ readUpTo = \bytesToRead, stream ->
 ##
 readExactly : U64, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readExactly = \bytesToRead, stream ->
-    rer = PlatformTask.tcpReadExactly! bytesToRead stream
+    rer =
+        PlatformTask.tcpReadExactly bytesToRead stream
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     when rer is
         Read bytes -> Task.ok bytes
@@ -114,7 +123,9 @@ readExactly = \bytesToRead, stream ->
 ## conveniently decodes to a [Str].
 readUntil : U8, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readUntil = \byte, stream ->
-    rr = PlatformTask.tcpReadUntil! byte stream
+    rr =
+        PlatformTask.tcpReadUntil byte stream
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromReadResult rr
     |> Task.fromResult
@@ -148,7 +159,9 @@ readLine = \stream ->
 ## > To write a [Str], you can use [Tcp.writeUtf8] instead.
 write : List U8, Stream -> Task {} [TcpWriteErr StreamErr]
 write = \bytes, stream ->
-    wr = PlatformTask.tcpWrite! bytes stream
+    wr =
+        PlatformTask.tcpWrite bytes stream
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromWriteResult wr
     |> Task.fromResult

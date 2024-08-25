@@ -127,7 +127,7 @@ send = \req ->
     # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
     { variant, body, metadata } =
         PlatformTask.sendRequest (Box.box reqToHost)
-        |> Task.mapErr! \_ -> crash "unreachable"
+            |> Task.mapErr! \_ -> crash "unreachable"
 
     when variant is
         "Timeout" -> Task.err (HttpErr (Timeout timeoutMilliseconds))
@@ -216,14 +216,18 @@ parseFormUrlEncoded = \bytes ->
             [] if List.isEmpty chomped -> dict |> Ok
             [] ->
                 # chomped last value
-                key |> chainUtf8 \keyStr ->
-                    chomped |> chainUtf8 \valueStr ->
+                key
+                |> chainUtf8 \keyStr ->
+                    chomped
+                    |> chainUtf8 \valueStr ->
                         Dict.insert dict keyStr valueStr |> Ok
 
             ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
             ['&', ..] ->
-                key |> chainUtf8 \keyStr ->
-                    chomped |> chainUtf8 \valueStr ->
+                key
+                |> chainUtf8 \keyStr ->
+                    chomped
+                    |> chainUtf8 \valueStr ->
                         parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
             ['%', secondByte, thirdByte, ..] ->
