@@ -73,8 +73,8 @@ tcpReadUntil : U8, InternalTcp.Stream -> Task InternalTcp.ReadResult {}
 tcpWrite : List U8, InternalTcp.Stream -> Task InternalTcp.WriteResult {}
 
 # Utc
-posixTime : Task U128 *
-sleepMillis : U64 -> Task {} *
+posixTime : Task U128 {}
+sleepMillis : U64 -> Task {} {}
 
 commandStatus : Box InternalCommand.InternalCommand -> Task {} InternalCommand.InternalCommandErr
 commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.InternalOutput *

@@ -22,6 +22,7 @@ now =
     PlatformTask.posixTime
     |> Task.map Num.toI128
     |> Task.map @Utc
+    |> Task.mapErr \_ -> crash "unreachable"
 
 ## Convert Utc timestamp to ISO 8601 string
 ## Example: 2023-11-14T23:39:39Z

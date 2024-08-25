@@ -10,3 +10,4 @@ import PlatformTask
 millis : U64 -> Task {} *
 millis = \n ->
     PlatformTask.sleepMillis n
+        |> Task.mapErr! \_ -> crash "unreachable"
