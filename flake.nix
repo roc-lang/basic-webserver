@@ -2,8 +2,10 @@
   description = "basic-webserver devShell flake";
 
   inputs = {
-    # TODO change this back to github:roc-lang/roc
-    roc.url = "github:smores56/roc?rev=10241b3f988e2c88b3ba3ad131348e80a990351b";
+
+    # This commit is for the builtin-task branch, remove after it is merged into main
+    roc.url = "github:roc/roc?rev=6db429ff17b66a1ebe62e79f099d82fad6704d9d";
+
     nixpkgs.follows = "roc/nixpkgs";
 
     # rust from nixpkgs has some libc problems, this is patched in the rust-overlay
