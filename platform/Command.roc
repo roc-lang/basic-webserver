@@ -151,6 +151,7 @@ clearEnvs = \@Command cmd ->
 output : Command -> Task Output *
 output = \@Command cmd ->
     PlatformTask.commandOutput (Box.box cmd)
+    |> Task.mapErr \_ -> crash "unreachable"
 
 ## Execute command and inheriting stdin, stdout and stderr from parent
 ## ```

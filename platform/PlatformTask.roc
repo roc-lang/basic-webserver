@@ -77,7 +77,7 @@ posixTime : Task U128 {}
 sleepMillis : U64 -> Task {} {}
 
 commandStatus : Box InternalCommand.InternalCommand -> Task {} InternalCommand.InternalCommandErr
-commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.InternalOutput *
+commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.InternalOutput {}
 
 # SQLite3
 sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError
