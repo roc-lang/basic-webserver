@@ -19,15 +19,15 @@ init =
 
     # Try to set cwd to examples
     Env.setCwd (Path.fromStr "examples/")
-    |> Task.mapErr! \InvalidCwd -> Exit 1 "Unable to set cwd to examples/"
+        |> Task.mapErr! \InvalidCwd -> Exit 1 "Unable to set cwd to examples/"
 
     Stdout.line! "Set cwd to examples/"
 
     # List contents of examples directory
     paths =
         Path.fromStr "./"
-        |> Dir.list
-        |> Task.mapErr! \DirReadErr path err -> Exit 1 "Error reading directory $(Path.display path):\n\t$(err)"
+            |> Dir.list
+            |> Task.mapErr! \DirReadErr path err -> Exit 1 "Error reading directory $(Path.display path):\n\t$(err)"
 
     paths
         |> List.map Path.display
