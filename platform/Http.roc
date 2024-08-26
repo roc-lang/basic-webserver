@@ -135,16 +135,12 @@ send = \req ->
         "Timeout" -> Task.err (HttpErr (Timeout timeoutMilliseconds))
         "NetworkErr" -> Task.err (HttpErr NetworkError)
         "BadStatus" ->
-            Task.err
-                (
-                    HttpErr
-                        (
-                            BadStatus {
-                                code: metadata.statusCode,
-                                body: errorBodyFromUtf8 body,
-                            }
-                        )
-                )
+            BadStatus {
+                code: metadata.statusCode,
+                body: errorBodyFromUtf8 body,
+            }
+            |> HttpErr
+            |> Task.err
 
         "GoodStatus" ->
             Task.ok {
