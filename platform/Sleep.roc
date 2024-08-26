@@ -2,12 +2,12 @@ module [
     millis,
 ]
 
-import PlatformTask
+import PlatformTaskss
 
 ## Sleep for at least the given number of milliseconds.
 ## This uses [rust's std::thread::sleep](https://doc.rust-lang.org/std/thread/fn.sleep.html).
 ##
 millis : U64 -> Task {} *
 millis = \n ->
-    PlatformTask.sleepMillis n
+    PlatformTasks.sleepMillis n
         |> Task.mapErr! \_ -> crash "unreachable"

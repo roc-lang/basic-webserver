@@ -10,7 +10,7 @@ module [
     toIso8601Str,
 ]
 
-import PlatformTask
+import PlatformTasks
 import InternalDateTime
 
 ## Stores a timestamp as nanoseconds since UNIX EPOCH
@@ -19,7 +19,7 @@ Utc := I128
 ## Duration since UNIX EPOCH
 now : Task Utc *
 now =
-    PlatformTask.posixTime
+    PlatformTasks.posixTime
     |> Task.map Num.toI128
     |> Task.map @Utc
     |> Task.mapErr \_ -> crash "unreachable"

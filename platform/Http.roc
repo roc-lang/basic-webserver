@@ -18,7 +18,7 @@ module [
     parseMultipartFormData,
 ]
 
-import PlatformTask
+import PlatformTasks
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
 import MultipartFormData
 
@@ -128,7 +128,7 @@ send = \req ->
 
     # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
     { variant, body, metadata } =
-        PlatformTask.sendRequest (Box.box reqToHost)
+        PlatformTasks.sendRequest (Box.box reqToHost)
             |> Task.mapErr! \_ -> crash "unreachable"
 
     when variant is

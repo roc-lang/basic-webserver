@@ -2,14 +2,14 @@ module [cwd, list, var, decode, exePath, setCwd, tempDir]
 
 import Path exposing [Path]
 import InternalPath
-import PlatformTask
+import PlatformTasks
 import EnvDecoding
 
 ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## from the environment. File operations on relative [Path]s are relative to this directory.
 cwd : Task Path [CwdUnavailable]
 cwd =
-    PlatformTask.cwd
+    PlatformTasks.cwd
     |> Task.mapErr \_ -> crash "unreachable"
     |> Task.await \bytes ->
         if List.isEmpty bytes then
@@ -22,13 +22,13 @@ cwd =
 ## to this directory.
 setCwd : Path -> Task {} [InvalidCwd]
 setCwd = \path ->
-    PlatformTask.setCwd (InternalPath.toBytes path)
+    PlatformTasks.setCwd (InternalPath.toBytes path)
     |> Task.mapErr \{} -> InvalidCwd
 
 ## Gets the path to the currently-running executable.
 exePath : Task Path [ExePathUnavailable]
 exePath =
-    PlatformTask.exePath
+    PlatformTasks.exePath
     |> Task.map \bytes -> InternalPath.fromOsBytes bytes
     |> Task.mapErr \{} -> ExePathUnavailable
 
@@ -38,7 +38,7 @@ exePath =
 ## [Unicode replacement character](https://unicode.org/glossary/#replacement_character) ('�').
 var : Str -> Task Str [VarNotFound]
 var = \name ->
-    PlatformTask.envVar name
+    PlatformTasks.envVar name
     |> Task.mapErr \{} -> VarNotFound
 
 ## Reads the given environment variable and attempts to decode it.
@@ -68,7 +68,7 @@ var = \name ->
 ##
 decode : Str -> Task val [VarNotFound, DecodeErr DecodeError] where val implements Decoding
 decode = \name ->
-    PlatformTask.envVar name
+    PlatformTasks.envVar name
     |> Task.mapErr \{} -> VarNotFound
     |> Task.await \varStr ->
         Decode.fromBytes (Str.toUtf8 varStr) (EnvDecoding.format {})
@@ -81,7 +81,7 @@ decode = \name ->
 ## will be used in place of any parts of keys or values that are invalid Unicode.
 list : Task (List (Str, Str)) *
 list =
-    PlatformTask.envList
+    PlatformTasks.envList
     |> Task.mapErr \_ -> crash "unreachable"
 
 # ## Walks over the process's environment variables as key-value arguments to the walking function.
@@ -128,6 +128,6 @@ list =
 ##
 tempDir : Task Path []_
 tempDir =
-    PlatformTask.tempDir
+    PlatformTasks.tempDir
     |> Task.map InternalPath.fromOsBytes
     |> Task.mapErr \_ -> crash "unreachable"

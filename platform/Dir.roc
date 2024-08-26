@@ -3,7 +3,7 @@ module [deleteEmptyDir, deleteRecursive, list]
 import Path exposing [Path]
 import InternalPath
 import InternalError
-import PlatformTask
+import PlatformTasks
 
 ReadErr : InternalError.InternalDirReadErr
 
@@ -12,7 +12,7 @@ DeleteErr : InternalError.InternalDirDeleteErr
 ## Lists the files and directories inside the directory.
 list : Path -> Task (List Path) ReadErr
 list = \path ->
-    PlatformTask.dirList (InternalPath.toBytes path)
+    PlatformTasks.dirList (InternalPath.toBytes path)
     |> Task.map \entries -> List.map entries InternalPath.fromOsBytes
 
 ## Deletes a directory if it's empty.

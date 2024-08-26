@@ -12,7 +12,7 @@ module [
 ]
 
 import InternalCommand
-import PlatformTask
+import PlatformTasks
 
 ## Represents a command to be executed in a child process.
 ## ```
@@ -150,7 +150,7 @@ clearEnvs = \@Command cmd ->
 ## ```
 output : Command -> Task Output *
 output = \@Command cmd ->
-    PlatformTask.commandOutput (Box.box cmd)
+    PlatformTasks.commandOutput (Box.box cmd)
     |> Task.mapErr \_ -> crash "unreachable"
 
 ## Execute command and inheriting stdin, stdout and stderr from parent
@@ -171,4 +171,4 @@ output = \@Command cmd ->
 ## ```
 status : Command -> Task {} Error
 status = \@Command cmd ->
-    PlatformTask.commandStatus (Box.box cmd)
+    PlatformTasks.commandStatus (Box.box cmd)

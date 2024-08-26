@@ -13,7 +13,7 @@ module [
     streamErrToStr,
 ]
 
-import PlatformTask
+import PlatformTasks
 import InternalTcp
 
 ## Represents a TCP stream.
@@ -61,7 +61,7 @@ withConnect = \hostname, port, callback ->
 connect : Str, U16 -> Task Stream ConnectErr
 connect = \host, port ->
     cr =
-        PlatformTask.tcpConnect host port
+        PlatformTasks.tcpConnect host port
             |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromConnectResult cr
@@ -69,7 +69,7 @@ connect = \host, port ->
 
 close : Stream -> Task {} *
 close = \stream ->
-    PlatformTask.tcpClose stream
+    PlatformTasks.tcpClose stream
     |> Task.mapErr \_ -> crash "unreachable"
 
 ## Read up to a number of bytes from the TCP stream.
@@ -84,7 +84,7 @@ close = \stream ->
 readUpTo : U64, Stream -> Task (List U8) [TcpReadErr StreamErr]
 readUpTo = \bytesToRead, stream ->
     rr =
-        PlatformTask.tcpReadUpTo bytesToRead stream
+        PlatformTasks.tcpReadUpTo bytesToRead stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromReadResult rr
@@ -102,7 +102,7 @@ readUpTo = \bytesToRead, stream ->
 readExactly : U64, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readExactly = \bytesToRead, stream ->
     rer =
-        PlatformTask.tcpReadExactly bytesToRead stream
+        PlatformTasks.tcpReadExactly bytesToRead stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
     when rer is
@@ -124,7 +124,7 @@ readExactly = \bytesToRead, stream ->
 readUntil : U8, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readUntil = \byte, stream ->
     rr =
-        PlatformTask.tcpReadUntil byte stream
+        PlatformTasks.tcpReadUntil byte stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromReadResult rr
@@ -160,7 +160,7 @@ readLine = \stream ->
 write : List U8, Stream -> Task {} [TcpWriteErr StreamErr]
 write = \bytes, stream ->
     wr =
-        PlatformTask.tcpWrite bytes stream
+        PlatformTasks.tcpWrite bytes stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
     InternalTcp.fromWriteResult wr

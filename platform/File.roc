@@ -1,7 +1,7 @@
 module [ReadErr, WriteErr, write, writeUtf8, writeBytes, readUtf8, readBytes, delete, writeErrToStr, readErrToStr]
 
 import InternalFile
-import PlatformTask
+import PlatformTasks
 import Path exposing [Path]
 import InternalPath
 
@@ -51,7 +51,7 @@ write = \path, val, fmt ->
 ## > To format data before writing it to a file, you can use [File.write] instead.
 writeBytes : Path, List U8 -> Task {} [FileWriteErr Path WriteErr]
 writeBytes = \path, bytes ->
-    toWriteTask path \pathBytes -> PlatformTask.fileWriteBytes pathBytes bytes
+    toWriteTask path \pathBytes -> PlatformTasks.fileWriteBytes pathBytes bytes
 
 ## Writes a [Str] to a file, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
 ##
@@ -65,7 +65,7 @@ writeBytes = \path, bytes ->
 ## > To write unformatted bytes to a file, you can use [File.writeBytes] instead.
 writeUtf8 : Path, Str -> Task {} [FileWriteErr Path WriteErr]
 writeUtf8 = \path, str ->
-    toWriteTask path \bytes -> PlatformTask.fileWriteUtf8 bytes str
+    toWriteTask path \bytes -> PlatformTasks.fileWriteUtf8 bytes str
 
 ## Deletes a file from the filesystem.
 ##
@@ -88,7 +88,7 @@ writeUtf8 = \path, str ->
 ##
 delete : Path -> Task {} [FileWriteErr Path WriteErr]
 delete = \path ->
-    toWriteTask path \bytes -> PlatformTask.fileDelete bytes
+    toWriteTask path \bytes -> PlatformTasks.fileDelete bytes
 
 ## Reads all the bytes in a file.
 ##
@@ -102,7 +102,7 @@ delete = \path ->
 ## > To read and decode data from a file, you can use `File.read` instead.
 readBytes : Path -> Task (List U8) [FileReadErr Path ReadErr]
 readBytes = \path ->
-    toReadTask path \bytes -> PlatformTask.fileReadBytes bytes
+    toReadTask path \bytes -> PlatformTasks.fileReadBytes bytes
 
 ## Reads a [Str] from a file containing [UTF-8](https://en.wikipedia.org/wiki/UTF-8)-encoded text.
 ##
@@ -117,7 +117,7 @@ readBytes = \path ->
 ## > To read unformatted bytes from a file, you can use [File.readBytes] instead.
 readUtf8 : Path -> Task Str [FileReadErr Path ReadErr, FileReadUtf8Err Path]
 readUtf8 = \path ->
-    when PlatformTask.fileReadBytes (InternalPath.toBytes path) |> Task.map Str.fromUtf8 |> Task.result! is
+    when PlatformTasks.fileReadBytes (InternalPath.toBytes path) |> Task.map Str.fromUtf8 |> Task.result! is
         Ok (Ok str) -> Task.ok str
         Ok (Err _) -> Task.err (FileReadUtf8Err path)
         Err readErr -> Task.err (FileReadErr path readErr)
