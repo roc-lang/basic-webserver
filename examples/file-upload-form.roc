@@ -9,9 +9,6 @@ import pf.Http exposing [Request, Response]
 # Model is produced by `init`.
 Model : {}
 
-# With `init` you can set up a database connection once at server startup.
-# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
-
 server = { init: Task.ok {}, respond }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
