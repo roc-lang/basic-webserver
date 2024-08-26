@@ -3,7 +3,7 @@
 ## This script is only needed in the event of a breaking change in the
 ## Roc compiler that prevents build.roc from running.
 ## This script builds a local prebuilt binary for the native target,
-## so that the build.roc script can be run. 
+## so that the build.roc script can be run.
 ##
 ## To use this, change the build.roc script to use the platform locally..
 
@@ -16,9 +16,24 @@ if [ -z "${ROC}" ]; then
   ROC="roc"
 fi
 
+if [ -z "${USE_LOCAL_CLI}" ]; then
+    # need to get basic-cli modified for builtin Task
+    pushd . # save current dir
+    cd ..
+    git clone https://github.com/smores56/basic-cli.git
+    cd basic-cli
+    git checkout builtin-task
+    popd # back to original dir
+else
+    # we are using a local version therefore no need to clone
+    # the basic-cli repo
+    echo "using local path for basic-cli"
+fi
+
 $ROC build --lib ./platform/libapp.roc
 
-# @Anton - GLUE NEEDS TO BE MANUALLY UPDATED, IT GENERATES BROKEN RUST
+# NOTE GLUE NEEDS TO BE MANUALLY UPDATED, IT GENERATES BROKEN RUST
+# SO WE DO NOT INCLUDE THE BELOW STEP
 # $ROC glue ./platform/main-glue.roc crates ./platform/main.roc
 
 cargo build --release
@@ -28,5 +43,3 @@ if [ -n "$CARGO_BUILD_TARGET" ]; then
 else
     cp target/release/libhost.a ./platform/libhost.a
 fi
-
-$ROC build --linker=legacy build.roc
