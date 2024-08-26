@@ -60,11 +60,11 @@ withConnect = \hostname, port, callback ->
 
 connect : Str, U16 -> Task Stream ConnectErr
 connect = \host, port ->
-    cr =
+    connectRes =
         PlatformTasks.tcpConnect host port
             |> Task.mapErr! \_ -> crash "unreachable"
 
-    InternalTcp.fromConnectResult cr
+    InternalTcp.fromConnectResult connectRes
     |> Task.fromResult
 
 close : Stream -> Task {} *
@@ -83,11 +83,11 @@ close = \stream ->
 ## > To read an exact number of bytes or fail, you can use [Tcp.readExactly] instead.
 readUpTo : U64, Stream -> Task (List U8) [TcpReadErr StreamErr]
 readUpTo = \bytesToRead, stream ->
-    rr =
+    readRes =
         PlatformTasks.tcpReadUpTo bytesToRead stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
-    InternalTcp.fromReadResult rr
+    InternalTcp.fromReadResult readRes
     |> Task.fromResult
     |> Task.mapErr TcpReadErr
 
@@ -101,11 +101,11 @@ readUpTo = \bytesToRead, stream ->
 ##
 readExactly : U64, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readExactly = \bytesToRead, stream ->
-    rer =
+    readRes =
         PlatformTasks.tcpReadExactly bytesToRead stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
-    when rer is
+    when readRes is
         Read bytes -> Task.ok bytes
         UnexpectedEOF -> Task.err TcpUnexpectedEOF
         Error err -> Task.err (TcpReadErr err)
@@ -123,11 +123,11 @@ readExactly = \bytesToRead, stream ->
 ## conveniently decodes to a [Str].
 readUntil : U8, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readUntil = \byte, stream ->
-    rr =
+    readRes =
         PlatformTasks.tcpReadUntil byte stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
-    InternalTcp.fromReadResult rr
+    InternalTcp.fromReadResult readRes
     |> Task.fromResult
     |> Task.mapErr TcpReadErr
 
@@ -159,11 +159,11 @@ readLine = \stream ->
 ## > To write a [Str], you can use [Tcp.writeUtf8] instead.
 write : List U8, Stream -> Task {} [TcpWriteErr StreamErr]
 write = \bytes, stream ->
-    wr =
+    writeRes =
         PlatformTasks.tcpWrite bytes stream
             |> Task.mapErr! \_ -> crash "unreachable"
 
-    InternalTcp.fromWriteResult wr
+    InternalTcp.fromWriteResult writeRes
     |> Task.fromResult
     |> Task.mapErr TcpWriteErr
 
