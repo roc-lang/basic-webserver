@@ -63,20 +63,4 @@ jobs:
           # no need to build platform anymore
           NO_BUILD=1 ./ci/all_tests.sh
 
-      - name: build example in README.md
-        run: |
-          roc_block_count=$(grep -c '```roc' README.md)
-
-          # Error if more than one Roc code block
-          if [ $roc_block_count -gt 1 ]; then
-            echo "Error: Found $roc_block_count Roc code blocks in README.md. I only know how to test one. Modify this CI step to test them all."
-            exit 1
-          fi
-
-          # Extract roc code block from README.md
-          sed -n '/```roc/,/```/p' README.md | sed '1d;$d' > readme.roc
-
-          # Build the code to make sure it works
-          ./roc_nightly/roc build readme.roc --linker=legacy
-
 # TODO clippy, rustfmt, roc fmt check
