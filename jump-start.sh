@@ -16,19 +16,19 @@ if [ -z "${ROC}" ]; then
   ROC="roc"
 fi
 
-if [ -z "${USE_LOCAL_CLI}" ]; then
-    # need to get basic-cli modified for builtin Task
-    pushd . # save current dir
-    cd ..
-    git clone https://github.com/smores56/basic-cli.git
-    cd basic-cli
-    git checkout builtin-task
-    popd # back to original dir
-else
-    # we are using a local version therefore no need to clone
-    # the basic-cli repo
-    echo "using local path for basic-cli"
-fi
+# if [ -z "${USE_LOCAL_CLI}" ]; then
+#     # need to get basic-cli modified for builtin Task
+#     pushd . # save current dir
+#     cd ..
+#     git clone https://github.com/smores56/basic-cli.git
+#     cd basic-cli
+#     git checkout builtin-task
+#     popd # back to original dir
+# else
+#     # we are using a local version therefore no need to clone
+#     # the basic-cli repo
+#     echo "using local path for basic-cli"
+# fi
 
 $ROC build --lib ./platform/libapp.roc
 

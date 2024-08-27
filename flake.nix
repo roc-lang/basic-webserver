@@ -4,7 +4,7 @@
   inputs = {
 
     # This commit is for the builtin-task branch, remove after it is merged into main
-    roc.url = "github:smores56/roc?rev=6db429ff17b66a1ebe62e79f099d82fad6704d9d";
+    roc.url = "github:smores56/roc?rev=d3732b444014d05f17953d814c5ac19b4f683127";
 
     nixpkgs.follows = "roc/nixpkgs";
 
