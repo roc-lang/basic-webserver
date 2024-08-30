@@ -58,7 +58,7 @@ verify : {
 } -> Task (Dict Str Str) [JwtErr Err]_
 verify = \{algorithm, secret, token} ->
     PlatformTasks.jwtVerify {algo: algoToU8 algorithm, secret, token}
-    |> Task.mapErr mapErrorFromHost
+    |> Task.mapErr mapErrFromHost
     |> Task.mapErr JwtErr
     |> Task.map \claims ->
         claims
@@ -67,5 +67,5 @@ verify = \{algorithm, secret, token} ->
 
 # we can return a Str from the host, and prepend
 # it with a magic number for each variant
-mapErrorFromHost : Str -> Err
-mapErrorFromHost = \_ -> Other "TODO"
+mapErrFromHost : Str -> Err
+mapErrFromHost = \_ -> Other "TODO"

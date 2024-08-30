@@ -4,20 +4,14 @@ import pf.Stdout
 import pf.Http exposing [Request, Response]
 import pf.Jwt
 
-
-
-
-# Model is produced by `init`.
 Model : {}
-
-# With `init` you can set up a database connection once at server startup,
-# generate css by running `tailwindcss`,...
-# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
 
 server = { init: Task.ok {}, respond }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \_, _ ->
+
+    Stdout.line! "Verify a Json Web Token (JWT)"
 
     # We hardcode the JWT here and ignore the request for simplicity, but normally this is how
     # you would decode the request body (assuming the token is in the body and not a URL param)
@@ -36,8 +30,29 @@ respond = \_, _ ->
         |> Result.try \decodedBody -> decodedBody |> Dict.get "id_token"
         |> Result.withDefault "TOKEN MISSING"
 
-    result = Jwt.verify { secret: "shhh_very_secret", algorithm: Hs256, token }
+    when Jwt.verify { secret: "shhh_very_secret", algorithm: Hs256, token } |> Task.result! is
+        Err (JwtErr err) ->
+            Task.ok {
+                status: 200,
+                headers: [
+                    { name: "Content-Type", value: "text/plain" },
+                ],
+                body: Str.toUtf8 "UNABLE TO DECODE JWT\n$(Inspect.toStr err)\n",
+            }
 
-    Stdout.line! "Decoded JWT: $(Inspect.toStr result)"
+        Ok claims ->
+            sub = claims |> Dict.get "sub" |> Result.withDefault "SUBJECT CLAIM MISSING"
+            name = claims |> Dict.get "name" |> Result.withDefault "NAME MISSING"
+            iat = claims |> Dict.get "iat" |> Result.withDefault "TIME FIELD MISSING"
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>$(Inspect.toStr result)</br>" }
+            message = "Decoded JWT\nsubject: $(sub)\nname: $(name)\nissued at: $(iat)\n"
+
+            Stdout.line! message
+
+            Task.ok {
+                status: 200,
+                headers: [
+                    { name: "Content-Type", value: "text/plain" },
+                ],
+                body: Str.toUtf8 message,
+            }

@@ -944,11 +944,12 @@ pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
     RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
 }
 
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct JWTFromRoc {
-    algo: u8,
     secret: RocStr,
     token: RocStr,
+    algo: u8,
 }
 
 impl roc_std::RocRefcounted for JWTFromRoc {
@@ -965,6 +966,7 @@ impl roc_std::RocRefcounted for JWTFromRoc {
     }
 }
 
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct JWTToRoc {
     name: RocStr,
@@ -985,8 +987,8 @@ impl roc_std::RocRefcounted for JWTToRoc {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn roc_fx_jwtVerify(_jwt: JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
+#[roc_fn(name = "jwtVerify")]
+pub extern "C" fn jwt_verify(_jwt: &JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
     RocResult::ok(RocList::empty())
 }
 
@@ -994,6 +996,7 @@ pub extern "C" fn roc_fx_jwtVerify(_jwt: JWTFromRoc) -> RocResult<RocList<JWTToR
 pub struct Model {
     model: RocBox<()>,
 }
+
 impl Model {
     unsafe fn init(model: RocBox<()>) -> Self {
         // Set the refcount to constant to ensure this never gets freed.

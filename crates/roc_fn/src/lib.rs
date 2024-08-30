@@ -143,6 +143,11 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["&roc_std::RocStr", "&roc_std::RocStr", "&roc_std::RocList<SQLiteBindings>"],
         ret_type: "roc_std::RocResult<RocList<RocList<roc_app::SQLiteValue>>, SQLiteError>",
     },
+    HostedFn {
+        name: "jwtVerify",
+        arg_types: &["&JWTFromRoc"],
+        ret_type: "roc_std::RocResult<roc_std::RocList<JWTToRoc>, RocStr>",
+    },
     ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {
