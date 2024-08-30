@@ -944,6 +944,52 @@ pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
     RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
 }
 
+#[repr(C)]
+pub struct JWTFromRoc {
+    algo: u8,
+    secret: RocStr,
+    token: RocStr,
+}
+
+impl roc_std::RocRefcounted for JWTFromRoc {
+    fn inc(&mut self) {
+        self.secret.inc();
+        self.token.inc();
+    }
+    fn dec(&mut self) {
+        self.secret.dec();
+        self.token.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[repr(C)]
+pub struct JWTToRoc {
+    name: RocStr,
+    value: RocStr,
+}
+
+impl roc_std::RocRefcounted for JWTToRoc {
+    fn inc(&mut self) {
+        self.name.inc();
+        self.value.inc();
+    }
+    fn dec(&mut self) {
+        self.name.dec();
+        self.value.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_jwtVerify(_jwt: JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
+    RocResult::ok(RocList::empty())
+}
+
 #[derive(Debug)]
 pub struct Model {
     model: RocBox<()>,

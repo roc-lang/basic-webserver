@@ -27,6 +27,7 @@ hosted PlatformTasks
         commandOutput,
         sqliteExecute,
         tempDir,
+        jwtVerify,
     ]
     imports []
 
@@ -83,3 +84,5 @@ commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.Inte
 sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError
 
 tempDir : Task (List U8) {}
+
+jwtVerify : { algo: U8, secret : Str, token : Str } -> Task (List {name: Str, value: Str}) Str
