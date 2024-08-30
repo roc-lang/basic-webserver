@@ -1,14 +1,19 @@
 #![allow(non_snake_case)]
+use hmac::{Hmac, Mac};
+use jwt::algorithm::AlgorithmType;
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
+use sha2::Sha256;
 use std::alloc::Layout;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::iter::FromIterator;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::net::TcpStream;
 use std::os::raw::c_void;
 use std::rc::Rc;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::http_client;
@@ -952,6 +957,27 @@ pub struct JWTFromRoc {
     algo: u8,
 }
 
+impl JWTFromRoc {
+    fn algorithm(&self) -> AlgorithmType {
+        match self.algo {
+            1 => AlgorithmType::Hs256,
+            2 => AlgorithmType::Hs384,
+            3 => AlgorithmType::Hs512,
+            4 => AlgorithmType::Rs256,
+            5 => AlgorithmType::Rs384,
+            6 => AlgorithmType::Rs512,
+            7 => AlgorithmType::Es256,
+            8 => AlgorithmType::Es384,
+            9 => AlgorithmType::Es512,
+            10 => AlgorithmType::Ps256,
+            11 => AlgorithmType::Ps384,
+            12 => AlgorithmType::Ps512,
+            13 => AlgorithmType::None,
+            _ => panic!("invalid algorithm from roc"),
+        }
+    }
+}
+
 impl roc_std::RocRefcounted for JWTFromRoc {
     fn inc(&mut self) {
         self.secret.inc();
@@ -988,8 +1014,58 @@ impl roc_std::RocRefcounted for JWTToRoc {
 }
 
 #[roc_fn(name = "jwtVerify")]
-pub extern "C" fn jwt_verify(_jwt: &JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
-    RocResult::ok(RocList::empty())
+pub extern "C" fn jwt_verify(jwt: &JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
+    use jwt::VerifyWithKey;
+
+    match jwt.algorithm() {
+        AlgorithmType::Hs256 => match h256(&jwt.secret) {
+            Ok(key) => {
+                let token_str = jwt.token.as_str().to_string();
+                let claims: Result<BTreeMap<String, serde_json::Value>, jwt::error::Error> =
+                    token_str.verify_with_key(&key);
+
+                match claims {
+                    Ok(claims) => RocResult::ok(jwt_claims_to_roc(claims)),
+                    Err(err) => RocResult::err(jwt_error_to_roc(err)),
+                }
+            }
+            Err(msg) => RocResult::err(msg),
+        },
+        _ => todo!(),
+    }
+}
+
+fn jwt_claims_to_roc(claims: BTreeMap<String, serde_json::Value>) -> RocList<JWTToRoc> {
+    let mut roc_claims = RocList::with_capacity(claims.len());
+
+    for (name, value) in claims {
+        roc_claims.push(JWTToRoc {
+            name: RocStr::from(name.as_str()),
+            value: RocStr::from(format!("{}", value).to_string().as_str()),
+        });
+    }
+
+    roc_claims
+}
+
+fn jwt_error_to_roc(err: jwt::error::Error) -> RocStr {
+    match err {
+        jwt::error::Error::AlgorithmMismatch(..) => RocStr::from("AlgorithmMismatch"),
+        jwt::error::Error::InvalidSignature => RocStr::from("InvalidSignature"),
+        jwt::error::Error::Format => RocStr::from("BadFormat"),
+        jwt::error::Error::Json(..) => RocStr::from("BadJson"),
+        jwt::error::Error::NoClaimsComponent => RocStr::from("MissingClaims"),
+        jwt::error::Error::NoHeaderComponent => RocStr::from("MissingHeader"),
+        jwt::error::Error::NoKeyId => RocStr::from("MissingKeyId"),
+        _ => RocStr::from(format!("{err}").to_string().as_str()),
+    }
+}
+
+fn h256(str: &RocStr) -> Result<Hmac<Sha256>, RocStr> {
+    match Hmac::new_from_slice(str.as_bytes()) {
+        Ok(key) => Ok(key),
+        Err(err) => Err(RocStr::from(format!("{err}").as_str())),
+    }
 }
 
 #[derive(Debug)]

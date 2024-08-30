@@ -7,10 +7,10 @@ module [
 import PlatformTasks
 
 Err : [
-    AlgorithmMismatch Str,
-    InvalidSignature Str,
-    BadFormat Str,
-    BadJson Str,
+    AlgorithmMismatch,
+    InvalidSignature,
+    BadFormat,
+    BadJson,
     MissingClaims,
     MissingHeader,
     MissingKeyId,
@@ -68,4 +68,20 @@ verify = \{algorithm, secret, token} ->
 # we can return a Str from the host, and prepend
 # it with a magic number for each variant
 mapErrFromHost : Str -> Err
-mapErrFromHost = \_ -> Other "TODO"
+mapErrFromHost = \err ->
+    if err == "AlgorithmMismatch" then
+        AlgorithmMismatch
+    else if err == "InvalidSignature" then
+        InvalidSignature
+    else if err == "BadFormat" then
+        BadFormat
+    else if err == "BadJson" then
+        BadJson
+    else if err == "MissingClaims" then
+        MissingClaims
+    else if err == "MissingHeader" then
+        MissingHeader
+    else if err == "MissingKeyId" then
+        MissingKeyId
+    else
+        Other err
