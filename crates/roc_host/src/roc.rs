@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -198,8 +199,8 @@ pub unsafe extern "C" fn roc_getppid() -> libc::pid_t {
 #[no_mangle]
 pub extern "C" fn roc_fx_sendRequest(
     roc_request: &roc_http::RequestToAndFromHost,
-) -> roc_http::ResponseFromHost {
-    http_client::send_req(roc_request)
+) -> RocResult<roc_http::ResponseFromHost, ()> {
+    RocResult::ok(http_client::send_req(roc_request))
 }
 
 #[roc_fn(name = "envVar")]
@@ -211,7 +212,7 @@ fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
 }
 
 #[roc_fn(name = "envList")]
-fn env_dict() -> RocList<(RocStr, RocStr)> {
+fn env_dict() -> RocResult<RocList<(RocStr, RocStr)>, ()> {
     use std::borrow::Borrow;
 
     let mut entries = Vec::new();
@@ -223,7 +224,7 @@ fn env_dict() -> RocList<(RocStr, RocStr)> {
         entries.push((key, value));
     }
 
-    RocList::from_slice(entries.as_slice())
+    RocResult::ok(RocList::from_slice(entries.as_slice()))
 }
 
 #[roc_fn(name = "exePath")]
@@ -243,59 +244,106 @@ fn set_cwd(roc_path: &roc_std::RocList<u8>) -> RocResult<(), ()> {
 }
 
 #[roc_fn(name = "cwd")]
-fn cwd() -> roc_std::RocList<u8> {
+fn cwd() -> RocResult<roc_std::RocList<u8>, ()> {
     // TODO instead, call getcwd on UNIX and GetCurrentDirectory on Windows
     match std::env::current_dir() {
-        Ok(path_buf) => os_str_to_roc_path(path_buf.into_os_string().as_os_str()),
-        Err(_) => RocList::empty(), // Default to empty path
+        Ok(path_buf) => RocResult::ok(os_str_to_roc_path(path_buf.into_os_string().as_os_str())),
+        Err(_) => RocResult::ok(RocList::empty()), // Default to empty path
     }
 }
 
 #[roc_fn(name = "stdoutLine")]
-fn stdout_line(roc_str: &RocStr) {
-    println!("{}", roc_str.as_str());
+fn stdout_line(line: &RocStr) -> RocResult<(), RocStr> {
+    let stdout = std::io::stdout();
+
+    let mut handle = stdout.lock();
+
+    handle
+        .write_all(line.as_bytes())
+        .and_then(|()| handle.write_all("\n".as_bytes()))
+        .and_then(|()| handle.flush())
+        .map_err(handleStdoutErr)
+        .into()
 }
 
 #[roc_fn(name = "stdoutWrite")]
-fn stdout_write(roc_str: &RocStr) {
-    let string = roc_str.as_str();
-    print!("{}", string);
+fn stdout_write(text: &RocStr) -> RocResult<(), RocStr> {
+    let stdout = std::io::stdout();
+
+    let mut handle = stdout.lock();
+
+    handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.flush())
+        .map_err(handleStdoutErr)
+        .into()
 }
 
-#[roc_fn(name = "stdoutFlush")]
-fn stdout_flush() {
-    std::io::stdout().flush().unwrap()
+/// See docs in `platform/Stdout.roc` for descriptions
+fn handleStdoutErr(io_err: std::io::Error) -> RocStr {
+    match io_err.kind() {
+        ErrorKind::BrokenPipe => "ErrorKind::BrokenPipe".into(),
+        ErrorKind::WouldBlock => "ErrorKind::WouldBlock".into(),
+        ErrorKind::WriteZero => "ErrorKind::WriteZero".into(),
+        ErrorKind::Unsupported => "ErrorKind::Unsupported".into(),
+        ErrorKind::Interrupted => "ErrorKind::Interrupted".into(),
+        ErrorKind::OutOfMemory => "ErrorKind::OutOfMemory".into(),
+        _ => format!("{:?}", io_err).as_str().into(),
+    }
 }
 
 #[roc_fn(name = "stderrLine")]
-fn stderr_line(roc_str: &RocStr) {
-    let string = roc_str.as_str();
-    eprintln!("{}", string);
+fn stderr_line(line: &RocStr) -> RocResult<(), RocStr> {
+    let stderr = std::io::stderr();
+
+    let mut handle = stderr.lock();
+
+    handle
+        .write_all(line.as_bytes())
+        .and_then(|()| handle.write_all("\n".as_bytes()))
+        .and_then(|()| handle.flush())
+        .map_err(handleStderrErr)
+        .into()
 }
 
 #[roc_fn(name = "stderrWrite")]
-fn stderr_write(roc_str: &RocStr) {
-    let string = roc_str.as_str();
-    eprint!("{}", string);
+fn stderr_write(text: &RocStr) -> RocResult<(), RocStr> {
+    let stderr = std::io::stderr();
+
+    let mut handle = stderr.lock();
+
+    handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.flush())
+        .map_err(handleStderrErr)
+        .into()
 }
 
-#[roc_fn(name = "stderrFlush")]
-fn stderr_flush() {
-    std::io::stderr().flush().unwrap()
+/// See docs in `platform/Stdout.roc` for descriptions
+fn handleStderrErr(io_err: std::io::Error) -> RocStr {
+    match io_err.kind() {
+        ErrorKind::BrokenPipe => "ErrorKind::BrokenPipe".into(),
+        ErrorKind::WouldBlock => "ErrorKind::WouldBlock".into(),
+        ErrorKind::WriteZero => "ErrorKind::WriteZero".into(),
+        ErrorKind::Unsupported => "ErrorKind::Unsupported".into(),
+        ErrorKind::Interrupted => "ErrorKind::Interrupted".into(),
+        ErrorKind::OutOfMemory => "ErrorKind::OutOfMemory".into(),
+        _ => format!("{:?}", io_err).as_str().into(),
+    }
 }
 
 #[roc_fn(name = "posixTime")]
-fn posix_time() -> roc_std::U128 {
+fn posix_time() -> RocResult<roc_std::U128, ()> {
     // TODO in future may be able to avoid this panic by using C APIs
     let since_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time went backwards");
 
-    roc_std::U128::from(since_epoch.as_nanos())
+    RocResult::ok(roc_std::U128::from(since_epoch.as_nanos()))
 }
 
 #[roc_fn(name = "commandOutput")]
-fn command_output(roc_cmd: &roc_app::InternalCommand) -> roc_app::InternalOutput {
+fn command_output(roc_cmd: &roc_app::InternalCommand) -> RocResult<roc_app::InternalOutput, ()> {
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;
@@ -344,19 +392,19 @@ fn command_output(roc_cmd: &roc_app::InternalCommand) -> roc_app::InternalOutput
                 }
             };
 
-            roc_app::InternalOutput {
+            RocResult::ok(roc_app::InternalOutput {
                 status,
                 stdout: RocList::from(&output.stdout[..]),
                 stderr: RocList::from(&output.stderr[..]),
-            }
+            })
         }
-        Err(err) => roc_app::InternalOutput {
+        Err(err) => RocResult::ok(roc_app::InternalOutput {
             status: RocResult::err(roc_app::InternalCommandErr::IOError(RocStr::from(
                 err.to_string().as_str(),
             ))),
             stdout: RocList::empty(),
             stderr: RocList::empty(),
-        },
+        }),
     }
 }
 
@@ -422,44 +470,46 @@ fn command_status(
 }
 
 #[roc_fn(name = "tcpConnect")]
-fn tcp_connect(host: &RocStr, port: u16) -> roc_app::ConnectResult {
+fn tcp_connect(host: &RocStr, port: u16) -> RocResult<roc_app::ConnectResult, ()> {
     match TcpStream::connect((host.as_str(), port)) {
         Ok(stream) => {
             let reader = BufReader::new(stream);
             let ptr = Box::into_raw(Box::new(reader)) as u64;
 
-            roc_app::ConnectResult::Connected(ptr)
+            RocResult::ok(roc_app::ConnectResult::Connected(ptr))
         }
-        Err(err) => roc_app::ConnectResult::Error(to_tcp_connect_err(err)),
+        Err(err) => RocResult::ok(roc_app::ConnectResult::Error(to_tcp_connect_err(err))),
     }
 }
 
 #[roc_fn(name = "tcpClose")]
-fn tcp_close(stream_ptr: *mut BufReader<TcpStream>) {
+fn tcp_close(stream_ptr: *mut BufReader<TcpStream>) -> RocResult<(), ()> {
     unsafe {
         drop(Box::from_raw(stream_ptr));
     }
+
+    RocResult::ok(())
 }
 
 #[roc_fn(name = "tcpReadUpTo")]
 fn tcp_read_up_to(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> roc_app::ReadResult {
+) -> RocResult<roc_app::ReadResult, ()> {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut chunk = reader.take(bytes_to_read as u64);
 
     match chunk.fill_buf() {
-        Ok(received) => {
+        Ok(received) => RocResult::ok({
             let received = received.to_vec();
             reader.consume(received.len());
 
             let roc_list = RocList::from(&received[..]);
             roc_app::ReadResult::Read(roc_list)
-        }
+        }),
 
-        Err(err) => roc_app::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => RocResult::ok(roc_app::ReadResult::Error(to_tcp_stream_err(err))),
     }
 }
 
@@ -467,7 +517,7 @@ fn tcp_read_up_to(
 fn tcp_read_exactly(
     bytes_to_read: usize,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> roc_app::ReadExactlyResult {
+) -> RocResult<roc_app::ReadExactlyResult, ()> {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = Vec::with_capacity(bytes_to_read);
@@ -476,14 +526,14 @@ fn tcp_read_exactly(
     match chunk.read_to_end(&mut buffer) {
         Ok(read) => {
             if read < bytes_to_read {
-                roc_app::ReadExactlyResult::UnexpectedEOF()
+                RocResult::ok(roc_app::ReadExactlyResult::UnexpectedEOF())
             } else {
                 let roc_list = RocList::from(&buffer[..]);
-                roc_app::ReadExactlyResult::Read(roc_list)
+                RocResult::ok(roc_app::ReadExactlyResult::Read(roc_list))
             }
         }
 
-        Err(err) => roc_app::ReadExactlyResult::Error(to_tcp_stream_err(err)),
+        Err(err) => RocResult::ok(roc_app::ReadExactlyResult::Error(to_tcp_stream_err(err))),
     }
 }
 
@@ -491,29 +541,32 @@ fn tcp_read_exactly(
 pub extern "C" fn tcp_read_until(
     byte: u8,
     stream_ptr: *mut BufReader<TcpStream>,
-) -> roc_app::ReadResult {
+) -> RocResult<roc_app::ReadResult, ()> {
     let reader = unsafe { &mut *stream_ptr };
 
     let mut buffer = vec![];
 
     match reader.read_until(byte, &mut buffer) {
-        Ok(_) => {
+        Ok(_) => RocResult::ok({
             let roc_list = RocList::from(&buffer[..]);
             roc_app::ReadResult::Read(roc_list)
-        }
+        }),
 
-        Err(err) => roc_app::ReadResult::Error(to_tcp_stream_err(err)),
+        Err(err) => RocResult::ok(roc_app::ReadResult::Error(to_tcp_stream_err(err))),
     }
 }
 
 #[roc_fn(name = "tcpWrite")]
-fn tcp_write(msg: &RocList<u8>, stream_ptr: *mut BufReader<TcpStream>) -> roc_app::WriteResult {
+fn tcp_write(
+    msg: &RocList<u8>,
+    stream_ptr: *mut BufReader<TcpStream>,
+) -> RocResult<roc_app::WriteResult, ()> {
     let reader = unsafe { &mut *stream_ptr };
     let mut stream = reader.get_ref();
 
     match stream.write_all(msg.as_slice()) {
-        Ok(_) => roc_app::WriteResult::Wrote(),
-        Err(err) => roc_app::WriteResult::Error(to_tcp_stream_err(err)),
+        Ok(_) => RocResult::ok(roc_app::WriteResult::Wrote()),
+        Err(err) => RocResult::ok(roc_app::WriteResult::Error(to_tcp_stream_err(err))),
     }
 }
 
@@ -551,9 +604,11 @@ fn to_tcp_stream_err(err: std::io::Error) -> roc_app::StreamErr {
 }
 
 #[roc_fn(name = "sleepMillis")]
-fn sleep_millis(milliseconds: u64) {
+fn sleep_millis(milliseconds: u64) -> RocResult<(), ()> {
     let duration = std::time::Duration::from_millis(milliseconds);
     std::thread::sleep(duration);
+
+    RocResult::ok(())
 }
 
 #[roc_fn(name = "fileWriteUtf8")]
@@ -883,10 +938,10 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
+pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
     let path_os_string_bytes = std::env::temp_dir().into_os_string().into_encoded_bytes();
 
-    RocList::from(path_os_string_bytes.as_slice())
+    RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
 }
 
 #[derive(Debug)]

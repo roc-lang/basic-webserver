@@ -1,7 +1,5 @@
 app [Model, server] { pf: platform "main.roc" }
 
-import pf.Task exposing [Task]
-
 Model : {}
 
 # Stub file for use during building.
@@ -11,8 +9,8 @@ Model : {}
 server = {
     init: Task.ok {},
     respond: \_, _ -> Task.ok {
-        status: 200,
-        headers: [],
-        body: Str.toUtf8 "I'm a stub, I should be replaced by the user's Roc app.",
-    },
+            status: 200,
+            headers: [],
+            body: Str.toUtf8 "I'm a stub, I should be replaced by the user's Roc app.",
+        },
 }

@@ -1,6 +1,5 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Command
 import pf.Utc
@@ -15,9 +14,9 @@ respond = \req, _ ->
     datetime = Utc.now! |> Utc.toIso8601Str
     result =
         Command.new "echo"
-        |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-        |> Command.status
-        |> Task.result!
+            |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+            |> Command.status
+            |> Task.result!
 
     when result is
         Ok {} -> okHttp "Command succeeded."
@@ -25,13 +24,19 @@ respond = \req, _ ->
             Task.err (ServerErr "Command exited with code $(Num.toStr code).")
 
         Err KilledBySignal ->
-            Task.err (ServerErr """Command was killed by signal. This can happen for everal reasons:
-                                    - User intervention (e.g., Ctrl+C)
-                                    - Exceeding resource limits
-                                    - System shutdown
-                                    - Parent process terminating child processes
-                                    - ...
-                                    """)
+            Task.err
+                (
+                    ServerErr
+                        """
+                        Command was killed by signal. This can happen for several reasons:
+                            - User intervention (e.g., Ctrl+C)
+                            - Exceeding resource limits
+                            - System shutdown
+                            - Parent process terminating child processes
+                            - ...
+
+                        """
+                )
 
         Err (IOError str) ->
             Task.err (ServerErr "IO Error: $(str).")

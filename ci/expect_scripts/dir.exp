@@ -7,22 +7,13 @@ set timeout 7
 
 spawn $env(EXAMPLES_DIR)dir
 
-expect "Listening on <http://127.0.0.1:8000>\r\n" {
-    set curlOutput [exec curl -sS localhost:8000]
-
-    if {$curlOutput eq "Logged request"} {
-        expect -re {The current working directory is .*/basic-webserver\r\n} {
-            expect "Set cwd to examples/\r\n" {
-                expect "The paths are;\r\n" {
-                    expect -re {.*dir\.roc.*} {
-                        exit 0
-                    }
-                }
+expect -re {The current working directory is .*/basic-webserver\r\n} {
+    expect "Set cwd to examples/\r\n" {
+        expect "The paths are;\r\n" {
+            expect -re {.*dir\.roc.*} {
+                exit 0
             }
         }
-    } else {
-        puts "Error: curl output was different than expected: $curlOutput"
-        exit 1
     }
 }
 

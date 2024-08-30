@@ -7,10 +7,8 @@ module [
     errToStr,
 ]
 
-import InternalTask
-import Task exposing [Task]
+import PlatformTasks
 import InternalSQL
-import Effect
 
 Value : InternalSQL.SQLiteValue
 Code : InternalSQL.SQLiteErrCode
@@ -25,12 +23,7 @@ execute :
     }
     -> Task (List (List InternalSQL.SQLiteValue)) Error
 execute = \{ path, query, bindings } ->
-    result =
-        Effect.sqliteExecute path query bindings
-        |> InternalTask.fromEffect
-        |> Task.result!
-
-    when result is
+    when PlatformTasks.sqliteExecute path query bindings |> Task.result! is
         Ok rows -> Task.ok rows
         Err { code, message } -> Task.err (SQLError (codeFromI64 code) message)
 
