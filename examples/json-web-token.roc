@@ -6,7 +6,7 @@ import pf.Jwt
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+server = { init, respond }
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \_, _ ->
@@ -56,3 +56,28 @@ respond = \_, _ ->
                 ],
                 body: Str.toUtf8 message,
             }
+
+
+#init : Task Model [ServerErr Str]_
+init =
+
+    # Test Hs256 algorithm
+    result = Jwt.verify! {
+        secret: "shhh_very_secret",
+        algorithm: Hs256,
+        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o",
+    }
+
+    expect checkClaims result
+
+    Task.ok {}
+
+checkClaims : Dict Str Str -> Bool
+checkClaims = \claims ->
+    when (Dict.get claims "sub", Dict.get claims "name", Dict.get claims "iat") is
+        (Ok sub, Ok name, Ok iat) ->
+            sub == "\"1234567890\""
+            && name == "\"John Doe\""
+            && iat == "1516239022"
+
+        _ -> Bool.false
