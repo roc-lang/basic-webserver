@@ -2,9 +2,7 @@
   description = "basic-webserver devShell flake";
 
   inputs = {
-
-    # This commit is for the builtin-task branch, remove after it is merged into main
-    roc.url = "github:smores56/roc?rev=d3732b444014d05f17953d814c5ac19b4f683127";
+    roc.url = "github:roc-lang/roc";
 
     nixpkgs.follows = "roc/nixpkgs";
 

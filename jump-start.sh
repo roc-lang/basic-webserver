@@ -17,12 +17,11 @@ if [ -z "${ROC}" ]; then
 fi
 
 # if [ -z "${USE_LOCAL_CLI}" ]; then
-#     # need to get basic-cli modified for builtin Task
 #     pushd . # save current dir
 #     cd ..
-#     git clone https://github.com/smores56/basic-cli.git
+#     git clone https://github.com/USER/FORK_NAME.git
 #     cd basic-cli
-#     git checkout builtin-task
+#     git checkout FORK_BRANCH
 #     popd # back to original dir
 # else
 #     # we are using a local version therefore no need to clone
