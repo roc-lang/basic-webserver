@@ -154,6 +154,17 @@ pub fn jwt_verify(jwt: &JWTFromRoc) -> RocResult<RocList<JWTToRoc>, RocStr> {
                 Err(err) => return RocResult::err(err),
             }
         }
+        // TODO: implement the rest of the algorithms
+        // Rs256,
+        // Rs384,
+        // Rs512,
+        // Es256,
+        // Es384,
+        // Es512,
+        // Ps256,
+        // Ps384,
+        // Ps512,
+        // None,
         _ => todo!(),
     }
 }
