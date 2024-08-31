@@ -58,8 +58,7 @@ verify : {
 } -> Task (Dict Str Str) [JwtErr Err]_
 verify = \{algorithm, secret, token} ->
     PlatformTasks.jwtVerify {algo: algoToU8 algorithm, secret, token}
-    |> Task.mapErr mapErrFromHost
-    |> Task.mapErr JwtErr
+    |> Task.mapErr \err -> JwtErr (mapErrFromHost err)
     |> Task.map \claims ->
         claims
         |> List.map \{name, value} -> (name, value)
