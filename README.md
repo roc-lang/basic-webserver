@@ -15,12 +15,9 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
-app [Model, server] {
-     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.8.0/jz2EfGAtz_y06nN7f8tU9AvmzhKK-jnluXQQGa9rZoQ.tar.br"
-}
+app [Model, server] { pf: platform "REPLACE WITH LINK: SEE RELEASES 0.9.0>Assets" }
 
 import pf.Stdout
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Utc
 
@@ -40,7 +37,7 @@ respond = \req, _ ->
 
     Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, world!</b></br>" }
+    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello from server</b></br>" }
 ```
 
 
