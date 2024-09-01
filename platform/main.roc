@@ -12,7 +12,6 @@ platform "webserver"
         Http,
         Stderr,
         Stdout,
-        Task,
         Tcp,
         Url,
         Utc,
@@ -21,19 +20,15 @@ platform "webserver"
         Sqlite,
     ]
     packages {}
-    imports [
-        Task.{ Task },
-        Stderr,
-    ]
+    imports [Stderr]
     provides [forHost]
 
-import InternalTask
 import Http
 import InternalHttp
 
 ForHost : {
     init : Task (Box Model) I32,
-    respond : InternalHttp.RequestToAndFromHost, Box Model -> InternalTask.Task InternalHttp.ResponseToHost [],
+    respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost [],
 }
 
 forHost : ForHost
@@ -64,31 +59,33 @@ init =
                 |> Task.onErr \_ -> Task.err 1
                 |> Task.await \_ -> Task.err 1
 
-respond : InternalHttp.RequestToAndFromHost, Box Model -> InternalTask.Task InternalHttp.ResponseToHost []
+respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost []
 respond = \request, boxedModel ->
     when server.respond (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) |> Task.result! is
         Ok response -> Task.ok response
         Err (ServerErr msg) ->
-            Stderr.line! msg
+            Stderr.line msg
+                |> Task.onErr! \_ -> crash "unable to write to stderr"
 
             # returns a http server error response
-            InternalTask.ok {
+            Task.ok {
                 status: 500,
                 headers: [],
                 body: [],
             }
 
         Err err ->
-            Stderr.line!
-                """
-                Server error:
-                    $(Inspect.toStr err)
+            """
+            Server error:
+                $(Inspect.toStr err)
 
-                Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
-                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
-                """
+            Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
+            Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+            """
+                |> Stderr.line
+                |> Task.onErr! \_ -> crash "unable to write to stderr"
 
-            InternalTask.ok {
+            Task.ok {
                 status: 500,
                 headers: [],
                 body: [],

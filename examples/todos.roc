@@ -2,8 +2,6 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Stderr
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Sqlite
@@ -70,27 +68,19 @@ init =
 
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \req, model ->
-    responseTask =
-        logRequest! req
+    logRequest! req
 
-        splitUrl =
-            req.url
-            |> Url.fromStr
-            |> Url.path
-            |> Str.split "/"
+    splitUrl =
+        req.url
+        |> Url.fromStr
+        |> Url.path
+        |> Str.split "/"
 
-        # Route to handler based on url path
-        when splitUrl is
-            ["", ""] -> byteResponse 200 todoHtml
-            ["", "todos", ..] -> routeTodos model req
-            _ -> textResponse 404 "URL Not Found (404)"
-
-    # Handle any application errors
-    responseTask |> Task.onErr handleErr
-
-AppError : [
-    EnvVarNotSet Str,
-]
+    # Route to handler based on url path
+    when splitUrl is
+        ["", ""] -> byteResponse 200 todoHtml
+        ["", "todos", ..] -> routeTodos model req
+        _ -> textResponse 404 "URL Not Found (404)"
 
 routeTodos : Model, Request -> Task Response *
 routeTodos = \model, req ->
@@ -230,27 +220,9 @@ byteResponse = \status, bytes ->
         body: bytes,
     }
 
-logRequest : Request -> Task {} *
+logRequest : Request -> Task {} _
 logRequest = \req ->
-    datetime = Utc.now! |> Utc.toIso8601Str
+    datetime = Utc.now |> Task.map! Utc.toIso8601Str
 
-    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-
-handleErr : AppError -> Task Response *
-handleErr = \appErr ->
-
-    # Build error message
-    errMsg =
-        when appErr is
-            EnvVarNotSet varName -> "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
-
-    # Log error to stderr
-    Stderr.line! "Internal Server Error:\n\t$(errMsg)"
-    Stderr.flush!
-
-    # Respond with Http 500 Error
-    Task.ok {
-        status: 500,
-        headers: [],
-        body: Str.toUtf8 "Internal Server Error.",
-    }
+    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    |> Task.mapErr \err -> StdoutErr (Inspect.toStr err)

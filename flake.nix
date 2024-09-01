@@ -3,13 +3,13 @@
 
   inputs = {
     roc.url = "github:roc-lang/roc";
+
     nixpkgs.follows = "roc/nixpkgs";
 
     # rust from nixpkgs has some libc problems, this is patched in the rust-overlay
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
 
     # to easily make configs for multiple architectures
@@ -46,6 +46,7 @@
           expect
           rocPkgs.cli
           sqlite
+          imagemagick # for file-upload-form example
         ]);
       in {
 

@@ -15,12 +15,12 @@ module [
     getUtf8,
     methodToStr,
     parseFormUrlEncoded,
+    parseMultipartFormData,
 ]
 
-import Effect
-import InternalTask
-import Task exposing [Task]
+import PlatformTasks
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
+import MultipartFormData
 
 ## Represents an HTTP request.
 Request : InternalHttp.Request
@@ -127,31 +127,29 @@ send = \req ->
     }
 
     # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
-    Effect.sendRequest (Box.box reqToHost)
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
-    |> Task.await \{ variant, body, metadata } ->
-        when variant is
-            "Timeout" -> Task.err (Timeout timeoutMilliseconds)
-            "NetworkErr" -> Task.err NetworkError
-            "BadStatus" ->
-                Task.err
-                    (
-                        BadStatus {
-                            code: metadata.statusCode,
-                            body: errorBodyFromUtf8 body,
-                        }
-                    )
+    { variant, body, metadata } =
+        PlatformTasks.sendRequest (Box.box reqToHost)
+            |> Task.mapErr! \_ -> crash "unreachable"
 
-            "GoodStatus" ->
-                Task.ok {
-                    status: metadata.statusCode,
-                    headers: metadata.headers,
-                    body,
-                }
+    when variant is
+        "Timeout" -> Task.err (HttpErr (Timeout timeoutMilliseconds))
+        "NetworkErr" -> Task.err (HttpErr NetworkError)
+        "BadStatus" ->
+            BadStatus {
+                code: metadata.statusCode,
+                body: errorBodyFromUtf8 body,
+            }
+            |> HttpErr
+            |> Task.err
 
-            "BadRequest" | _other -> Task.err (BadRequest metadata.statusText)
-    |> Task.mapErr HttpErr
+        "GoodStatus" ->
+            Task.ok {
+                status: metadata.statusCode,
+                headers: metadata.headers,
+                body,
+            }
+
+        "BadRequest" | _other -> Task.err (HttpErr (BadRequest metadata.statusText))
 
 ## Try to perform an HTTP get request and convert (decode) the received bytes into a Roc type.
 ## Very useful for working with Json.
@@ -216,14 +214,18 @@ parseFormUrlEncoded = \bytes ->
             [] if List.isEmpty chomped -> dict |> Ok
             [] ->
                 # chomped last value
-                key |> chainUtf8 \keyStr ->
-                    chomped |> chainUtf8 \valueStr ->
+                key
+                |> chainUtf8 \keyStr ->
+                    chomped
+                    |> chainUtf8 \valueStr ->
                         Dict.insert dict keyStr valueStr |> Ok
 
             ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
             ['&', ..] ->
-                key |> chainUtf8 \keyStr ->
-                    chomped |> chainUtf8 \valueStr ->
+                key
+                |> chainUtf8 \keyStr ->
+                    chomped
+                    |> chainUtf8 \valueStr ->
                         parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
             ['%', secondByte, thirdByte, ..] ->
@@ -290,3 +292,30 @@ hexToDec = \byte ->
 
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
+
+## For HTML forms that include files or large amounts of text.
+##
+## See usage in examples/file-upload-form.roc
+parseMultipartFormData :
+    {
+        headers : List Header,
+        body : List U8,
+    }
+    -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader]
+parseMultipartFormData = \args ->
+    decodeMultipartFormDataBoundary args.headers
+    |> Result.try \boundary ->
+        { body: args.body, boundary }
+        |> MultipartFormData.parse
+        |> Result.mapErr \_ -> InvalidMultipartFormData
+
+decodeMultipartFormDataBoundary : List { name : Str, value : Str } -> Result (List U8) _
+decodeMultipartFormDataBoundary = \headers ->
+    headers
+    |> List.keepIf \{ name } -> name == "Content-Type" || name == "content-type"
+    |> List.first
+    |> Result.mapErr \ListWasEmpty -> ExpectedContentTypeHeader
+    |> Result.try \{ value } ->
+        when Str.splitLast value "=" is
+            Ok { after } -> Ok (Str.toUtf8 after)
+            Err NotFound -> Err InvalidContentTypeHeader

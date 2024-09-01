@@ -1,7 +1,6 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Sqlite
 import pf.Env

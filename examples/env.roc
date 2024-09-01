@@ -1,12 +1,11 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 
 # We'll set this based on env var at server startup
 Model : {
-    debug : [DebugPrintMode, NonDebugMode]
+    debug : [DebugPrintMode, NonDebugMode],
 }
 
 server = { init, respond }
@@ -17,10 +16,10 @@ init =
     # Check if DEBUG environment variable is set
     debug =
         Env.var "DEBUG"
-        |> Task.attempt! \maybeVar ->
-            when maybeVar is
-                Ok var if !(Str.isEmpty var) -> Task.ok DebugPrintMode
-                _ -> Task.ok NonDebugMode
+            |> Task.attempt! \maybeVar ->
+                when maybeVar is
+                    Ok var if !(Str.isEmpty var) -> Task.ok DebugPrintMode
+                    _ -> Task.ok NonDebugMode
 
     Task.ok { debug }
 

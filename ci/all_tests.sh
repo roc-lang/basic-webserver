@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
-set -euxo pipefail
+set -exo pipefail
 
 
 if [ -z "${ROC}" ]; then
@@ -23,8 +23,19 @@ if [ -z "${EXAMPLES_DIR}" ]; then
   exit 1
 fi
 
-echo "build the platform"
-$ROC ./build.roc --prebuilt-platform -- --roc $ROC
+if [ "$NO_BUILD" != "1" ]; then
+    if [ "$JUMP_START" == "1" ]; then
+    echo "building platform..."
+
+    # we can't use a release of basic-cli becuase we are making a breaking change
+    # let's build the platform using bash instead
+    bash jump-start.sh
+
+    else
+        # run build script for the platform which uses basic-cli
+        $ROC ./build.roc --prebuilt-platform -- --roc $ROC
+    fi
+fi
 
 echo "roc check"
 for roc_file in $EXAMPLES_DIR*.roc; do

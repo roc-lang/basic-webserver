@@ -44,10 +44,8 @@ module [
     nullableF32,
 ]
 
-import InternalTask
-import Task exposing [Task]
+import PlatformTasks
 import InternalSQL
-import Effect
 
 Value : InternalSQL.SqliteValue
 Code : InternalSQL.SqliteErrCode
@@ -74,39 +72,33 @@ prepare :
     }
     -> Task Stmt Error
 prepare = \{ path, query: q } ->
-    Effect.sqlitePrepare path q
-    |> InternalTask.fromEffect
+    PlatformTasks.sqlitePrepare path q
     |> Task.map @Stmt
     |> Task.mapErr internalToExternalError
 
 bind : Stmt, List Binding -> Task {} Error
 bind = \@Stmt stmt, bindings ->
-    Effect.sqliteBind stmt bindings
-    |> InternalTask.fromEffect
+    PlatformTasks.sqliteBind stmt bindings
     |> Task.mapErr internalToExternalError
 
-columns : Stmt -> Task (List Str) []
+columns : Stmt -> Task (List Str) *
 columns = \@Stmt stmt ->
-    Effect.sqliteColumns stmt
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
+    PlatformTasks.sqliteColumns stmt
+    |> Task.mapErr \_ -> crash "unreachable: Sqlite.columns"
 
 columnValue : Stmt, U64 -> Task Value Error
 columnValue = \@Stmt stmt, i ->
-    Effect.sqliteColumnValue stmt i
-    |> InternalTask.fromEffect
+    PlatformTasks.sqliteColumnValue stmt i
     |> Task.mapErr internalToExternalError
 
 step : Stmt -> Task [Row, Done] Error
 step = \@Stmt stmt ->
-    Effect.sqliteStep stmt
-    |> InternalTask.fromEffect
+    PlatformTasks.sqliteStep stmt
     |> Task.mapErr internalToExternalError
 
 reset : Stmt -> Task {} Error
 reset = \@Stmt stmt ->
-    Effect.sqliteReset stmt
-    |> InternalTask.fromEffect
+    PlatformTasks.sqliteReset stmt
     |> Task.mapErr internalToExternalError
 
 execute :
@@ -195,23 +187,23 @@ SqlDecode a err := List Str -> (Stmt -> Task a (SqlDecodeErr err))
 
 decodeRecord : SqlDecode a err, SqlDecode b err, (a, b -> c) -> SqlDecode c err
 decodeRecord = \@SqlDecode genFirst, @SqlDecode genSecond, mapper ->
-    cols <- @SqlDecode
-    decodeFirst = genFirst cols
-    decodeSecond = genSecond cols
+    @SqlDecode \cols ->
+        decodeFirst = genFirst cols
+        decodeSecond = genSecond cols
 
-    \stmt ->
-        first = decodeFirst! stmt
-        second = decodeSecond! stmt
-        Task.ok (mapper first second)
+        \stmt ->
+            first = decodeFirst! stmt
+            second = decodeSecond! stmt
+            Task.ok (mapper first second)
 
 mapValue : SqlDecode a err, (a -> b) -> SqlDecode b err
 mapValue = \@SqlDecode genDecode, mapper ->
-    cols <- @SqlDecode
-    decode = genDecode cols
+    @SqlDecode \cols ->
+        decode = genDecode cols
 
-    \stmt ->
-        val = decode! stmt
-        Task.ok (mapper val)
+        \stmt ->
+            val = decode! stmt
+            Task.ok (mapper val)
 
 RowCountErr err : [NoRowsReturned, TooManyRowsReturned]err
 decodeExactlyOneRow : Stmt, SqlDecode a (RowCountErr err) -> Task a (SqlDecodeErr (RowCountErr err))
@@ -250,19 +242,19 @@ decodeRows = \stmt, @SqlDecode genDecode ->
 
 decoder : (Value -> Result a (SqlDecodeErr err)) -> (Str -> SqlDecode a err)
 decoder = \fn -> \name ->
-        cols <- @SqlDecode
+        @SqlDecode \cols ->
 
-        found = List.findFirstIndex cols \x -> x == name
-        when found is
-            Ok index ->
-                \stmt ->
-                    columnValue! stmt index
-                        |> fn
-                        |> Task.fromResult
+            found = List.findFirstIndex cols \x -> x == name
+            when found is
+                Ok index ->
+                    \stmt ->
+                        columnValue! stmt index
+                            |> fn
+                            |> Task.fromResult
 
-            Err NotFound ->
-                \_ ->
-                    Task.err (FieldNotFound name)
+                Err NotFound ->
+                    \_ ->
+                        Task.err (FieldNotFound name)
 
 taggedValue : Str -> SqlDecode Value []
 taggedValue = decoder \val ->
@@ -514,4 +506,3 @@ errToStr = \err ->
             DONE -> "DONE: sqlite3_step() has finished executing"
 
     "$(msg1) - $(msg2)"
-

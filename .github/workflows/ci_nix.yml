@@ -22,7 +22,7 @@ jobs:
       - uses: cachix/install-nix-action@v23
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-          
+
       - name: Run all tests
         run: nix develop -c sh -c 'export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'
 

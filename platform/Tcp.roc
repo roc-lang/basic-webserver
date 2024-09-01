@@ -13,9 +13,7 @@ module [
     streamErrToStr,
 ]
 
-import Effect
-import Task exposing [Task]
-import InternalTask
+import PlatformTasks
 import InternalTcp
 
 ## Represents a TCP stream.
@@ -44,31 +42,35 @@ StreamErr : InternalTcp.StreamErr
 ##
 withConnect : Str, U16, (Stream -> Task a err) -> Task a [TcpConnectErr ConnectErr, TcpPerformErr err]
 withConnect = \hostname, port, callback ->
-    stream = connect hostname port
-        |> Task.mapErr! TcpConnectErr
+    stream =
+        connect hostname port
+            |> Task.mapErr! TcpConnectErr
 
-    result = callback stream
-        |> Task.mapErr TcpPerformErr
-        |> Task.onErr!
-            (\err ->
-                close! stream
-                Task.err err
-            )
+    result =
+        callback stream
+            |> Task.mapErr TcpPerformErr
+            |> Task.onErr!
+                (\err ->
+                    close! stream
+                    Task.err err
+                )
 
     close stream
     |> Task.map \_ -> result
 
 connect : Str, U16 -> Task Stream ConnectErr
 connect = \host, port ->
-    Effect.tcpConnect host port
-    |> Effect.map InternalTcp.fromConnectResult
-    |> InternalTask.fromEffect
+    connectRes =
+        PlatformTasks.tcpConnect host port
+            |> Task.mapErr! \_ -> crash "unreachable"
+
+    InternalTcp.fromConnectResult connectRes
+    |> Task.fromResult
 
 close : Stream -> Task {} *
 close = \stream ->
-    Effect.tcpClose stream
-    |> Effect.map Ok
-    |> InternalTask.fromEffect
+    PlatformTasks.tcpClose stream
+    |> Task.mapErr \_ -> crash "unreachable"
 
 ## Read up to a number of bytes from the TCP stream.
 ##
@@ -81,9 +83,12 @@ close = \stream ->
 ## > To read an exact number of bytes or fail, you can use [Tcp.readExactly] instead.
 readUpTo : U64, Stream -> Task (List U8) [TcpReadErr StreamErr]
 readUpTo = \bytesToRead, stream ->
-    Effect.tcpReadUpTo bytesToRead stream
-    |> Effect.map InternalTcp.fromReadResult
-    |> InternalTask.fromEffect
+    readRes =
+        PlatformTasks.tcpReadUpTo bytesToRead stream
+            |> Task.mapErr! \_ -> crash "unreachable"
+
+    InternalTcp.fromReadResult readRes
+    |> Task.fromResult
     |> Task.mapErr TcpReadErr
 
 ## Read an exact number of bytes or fail.
@@ -96,20 +101,14 @@ readUpTo = \bytesToRead, stream ->
 ##
 readExactly : U64, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readExactly = \bytesToRead, stream ->
-    Effect.tcpReadExactly bytesToRead stream
-    |> Effect.map
-        (\result ->
-            when result is
-                Read bytes ->
-                    Ok bytes
+    readRes =
+        PlatformTasks.tcpReadExactly bytesToRead stream
+            |> Task.mapErr! \_ -> crash "unreachable"
 
-                UnexpectedEOF ->
-                    Err TcpUnexpectedEOF
-
-                Error err ->
-                    Err (TcpReadErr err)
-        )
-    |> InternalTask.fromEffect
+    when readRes is
+        Read bytes -> Task.ok bytes
+        UnexpectedEOF -> Task.err TcpUnexpectedEOF
+        Error err -> Task.err (TcpReadErr err)
 
 ## Read until a delimiter or EOF is reached.
 ##
@@ -122,11 +121,14 @@ readExactly = \bytesToRead, stream ->
 ##
 ## > To read until a newline is found, you can use [Tcp.readLine] which
 ## conveniently decodes to a [Str].
-readUntil : U8, Stream -> Task (List U8) [TcpReadErr StreamErr]
+readUntil : U8, Stream -> Task (List U8) [TcpReadErr StreamErr, TcpUnexpectedEOF]
 readUntil = \byte, stream ->
-    Effect.tcpReadUntil byte stream
-    |> Effect.map InternalTcp.fromReadResult
-    |> InternalTask.fromEffect
+    readRes =
+        PlatformTasks.tcpReadUntil byte stream
+            |> Task.mapErr! \_ -> crash "unreachable"
+
+    InternalTcp.fromReadResult readRes
+    |> Task.fromResult
     |> Task.mapErr TcpReadErr
 
 ## Read until a newline or EOF is reached.
@@ -139,7 +141,7 @@ readUntil = \byte, stream ->
 ##
 ## If found, the newline is included as the last character in the [Str].
 ##
-readLine : Stream -> Task Str [TcpReadErr StreamErr, TcpReadBadUtf8 _]
+readLine : Stream -> Task Str [TcpReadErr StreamErr, TcpReadBadUtf8 _, TcpUnexpectedEOF]
 readLine = \stream ->
     bytes = readUntil! '\n' stream
 
@@ -157,9 +159,12 @@ readLine = \stream ->
 ## > To write a [Str], you can use [Tcp.writeUtf8] instead.
 write : List U8, Stream -> Task {} [TcpWriteErr StreamErr]
 write = \bytes, stream ->
-    Effect.tcpWrite bytes stream
-    |> Effect.map InternalTcp.fromWriteResult
-    |> InternalTask.fromEffect
+    writeRes =
+        PlatformTasks.tcpWrite bytes stream
+            |> Task.mapErr! \_ -> crash "unreachable"
+
+    InternalTcp.fromWriteResult writeRes
+    |> Task.fromResult
     |> Task.mapErr TcpWriteErr
 
 ## Writes a [Str] to a TCP stream, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
