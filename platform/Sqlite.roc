@@ -45,12 +45,12 @@ module [
 ]
 
 import PlatformTasks
-import InternalSQL
+import InternalSql
 
-Value : InternalSQL.SqliteValue
-Code : InternalSQL.SqliteErrCode
+Value : InternalSql.SqliteValue
+Code : InternalSql.SqliteErrCode
 Error : [SqlError Code Str]
-Binding : InternalSQL.SqliteBindings
+Binding : InternalSql.SqliteBindings
 Stmt := Box {}
 
 prepareAndBind :
@@ -399,11 +399,11 @@ nullableF32 = nullableRealDecoder (\x -> Num.toF32 x |> Ok)
 # TODO: Mising Num.toDec and Num.toDecChecked
 # nullableDec = nullableRealDecoder Ok
 
-internalToExternalError : InternalSQL.SqliteError -> Error
+internalToExternalError : InternalSql.SqliteError -> Error
 internalToExternalError = \{ code, message } ->
     SqlError (codeFromI64 code) message
 
-codeFromI64 : I64 -> InternalSQL.SqliteErrCode
+codeFromI64 : I64 -> InternalSql.SqliteErrCode
 codeFromI64 = \code ->
     if code == 1 || code == 0 then
         ERROR
