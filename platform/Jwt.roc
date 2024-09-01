@@ -43,16 +43,16 @@ algoToU8 = \algo ->
         Hs256 -> 1
         Hs384 -> 2
         Hs512 -> 3
-        Rs256 -> 4
-        Rs384 -> 5
-        Rs512 -> 6
-        Es256 -> 7
-        Es384 -> 8
-        Es512 -> 9
-        Ps256 -> 10
-        Ps384 -> 11
-        Ps512 -> 12
-        Unsecured -> 13
+        #Rs256 -> 4
+        #Rs384 -> 5
+        #Rs512 -> 6
+        #Es256 -> 7
+        #Es384 -> 8
+        #Es512 -> 9
+        #Ps256 -> 10
+        #Ps384 -> 11
+        #Ps512 -> 12
+        #Unsecured -> 13
 
 verify : {
     algorithm : Algorithm,

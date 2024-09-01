@@ -11,8 +11,6 @@ server = { init, respond }
 respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \_, _ ->
 
-    Stdout.line! "Verify a Json Web Token (JWT)"
-
     # We hardcode the JWT here and ignore the request for simplicity, but normally this is how
     # you would decode the request body (assuming the token is in the body and not a URL param)
     # ```
@@ -90,6 +88,8 @@ init =
         |> Jwt.verify
         |> Task.await assertClaims
         |> Task.mapErr! \err -> Hs512TestErr err
+
+    Stdout.line! "All tests passed"
 
     Task.ok {}
 
