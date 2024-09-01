@@ -4,31 +4,39 @@ use roc_std::{RocList, RocResult, RocStr};
 use sha2::{Sha256, Sha384, Sha512};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(u8)]
+#[allow(dead_code)]
+pub enum Algo {
+    Hs256 = 0,
+    Hs384 = 1,
+    Hs512 = 2,
+}
+
+impl core::fmt::Debug for Algo {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Hs256 => f.write_str("Algo::Hs256"),
+            Self::Hs384 => f.write_str("Algo::Hs384"),
+            Self::Hs512 => f.write_str("Algo::Hs512"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct JWTFromRoc {
     secret: RocStr,
     token: RocStr,
-    algo: u8,
+    algo: Algo,
 }
 
 impl JWTFromRoc {
     fn algorithm(&self) -> AlgorithmType {
         match self.algo {
-            1 => AlgorithmType::Hs256,
-            2 => AlgorithmType::Hs384,
-            3 => AlgorithmType::Hs512,
-            4 => AlgorithmType::Rs256,
-            5 => AlgorithmType::Rs384,
-            6 => AlgorithmType::Rs512,
-            7 => AlgorithmType::Es256,
-            8 => AlgorithmType::Es384,
-            9 => AlgorithmType::Es512,
-            10 => AlgorithmType::Ps256,
-            11 => AlgorithmType::Ps384,
-            12 => AlgorithmType::Ps512,
-            13 => AlgorithmType::None,
-            _ => panic!("invalid algorithm from roc"),
+            Algo::Hs256 => AlgorithmType::Hs256,
+            Algo::Hs384 => AlgorithmType::Hs384,
+            Algo::Hs512 => AlgorithmType::Hs512,
         }
     }
 }

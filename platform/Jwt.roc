@@ -37,30 +37,13 @@ Algorithm : [
     # Unsecured,
 ]
 
-algoToU8 : Algorithm -> U8
-algoToU8 = \algo ->
-    when algo is
-        Hs256 -> 1
-        Hs384 -> 2
-        Hs512 -> 3
-        #Rs256 -> 4
-        #Rs384 -> 5
-        #Rs512 -> 6
-        #Es256 -> 7
-        #Es384 -> 8
-        #Es512 -> 9
-        #Ps256 -> 10
-        #Ps384 -> 11
-        #Ps512 -> 12
-        #Unsecured -> 13
-
 verify : {
     algorithm : Algorithm,
     secret : Str,
     token : Str,
 } -> Task (Dict Str Str) [JwtErr Err]_
-verify = \{algorithm, secret, token} ->
-    PlatformTasks.jwtVerify {algo: algoToU8 algorithm, secret, token}
+verify = \args ->
+    PlatformTasks.jwtVerify args
     |> Task.mapErr \err -> JwtErr (mapErrFromHost err)
     |> Task.map \claims ->
         claims

@@ -85,4 +85,4 @@ sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List In
 
 tempDir : Task (List U8) {}
 
-jwtVerify : { algo: U8, secret : Str, token : Str } -> Task (List {name: Str, value: Str}) Str
+jwtVerify : { algorithm : [Hs256, Hs384, Hs512], secret : Str, token : Str } -> Task (List {name: Str, value: Str}) Str
