@@ -55,10 +55,6 @@ respond = \_, _ ->
                 body: Str.toUtf8 message,
             }
 
-# TOSO restore tests after fixing the following error
-# ```
-# Error in alias analysis: error in module ModName("UserApp"), function definition FuncName("#\x00\x00\x00\x0b\x00\x00\x00w\x08\xf21\x00na\xb2"): expected type 'union { ((heap_cell,), ()), (union { (), (), (), (), (), (), (), (), ((heap_cell,),) },) }', found type 'union { (), (), (), (), (), (), (), (), ((heap_cell,),) }'
-# ```
 init : Task Model [ServerErr Str]_
 init =
 
