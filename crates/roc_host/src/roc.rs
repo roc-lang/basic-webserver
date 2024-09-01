@@ -20,6 +20,10 @@ use crate::http_client;
 use crate::roc_http::{self, ResponseToHost};
 use roc_app;
 
+thread_local! {
+    static AFTER_ROC_INIT: RefCell<bool> = RefCell::new(false);
+}
+
 // Externs required by roc_std and by the Roc app
 
 #[no_mangle]
@@ -905,14 +909,19 @@ fn sqlite_prepare(
     let heap = sqlite_stmt_heap();
     let alloc_result = heap.alloc_for(stmt);
     match alloc_result {
-        Ok(out) => {
-            // TODO: only make these constant if they escape init.
-            // That means they are part of the model.
-            // Can do this by tracking allocations and frees of SqliteStatement during init.
-            let rc_ptr = ThreadSafeRefcountedResourceHeap::<SqliteStatement>::box_to_refcount(&out);
-            *rc_ptr = 0;
-            RocResult::ok(out)
-        }
+        Ok(out) => AFTER_ROC_INIT.with(|is_after_roc_init| {
+            if *is_after_roc_init.borrow() {
+                RocResult::ok(out)
+            } else {
+                // Set the refcount to zero so that this statement won't be deallocated as this was created
+                // during roc init.
+                let rc_ptr =
+                    ThreadSafeRefcountedResourceHeap::<SqliteStatement>::box_to_refcount(&out);
+                *rc_ptr = 0;
+
+                RocResult::ok(out)
+            }
+        }),
         Err(_) => RocResult::err(roc_app::SqliteError {
             code: sqlite3_sys::SQLITE_NOMEM as i64,
             message: "Ran out of memory allocating space for statement".into(),
@@ -1175,6 +1184,8 @@ pub fn call_roc_init() -> Model {
 
         // deallocate captures
         std::alloc::dealloc(captures_ptr, captures_layout);
+
+        AFTER_ROC_INIT.replace(true);
 
         match result.into() {
             Err(exit_code) => {
