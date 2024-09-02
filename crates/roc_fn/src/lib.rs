@@ -145,8 +145,8 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     },
     HostedFn {
         name: "jwtVerify",
-        arg_types: &["&JWTFromRoc"],
-        ret_type: "roc_std::RocResult<roc_std::RocList<JWTToRoc>, JwtErr>",
+        arg_types: &["&FromRocJwt"],
+        ret_type: "roc_std::RocResult<roc_std::RocList<ToRocJwtClaims>, ToRocJwtErr>",
     },
     ];
 

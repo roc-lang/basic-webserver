@@ -28,7 +28,7 @@ respond = \_, _ ->
         |> Result.try \decodedBody -> decodedBody |> Dict.get "id_token"
         |> Result.withDefault "TOKEN MISSING"
 
-    when Jwt.verify { secret: "shhh_very_secret", algorithm: Hs256, token } |> Task.result! is
+    when Jwt.verify { secret: "shhh_very_secret", token } |> Task.result! is
         Err (JwtErr err) ->
             Task.ok {
                 status: 200,
@@ -56,32 +56,42 @@ respond = \_, _ ->
 init : Task Model [ServerErr Str]_
 init =
 
+    examplePEM =
+        """
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
+        4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u
+        +qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh
+        kd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ
+        0iT9wCS0DRTXu269V264Vf/3jvredZiKRkgwlL9xNAwxXFg0x/XFw005UWVRIkdg
+        cKWTjpBP2dPwVZ4WWC+9aGVd+Gyn1o0CLelf4rEjGoXbAAEgAqeGUxrcIlbjXfbc
+        mwIDAQAB
+        -----END PUBLIC KEY-----
+        """
+
     {
         secret: "shhh_very_secret",
-        algorithm: Hs256,
         token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o",
     }
         |> Jwt.verify
         |> Task.await assertClaims
-        |> Task.mapErr! \err -> Hs256TestErr err
+        |> Task.mapErr! \err -> HS256TestErr err
 
     {
         secret: "shhh_very_secret",
-        algorithm: Hs384,
         token: "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.i4IWr5r6Q597a6yCTJsvlkhHlt_AB1FP72Pd29hoelY32rfX0xT7KnVPf_UNaugJ",
     }
         |> Jwt.verify
         |> Task.await assertClaims
-        |> Task.mapErr! \err -> Hs384TestErr err
+        |> Task.mapErr! \err -> HS384TestErr err
 
     {
-        secret: "shhh_very_secret",
-        algorithm: Hs512,
-        token: "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.4ZkXv8eVAJZI2BzlEp0RBHPOPoDp-wLoJEj-hSHZvaBpnDIlIcK_XsUBf9hJ3MFikbqBgtAwMA1aq_k15IcVlg",
+        secret: examplePEM,
+        token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.Eci61G6w4zh_u9oOCk_v1M_sKcgk0svOmW4ZsL-rt4ojGUH2QY110bQTYNwbEVlowW7phCg7vluX_MCKVwJkxJT6tMk2Ij3Plad96Jf2G2mMsKbxkC-prvjvQkBFYWrYnKWClPBRCyIcG0dVfBvqZ8Mro3t5bX59IKwQ3WZ7AtGBYz5BSiBlrKkp6J1UmP_bFV3eEzIHEFgzRa3pbr4ol4TK6SnAoF88rLr2NhEz9vpdHglUMlOBQiqcZwqrI-Z4XDyDzvnrpujIToiepq9bCimPgVkP54VoZzy-mMSGbthYpLqsL_4MQXaI1Uf_wKFAUuAtzVn4-ebgsKOpvKNzVA",
     }
         |> Jwt.verify
         |> Task.await assertClaims
-        |> Task.mapErr! \err -> Hs512TestErr err
+        |> Task.mapErr! \err -> RS512TestErr err
 
     Stdout.line! "All tests passed"
 
@@ -100,7 +110,7 @@ assertClaims : Dict Str Str -> Task {} _
 assertClaims = \claims ->
     when (Dict.get claims "sub", Dict.get claims "name", Dict.get claims "iat") is
         (Ok sub, Ok name, Ok iat) ->
-            if sub == "\"1234567890\"" && name == "\"John Doe\"" && iat == "1516239022" then
+            if sub == "1234567890" && name == "John Doe" && iat == "1516239022" then
                 Task.ok {}
             else
                 Task.err IncorrectClaims

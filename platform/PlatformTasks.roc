@@ -86,6 +86,7 @@ sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List In
 
 tempDir : Task (List U8) {}
 
+# Json Web Token
 JwtErr : [
     AlgorithmMismatch,
     InvalidSignature,
@@ -97,4 +98,5 @@ JwtErr : [
     MissingSignature,
     Other Str,
 ]
-jwtVerify : { algorithm : [Hs256, Hs384, Hs512], secret : Str, token : Str } -> Task (List {name: Str, value: Str}) JwtErr
+
+jwtVerify : { secret : Str, token : Str } -> Task (List {name: Str, value: Str}) JwtErr

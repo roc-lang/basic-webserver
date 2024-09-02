@@ -1,5 +1,5 @@
 #![allow(non_snake_case)]
-use crate::json_web_token::{JWTFromRoc, JWTToRoc, JwtErr};
+use crate::json_web_token::{FromRocJwt, ToRocJwtClaims, ToRocJwtErr};
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -947,8 +947,8 @@ pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
 }
 
 #[roc_fn(name = "jwtVerify")]
-pub extern "C" fn jwt_verify(jwt: &JWTFromRoc) -> RocResult<RocList<JWTToRoc>, JwtErr> {
-    crate::json_web_token::jwt_verify(jwt)
+pub extern "C" fn jwt_verify(jwt: &FromRocJwt) -> RocResult<RocList<ToRocJwtClaims>, ToRocJwtErr> {
+    crate::json_web_token::jwt_verify(jwt).into()
 }
 
 #[derive(Debug)]
