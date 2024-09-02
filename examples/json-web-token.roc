@@ -14,12 +14,12 @@ respond = \_, _ ->
     # We hardcode the JWT here and ignore the request for simplicity, but normally this is how
     # you would decode the request body (assuming the token is in the body and not a URL param)
     # ```
+    # exampleBody : Result (Dict Str Str) _
     # exampleBody = Http.parseFormUrlEncoded req.body
     # ```
     exampleBody : Result (Dict Str Str) _
     exampleBody =
-        Dict.empty {}
-        |> Dict.insert "id_token" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o"
+        Dict.single "id_token" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o"
         |> Ok
 
     token : Str
@@ -39,9 +39,7 @@ respond = \_, _ ->
             }
 
         Ok claims ->
-            sub = claims |> Dict.get "sub" |> Result.withDefault "SUBJECT CLAIM MISSING"
-            name = claims |> Dict.get "name" |> Result.withDefault "NAME MISSING"
-            iat = claims |> Dict.get "iat" |> Result.withDefault "TIME FIELD MISSING"
+            { sub, name, iat } = getClaims claims |> Task.fromResult!
 
             message = "Decoded JWT\nsubject: $(sub)\nname: $(name)\nissued at: $(iat)\n"
 
@@ -88,6 +86,15 @@ init =
     Stdout.line! "All tests passed"
 
     Task.ok {}
+
+getClaims : Dict Str Str -> Result { sub : Str, name : Str, iat : Str } [MissingSubject, MissingName, MissingTimeIssued]
+getClaims = \claims ->
+
+    sub = claims |> Dict.get "sub" |> Result.mapErr? \KeyNotFound -> MissingSubject
+    name = claims |> Dict.get "name" |> Result.mapErr? \KeyNotFound -> MissingName
+    iat = claims |> Dict.get "iat" |> Result.mapErr? \KeyNotFound -> MissingTimeIssued
+
+    Ok { sub, name, iat }
 
 assertClaims : Dict Str Str -> Task {} _
 assertClaims = \claims ->
