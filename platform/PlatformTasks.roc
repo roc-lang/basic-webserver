@@ -27,6 +27,7 @@ hosted PlatformTasks
         commandOutput,
         sqliteExecute,
         tempDir,
+        JwtErr,
         jwtVerify,
     ]
     imports []
@@ -85,4 +86,15 @@ sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List In
 
 tempDir : Task (List U8) {}
 
-jwtVerify : { algorithm : [Hs256, Hs384, Hs512], secret : Str, token : Str } -> Task (List {name: Str, value: Str}) Str
+JwtErr : [
+    AlgorithmMismatch,
+    InvalidSignature,
+    BadFormat,
+    BadJson,
+    MissingClaims,
+    MissingHeader,
+    MissingKeyId,
+    MissingSignature,
+    Other Str,
+]
+jwtVerify : { algorithm : [Hs256, Hs384, Hs512], secret : Str, token : Str } -> Task (List {name: Str, value: Str}) JwtErr

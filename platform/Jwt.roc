@@ -6,17 +6,7 @@ module [
 
 import PlatformTasks
 
-Err : [
-    AlgorithmMismatch,
-    InvalidSignature,
-    BadFormat,
-    BadJson,
-    MissingClaims,
-    MissingHeader,
-    MissingKeyId,
-    MissingSignature,
-    Other Str,
-]
+Err : PlatformTasks.JwtErr
 
 Algorithm : [
     Hs256,
@@ -37,36 +27,17 @@ Algorithm : [
     # Unsecured,
 ]
 
-verify : {
-    algorithm : Algorithm,
-    secret : Str,
-    token : Str,
-} -> Task (Dict Str Str) [JwtErr Err]_
+verify :
+    {
+        algorithm : Algorithm,
+        secret : Str,
+        token : Str,
+    }
+    -> Task (Dict Str Str) [JwtErr Err]_
 verify = \args ->
     PlatformTasks.jwtVerify args
-    |> Task.mapErr \err -> JwtErr (mapErrFromHost err)
+    |> Task.mapErr \err -> JwtErr err
     |> Task.map \claims ->
         claims
-        |> List.map \{name, value} -> (name, value)
+        |> List.map \{ name, value } -> (name, value)
         |> Dict.fromList
-
-# we can return a Str from the host, and prepend
-# it with a magic number for each variant
-mapErrFromHost : Str -> Err
-mapErrFromHost = \err ->
-    if err == "AlgorithmMismatch" then
-        AlgorithmMismatch
-    else if err == "InvalidSignature" then
-        InvalidSignature
-    else if err == "BadFormat" then
-        BadFormat
-    else if err == "BadJson" then
-        BadJson
-    else if err == "MissingClaims" then
-        MissingClaims
-    else if err == "MissingHeader" then
-        MissingHeader
-    else if err == "MissingKeyId" then
-        MissingKeyId
-    else
-        Other err
