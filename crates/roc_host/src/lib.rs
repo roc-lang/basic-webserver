@@ -1,3 +1,4 @@
+mod heap;
 mod http_client;
 mod http_server;
 mod json_web_token;

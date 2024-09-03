@@ -25,10 +25,15 @@ hosted PlatformTasks
         sleepMillis,
         commandStatus,
         commandOutput,
-        sqliteExecute,
         tempDir,
         JwtErr,
         jwtVerify,
+        sqlitePrepare,
+        sqliteBind,
+        sqliteColumns,
+        sqliteColumnValue,
+        sqliteStep,
+        sqliteReset,
     ]
     imports []
 
@@ -37,7 +42,7 @@ import InternalFile
 import InternalTcp
 import InternalCommand
 import InternalError
-import InternalSQL
+import InternalSql
 
 # Stdout
 stdoutLine : Str -> Task {} Str
@@ -81,8 +86,13 @@ sleepMillis : U64 -> Task {} {}
 commandStatus : Box InternalCommand.InternalCommand -> Task {} InternalCommand.InternalCommandErr
 commandOutput : Box InternalCommand.InternalCommand -> Task InternalCommand.InternalOutput {}
 
-# SQLite3
-sqliteExecute : Str, Str, List InternalSQL.SQLiteBindings -> Task (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError
+# Sqlite
+sqlitePrepare : Str, Str -> Task (Box {}) InternalSql.SqliteError
+sqliteBind : Box {}, List InternalSql.SqliteBindings -> Task {} InternalSql.SqliteError
+sqliteColumns : Box {} -> Task (List Str) {}
+sqliteColumnValue : Box {}, U64 -> Task InternalSql.SqliteValue InternalSql.SqliteError
+sqliteStep : Box {} -> Task InternalSql.SqliteState InternalSql.SqliteError
+sqliteReset : Box {} -> Task {} InternalSql.SqliteError
 
 tempDir : Task (List U8) {}
 
