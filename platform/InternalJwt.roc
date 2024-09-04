@@ -1,6 +1,5 @@
 module [
     Token,
-    DecodingKey,
     Header,
     Claim,
     Validation,
@@ -29,10 +28,6 @@ Algorithm : [
     PS512,
     EdDSA,
 ]
-
-# A boxed [jsonwebtoken::DecodingKey](https://docs.rs/jsonwebtoken/latest/jsonwebtoken/struct.DecodingKey.html)
-# stored in a threadsafe refcounted heap
-DecodingKey := Box {}
 
 # [jsonwebtoken::Header](https://docs.rs/jsonwebtoken/latest/jsonwebtoken/struct.Header.html)
 Header : {

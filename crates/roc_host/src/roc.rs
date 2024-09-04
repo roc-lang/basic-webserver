@@ -1263,11 +1263,9 @@ pub fn call_roc_respond(
     }
 }
 
-fn jwt_key_heap(
-) -> &'static ThreadSafeRefcountedResourceHeap<ManuallyDrop<jsonwebtoken::DecodingKey>> {
-    static JWT_KEY_HEAP: OnceLock<
-        ThreadSafeRefcountedResourceHeap<ManuallyDrop<jsonwebtoken::DecodingKey>>,
-    > = OnceLock::new();
+fn jwt_key_heap() -> &'static ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey> {
+    static JWT_KEY_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey>> =
+        OnceLock::new();
 
     JWT_KEY_HEAP.get_or_init(|| {
         let default_max = 50;
@@ -1286,7 +1284,7 @@ pub extern "C" fn jwtDecodingKeyFromSimpleSecret(
 ) -> RocResult<RocBox<()>, glue_internal_jwt::JwtErr> {
     let key = jsonwebtoken::DecodingKey::from_secret(secret.as_bytes());
     let heap = jwt_key_heap();
-    let alloc_result = heap.alloc_for(ManuallyDrop::new(key));
+    let alloc_result = heap.alloc_for(key);
     match alloc_result {
         Ok(out) => RocResult::ok(out),
         Err(_) => RocResult::err(glue_internal_jwt::JwtErr::Other(
@@ -1296,14 +1294,13 @@ pub extern "C" fn jwtDecodingKeyFromSimpleSecret(
 }
 
 #[roc_fn(name = "jwtDecodingKeyFromRsaPem")]
-pub extern "C" fn jwtDecodingKeyFromRsaPem(
-    secret: &RocStr,
-) -> RocResult<RocBox<()>, glue_internal_jwt::JwtErr> {
+pub extern "C" fn jwtDecodingKeyFromRsaPem(secret: &RocStr) -> RocResult<RocBox<()>, ()> {
     dbg!(&secret);
 
     let key = match jsonwebtoken::DecodingKey::from_rsa_pem(secret.as_bytes()) {
-        Ok(key) => ManuallyDrop::new(key),
-        Err(err) => return RocResult::err(dbg!(jwt_err_to_roc(err))),
+        Ok(key) => key,
+        // Err(err) => return RocResult::err(dbg!(jwt_err_to_roc(err))),
+        Err(err) => return RocResult::err(()),
     };
 
     dbg!("IN HERE");
@@ -1311,10 +1308,11 @@ pub extern "C" fn jwtDecodingKeyFromRsaPem(
     let heap = jwt_key_heap();
     let alloc_result = heap.alloc_for(key);
     match alloc_result {
-        Ok(out) => RocResult::ok(out),
-        Err(_) => RocResult::err(glue_internal_jwt::JwtErr::Other(
-            "Ran out of memory allocating space for DecodingKey".into(),
-        )),
+        Ok(out) => dbg!(RocResult::ok(out)),
+        Err(_) => RocResult::err(()),
+        // Err(_) => RocResult::err(glue_internal_jwt::JwtErr::Other(
+        //     "Ran out of memory allocating space for DecodingKey".into(),
+        // )),
     }
 }
 

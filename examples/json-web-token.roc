@@ -56,15 +56,15 @@ respond = \_, _ ->
 
 init : Task Model [ServerErr Str]_
 init =
-    token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNjE2MjM5MDIyfQ.OgPG5wxM-U07VyOHf77ZKQvISflwjygcV1eC6-9T99sByIQe7czrTlJdV-zBsdeK4HeybHAWchRjem7d4LyZftArQQKI9J2dtno6FDCtOA1UslqaklEP7xpAMctgSZwxP678hdXO1-JUPWH29euUy-oDyb5p1YX3Qir3QXHhuPWogRHGnXlqtredOCtI_izZ_8DF6N3sU7KZPkJ70mOmEU7vYj6zfv53VYhcwSmzGq_UHghzI5OBXdaFUhBoLFbqiIPz8HNfr1LKNhA-ZcJkysilO5YXbxTZ23mH8tX9PnOYaJOCNxLsfMjZtCudHs6t_tBQJjVw9i5JpHjVT2znIg"
+    #token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNjE2MjM5MDIyfQ.OgPG5wxM-U07VyOHf77ZKQvISflwjygcV1eC6-9T99sByIQe7czrTlJdV-zBsdeK4HeybHAWchRjem7d4LyZftArQQKI9J2dtno6FDCtOA1UslqaklEP7xpAMctgSZwxP678hdXO1-JUPWH29euUy-oDyb5p1YX3Qir3QXHhuPWogRHGnXlqtredOCtI_izZ_8DF6N3sU7KZPkJ70mOmEU7vYj6zfv53VYhcwSmzGq_UHghzI5OBXdaFUhBoLFbqiIPz8HNfr1LKNhA-ZcJkysilO5YXbxTZ23mH8tX9PnOYaJOCNxLsfMjZtCudHs6t_tBQJjVw9i5JpHjVT2znIg"
 
     #dbg token
 
-    validation = { Jwt.defaultValidation & algorithms: [RS256] }
+    #validation = { Jwt.defaultValidation & algorithms: [RS256] }
 
     #dbg validation
 
-    key = Jwt.decodingKeyFromRsaPem!
+    _ = Jwt.decodingKeyFromRsaPem
         """
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
@@ -76,8 +76,7 @@ init =
         mwIDAQAB
         -----END PUBLIC KEY-----
         """
-
-    dbg key
+        |> Task.onErr! \{} -> crash "got an error"
 
     # decodedToken = Jwt.decode! { token, key, validation }
     # dbg decodedToken

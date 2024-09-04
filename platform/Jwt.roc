@@ -38,8 +38,8 @@ defaultValidation = InternalJwt.defaultValidation
 ##
 ## This should be created once and reused multiple times to improve performance.
 DecodingKey := [
-    Simple InternalJwt.DecodingKey Str,
-    RsaPem InternalJwt.DecodingKey Str,
+    Simple (Box {}) Str,
+    RsaPem (Box {}) Str,
 ]
     implements [
         Inspect { toInspector: decodingKeyInspector },
@@ -51,7 +51,7 @@ decodingKeyInspector = \@DecodingKey _ -> Inspect.str "****JWT SECRET REDACTED**
 
 # We wrapped the key in an opaque type, but we need to provide the
 # pointer to the underlying decoding key for the host to use.
-unwrapDecodingKey : DecodingKey -> InternalJwt.DecodingKey
+unwrapDecodingKey : DecodingKey -> Box {}
 unwrapDecodingKey = \@DecodingKey key ->
     when key is
         Simple k _ -> k
@@ -64,7 +64,7 @@ decodingKeyFromSecret = \secret ->
     |> Task.map \key -> @DecodingKey (Simple key secret)
 
 ## Create a decoding key from a RSA private key in PEM format
-decodingKeyFromRsaPem : Str -> Task DecodingKey Err
+decodingKeyFromRsaPem : Str -> Task DecodingKey {}
 decodingKeyFromRsaPem = \secret ->
     PlatformTasks.jwtDecodingKeyFromRsaPem secret
     |> Task.map \key -> @DecodingKey (RsaPem key secret)
