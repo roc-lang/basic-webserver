@@ -168,21 +168,21 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         arg_types: &["roc_std::RocBox<()>"],
         ret_type: "roc_std::RocResult<(), roc_app::SqliteError>",
     },
-    HostedFn {
-        name: "jwtDecodingKeyFromSimpleSecret",
-        arg_types: &["&RocStr"],
-        ret_type: "roc_std::RocResult<RocBox<()>, glue_internal_jwt::JwtErr>",
-    },
+    // HostedFn {
+    //     name: "jwtDecodingKeyFromSimpleSecret",
+    //     arg_types: &["&RocStr"],
+    //     ret_type: "roc_std::RocResult<RocBox<()>, glue_internal_jwt::JwtErr>",
+    // },
     HostedFn {
         name: "jwtDecodingKeyFromRsaPem",
         arg_types: &["&RocStr"],
         ret_type: "roc_std::RocResult<RocBox<()>, ()>",
     },
-    HostedFn {
-        name: "jwtDecode",
-        arg_types: &["&RocStr", "&RocBox<()>", "&glue_internal_jwt::Validation"],
-        ret_type: "roc_std::RocResult<glue_internal_jwt::Token, glue_internal_jwt::JwtErr>",
-    },
+    // HostedFn {
+    //     name: "jwtDecode",
+    //     arg_types: &["&RocStr", "&RocBox<()>", "&glue_internal_jwt::Validation"],
+    //     ret_type: "roc_std::RocResult<glue_internal_jwt::Token, glue_internal_jwt::JwtErr>",
+    // },
     ];
 
 fn find_hosted_fn_by_name(name: &str) -> Option<HostedFn> {

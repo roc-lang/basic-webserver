@@ -1,6 +1,6 @@
 app [Model, server] { pf: platform "../platform/main.roc" }
 
-import pf.Stdout
+#import pf.Stdout
 import pf.Http exposing [Request, Response]
 import pf.Jwt
 
@@ -76,11 +76,11 @@ init =
         mwIDAQAB
         -----END PUBLIC KEY-----
         """
-        |> Task.onErr! \{} -> crash "got an error"
+        |> Task.onErr! \{} -> crash "Jwt.decodingKeyFromRsaPem returned an error!!"
 
     # decodedToken = Jwt.decode! { token, key, validation }
     # dbg decodedToken
-    Task.err TODO
+    Task.ok {}
 
 #    {
 #        secret: "shhh_very_secret",
