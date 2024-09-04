@@ -1,3 +1,4 @@
+mod glue_internal_jwt;
 mod heap;
 mod http_client;
 mod http_server;

@@ -1303,5 +1303,5 @@ pub extern "C" fn jwtDecodingKeyFromRsaPem(secret: &RocStr) -> RocResult<RocBox<
 }
 
 fn jwt_err_to_roc(_err: jsonwebtoken::errors::Error) -> RocStr {
-    "TODO".into()
+    "TODO MAP ERRORS FROM jsonwebtoken to RocStr".into()
 }

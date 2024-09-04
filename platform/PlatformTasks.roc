@@ -35,9 +35,9 @@ hosted PlatformTasks
         sqliteReset,
 
         # Json Web Token
-        JwtDecodingKey,
         jwtDecodingKeyFromSimpleSecret,
         jwtDecodingKeyFromRsaPem,
+        jwtDecode,
     ]
     imports []
 
@@ -47,6 +47,7 @@ import InternalTcp
 import InternalCommand
 import InternalError
 import InternalSql
+import InternalJwt
 
 # Stdout
 stdoutLine : Str -> Task {} Str
@@ -102,9 +103,7 @@ tempDir : Task (List U8) {}
 
 # Json Web Token
 
-
 # TODO use an error union https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html
-
-JwtDecodingKey := Box {}
-jwtDecodingKeyFromSimpleSecret : Str -> Task JwtDecodingKey Str
-jwtDecodingKeyFromRsaPem : Str -> Task JwtDecodingKey Str
+jwtDecodingKeyFromSimpleSecret : Str -> Task InternalJwt.DecodingKey InternalJwt.Err
+jwtDecodingKeyFromRsaPem : Str -> Task InternalJwt.DecodingKey InternalJwt.Err
+jwtDecode : Str, InternalJwt.DecodingKey, InternalJwt.Validation -> Task InternalJwt.Token InternalJwt.Err

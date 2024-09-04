@@ -1,13 +1,45 @@
 module [
+    Err,
+    Token,
+    decode,
+
+    Header,
+    Claim,
+    Validation,
+    defaultValidation,
+
     DecodingKey,
     decodingKeyFromSecret,
     decodingKeyFromRsaPem,
 ]
 
 import PlatformTasks
+import InternalJwt
 
+Err : InternalJwt.Err
+Token : InternalJwt.Token
+Header : InternalJwt.Header
+Claim : InternalJwt.Claim
+
+## Validation options for the JWT
+## refer to [docs.rs/jsonwebtoken](https://docs.rs/jsonwebtoken/latest/jsonwebtoken/struct.Validation.html) for more detailed information
+Validation : InternalJwt.Validation
+
+## Default values for validation options
+##
+## Example:
+## ```
+## validation = { Jwt.defaultValidation & audience: "https://roc-lang.org" }
+## ```
+defaultValidation : Validation
+defaultValidation = InternalJwt.defaultValidation
+
+## A secret key used to decode a JWT.
+##
+## This should be created once and reused multiple times to improve performance.
 DecodingKey := [
-    Simple PlatformTasks.JwtDecodingKey Str,
+    Simple InternalJwt.DecodingKey Str,
+    RsaPem InternalJwt.DecodingKey Str,
 ]
     implements [
         Inspect { toInspector: decodingKeyInspector },
@@ -17,18 +49,33 @@ DecodingKey := [
 decodingKeyInspector : DecodingKey -> Inspector f where f implements InspectFormatter
 decodingKeyInspector = \@DecodingKey _ -> Inspect.str "****JWT SECRET REDACTED****"
 
-# TODO use an error union https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html
+# We wrapped the key in an opaque type, but we need to provide the
+# pointer to the underlying decoding key for the host to use.
+unwrapDecodingKey : DecodingKey -> InternalJwt.DecodingKey
+unwrapDecodingKey = \@DecodingKey key ->
+    when key is
+        Simple k _ -> k
+        RsaPem k _ -> k
 
 ## Create a decoding key from a secret string
-decodingKeyFromSecret : Str -> Task DecodingKey [JwtErr Str]
+decodingKeyFromSecret : Str -> Task DecodingKey Err
 decodingKeyFromSecret = \secret ->
     PlatformTasks.jwtDecodingKeyFromSimpleSecret secret
     |> Task.map \key -> @DecodingKey (Simple key secret)
-    |> Task.mapErr \err -> JwtErr err
 
 ## Create a decoding key from a RSA private key in PEM format
-decodingKeyFromRsaPem : Str -> Task DecodingKey [JwtErr Str]
+decodingKeyFromRsaPem : Str -> Task DecodingKey Err
 decodingKeyFromRsaPem = \secret ->
     PlatformTasks.jwtDecodingKeyFromRsaPem secret
-    |> Task.map \key -> @DecodingKey (Simple key secret)
-    |> Task.mapErr \err -> JwtErr err
+    |> Task.map \key -> @DecodingKey (RsaPem key secret)
+
+## Decode and validate JWT token
+decode :
+    {
+        token : Str,
+        key : DecodingKey,
+        validation : Validation,
+    }
+    -> Task Token Err
+decode = \{ token, key, validation } ->
+    PlatformTasks.jwtDecode token (unwrapDecodingKey key) validation
