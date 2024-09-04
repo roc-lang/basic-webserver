@@ -1,5 +1,5 @@
 #![allow(non_snake_case)]
-use crate::json_web_token::{FromRocJwt, ToRocJwtClaims, ToRocJwtErr};
+// use crate::json_web_token::{FromRocJwt, ToRocJwtClaims, ToRocJwtErr};
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -41,11 +41,18 @@ pub unsafe extern "C" fn roc_realloc(
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
     // If this happens to be a boxed sqlite stmt free the stmt.
-    let heap = sqlite_stmt_heap();
-    if heap.in_range(c_ptr) {
-        heap.dealloc(c_ptr);
+    let stmt_heap = sqlite_stmt_heap();
+    if stmt_heap.in_range(c_ptr) {
+        stmt_heap.dealloc(c_ptr);
         return;
     }
+
+    let jwt_heap = jwt_key_heap();
+    if jwt_heap.in_range(c_ptr) {
+        jwt_heap.dealloc(c_ptr);
+        return;
+    }
+
     libc::free(c_ptr);
 }
 
@@ -1095,11 +1102,6 @@ pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
     RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
 }
 
-#[roc_fn(name = "jwtVerify")]
-pub extern "C" fn jwt_verify(jwt: &FromRocJwt) -> RocResult<RocList<ToRocJwtClaims>, ToRocJwtErr> {
-    crate::json_web_token::jwt_verify(jwt).into()
-}
-
 #[derive(Debug)]
 pub struct Model {
     model: RocBox<()>,
@@ -1257,4 +1259,49 @@ pub fn call_roc_respond(
 
         Ok(result)
     }
+}
+
+fn jwt_key_heap() -> &'static ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey> {
+    static JWT_KEY_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey>> =
+        OnceLock::new();
+
+    JWT_KEY_HEAP.get_or_init(|| {
+        let default_max = 50;
+        let max_stmts = env::var("ROC_BASIC_WEBSERVER_MAX_JWT_DECODING_KEYS")
+            .map(|v| v.parse().unwrap_or(default_max))
+            .unwrap_or(default_max);
+
+        ThreadSafeRefcountedResourceHeap::new(max_stmts)
+            .expect("Failed to allocate mmap for jwt decoding key references.")
+    })
+}
+
+#[roc_fn(name = "jwtDecodingKeyFromSimpleSecret")]
+pub extern "C" fn jwtDecodingKeyFromSimpleSecret(secret: &RocStr) -> RocResult<RocBox<()>, RocStr> {
+    let key = jsonwebtoken::DecodingKey::from_secret(secret.as_bytes());
+    let heap = jwt_key_heap();
+    let alloc_result = heap.alloc_for(key);
+    match alloc_result {
+        Ok(out) => RocResult::ok(out),
+        Err(_) => RocResult::err("Ran out of memory allocating space for statement".into()),
+    }
+}
+
+#[roc_fn(name = "jwtDecodingKeyFromRsaPem")]
+pub extern "C" fn jwtDecodingKeyFromRsaPem(secret: &RocStr) -> RocResult<RocBox<()>, RocStr> {
+    let key = match jsonwebtoken::DecodingKey::from_rsa_pem(secret.as_bytes()) {
+        Ok(key) => key,
+        Err(err) => return RocResult::err(jwt_err_to_roc(err)),
+    };
+
+    let heap = jwt_key_heap();
+    let alloc_result = heap.alloc_for(key);
+    match alloc_result {
+        Ok(out) => RocResult::ok(out),
+        Err(_) => RocResult::err("Ran out of memory allocating space for statement".into()),
+    }
+}
+
+fn jwt_err_to_roc(_err: jsonwebtoken::errors::Error) -> RocStr {
+    "TODO".into()
 }

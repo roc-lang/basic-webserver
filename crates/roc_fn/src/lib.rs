@@ -169,9 +169,14 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
         ret_type: "roc_std::RocResult<(), roc_app::SqliteError>",
     },
     HostedFn {
-        name: "jwtVerify",
-        arg_types: &["&FromRocJwt"],
-        ret_type: "roc_std::RocResult<roc_std::RocList<ToRocJwtClaims>, ToRocJwtErr>",
+        name: "jwtDecodingKeyFromSimpleSecret",
+        arg_types: &["&RocStr"],
+        ret_type: "roc_std::RocResult<RocBox<()>, RocStr>",
+    },
+    HostedFn {
+        name: "jwtDecodingKeyFromRsaPem",
+        arg_types: &["&RocStr"],
+        ret_type: "roc_std::RocResult<RocBox<()>, RocStr>",
     },
     ];
 

@@ -1,42 +1,34 @@
 module [
-    Err,
-    Algorithm,
-    verify,
+    DecodingKey,
+    decodingKeyFromSecret,
+    decodingKeyFromRsaPem,
 ]
 
 import PlatformTasks
 
-Err : PlatformTasks.JwtErr
-
-Algorithm : [
-    HS256,
-    HS384,
-    HS512,
-    RS256,
-    RS384,
-    RS512,
-    # TODO add support for other algorithms
-    # See https://docs.rs/jwt/0.16.0/jwt/index.html for more information
-    # Note: at this time, by default only the `hmac` crate’s Hmac type is supported.
-    # Es256,
-    # Es384,
-    # Es512,
-    # Ps256,
-    # Ps384,
-    # Ps512,
-    # Unsecured,
+DecodingKey := [
+    Simple PlatformTasks.JwtDecodingKey Str,
 ]
+    implements [
+        Inspect { toInspector: decodingKeyInspector },
+    ]
 
-verify :
-    {
-        secret : Str,
-        token : Str,
-    }
-    -> Task (Dict Str Str) [JwtErr Err]_
-verify = \args ->
-    PlatformTasks.jwtVerify args
+# Redact the secret from the inspect output to prevent leaking it in logs
+decodingKeyInspector : DecodingKey -> Inspector f where f implements InspectFormatter
+decodingKeyInspector = \@DecodingKey _ -> Inspect.str "****JWT SECRET REDACTED****"
+
+# TODO use an error union https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html
+
+## Create a decoding key from a secret string
+decodingKeyFromSecret : Str -> Task DecodingKey [JwtErr Str]
+decodingKeyFromSecret = \secret ->
+    PlatformTasks.jwtDecodingKeyFromSimpleSecret secret
+    |> Task.map \key -> @DecodingKey (Simple key secret)
     |> Task.mapErr \err -> JwtErr err
-    |> Task.map \claims ->
-        claims
-        |> List.map \{ name, value } -> (name, value)
-        |> Dict.fromList
+
+## Create a decoding key from a RSA private key in PEM format
+decodingKeyFromRsaPem : Str -> Task DecodingKey [JwtErr Str]
+decodingKeyFromRsaPem = \secret ->
+    PlatformTasks.jwtDecodingKeyFromRsaPem secret
+    |> Task.map \key -> @DecodingKey (Simple key secret)
+    |> Task.mapErr \err -> JwtErr err

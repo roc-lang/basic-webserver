@@ -26,14 +26,18 @@ hosted PlatformTasks
         commandStatus,
         commandOutput,
         tempDir,
-        JwtErr,
-        jwtVerify,
+
         sqlitePrepare,
         sqliteBind,
         sqliteColumns,
         sqliteColumnValue,
         sqliteStep,
         sqliteReset,
+
+        # Json Web Token
+        JwtDecodingKey,
+        jwtDecodingKeyFromSimpleSecret,
+        jwtDecodingKeyFromRsaPem,
     ]
     imports []
 
@@ -97,16 +101,10 @@ sqliteReset : Box {} -> Task {} InternalSql.SqliteError
 tempDir : Task (List U8) {}
 
 # Json Web Token
-JwtErr : [
-    AlgorithmMismatch,
-    InvalidSignature,
-    BadFormat,
-    BadJson,
-    MissingClaims,
-    MissingHeader,
-    MissingKeyId,
-    MissingSignature,
-    Other Str,
-]
 
-jwtVerify : { secret : Str, token : Str } -> Task (List {name: Str, value: Str}) JwtErr
+
+# TODO use an error union https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html
+
+JwtDecodingKey := Box {}
+jwtDecodingKeyFromSimpleSecret : Str -> Task JwtDecodingKey Str
+jwtDecodingKeyFromRsaPem : Str -> Task JwtDecodingKey Str

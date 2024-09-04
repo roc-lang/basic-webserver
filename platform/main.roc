@@ -18,6 +18,7 @@ platform "webserver"
         Sleep,
         Command,
         Sqlite,
+        Jwt,
     ]
     packages {}
     imports [Stderr]

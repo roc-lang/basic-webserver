@@ -41,3 +41,4 @@ json_web_token = {path = "../json_web_token"}
 sqlite3-sys = { version = "0.17.0", features = ["bundled"] }
 memmap2 = "=0.9.4"
 thread_local = "1.1.8"
+jsonwebtoken = "9.3.0"

@@ -13,8 +13,5 @@ path = "src/lib.rs"
 
 [dependencies]
 indoc = "2"
-jwt = { version = "0.16.0", features = ["openssl"]}
-hmac = "0.12.1"
-sha2 = "0.10.8"
 serde_json = "1.0.127"
-openssl = {version = "0.10.66", features = ["vendored"]}
+jsonwebtoken = "9.3.0"
