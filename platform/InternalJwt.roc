@@ -84,23 +84,11 @@ defaultValidation = {
 
 # [jsonwebtoken::errors::ErrorKind](https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html)
 Err : [
-    InvalidToken,
-    InvalidSignature,
-    InvalidEcdsaKey,
-    InvalidRsaKey Str,
-    RsaFailedSigning,
-    InvalidAlgorithmName,
-    InvalidKeyFormat,
-    MissingRequiredClaim Str,
-    ExpiredSignature,
-    InvalidIssuer,
-    InvalidAudience,
-    InvalidSubject,
-    ImmatureSignature,
-    InvalidAlgorithm,
-    MissingAlgorithm,
-    Base64 Str,
-    Json Str,
-    Utf8 Str,
-    UnspecifiedCrypto,
+    InvalidToken Str,
+    InvalidSignature Str,
+    InvalidKey Str,
+    InvalidAlgorithm Str,
+    MissingClaim Str,
+    InvalidClaim Str,
+    Other Str
 ]

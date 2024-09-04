@@ -59,6 +59,7 @@ impl<T> ThreadSafeRefcountedResourceHeap<T> {
         RefcountedResourceHeap::box_to_resource(data)
     }
 
+    #[allow(dead_code)]
     pub fn box_to_refcount<'a>(data: &RocBox<()>) -> &'a mut usize {
         RefcountedResourceHeap::<T>::box_to_refcount(data)
     }
@@ -108,6 +109,7 @@ impl<T> RefcountedResourceHeap<T> {
         &mut alloc.1
     }
 
+    #[allow(dead_code)]
     pub fn box_to_refcount<'a>(data: &RocBox<()>) -> &'a mut usize {
         let box_ptr: &usize = unsafe { std::mem::transmute(data) };
 

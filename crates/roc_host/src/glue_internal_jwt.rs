@@ -183,98 +183,62 @@ impl roc_std::RocRefcounted for Validation {
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
-pub enum discriminant_JwtErr {
-    Base64 = 0,
-    ExpiredSignature = 1,
-    ImmatureSignature = 2,
-    InvalidAlgorithm = 3,
-    InvalidAlgorithmName = 4,
-    InvalidAudience = 5,
-    InvalidEcdsaKey = 6,
-    InvalidIssuer = 7,
-    InvalidKeyFormat = 8,
-    InvalidRsaKey = 9,
-    InvalidSignature = 10,
-    InvalidSubject = 11,
-    InvalidToken = 12,
-    Json = 13,
-    MissingAlgorithm = 14,
-    MissingRequiredClaim = 15,
-    RsaFailedSigning = 16,
-    UnspecifiedCrypto = 17,
-    Utf8 = 18,
+pub enum discriminant_Err {
+    InvalidAlgorithm = 0,
+    InvalidClaim = 1,
+    InvalidKey = 2,
+    InvalidSignature = 3,
+    InvalidToken = 4,
+    MissingClaim = 5,
+    Other = 6,
 }
 
-impl core::fmt::Debug for discriminant_JwtErr {
+impl core::fmt::Debug for discriminant_Err {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Base64 => f.write_str("discriminant_JwtErr::Base64"),
-            Self::ExpiredSignature => f.write_str("discriminant_JwtErr::ExpiredSignature"),
-            Self::ImmatureSignature => f.write_str("discriminant_JwtErr::ImmatureSignature"),
-            Self::InvalidAlgorithm => f.write_str("discriminant_JwtErr::InvalidAlgorithm"),
-            Self::InvalidAlgorithmName => f.write_str("discriminant_JwtErr::InvalidAlgorithmName"),
-            Self::InvalidAudience => f.write_str("discriminant_JwtErr::InvalidAudience"),
-            Self::InvalidEcdsaKey => f.write_str("discriminant_JwtErr::InvalidEcdsaKey"),
-            Self::InvalidIssuer => f.write_str("discriminant_JwtErr::InvalidIssuer"),
-            Self::InvalidKeyFormat => f.write_str("discriminant_JwtErr::InvalidKeyFormat"),
-            Self::InvalidRsaKey => f.write_str("discriminant_JwtErr::InvalidRsaKey"),
-            Self::InvalidSignature => f.write_str("discriminant_JwtErr::InvalidSignature"),
-            Self::InvalidSubject => f.write_str("discriminant_JwtErr::InvalidSubject"),
-            Self::InvalidToken => f.write_str("discriminant_JwtErr::InvalidToken"),
-            Self::Json => f.write_str("discriminant_JwtErr::Json"),
-            Self::MissingAlgorithm => f.write_str("discriminant_JwtErr::MissingAlgorithm"),
-            Self::MissingRequiredClaim => f.write_str("discriminant_JwtErr::MissingRequiredClaim"),
-            Self::RsaFailedSigning => f.write_str("discriminant_JwtErr::RsaFailedSigning"),
-            Self::UnspecifiedCrypto => f.write_str("discriminant_JwtErr::UnspecifiedCrypto"),
-            Self::Utf8 => f.write_str("discriminant_JwtErr::Utf8"),
+            Self::InvalidAlgorithm => f.write_str("discriminant_Err::InvalidAlgorithm"),
+            Self::InvalidClaim => f.write_str("discriminant_Err::InvalidClaim"),
+            Self::InvalidKey => f.write_str("discriminant_Err::InvalidKey"),
+            Self::InvalidSignature => f.write_str("discriminant_Err::InvalidSignature"),
+            Self::InvalidToken => f.write_str("discriminant_Err::InvalidToken"),
+            Self::MissingClaim => f.write_str("discriminant_Err::MissingClaim"),
+            Self::Other => f.write_str("discriminant_Err::Other"),
         }
     }
 }
 
-roc_refcounted_noop_impl!(discriminant_JwtErr);
+roc_refcounted_noop_impl!(discriminant_Err);
 
 #[repr(C, align(8))]
-pub union union_JwtErr {
-    Base64: core::mem::ManuallyDrop<roc_std::RocStr>,
-    ExpiredSignature: (),
-    ImmatureSignature: (),
-    InvalidAlgorithm: (),
-    InvalidAlgorithmName: (),
-    InvalidAudience: (),
-    InvalidEcdsaKey: (),
-    InvalidIssuer: (),
-    InvalidKeyFormat: (),
-    InvalidRsaKey: core::mem::ManuallyDrop<roc_std::RocStr>,
-    InvalidSignature: (),
-    InvalidSubject: (),
-    InvalidToken: (),
-    Json: core::mem::ManuallyDrop<roc_std::RocStr>,
-    MissingAlgorithm: (),
-    MissingRequiredClaim: core::mem::ManuallyDrop<roc_std::RocStr>,
-    RsaFailedSigning: (),
-    UnspecifiedCrypto: (),
-    Utf8: core::mem::ManuallyDrop<roc_std::RocStr>,
+pub union union_Err {
+    InvalidAlgorithm: core::mem::ManuallyDrop<roc_std::RocStr>,
+    InvalidClaim: core::mem::ManuallyDrop<roc_std::RocStr>,
+    InvalidKey: core::mem::ManuallyDrop<roc_std::RocStr>,
+    InvalidSignature: core::mem::ManuallyDrop<roc_std::RocStr>,
+    InvalidToken: core::mem::ManuallyDrop<roc_std::RocStr>,
+    MissingClaim: core::mem::ManuallyDrop<roc_std::RocStr>,
+    Other: core::mem::ManuallyDrop<roc_std::RocStr>,
 }
 
-const _SIZE_CHECK_union_JwtErr: () = assert!(core::mem::size_of::<union_JwtErr>() == 24);
-const _ALIGN_CHECK_union_JwtErr: () = assert!(core::mem::align_of::<union_JwtErr>() == 8);
+const _SIZE_CHECK_union_Err: () = assert!(core::mem::size_of::<union_Err>() == 24);
+const _ALIGN_CHECK_union_Err: () = assert!(core::mem::align_of::<union_Err>() == 8);
 
-const _SIZE_CHECK_JwtErr: () = assert!(core::mem::size_of::<JwtErr>() == 32);
-const _ALIGN_CHECK_JwtErr: () = assert!(core::mem::align_of::<JwtErr>() == 8);
+const _SIZE_CHECK_Err: () = assert!(core::mem::size_of::<JwtErr>() == 32);
+const _ALIGN_CHECK_Err: () = assert!(core::mem::align_of::<JwtErr>() == 8);
 
 impl JwtErr {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
-    pub fn discriminant(&self) -> discriminant_JwtErr {
+    pub fn discriminant(&self) -> discriminant_Err {
         unsafe {
             let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
 
-            core::mem::transmute::<u8, discriminant_JwtErr>(*bytes.as_ptr().add(24))
+            core::mem::transmute::<u8, discriminant_Err>(*bytes.as_ptr().add(24))
         }
     }
 
     /// Internal helper
-    fn set_discriminant(&mut self, discriminant: discriminant_JwtErr) {
-        let discriminant_ptr: *mut discriminant_JwtErr = (self as *mut JwtErr).cast();
+    fn set_discriminant(&mut self, discriminant: discriminant_Err) {
+        let discriminant_ptr: *mut discriminant_Err = (self as *mut JwtErr).cast();
 
         unsafe {
             *(discriminant_ptr.add(24)) = discriminant;
@@ -284,72 +248,36 @@ impl JwtErr {
 
 #[repr(C)]
 pub struct JwtErr {
-    payload: union_JwtErr,
-    discriminant: discriminant_JwtErr,
+    payload: union_Err,
+    discriminant: discriminant_Err,
 }
 
 impl Clone for JwtErr {
     fn clone(&self) -> Self {
-        use discriminant_JwtErr::*;
+        use discriminant_Err::*;
 
         let payload = unsafe {
             match self.discriminant {
-                Base64 => union_JwtErr {
-                    Base64: self.payload.Base64.clone(),
-                },
-                ExpiredSignature => union_JwtErr {
-                    ExpiredSignature: self.payload.ExpiredSignature.clone(),
-                },
-                ImmatureSignature => union_JwtErr {
-                    ImmatureSignature: self.payload.ImmatureSignature.clone(),
-                },
-                InvalidAlgorithm => union_JwtErr {
+                InvalidAlgorithm => union_Err {
                     InvalidAlgorithm: self.payload.InvalidAlgorithm.clone(),
                 },
-                InvalidAlgorithmName => union_JwtErr {
-                    InvalidAlgorithmName: self.payload.InvalidAlgorithmName.clone(),
+                InvalidClaim => union_Err {
+                    InvalidClaim: self.payload.InvalidClaim.clone(),
                 },
-                InvalidAudience => union_JwtErr {
-                    InvalidAudience: self.payload.InvalidAudience.clone(),
+                InvalidKey => union_Err {
+                    InvalidKey: self.payload.InvalidKey.clone(),
                 },
-                InvalidEcdsaKey => union_JwtErr {
-                    InvalidEcdsaKey: self.payload.InvalidEcdsaKey.clone(),
-                },
-                InvalidIssuer => union_JwtErr {
-                    InvalidIssuer: self.payload.InvalidIssuer.clone(),
-                },
-                InvalidKeyFormat => union_JwtErr {
-                    InvalidKeyFormat: self.payload.InvalidKeyFormat.clone(),
-                },
-                InvalidRsaKey => union_JwtErr {
-                    InvalidRsaKey: self.payload.InvalidRsaKey.clone(),
-                },
-                InvalidSignature => union_JwtErr {
+                InvalidSignature => union_Err {
                     InvalidSignature: self.payload.InvalidSignature.clone(),
                 },
-                InvalidSubject => union_JwtErr {
-                    InvalidSubject: self.payload.InvalidSubject.clone(),
-                },
-                InvalidToken => union_JwtErr {
+                InvalidToken => union_Err {
                     InvalidToken: self.payload.InvalidToken.clone(),
                 },
-                Json => union_JwtErr {
-                    Json: self.payload.Json.clone(),
+                MissingClaim => union_Err {
+                    MissingClaim: self.payload.MissingClaim.clone(),
                 },
-                MissingAlgorithm => union_JwtErr {
-                    MissingAlgorithm: self.payload.MissingAlgorithm.clone(),
-                },
-                MissingRequiredClaim => union_JwtErr {
-                    MissingRequiredClaim: self.payload.MissingRequiredClaim.clone(),
-                },
-                RsaFailedSigning => union_JwtErr {
-                    RsaFailedSigning: self.payload.RsaFailedSigning.clone(),
-                },
-                UnspecifiedCrypto => union_JwtErr {
-                    UnspecifiedCrypto: self.payload.UnspecifiedCrypto.clone(),
-                },
-                Utf8 => union_JwtErr {
-                    Utf8: self.payload.Utf8.clone(),
+                Other => union_Err {
+                    Other: self.payload.Other.clone(),
                 },
             }
         };
@@ -363,111 +291,37 @@ impl Clone for JwtErr {
 
 impl core::fmt::Debug for JwtErr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use discriminant_JwtErr::*;
+        use discriminant_Err::*;
 
         unsafe {
             match self.discriminant {
-                Base64 => {
-                    let field: &roc_std::RocStr = &self.payload.Base64;
-                    f.debug_tuple("JwtErr::Base64").field(field).finish()
-                }
-                ExpiredSignature => {
-                    let field: &() = &self.payload.ExpiredSignature;
-                    f.debug_tuple("JwtErr::ExpiredSignature")
-                        .field(field)
-                        .finish()
-                }
-                ImmatureSignature => {
-                    let field: &() = &self.payload.ImmatureSignature;
-                    f.debug_tuple("JwtErr::ImmatureSignature")
-                        .field(field)
-                        .finish()
-                }
                 InvalidAlgorithm => {
-                    let field: &() = &self.payload.InvalidAlgorithm;
-                    f.debug_tuple("JwtErr::InvalidAlgorithm")
-                        .field(field)
-                        .finish()
+                    let field: &roc_std::RocStr = &self.payload.InvalidAlgorithm;
+                    f.debug_tuple("Err::InvalidAlgorithm").field(field).finish()
                 }
-                InvalidAlgorithmName => {
-                    let field: &() = &self.payload.InvalidAlgorithmName;
-                    f.debug_tuple("JwtErr::InvalidAlgorithmName")
-                        .field(field)
-                        .finish()
+                InvalidClaim => {
+                    let field: &roc_std::RocStr = &self.payload.InvalidClaim;
+                    f.debug_tuple("Err::InvalidClaim").field(field).finish()
                 }
-                InvalidAudience => {
-                    let field: &() = &self.payload.InvalidAudience;
-                    f.debug_tuple("JwtErr::InvalidAudience")
-                        .field(field)
-                        .finish()
-                }
-                InvalidEcdsaKey => {
-                    let field: &() = &self.payload.InvalidEcdsaKey;
-                    f.debug_tuple("JwtErr::InvalidEcdsaKey")
-                        .field(field)
-                        .finish()
-                }
-                InvalidIssuer => {
-                    let field: &() = &self.payload.InvalidIssuer;
-                    f.debug_tuple("JwtErr::InvalidIssuer").field(field).finish()
-                }
-                InvalidKeyFormat => {
-                    let field: &() = &self.payload.InvalidKeyFormat;
-                    f.debug_tuple("JwtErr::InvalidKeyFormat")
-                        .field(field)
-                        .finish()
-                }
-                InvalidRsaKey => {
-                    let field: &roc_std::RocStr = &self.payload.InvalidRsaKey;
-                    f.debug_tuple("JwtErr::InvalidRsaKey").field(field).finish()
+                InvalidKey => {
+                    let field: &roc_std::RocStr = &self.payload.InvalidKey;
+                    f.debug_tuple("Err::InvalidKey").field(field).finish()
                 }
                 InvalidSignature => {
-                    let field: &() = &self.payload.InvalidSignature;
-                    f.debug_tuple("JwtErr::InvalidSignature")
-                        .field(field)
-                        .finish()
-                }
-                InvalidSubject => {
-                    let field: &() = &self.payload.InvalidSubject;
-                    f.debug_tuple("JwtErr::InvalidSubject")
-                        .field(field)
-                        .finish()
+                    let field: &roc_std::RocStr = &self.payload.InvalidSignature;
+                    f.debug_tuple("Err::InvalidSignature").field(field).finish()
                 }
                 InvalidToken => {
-                    let field: &() = &self.payload.InvalidToken;
-                    f.debug_tuple("JwtErr::InvalidToken").field(field).finish()
+                    let field: &roc_std::RocStr = &self.payload.InvalidToken;
+                    f.debug_tuple("Err::InvalidToken").field(field).finish()
                 }
-                Json => {
-                    let field: &roc_std::RocStr = &self.payload.Json;
-                    f.debug_tuple("JwtErr::Json").field(field).finish()
+                MissingClaim => {
+                    let field: &roc_std::RocStr = &self.payload.MissingClaim;
+                    f.debug_tuple("Err::MissingClaim").field(field).finish()
                 }
-                MissingAlgorithm => {
-                    let field: &() = &self.payload.MissingAlgorithm;
-                    f.debug_tuple("JwtErr::MissingAlgorithm")
-                        .field(field)
-                        .finish()
-                }
-                MissingRequiredClaim => {
-                    let field: &roc_std::RocStr = &self.payload.MissingRequiredClaim;
-                    f.debug_tuple("JwtErr::MissingRequiredClaim")
-                        .field(field)
-                        .finish()
-                }
-                RsaFailedSigning => {
-                    let field: &() = &self.payload.RsaFailedSigning;
-                    f.debug_tuple("JwtErr::RsaFailedSigning")
-                        .field(field)
-                        .finish()
-                }
-                UnspecifiedCrypto => {
-                    let field: &() = &self.payload.UnspecifiedCrypto;
-                    f.debug_tuple("JwtErr::UnspecifiedCrypto")
-                        .field(field)
-                        .finish()
-                }
-                Utf8 => {
-                    let field: &roc_std::RocStr = &self.payload.Utf8;
-                    f.debug_tuple("JwtErr::Utf8").field(field).finish()
+                Other => {
+                    let field: &roc_std::RocStr = &self.payload.Other;
+                    f.debug_tuple("Err::Other").field(field).finish()
                 }
             }
         }
@@ -478,7 +332,7 @@ impl Eq for JwtErr {}
 
 impl PartialEq for JwtErr {
     fn eq(&self, other: &Self) -> bool {
-        use discriminant_JwtErr::*;
+        use discriminant_Err::*;
 
         if self.discriminant != other.discriminant {
             return false;
@@ -486,33 +340,13 @@ impl PartialEq for JwtErr {
 
         unsafe {
             match self.discriminant {
-                Base64 => self.payload.Base64 == other.payload.Base64,
-                ExpiredSignature => self.payload.ExpiredSignature == other.payload.ExpiredSignature,
-                ImmatureSignature => {
-                    self.payload.ImmatureSignature == other.payload.ImmatureSignature
-                }
                 InvalidAlgorithm => self.payload.InvalidAlgorithm == other.payload.InvalidAlgorithm,
-                InvalidAlgorithmName => {
-                    self.payload.InvalidAlgorithmName == other.payload.InvalidAlgorithmName
-                }
-                InvalidAudience => self.payload.InvalidAudience == other.payload.InvalidAudience,
-                InvalidEcdsaKey => self.payload.InvalidEcdsaKey == other.payload.InvalidEcdsaKey,
-                InvalidIssuer => self.payload.InvalidIssuer == other.payload.InvalidIssuer,
-                InvalidKeyFormat => self.payload.InvalidKeyFormat == other.payload.InvalidKeyFormat,
-                InvalidRsaKey => self.payload.InvalidRsaKey == other.payload.InvalidRsaKey,
+                InvalidClaim => self.payload.InvalidClaim == other.payload.InvalidClaim,
+                InvalidKey => self.payload.InvalidKey == other.payload.InvalidKey,
                 InvalidSignature => self.payload.InvalidSignature == other.payload.InvalidSignature,
-                InvalidSubject => self.payload.InvalidSubject == other.payload.InvalidSubject,
                 InvalidToken => self.payload.InvalidToken == other.payload.InvalidToken,
-                Json => self.payload.Json == other.payload.Json,
-                MissingAlgorithm => self.payload.MissingAlgorithm == other.payload.MissingAlgorithm,
-                MissingRequiredClaim => {
-                    self.payload.MissingRequiredClaim == other.payload.MissingRequiredClaim
-                }
-                RsaFailedSigning => self.payload.RsaFailedSigning == other.payload.RsaFailedSigning,
-                UnspecifiedCrypto => {
-                    self.payload.UnspecifiedCrypto == other.payload.UnspecifiedCrypto
-                }
-                Utf8 => self.payload.Utf8 == other.payload.Utf8,
+                MissingClaim => self.payload.MissingClaim == other.payload.MissingClaim,
+                Other => self.payload.Other == other.payload.Other,
             }
         }
     }
@@ -526,7 +360,7 @@ impl Ord for JwtErr {
 
 impl PartialOrd for JwtErr {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use discriminant_JwtErr::*;
+        use discriminant_Err::*;
 
         use std::cmp::Ordering::*;
 
@@ -535,73 +369,31 @@ impl PartialOrd for JwtErr {
             Greater => Option::Some(Greater),
             Equal => unsafe {
                 match self.discriminant {
-                    Base64 => self.payload.Base64.partial_cmp(&other.payload.Base64),
-                    ExpiredSignature => self
-                        .payload
-                        .ExpiredSignature
-                        .partial_cmp(&other.payload.ExpiredSignature),
-                    ImmatureSignature => self
-                        .payload
-                        .ImmatureSignature
-                        .partial_cmp(&other.payload.ImmatureSignature),
                     InvalidAlgorithm => self
                         .payload
                         .InvalidAlgorithm
                         .partial_cmp(&other.payload.InvalidAlgorithm),
-                    InvalidAlgorithmName => self
+                    InvalidClaim => self
                         .payload
-                        .InvalidAlgorithmName
-                        .partial_cmp(&other.payload.InvalidAlgorithmName),
-                    InvalidAudience => self
+                        .InvalidClaim
+                        .partial_cmp(&other.payload.InvalidClaim),
+                    InvalidKey => self
                         .payload
-                        .InvalidAudience
-                        .partial_cmp(&other.payload.InvalidAudience),
-                    InvalidEcdsaKey => self
-                        .payload
-                        .InvalidEcdsaKey
-                        .partial_cmp(&other.payload.InvalidEcdsaKey),
-                    InvalidIssuer => self
-                        .payload
-                        .InvalidIssuer
-                        .partial_cmp(&other.payload.InvalidIssuer),
-                    InvalidKeyFormat => self
-                        .payload
-                        .InvalidKeyFormat
-                        .partial_cmp(&other.payload.InvalidKeyFormat),
-                    InvalidRsaKey => self
-                        .payload
-                        .InvalidRsaKey
-                        .partial_cmp(&other.payload.InvalidRsaKey),
+                        .InvalidKey
+                        .partial_cmp(&other.payload.InvalidKey),
                     InvalidSignature => self
                         .payload
                         .InvalidSignature
                         .partial_cmp(&other.payload.InvalidSignature),
-                    InvalidSubject => self
-                        .payload
-                        .InvalidSubject
-                        .partial_cmp(&other.payload.InvalidSubject),
                     InvalidToken => self
                         .payload
                         .InvalidToken
                         .partial_cmp(&other.payload.InvalidToken),
-                    Json => self.payload.Json.partial_cmp(&other.payload.Json),
-                    MissingAlgorithm => self
+                    MissingClaim => self
                         .payload
-                        .MissingAlgorithm
-                        .partial_cmp(&other.payload.MissingAlgorithm),
-                    MissingRequiredClaim => self
-                        .payload
-                        .MissingRequiredClaim
-                        .partial_cmp(&other.payload.MissingRequiredClaim),
-                    RsaFailedSigning => self
-                        .payload
-                        .RsaFailedSigning
-                        .partial_cmp(&other.payload.RsaFailedSigning),
-                    UnspecifiedCrypto => self
-                        .payload
-                        .UnspecifiedCrypto
-                        .partial_cmp(&other.payload.UnspecifiedCrypto),
-                    Utf8 => self.payload.Utf8.partial_cmp(&other.payload.Utf8),
+                        .MissingClaim
+                        .partial_cmp(&other.payload.MissingClaim),
+                    Other => self.payload.Other.partial_cmp(&other.payload.Other),
                 }
             },
         }
@@ -610,359 +402,231 @@ impl PartialOrd for JwtErr {
 
 impl core::hash::Hash for JwtErr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        use discriminant_JwtErr::*;
+        use discriminant_Err::*;
 
         unsafe {
             match self.discriminant {
-                Base64 => self.payload.Base64.hash(state),
-                ExpiredSignature => self.payload.ExpiredSignature.hash(state),
-                ImmatureSignature => self.payload.ImmatureSignature.hash(state),
                 InvalidAlgorithm => self.payload.InvalidAlgorithm.hash(state),
-                InvalidAlgorithmName => self.payload.InvalidAlgorithmName.hash(state),
-                InvalidAudience => self.payload.InvalidAudience.hash(state),
-                InvalidEcdsaKey => self.payload.InvalidEcdsaKey.hash(state),
-                InvalidIssuer => self.payload.InvalidIssuer.hash(state),
-                InvalidKeyFormat => self.payload.InvalidKeyFormat.hash(state),
-                InvalidRsaKey => self.payload.InvalidRsaKey.hash(state),
+                InvalidClaim => self.payload.InvalidClaim.hash(state),
+                InvalidKey => self.payload.InvalidKey.hash(state),
                 InvalidSignature => self.payload.InvalidSignature.hash(state),
-                InvalidSubject => self.payload.InvalidSubject.hash(state),
                 InvalidToken => self.payload.InvalidToken.hash(state),
-                Json => self.payload.Json.hash(state),
-                MissingAlgorithm => self.payload.MissingAlgorithm.hash(state),
-                MissingRequiredClaim => self.payload.MissingRequiredClaim.hash(state),
-                RsaFailedSigning => self.payload.RsaFailedSigning.hash(state),
-                UnspecifiedCrypto => self.payload.UnspecifiedCrypto.hash(state),
-                Utf8 => self.payload.Utf8.hash(state),
+                MissingClaim => self.payload.MissingClaim.hash(state),
+                Other => self.payload.Other.hash(state),
             }
         }
     }
 }
 
 impl JwtErr {
-    pub fn unwrap_Base64(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Base64);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Base64) }
+    pub fn unwrap_InvalidAlgorithm(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidAlgorithm);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidAlgorithm) }
     }
 
-    pub fn borrow_Base64(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Base64);
+    pub fn borrow_InvalidAlgorithm(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidAlgorithm);
         use core::borrow::Borrow;
-        unsafe { self.payload.Base64.borrow() }
+        unsafe { self.payload.InvalidAlgorithm.borrow() }
     }
 
-    pub fn borrow_mut_Base64(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Base64);
+    pub fn borrow_mut_InvalidAlgorithm(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidAlgorithm);
         use core::borrow::BorrowMut;
-        unsafe { self.payload.Base64.borrow_mut() }
-    }
-
-    pub fn is_Base64(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::Base64)
-    }
-
-    pub fn is_ExpiredSignature(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::ExpiredSignature)
-    }
-
-    pub fn is_ImmatureSignature(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::ImmatureSignature)
+        unsafe { self.payload.InvalidAlgorithm.borrow_mut() }
     }
 
     pub fn is_InvalidAlgorithm(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidAlgorithm)
+        matches!(self.discriminant, discriminant_Err::InvalidAlgorithm)
     }
 
-    pub fn is_InvalidAlgorithmName(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidAlgorithmName)
+    pub fn unwrap_InvalidClaim(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidClaim);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidClaim) }
     }
 
-    pub fn is_InvalidAudience(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidAudience)
-    }
-
-    pub fn is_InvalidEcdsaKey(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidEcdsaKey)
-    }
-
-    pub fn is_InvalidIssuer(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidIssuer)
-    }
-
-    pub fn is_InvalidKeyFormat(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidKeyFormat)
-    }
-
-    pub fn unwrap_InvalidRsaKey(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::InvalidRsaKey);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidRsaKey) }
-    }
-
-    pub fn borrow_InvalidRsaKey(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::InvalidRsaKey);
+    pub fn borrow_InvalidClaim(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidClaim);
         use core::borrow::Borrow;
-        unsafe { self.payload.InvalidRsaKey.borrow() }
+        unsafe { self.payload.InvalidClaim.borrow() }
     }
 
-    pub fn borrow_mut_InvalidRsaKey(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::InvalidRsaKey);
+    pub fn borrow_mut_InvalidClaim(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidClaim);
         use core::borrow::BorrowMut;
-        unsafe { self.payload.InvalidRsaKey.borrow_mut() }
+        unsafe { self.payload.InvalidClaim.borrow_mut() }
     }
 
-    pub fn is_InvalidRsaKey(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidRsaKey)
+    pub fn is_InvalidClaim(&self) -> bool {
+        matches!(self.discriminant, discriminant_Err::InvalidClaim)
+    }
+
+    pub fn unwrap_InvalidKey(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidKey);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidKey) }
+    }
+
+    pub fn borrow_InvalidKey(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidKey);
+        use core::borrow::Borrow;
+        unsafe { self.payload.InvalidKey.borrow() }
+    }
+
+    pub fn borrow_mut_InvalidKey(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidKey);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.InvalidKey.borrow_mut() }
+    }
+
+    pub fn is_InvalidKey(&self) -> bool {
+        matches!(self.discriminant, discriminant_Err::InvalidKey)
+    }
+
+    pub fn unwrap_InvalidSignature(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidSignature);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidSignature) }
+    }
+
+    pub fn borrow_InvalidSignature(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidSignature);
+        use core::borrow::Borrow;
+        unsafe { self.payload.InvalidSignature.borrow() }
+    }
+
+    pub fn borrow_mut_InvalidSignature(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidSignature);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.InvalidSignature.borrow_mut() }
     }
 
     pub fn is_InvalidSignature(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidSignature)
+        matches!(self.discriminant, discriminant_Err::InvalidSignature)
     }
 
-    pub fn is_InvalidSubject(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidSubject)
+    pub fn unwrap_InvalidToken(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidToken);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.InvalidToken) }
+    }
+
+    pub fn borrow_InvalidToken(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidToken);
+        use core::borrow::Borrow;
+        unsafe { self.payload.InvalidToken.borrow() }
+    }
+
+    pub fn borrow_mut_InvalidToken(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::InvalidToken);
+        use core::borrow::BorrowMut;
+        unsafe { self.payload.InvalidToken.borrow_mut() }
     }
 
     pub fn is_InvalidToken(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::InvalidToken)
+        matches!(self.discriminant, discriminant_Err::InvalidToken)
     }
 
-    pub fn unwrap_Json(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Json);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Json) }
+    pub fn unwrap_MissingClaim(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::MissingClaim);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.MissingClaim) }
     }
 
-    pub fn borrow_Json(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Json);
+    pub fn borrow_MissingClaim(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::MissingClaim);
         use core::borrow::Borrow;
-        unsafe { self.payload.Json.borrow() }
+        unsafe { self.payload.MissingClaim.borrow() }
     }
 
-    pub fn borrow_mut_Json(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Json);
+    pub fn borrow_mut_MissingClaim(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::MissingClaim);
         use core::borrow::BorrowMut;
-        unsafe { self.payload.Json.borrow_mut() }
+        unsafe { self.payload.MissingClaim.borrow_mut() }
     }
 
-    pub fn is_Json(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::Json)
+    pub fn is_MissingClaim(&self) -> bool {
+        matches!(self.discriminant, discriminant_Err::MissingClaim)
     }
 
-    pub fn is_MissingAlgorithm(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::MissingAlgorithm)
+    pub fn unwrap_Other(mut self) -> roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::Other);
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Other) }
     }
 
-    pub fn unwrap_MissingRequiredClaim(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::MissingRequiredClaim);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.MissingRequiredClaim) }
-    }
-
-    pub fn borrow_MissingRequiredClaim(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::MissingRequiredClaim);
+    pub fn borrow_Other(&self) -> &roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::Other);
         use core::borrow::Borrow;
-        unsafe { self.payload.MissingRequiredClaim.borrow() }
+        unsafe { self.payload.Other.borrow() }
     }
 
-    pub fn borrow_mut_MissingRequiredClaim(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::MissingRequiredClaim);
+    pub fn borrow_mut_Other(&mut self) -> &mut roc_std::RocStr {
+        debug_assert_eq!(self.discriminant, discriminant_Err::Other);
         use core::borrow::BorrowMut;
-        unsafe { self.payload.MissingRequiredClaim.borrow_mut() }
+        unsafe { self.payload.Other.borrow_mut() }
     }
 
-    pub fn is_MissingRequiredClaim(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::MissingRequiredClaim)
-    }
-
-    pub fn is_RsaFailedSigning(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::RsaFailedSigning)
-    }
-
-    pub fn is_UnspecifiedCrypto(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::UnspecifiedCrypto)
-    }
-
-    pub fn unwrap_Utf8(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Utf8);
-        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Utf8) }
-    }
-
-    pub fn borrow_Utf8(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Utf8);
-        use core::borrow::Borrow;
-        unsafe { self.payload.Utf8.borrow() }
-    }
-
-    pub fn borrow_mut_Utf8(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_JwtErr::Utf8);
-        use core::borrow::BorrowMut;
-        unsafe { self.payload.Utf8.borrow_mut() }
-    }
-
-    pub fn is_Utf8(&self) -> bool {
-        matches!(self.discriminant, discriminant_JwtErr::Utf8)
+    pub fn is_Other(&self) -> bool {
+        matches!(self.discriminant, discriminant_Err::Other)
     }
 }
 
 impl JwtErr {
-    pub fn Base64(payload: roc_std::RocStr) -> Self {
+    pub fn InvalidAlgorithm(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::Base64,
-            payload: union_JwtErr {
-                Base64: core::mem::ManuallyDrop::new(payload),
+            discriminant: discriminant_Err::InvalidAlgorithm,
+            payload: union_Err {
+                InvalidAlgorithm: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn ExpiredSignature() -> Self {
+    pub fn InvalidClaim(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::ExpiredSignature,
-            payload: union_JwtErr {
-                ExpiredSignature: (),
+            discriminant: discriminant_Err::InvalidClaim,
+            payload: union_Err {
+                InvalidClaim: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn ImmatureSignature() -> Self {
+    pub fn InvalidKey(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::ImmatureSignature,
-            payload: union_JwtErr {
-                ImmatureSignature: (),
+            discriminant: discriminant_Err::InvalidKey,
+            payload: union_Err {
+                InvalidKey: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn InvalidAlgorithm() -> Self {
+    pub fn InvalidSignature(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::InvalidAlgorithm,
-            payload: union_JwtErr {
-                InvalidAlgorithm: (),
+            discriminant: discriminant_Err::InvalidSignature,
+            payload: union_Err {
+                InvalidSignature: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn InvalidAlgorithmName() -> Self {
+    pub fn InvalidToken(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::InvalidAlgorithmName,
-            payload: union_JwtErr {
-                InvalidAlgorithmName: (),
+            discriminant: discriminant_Err::InvalidToken,
+            payload: union_Err {
+                InvalidToken: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn InvalidAudience() -> Self {
+    pub fn MissingClaim(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::InvalidAudience,
-            payload: union_JwtErr {
-                InvalidAudience: (),
+            discriminant: discriminant_Err::MissingClaim,
+            payload: union_Err {
+                MissingClaim: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 
-    pub fn InvalidEcdsaKey() -> Self {
+    pub fn Other(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_JwtErr::InvalidEcdsaKey,
-            payload: union_JwtErr {
-                InvalidEcdsaKey: (),
-            },
-        }
-    }
-
-    pub fn InvalidIssuer() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidIssuer,
-            payload: union_JwtErr { InvalidIssuer: () },
-        }
-    }
-
-    pub fn InvalidKeyFormat() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidKeyFormat,
-            payload: union_JwtErr {
-                InvalidKeyFormat: (),
-            },
-        }
-    }
-
-    pub fn InvalidRsaKey(payload: roc_std::RocStr) -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidRsaKey,
-            payload: union_JwtErr {
-                InvalidRsaKey: core::mem::ManuallyDrop::new(payload),
-            },
-        }
-    }
-
-    pub fn InvalidSignature() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidSignature,
-            payload: union_JwtErr {
-                InvalidSignature: (),
-            },
-        }
-    }
-
-    pub fn InvalidSubject() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidSubject,
-            payload: union_JwtErr { InvalidSubject: () },
-        }
-    }
-
-    pub fn InvalidToken() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::InvalidToken,
-            payload: union_JwtErr { InvalidToken: () },
-        }
-    }
-
-    pub fn Json(payload: roc_std::RocStr) -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::Json,
-            payload: union_JwtErr {
-                Json: core::mem::ManuallyDrop::new(payload),
-            },
-        }
-    }
-
-    pub fn MissingAlgorithm() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::MissingAlgorithm,
-            payload: union_JwtErr {
-                MissingAlgorithm: (),
-            },
-        }
-    }
-
-    pub fn MissingRequiredClaim(payload: roc_std::RocStr) -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::MissingRequiredClaim,
-            payload: union_JwtErr {
-                MissingRequiredClaim: core::mem::ManuallyDrop::new(payload),
-            },
-        }
-    }
-
-    pub fn RsaFailedSigning() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::RsaFailedSigning,
-            payload: union_JwtErr {
-                RsaFailedSigning: (),
-            },
-        }
-    }
-
-    pub fn UnspecifiedCrypto() -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::UnspecifiedCrypto,
-            payload: union_JwtErr {
-                UnspecifiedCrypto: (),
-            },
-        }
-    }
-
-    pub fn Utf8(payload: roc_std::RocStr) -> Self {
-        Self {
-            discriminant: discriminant_JwtErr::Utf8,
-            payload: union_JwtErr {
-                Utf8: core::mem::ManuallyDrop::new(payload),
+            discriminant: discriminant_Err::Other,
+            payload: union_Err {
+                Other: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
@@ -972,34 +636,26 @@ impl Drop for JwtErr {
     fn drop(&mut self) {
         // Drop the payloads
         match self.discriminant() {
-            discriminant_JwtErr::Base64 => unsafe {
-                core::mem::ManuallyDrop::drop(&mut self.payload.Base64)
+            discriminant_Err::InvalidAlgorithm => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidAlgorithm)
             },
-            discriminant_JwtErr::ExpiredSignature => {}
-            discriminant_JwtErr::ImmatureSignature => {}
-            discriminant_JwtErr::InvalidAlgorithm => {}
-            discriminant_JwtErr::InvalidAlgorithmName => {}
-            discriminant_JwtErr::InvalidAudience => {}
-            discriminant_JwtErr::InvalidEcdsaKey => {}
-            discriminant_JwtErr::InvalidIssuer => {}
-            discriminant_JwtErr::InvalidKeyFormat => {}
-            discriminant_JwtErr::InvalidRsaKey => unsafe {
-                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidRsaKey)
+            discriminant_Err::InvalidClaim => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidClaim)
             },
-            discriminant_JwtErr::InvalidSignature => {}
-            discriminant_JwtErr::InvalidSubject => {}
-            discriminant_JwtErr::InvalidToken => {}
-            discriminant_JwtErr::Json => unsafe {
-                core::mem::ManuallyDrop::drop(&mut self.payload.Json)
+            discriminant_Err::InvalidKey => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidKey)
             },
-            discriminant_JwtErr::MissingAlgorithm => {}
-            discriminant_JwtErr::MissingRequiredClaim => unsafe {
-                core::mem::ManuallyDrop::drop(&mut self.payload.MissingRequiredClaim)
+            discriminant_Err::InvalidSignature => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidSignature)
             },
-            discriminant_JwtErr::RsaFailedSigning => {}
-            discriminant_JwtErr::UnspecifiedCrypto => {}
-            discriminant_JwtErr::Utf8 => unsafe {
-                core::mem::ManuallyDrop::drop(&mut self.payload.Utf8)
+            discriminant_Err::InvalidToken => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.InvalidToken)
+            },
+            discriminant_Err::MissingClaim => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.MissingClaim)
+            },
+            discriminant_Err::Other => unsafe {
+                core::mem::ManuallyDrop::drop(&mut self.payload.Other)
             },
         }
     }
@@ -1008,56 +664,29 @@ impl Drop for JwtErr {
 // NOTE this was manually implemented
 impl roc_std::RocRefcounted for JwtErr {
     fn inc(&mut self) {
+        dbg!("doing nasty things INC");
         match self.discriminant() {
-            discriminant_JwtErr::Base64 => unsafe { (*self.payload.Base64).inc() },
-            discriminant_JwtErr::ExpiredSignature => {}
-            discriminant_JwtErr::ImmatureSignature => {}
-            discriminant_JwtErr::InvalidAlgorithm => {}
-            discriminant_JwtErr::InvalidAlgorithmName => {}
-            discriminant_JwtErr::InvalidAudience => {}
-            discriminant_JwtErr::InvalidEcdsaKey => {}
-            discriminant_JwtErr::InvalidIssuer => {}
-            discriminant_JwtErr::InvalidKeyFormat => {}
-            discriminant_JwtErr::InvalidRsaKey => unsafe { (*self.payload.InvalidRsaKey).inc() },
-            discriminant_JwtErr::InvalidSignature => {}
-            discriminant_JwtErr::InvalidSubject => {}
-            discriminant_JwtErr::InvalidToken => {}
-            discriminant_JwtErr::Json => unsafe { (*self.payload.Json).inc() },
-            discriminant_JwtErr::MissingAlgorithm => {}
-            discriminant_JwtErr::MissingRequiredClaim => unsafe {
-                (*self.payload.MissingRequiredClaim).inc()
-            },
-            discriminant_JwtErr::RsaFailedSigning => {}
-            discriminant_JwtErr::UnspecifiedCrypto => {}
-            discriminant_JwtErr::Utf8 => unsafe { (*self.payload.Utf8).inc() },
+            discriminant_Err::InvalidAlgorithm => unsafe { (*self.payload.InvalidAlgorithm).inc() },
+            discriminant_Err::InvalidClaim => unsafe { (*self.payload.InvalidClaim).inc() },
+            discriminant_Err::InvalidKey => unsafe { (*self.payload.InvalidKey).inc() },
+            discriminant_Err::InvalidSignature => unsafe { (*self.payload.InvalidSignature).inc() },
+            discriminant_Err::InvalidToken => unsafe { (*self.payload.InvalidToken).inc() },
+            discriminant_Err::MissingClaim => unsafe { (*self.payload.MissingClaim).inc() },
+            discriminant_Err::Other => unsafe { (*self.payload.Other).inc() },
         }
     }
     fn dec(&mut self) {
+        dbg!("doing nasty things DEC");
         match self.discriminant() {
-            discriminant_JwtErr::Base64 => unsafe { (*self.payload.Base64).dec() },
-            discriminant_JwtErr::ExpiredSignature => {}
-            discriminant_JwtErr::ImmatureSignature => {}
-            discriminant_JwtErr::InvalidAlgorithm => {}
-            discriminant_JwtErr::InvalidAlgorithmName => {}
-            discriminant_JwtErr::InvalidAudience => {}
-            discriminant_JwtErr::InvalidEcdsaKey => {}
-            discriminant_JwtErr::InvalidIssuer => {}
-            discriminant_JwtErr::InvalidKeyFormat => {}
-            discriminant_JwtErr::InvalidRsaKey => unsafe { (*self.payload.InvalidRsaKey).dec() },
-            discriminant_JwtErr::InvalidSignature => {}
-            discriminant_JwtErr::InvalidSubject => {}
-            discriminant_JwtErr::InvalidToken => {}
-            discriminant_JwtErr::Json => unsafe { (*self.payload.Json).dec() },
-            discriminant_JwtErr::MissingAlgorithm => {}
-            discriminant_JwtErr::MissingRequiredClaim => unsafe {
-                (*self.payload.MissingRequiredClaim).dec()
-            },
-            discriminant_JwtErr::RsaFailedSigning => {}
-            discriminant_JwtErr::UnspecifiedCrypto => {}
-            discriminant_JwtErr::Utf8 => unsafe { (*self.payload.Utf8).dec() },
+            discriminant_Err::InvalidAlgorithm => unsafe { (*self.payload.InvalidAlgorithm).dec() },
+            discriminant_Err::InvalidClaim => unsafe { (*self.payload.InvalidClaim).dec() },
+            discriminant_Err::InvalidKey => unsafe { (*self.payload.InvalidKey).dec() },
+            discriminant_Err::InvalidSignature => unsafe { (*self.payload.InvalidSignature).dec() },
+            discriminant_Err::InvalidToken => unsafe { (*self.payload.InvalidToken).dec() },
+            discriminant_Err::MissingClaim => unsafe { (*self.payload.MissingClaim).dec() },
+            discriminant_Err::Other => unsafe { (*self.payload.Other).dec() },
         }
     }
-
     fn is_refcounted() -> bool {
         true
     }

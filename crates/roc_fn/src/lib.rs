@@ -171,12 +171,17 @@ const ROC_HOSTED_FNS: &[HostedFn] = &[
     HostedFn {
         name: "jwtDecodingKeyFromSimpleSecret",
         arg_types: &["&RocStr"],
-        ret_type: "roc_std::RocResult<RocBox<()>, RocStr>",
+        ret_type: "roc_std::RocResult<RocBox<()>, glue_internal_jwt::JwtErr>",
     },
     HostedFn {
         name: "jwtDecodingKeyFromRsaPem",
         arg_types: &["&RocStr"],
-        ret_type: "roc_std::RocResult<RocBox<()>, RocStr>",
+        ret_type: "roc_std::RocResult<RocBox<()>, glue_internal_jwt::JwtErr>",
+    },
+    HostedFn {
+        name: "jwtDecode",
+        arg_types: &["&RocStr", "&RocBox<()>", "&glue_internal_jwt::Validation"],
+        ret_type: "roc_std::RocResult<glue_internal_jwt::Token, glue_internal_jwt::JwtErr>",
     },
     ];
 

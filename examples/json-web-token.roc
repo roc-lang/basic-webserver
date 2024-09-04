@@ -12,51 +12,59 @@ respond : Request, Model -> Task Response [ServerErr Str]_
 respond = \_, _ ->
     crash "todo"
 
-    ## We hardcode the JWT here and ignore the request for simplicity, but normally this is how
-    ## you would decode the request body (assuming the token is in the body and not a URL param)
-    ## ```
-    ## exampleBody : Result (Dict Str Str) _
-    ## exampleBody = Http.parseFormUrlEncoded req.body
-    ## ```
-    #exampleBody : Result (Dict Str Str) _
-    #exampleBody =
-    #    Dict.single "id_token" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o"
-    #    |> Ok
+## We hardcode the JWT here and ignore the request for simplicity, but normally this is how
+## you would decode the request body (assuming the token is in the body and not a URL param)
+## ```
+## exampleBody : Result (Dict Str Str) _
+## exampleBody = Http.parseFormUrlEncoded req.body
+## ```
+# exampleBody : Result (Dict Str Str) _
+# exampleBody =
+#    Dict.single "id_token" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.joReqPNNkWQ8zQCW3UQnhc_5NMrSZEOQYpk6sDS6Y-o"
+#    |> Ok
 
-    #token : Str
-    #token =
-    #    exampleBody
-    #    |> Result.try \decodedBody -> decodedBody |> Dict.get "id_token"
-    #    |> Result.withDefault "TOKEN MISSING"
+# token : Str
+# token =
+#    exampleBody
+#    |> Result.try \decodedBody -> decodedBody |> Dict.get "id_token"
+#    |> Result.withDefault "TOKEN MISSING"
 
-    #when Jwt.verify { secret: "shhh_very_secret", token } |> Task.result! is
-    #    Err (JwtErr err) ->
-    #        Task.ok {
-    #            status: 200,
-    #            headers: [
-    #                { name: "Content-Type", value: "text/plain" },
-    #            ],
-    #            body: Str.toUtf8 "UNABLE TO DECODE JWT\n$(Inspect.toStr err)\n",
-    #        }
+# when Jwt.verify { secret: "shhh_very_secret", token } |> Task.result! is
+#    Err (JwtErr err) ->
+#        Task.ok {
+#            status: 200,
+#            headers: [
+#                { name: "Content-Type", value: "text/plain" },
+#            ],
+#            body: Str.toUtf8 "UNABLE TO DECODE JWT\n$(Inspect.toStr err)\n",
+#        }
 
-    #    Ok claims ->
-    #        { sub, name, iat } = getClaims claims |> Task.fromResult!
+#    Ok claims ->
+#        { sub, name, iat } = getClaims claims |> Task.fromResult!
 
-    #        message = "Decoded JWT\nsubject: $(sub)\nname: $(name)\nissued at: $(iat)\n"
+#        message = "Decoded JWT\nsubject: $(sub)\nname: $(name)\nissued at: $(iat)\n"
 
-    #        Stdout.line! message
+#        Stdout.line! message
 
-    #        Task.ok {
-    #            status: 200,
-    #            headers: [
-    #                { name: "Content-Type", value: "text/plain" },
-    #            ],
-    #            body: Str.toUtf8 message,
-    #        }
+#        Task.ok {
+#            status: 200,
+#            headers: [
+#                { name: "Content-Type", value: "text/plain" },
+#            ],
+#            body: Str.toUtf8 message,
+#        }
 
 init : Task Model [ServerErr Str]_
 init =
-    examplePEM =
+    token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNjE2MjM5MDIyfQ.OgPG5wxM-U07VyOHf77ZKQvISflwjygcV1eC6-9T99sByIQe7czrTlJdV-zBsdeK4HeybHAWchRjem7d4LyZftArQQKI9J2dtno6FDCtOA1UslqaklEP7xpAMctgSZwxP678hdXO1-JUPWH29euUy-oDyb5p1YX3Qir3QXHhuPWogRHGnXlqtredOCtI_izZ_8DF6N3sU7KZPkJ70mOmEU7vYj6zfv53VYhcwSmzGq_UHghzI5OBXdaFUhBoLFbqiIPz8HNfr1LKNhA-ZcJkysilO5YXbxTZ23mH8tX9PnOYaJOCNxLsfMjZtCudHs6t_tBQJjVw9i5JpHjVT2znIg"
+
+    #dbg token
+
+    validation = { Jwt.defaultValidation & algorithms: [RS256] }
+
+    #dbg validation
+
+    key = Jwt.decodingKeyFromRsaPem!
         """
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
@@ -68,12 +76,12 @@ init =
         mwIDAQAB
         -----END PUBLIC KEY-----
         """
-    key = Jwt.decodingKeyFromRsaPem! examplePEM
 
     dbg key
 
+    # decodedToken = Jwt.decode! { token, key, validation }
+    # dbg decodedToken
     Task.err TODO
-
 
 #    {
 #        secret: "shhh_very_secret",
@@ -103,8 +111,8 @@ init =
 
 #    Task.ok {}
 
-#getClaims : Dict Str Str -> Result { sub : Str, name : Str, iat : Str } [MissingSubject, MissingName, MissingTimeIssued]
-#getClaims = \claims ->
+# getClaims : Dict Str Str -> Result { sub : Str, name : Str, iat : Str } [MissingSubject, MissingName, MissingTimeIssued]
+# getClaims = \claims ->
 
 #    sub = claims |> Dict.get "sub" |> Result.mapErr? \KeyNotFound -> MissingSubject
 #    name = claims |> Dict.get "name" |> Result.mapErr? \KeyNotFound -> MissingName
@@ -112,8 +120,8 @@ init =
 
 #    Ok { sub, name, iat }
 
-#assertClaims : Dict Str Str -> Task {} _
-#assertClaims = \claims ->
+# assertClaims : Dict Str Str -> Task {} _
+# assertClaims = \claims ->
 #    when (Dict.get claims "sub", Dict.get claims "name", Dict.get claims "iat") is
 #        (Ok sub, Ok name, Ok iat) ->
 #            if sub == "1234567890" && name == "John Doe" && iat == "1516239022" then
