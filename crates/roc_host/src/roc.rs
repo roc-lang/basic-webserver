@@ -1003,7 +1003,7 @@ fn sqlite_columns(stmt: RocBox<()>) -> RocResult<RocList<RocStr>, ()> {
         let col_name = unsafe { sqlite3_sys::sqlite3_column_name(local_stmt, i as c_int) };
         let col_name = unsafe { CStr::from_ptr(col_name) };
         // Both of these should be safe. Sqlite should always return a utf8 string with null terminator.
-        let col_name = RocStr::try_from(col_name).unwrap();
+        let col_name = RocStr::try_from(col_name.to_str().unwrap()).unwrap();
         list.append(col_name);
     }
     RocResult::ok(list)
@@ -1093,7 +1093,7 @@ fn roc_err_from_sqlite_err<T>(code: SqliteError) -> RocResult<T, roc_app::Sqlite
     let msg = unsafe { CStr::from_ptr(sqlite3_sys::sqlite3_errstr(code)) };
     RocResult::err(roc_app::SqliteError {
         code: code as i64,
-        message: RocStr::try_from(msg).unwrap_or(RocStr::empty()),
+        message: RocStr::try_from(msg.to_str().unwrap()).unwrap_or(RocStr::empty()),
     })
 }
 

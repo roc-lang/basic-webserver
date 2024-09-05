@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/roc_std",
     "crates/roc_app",
     "crates/roc_fn",
     "crates/roc_host",
@@ -14,3 +13,6 @@ members = [
 lto = true
 strip = "debuginfo"
 codegen-units = 1
+
+[workspace.dependencies]
+roc_std = { git = "https://github.com/roc-lang/roc.git" }
