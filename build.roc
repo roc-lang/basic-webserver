@@ -90,7 +90,7 @@ getRustTargetFolder =
             else
                 Task.ok "target/$(targetEnvVar)/release/"
         Err e ->
-            info! "Failed to get env var CARGO_BUILD_TARGET with error \(Inspect.toStr e). Assuming default CARGO_BUILD_TARGET (native)..."
+            info! "Failed to get env var CARGO_BUILD_TARGET with error $(Inspect.toStr e). Assuming default CARGO_BUILD_TARGET (native)..."
 
             Task.ok "target/release/"
 
