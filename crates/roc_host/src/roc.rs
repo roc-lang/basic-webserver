@@ -1,4 +1,6 @@
 #![allow(non_snake_case)]
+// use crate::json_web_token::{FromRocJwt, ToRocJwtClaims, ToRocJwtErr};
+
 use roc_fn::roc_fn;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::alloc::Layout;
@@ -15,6 +17,7 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thread_local::ThreadLocal;
 
+// use crate::glue_internal_jwt;
 use crate::heap::ThreadSafeRefcountedResourceHeap;
 use crate::http_client;
 use crate::roc_http::{self, ResponseToHost};
@@ -40,11 +43,18 @@ pub unsafe extern "C" fn roc_realloc(
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
     // If this happens to be a boxed sqlite stmt free the stmt.
-    let heap = sqlite_stmt_heap();
-    if heap.in_range(c_ptr) {
-        heap.dealloc(c_ptr);
+    let stmt_heap = sqlite_stmt_heap();
+    if stmt_heap.in_range(c_ptr) {
+        stmt_heap.dealloc(c_ptr);
         return;
     }
+
+    let jwt_heap = jwt_key_heap();
+    if jwt_heap.in_range(c_ptr) {
+        jwt_heap.dealloc(c_ptr);
+        return;
+    }
+
     libc::free(c_ptr);
 }
 
@@ -993,7 +1003,7 @@ fn sqlite_columns(stmt: RocBox<()>) -> RocResult<RocList<RocStr>, ()> {
         let col_name = unsafe { sqlite3_sys::sqlite3_column_name(local_stmt, i as c_int) };
         let col_name = unsafe { CStr::from_ptr(col_name) };
         // Both of these should be safe. Sqlite should always return a utf8 string with null terminator.
-        let col_name = RocStr::try_from(col_name).unwrap();
+        let col_name = RocStr::try_from(col_name.to_str().unwrap()).unwrap();
         list.append(col_name);
     }
     RocResult::ok(list)
@@ -1083,7 +1093,7 @@ fn roc_err_from_sqlite_err<T>(code: SqliteError) -> RocResult<T, roc_app::Sqlite
     let msg = unsafe { CStr::from_ptr(sqlite3_sys::sqlite3_errstr(code)) };
     RocResult::err(roc_app::SqliteError {
         code: code as i64,
-        message: RocStr::try_from(msg).unwrap_or(RocStr::empty()),
+        message: RocStr::try_from(msg.to_str().unwrap()).unwrap_or(RocStr::empty()),
     })
 }
 
@@ -1098,6 +1108,7 @@ pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
 pub struct Model {
     model: RocBox<()>,
 }
+
 impl Model {
     unsafe fn init(model: RocBox<()>) -> Self {
         // Set the refcount to constant to ensure this never gets freed.
@@ -1251,3 +1262,106 @@ pub fn call_roc_respond(
         Ok(result)
     }
 }
+
+fn jwt_key_heap() -> &'static ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey> {
+    static JWT_KEY_HEAP: OnceLock<ThreadSafeRefcountedResourceHeap<jsonwebtoken::DecodingKey>> =
+        OnceLock::new();
+
+    JWT_KEY_HEAP.get_or_init(|| {
+        let default_max = 50;
+        let max_stmts = env::var("ROC_BASIC_WEBSERVER_MAX_JWT_DECODING_KEYS")
+            .map(|v| v.parse().unwrap_or(default_max))
+            .unwrap_or(default_max);
+
+        ThreadSafeRefcountedResourceHeap::new(max_stmts)
+            .expect("Failed to allocate mmap for jwt decoding key references.")
+    })
+}
+
+// #[roc_fn(name = "jwtDecodingKeyFromSimpleSecret")]
+// pub extern "C" fn jwtDecodingKeyFromSimpleSecret(
+//     secret: &RocStr,
+// ) -> RocResult<RocBox<()>, glue_internal_jwt::JwtErr> {
+//     let key = jsonwebtoken::DecodingKey::from_secret(secret.as_bytes());
+//     let heap = jwt_key_heap();
+//     let alloc_result = heap.alloc_for(key);
+//     match alloc_result {
+//         Ok(out) => RocResult::ok(out),
+//         Err(_) => RocResult::err(glue_internal_jwt::JwtErr::Other(
+//             "Ran out of memory allocating space for Jwt DecodingKey".into(),
+//         )),
+//     }
+// }
+
+#[roc_fn(name = "jwtDecodingKeyFromRsaPem")]
+pub extern "C" fn jwtDecodingKeyFromRsaPem(secret: &RocStr) -> RocResult<RocBox<()>, ()> {
+    let key = match jsonwebtoken::DecodingKey::from_rsa_pem(secret.as_bytes()) {
+        Ok(key) => key,
+        // TODO restore
+        // Err(err) => return RocResult::err(dbg!(jwt_err_to_roc(err))),
+        Err(..) => return RocResult::err(()),
+    };
+
+    let heap = jwt_key_heap();
+
+    let alloc_result = heap.alloc_for(key);
+    match alloc_result {
+        // WE ARE RETURNING AN OK HERE, BUT GETTING AN ERR IN ROC??? HOW?
+        Ok(out) => dbg!(RocResult::ok(out)),
+        Err(..) => RocResult::err(()),
+        // TODO restore
+        // Err(_) => RocResult::err(glue_internal_jwt::JwtErr::Other(
+        //     "Ran out of memory allocating space for DecodingKey".into(),
+        // )),
+    }
+}
+
+// #[roc_fn(name = "jwtDecode")]
+// pub extern "C" fn jwtDecode(
+//     _token: &RocStr,
+//     _boxed_key: &RocBox<()>,
+//     _roc_validation: &glue_internal_jwt::Validation,
+// ) -> RocResult<glue_internal_jwt::Token, glue_internal_jwt::JwtErr> {
+//     RocResult::err(glue_internal_jwt::JwtErr::InvalidToken(
+//         "TODO implement jwtDecode".into(),
+//     ))
+// }
+
+// fn jwt_err_to_roc(err: jsonwebtoken::errors::Error) -> glue_internal_jwt::JwtErr {
+//     use jsonwebtoken::errors::ErrorKind::*;
+
+//     let msg: RocStr = err.to_string().as_str().into();
+
+//     match &err.into_kind() {
+//         InvalidToken => glue_internal_jwt::JwtErr::InvalidToken(msg),
+//         InvalidSignature => glue_internal_jwt::JwtErr::InvalidSignature(msg),
+//         InvalidEcdsaKey => glue_internal_jwt::JwtErr::InvalidKey(msg),
+//         InvalidRsaKey(..) => glue_internal_jwt::JwtErr::InvalidKey(msg),
+//         RsaFailedSigning => glue_internal_jwt::JwtErr::InvalidKey(msg),
+//         InvalidAlgorithmName => glue_internal_jwt::JwtErr::InvalidAlgorithm(msg),
+//         InvalidKeyFormat => glue_internal_jwt::JwtErr::InvalidKey(msg),
+//         MissingRequiredClaim(claim) => {
+//             glue_internal_jwt::JwtErr::MissingClaim(claim.as_str().into())
+//         }
+//         ExpiredSignature => glue_internal_jwt::JwtErr::InvalidSignature(msg),
+//         InvalidIssuer => glue_internal_jwt::JwtErr::InvalidClaim(
+//             "'iss' does not match the expected issuer".into(),
+//         ),
+//         InvalidAudience => glue_internal_jwt::JwtErr::InvalidClaim(
+//             "'aud' does not match one of the expected audience values".into(),
+//         ),
+//         InvalidSubject => glue_internal_jwt::JwtErr::InvalidClaim(
+//             "'sub' does not match one of the expected subject values".into(),
+//         ),
+//         ImmatureSignature => {
+//             glue_internal_jwt::JwtErr::InvalidClaim("'nbf' represents a time in the future".into())
+//         }
+//         InvalidAlgorithm => glue_internal_jwt::JwtErr::InvalidAlgorithm(msg),
+//         MissingAlgorithm => glue_internal_jwt::JwtErr::InvalidAlgorithm(msg),
+//         Base64(..) => glue_internal_jwt::JwtErr::Other(msg),
+//         Json(..) => glue_internal_jwt::JwtErr::Other(msg),
+//         Utf8(..) => glue_internal_jwt::JwtErr::Other(msg),
+//         Crypto(..) => glue_internal_jwt::JwtErr::Other(msg),
+//         _ => glue_internal_jwt::JwtErr::Other(msg),
+//     }
+// }

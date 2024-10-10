@@ -1,0 +1,19 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+set env(TARGET_URL) "http://www.example.com"
+
+spawn $env(EXAMPLES_DIR)json-web-token
+
+expect -exact "All tests passed\r\n" {
+        expect "Listening on <http://127.0.0.1:8000>\r\n" {
+        exit 0
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1

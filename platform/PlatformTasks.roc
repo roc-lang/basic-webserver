@@ -26,12 +26,18 @@ hosted PlatformTasks
         commandStatus,
         commandOutput,
         tempDir,
+
         sqlitePrepare,
         sqliteBind,
         sqliteColumns,
         sqliteColumnValue,
         sqliteStep,
         sqliteReset,
+
+        # Json Web Token
+        #jwtDecodingKeyFromSimpleSecret,
+        jwtDecodingKeyFromRsaPem,
+        #jwtDecode,
     ]
     imports []
 
@@ -41,6 +47,7 @@ import InternalTcp
 import InternalCommand
 import InternalError
 import InternalSql
+#import InternalJwt
 
 # Stdout
 stdoutLine : Str -> Task {} Str
@@ -93,3 +100,10 @@ sqliteStep : Box {} -> Task InternalSql.SqliteState InternalSql.SqliteError
 sqliteReset : Box {} -> Task {} InternalSql.SqliteError
 
 tempDir : Task (List U8) {}
+
+# Json Web Token
+
+# TODO use an error union https://docs.rs/jsonwebtoken/latest/jsonwebtoken/errors/enum.ErrorKind.html
+#jwtDecodingKeyFromSimpleSecret : Str -> Task (Box {}) InternalJwt.Err
+jwtDecodingKeyFromRsaPem : Str -> Task (Box {}) {}
+#jwtDecode : Str, Box {}, InternalJwt.Validation -> Task InternalJwt.Token InternalJwt.Err
