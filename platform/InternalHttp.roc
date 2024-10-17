@@ -50,15 +50,15 @@ Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
 methodFromStr : Str -> Method
 methodFromStr = \str ->
     when str is
-        "Options" -> Options
-        "Get" -> Get
-        "Post" -> Post
-        "Put" -> Put
-        "Delete" -> Delete
-        "Head" -> Head
-        "Trace" -> Trace
-        "Connect" -> Connect
-        "Patch" -> Patch
+        "OPTIONS" -> Options
+        "GET" -> Get
+        "POST" -> Post
+        "PUT" -> Put
+        "DELETE" -> Delete
+        "HEAD" -> Head
+        "TRACE" -> Trace
+        "CONNECT" -> Connect
+        "PATCH" -> Patch
         _ -> crash "unrecognized method from host"
 
 Header : {

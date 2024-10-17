@@ -180,15 +180,15 @@ getUtf8 = \url ->
 methodToStr : Method -> Str
 methodToStr = \method ->
     when method is
-        Options -> "Options"
-        Get -> "Get"
-        Post -> "Post"
-        Put -> "Put"
-        Delete -> "Delete"
-        Head -> "Head"
-        Trace -> "Trace"
-        Connect -> "Connect"
-        Patch -> "Patch"
+        Options -> "OPTIONS"
+        Get -> "GET"
+        Post -> "POST"
+        Put -> "PUT"
+        Delete -> "DELETE"
+        Head -> "HEAD"
+        Trace -> "TRACE"
+        Connect -> "CONNECT"
+        Patch -> "PATCH"
 
 ## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
 ##
