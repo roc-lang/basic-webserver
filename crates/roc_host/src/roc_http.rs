@@ -1,4 +1,5 @@
 use roc_std::{RocList, RocStr};
+use std::str::FromStr;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -18,18 +19,7 @@ impl RequestToAndFromHost {
         reqwest_method: reqwest::Method,
         url: hyper::Uri,
     ) -> RequestToAndFromHost {
-        let method = match reqwest_method {
-            reqwest::Method::OPTIONS => "Options".into(),
-            reqwest::Method::GET => "Get".into(),
-            reqwest::Method::POST => "Post".into(),
-            reqwest::Method::PUT => "Put".into(),
-            reqwest::Method::DELETE => "Delete".into(),
-            reqwest::Method::HEAD => "Head".into(),
-            reqwest::Method::TRACE => "Trace".into(),
-            reqwest::Method::CONNECT => "Connect".into(),
-            reqwest::Method::PATCH => "Patch".into(),
-            _ => panic!("reqwest method not supported"),
-        };
+        let method = reqwest_method.as_str().into();
 
         RequestToAndFromHost {
             body: body_bytes.to_vec().as_slice().into(),
@@ -50,19 +40,11 @@ impl RequestToAndFromHost {
     }
 
     pub fn to_reqwest_method(&self) -> reqwest::Method {
-        match self.method.as_str() {
-            "Options" => reqwest::Method::OPTIONS,
-            "Get" => reqwest::Method::GET,
-            "Post" => reqwest::Method::POST,
-            "Put" => reqwest::Method::PUT,
-            "Delete" => reqwest::Method::DELETE,
-            "Head" => reqwest::Method::HEAD,
-            "Trace" => reqwest::Method::TRACE,
-            "Connect" => reqwest::Method::CONNECT,
-            "Patch" => reqwest::Method::PATCH,
-            other => panic!(
+        match reqwest::Method::from_str(self.method.as_str()) {
+            Ok(method) => method,
+            Err(err) => panic!(
                 "The platform reveived an unknown HTTP method Str from Roc: {}.",
-                other
+                err
             ),
         }
     }

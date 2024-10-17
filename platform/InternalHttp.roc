@@ -45,21 +45,21 @@ fromHostRequest = \{ method, headers, url, mimeType, body, timeoutMilliseconds }
 # Name is distinguished from the Timeout tag used in Response and Error
 TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
-Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch]
+Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension Str]
 
 methodFromStr : Str -> Method
 methodFromStr = \str ->
     when str is
-        "Options" -> Options
-        "Get" -> Get
-        "Post" -> Post
-        "Put" -> Put
-        "Delete" -> Delete
-        "Head" -> Head
-        "Trace" -> Trace
-        "Connect" -> Connect
-        "Patch" -> Patch
-        _ -> crash "unrecognized method from host"
+        "OPTIONS" -> Options
+        "GET" -> Get
+        "POST" -> Post
+        "PUT" -> Put
+        "DELETE" -> Delete
+        "HEAD" -> Head
+        "TRACE" -> Trace
+        "CONNECT" -> Connect
+        "PATCH" -> Patch
+        extension -> Extension extension
 
 Header : {
     name : Str,

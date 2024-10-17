@@ -11,7 +11,7 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
 
     if {$curlOutput eq "<b>Hello from server</b></br>"} {
-        expect "Z Get /\r\n" {
+        expect "Z GET /\r\n" {
             exit 0
         }
     } else {
