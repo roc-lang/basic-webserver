@@ -189,6 +189,7 @@ methodToStr = \method ->
         Trace -> "TRACE"
         Connect -> "CONNECT"
         Patch -> "PATCH"
+        Extension inner -> inner
 
 ## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
 ##
