@@ -18,19 +18,19 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutputIndex [exec curl -sS localhost:8000]
 
     if {[string match "*addTodoForm*" $curlOutputIndex]} {
-        expect "Z Get /\r\n" {
+        expect "Z GET /\r\n" {
 
             set curlOutputTodos [exec curl -sS localhost:8000/todos]
 
             puts $curlOutputTodos
 
             if {[string match "*Prepare for AoC*" $curlOutputTodos]} {
-                 expect "Z Get /todos\r\n" {
+                 expect "Z GET /todos\r\n" {
 
                     set curlOutputPost [exec curl -sSX POST "localhost:8000/todos?task=Task%206&status=planned"]
 
                     if {[string match "*planned*" $curlOutputPost]} {
-                        expect "Z Post /todos?task=Task%206&status=planned\r\n" {
+                        expect "Z POST /todos?task=Task%206&status=planned\r\n" {
 
                             set curlOutputTodos2 [exec curl -sS localhost:8000/todos]
 
