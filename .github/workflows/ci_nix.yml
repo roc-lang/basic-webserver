@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-12 uses x86-64 machine, macos-14 uses aarch64
-        os: [macos-12, macos-14, ubuntu-22.04]
+        # macos-13 uses x86-64 machine, macos-14 uses aarch64
+        os: [macos-13, macos-14, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -36,3 +36,6 @@ jobs:
           sed -i.bak 's/\$ROC docs.*//g' ./ci/all_tests.sh
           # for SINGLE_TAG_GLUE_CHECK_OFF=1 see github.com/roc-lang/basic-cli/issues/242
           nix develop -c sh -c 'export SINGLE_TAG_GLUE_CHECK_OFF=1 && export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'
+
+      - name: Check if jump-start script still works
+        run: nix develop -c sh -c 'export ROC=roc && bash ./jump-start.sh'
