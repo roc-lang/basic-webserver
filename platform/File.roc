@@ -23,8 +23,8 @@ WriteErr : InternalFile.WriteErr
 ## ```
 ## # Writes `{"some":"json stuff"}` to the file `output.json`:
 ## File.write
-##     (Path.fromStr "output.json")
 ##     { some: "json stuff" }
+##     (Path.fromStr "output.json")
 ##     Json.toCompactUtf8
 ## ```
 ##
@@ -32,39 +32,39 @@ WriteErr : InternalFile.WriteErr
 ## If writing to the file fails, for example because of a file permissions issue, the task fails with [WriteErr].
 ##
 ## > To write unformatted bytes to a file, you can use [File.writeBytes] instead.
-write : Path, val, fmt -> Task {} [FileWriteErr Path WriteErr] where val implements Encode.Encoding, fmt implements Encode.EncoderFormatting
-write = \path, val, fmt ->
+write : val, Path, fmt -> Task {} [FileWriteErr Path WriteErr] where val implements Encode.Encoding, fmt implements Encode.EncoderFormatting
+write = \val, path, fmt ->
     bytes = Encode.toBytes val fmt
 
     # TODO handle encoding errors here, once they exist
-    writeBytes path bytes
+    writeBytes bytes path
 
 ## Writes bytes to a file.
 ##
 ## ```
 ## # Writes the bytes 1, 2, 3 to the file `myfile.dat`.
-## File.writeBytes (Path.fromStr "myfile.dat") [1, 2, 3]
+## File.writeBytes [1, 2, 3] (Path.fromStr "myfile.dat")
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
 ##
 ## > To format data before writing it to a file, you can use [File.write] instead.
-writeBytes : Path, List U8 -> Task {} [FileWriteErr Path WriteErr]
-writeBytes = \path, bytes ->
+writeBytes : List U8, Path -> Task {} [FileWriteErr Path WriteErr]
+writeBytes = \bytes, path ->
     toWriteTask path \pathBytes -> PlatformTasks.fileWriteBytes pathBytes bytes
 
 ## Writes a [Str] to a file, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
 ##
 ## ```
 ## # Writes "Hello!" encoded as UTF-8 to the file `myfile.txt`.
-## File.writeUtf8 (Path.fromStr "myfile.txt") "Hello!"
+## File.writeUtf8 "Hello!" (Path.fromStr "myfile.txt")
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
 ##
 ## > To write unformatted bytes to a file, you can use [File.writeBytes] instead.
-writeUtf8 : Path, Str -> Task {} [FileWriteErr Path WriteErr]
-writeUtf8 = \path, str ->
+writeUtf8 : Str, Path -> Task {} [FileWriteErr Path WriteErr]
+writeUtf8 = \str, path ->
     toWriteTask path \bytes -> PlatformTasks.fileWriteUtf8 bytes str
 
 ## Deletes a file from the filesystem.
