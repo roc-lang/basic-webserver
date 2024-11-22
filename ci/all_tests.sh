@@ -33,7 +33,7 @@ if [ "$NO_BUILD" != "1" ]; then
 
     else
         # run build script for the platform which uses basic-cli
-        $ROC ./build.roc --prebuilt-platform -- --roc $ROC
+        $ROC ./build.roc -- --roc $ROC
     fi
 fi
 
@@ -47,7 +47,7 @@ architecture=$(uname -m)
 
 for roc_file in $EXAMPLES_DIR*.roc; do
     # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
-    $ROC build --prebuilt-platform --linker=legacy $roc_file
+    $ROC build --linker=legacy $roc_file
 done
 
 # `roc test` every roc file if it contains a test, skip roc_nightly folder
@@ -56,7 +56,7 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
 
         # don't exit script if test_command fails
         set +e
-        test_command=$($ROC test --prebuilt-platform --linker=legacy "$file")
+        test_command=$($ROC test --linker=legacy "$file")
         test_exit_code=$?
         set -e
 

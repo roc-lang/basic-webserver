@@ -439,7 +439,7 @@ query = \@Url urlStr ->
 queryParams : Url -> Dict Str Str
 queryParams = \url ->
     query url
-    |> Str.split "&"
+    |> Str.splitOn "&"
     |> List.walk (Dict.empty {}) \dict, pair ->
         when Str.splitFirst pair "=" is
             Ok { before, after } -> Dict.insert dict before after
