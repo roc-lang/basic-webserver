@@ -1,6 +1,8 @@
+mod glue_internal_jwt;
 mod heap;
 mod http_client;
 mod http_server;
+mod json_web_token;
 mod roc;
 mod roc_http;
 
