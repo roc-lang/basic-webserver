@@ -995,9 +995,7 @@ impl Clone for BigString {
             capacity_or_alloc_ptr: self.capacity_or_alloc_ptr,
         };
 
-        if !this.is_readonly() {
-            this.inc();
-        }
+        this.inc();
 
         this
     }

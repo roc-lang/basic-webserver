@@ -2544,7 +2544,7 @@ impl roc_std::RocRefcounted for InternalDirReadErr {
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(u8)]
-pub enum discriminant_SqliteValue {
+pub enum discriminant_SQLiteValue {
     Bytes = 0,
     Integer = 1,
     Null = 2,
@@ -2552,22 +2552,22 @@ pub enum discriminant_SqliteValue {
     String = 4,
 }
 
-impl core::fmt::Debug for discriminant_SqliteValue {
+impl core::fmt::Debug for discriminant_SQLiteValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Bytes => f.write_str("discriminant_SqliteValue::Bytes"),
-            Self::Integer => f.write_str("discriminant_SqliteValue::Integer"),
-            Self::Null => f.write_str("discriminant_SqliteValue::Null"),
-            Self::Real => f.write_str("discriminant_SqliteValue::Real"),
-            Self::String => f.write_str("discriminant_SqliteValue::String"),
+            Self::Bytes => f.write_str("discriminant_SQLiteValue::Bytes"),
+            Self::Integer => f.write_str("discriminant_SQLiteValue::Integer"),
+            Self::Null => f.write_str("discriminant_SQLiteValue::Null"),
+            Self::Real => f.write_str("discriminant_SQLiteValue::Real"),
+            Self::String => f.write_str("discriminant_SQLiteValue::String"),
         }
     }
 }
 
-roc_refcounted_noop_impl!(discriminant_SqliteValue);
+roc_refcounted_noop_impl!(discriminant_SQLiteValue);
 
 #[repr(C, align(8))]
-pub union union_SqliteValue {
+pub union union_SQLiteValue {
     Bytes: core::mem::ManuallyDrop<roc_std::RocList<u8>>,
     Integer: i64,
     Null: (),
@@ -2575,25 +2575,25 @@ pub union union_SqliteValue {
     String: core::mem::ManuallyDrop<roc_std::RocStr>,
 }
 
-const _SIZE_CHECK_union_SqliteValue: () = assert!(core::mem::size_of::<union_SqliteValue>() == 24);
-const _ALIGN_CHECK_union_SqliteValue: () = assert!(core::mem::align_of::<union_SqliteValue>() == 8);
+const _SIZE_CHECK_union_SQLiteValue: () = assert!(core::mem::size_of::<union_SQLiteValue>() == 24);
+const _ALIGN_CHECK_union_SQLiteValue: () = assert!(core::mem::align_of::<union_SQLiteValue>() == 8);
 
-const _SIZE_CHECK_SqliteValue: () = assert!(core::mem::size_of::<SqliteValue>() == 32);
-const _ALIGN_CHECK_SqliteValue: () = assert!(core::mem::align_of::<SqliteValue>() == 8);
+const _SIZE_CHECK_SQLiteValue: () = assert!(core::mem::size_of::<SQLiteValue>() == 32);
+const _ALIGN_CHECK_SQLiteValue: () = assert!(core::mem::align_of::<SQLiteValue>() == 8);
 
-impl SqliteValue {
+impl SQLiteValue {
     /// Returns which variant this tag union holds. Note that this never includes a payload!
-    pub fn discriminant(&self) -> discriminant_SqliteValue {
+    pub fn discriminant(&self) -> discriminant_SQLiteValue {
         unsafe {
             let bytes = core::mem::transmute::<&Self, &[u8; core::mem::size_of::<Self>()]>(self);
 
-            core::mem::transmute::<u8, discriminant_SqliteValue>(*bytes.as_ptr().add(24))
+            core::mem::transmute::<u8, discriminant_SQLiteValue>(*bytes.as_ptr().add(24))
         }
     }
 
     /// Internal helper
-    fn set_discriminant(&mut self, discriminant: discriminant_SqliteValue) {
-        let discriminant_ptr: *mut discriminant_SqliteValue = (self as *mut SqliteValue).cast();
+    fn set_discriminant(&mut self, discriminant: discriminant_SQLiteValue) {
+        let discriminant_ptr: *mut discriminant_SQLiteValue = (self as *mut SQLiteValue).cast();
 
         unsafe {
             *(discriminant_ptr.add(24)) = discriminant;
@@ -2602,30 +2602,30 @@ impl SqliteValue {
 }
 
 #[repr(C)]
-pub struct SqliteValue {
-    payload: union_SqliteValue,
-    discriminant: discriminant_SqliteValue,
+pub struct SQLiteValue {
+    payload: union_SQLiteValue,
+    discriminant: discriminant_SQLiteValue,
 }
 
-impl Clone for SqliteValue {
+impl Clone for SQLiteValue {
     fn clone(&self) -> Self {
-        use discriminant_SqliteValue::*;
+        use discriminant_SQLiteValue::*;
 
         let payload = unsafe {
             match self.discriminant {
-                Bytes => union_SqliteValue {
+                Bytes => union_SQLiteValue {
                     Bytes: self.payload.Bytes.clone(),
                 },
-                Integer => union_SqliteValue {
+                Integer => union_SQLiteValue {
                     Integer: self.payload.Integer.clone(),
                 },
-                Null => union_SqliteValue {
+                Null => union_SQLiteValue {
                     Null: self.payload.Null.clone(),
                 },
-                Real => union_SqliteValue {
+                Real => union_SQLiteValue {
                     Real: self.payload.Real.clone(),
                 },
-                String => union_SqliteValue {
+                String => union_SQLiteValue {
                     String: self.payload.String.clone(),
                 },
             }
@@ -2638,40 +2638,40 @@ impl Clone for SqliteValue {
     }
 }
 
-impl core::fmt::Debug for SqliteValue {
+impl core::fmt::Debug for SQLiteValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use discriminant_SqliteValue::*;
+        use discriminant_SQLiteValue::*;
 
         unsafe {
             match self.discriminant {
                 Bytes => {
                     let field: &roc_std::RocList<u8> = &self.payload.Bytes;
-                    f.debug_tuple("SqliteValue::Bytes").field(field).finish()
+                    f.debug_tuple("SQLiteValue::Bytes").field(field).finish()
                 }
                 Integer => {
                     let field: &i64 = &self.payload.Integer;
-                    f.debug_tuple("SqliteValue::Integer").field(field).finish()
+                    f.debug_tuple("SQLiteValue::Integer").field(field).finish()
                 }
                 Null => {
                     let field: &() = &self.payload.Null;
-                    f.debug_tuple("SqliteValue::Null").field(field).finish()
+                    f.debug_tuple("SQLiteValue::Null").field(field).finish()
                 }
                 Real => {
                     let field: &f64 = &self.payload.Real;
-                    f.debug_tuple("SqliteValue::Real").field(field).finish()
+                    f.debug_tuple("SQLiteValue::Real").field(field).finish()
                 }
                 String => {
                     let field: &roc_std::RocStr = &self.payload.String;
-                    f.debug_tuple("SqliteValue::String").field(field).finish()
+                    f.debug_tuple("SQLiteValue::String").field(field).finish()
                 }
             }
         }
     }
 }
 
-impl PartialEq for SqliteValue {
+impl PartialEq for SQLiteValue {
     fn eq(&self, other: &Self) -> bool {
-        use discriminant_SqliteValue::*;
+        use discriminant_SQLiteValue::*;
 
         if self.discriminant != other.discriminant {
             return false;
@@ -2689,9 +2689,9 @@ impl PartialEq for SqliteValue {
     }
 }
 
-impl PartialOrd for SqliteValue {
+impl PartialOrd for SQLiteValue {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use discriminant_SqliteValue::*;
+        use discriminant_SQLiteValue::*;
 
         use std::cmp::Ordering::*;
 
@@ -2711,97 +2711,97 @@ impl PartialOrd for SqliteValue {
     }
 }
 
-impl SqliteValue {
+impl SQLiteValue {
     pub fn unwrap_Bytes(mut self) -> roc_std::RocList<u8> {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Bytes);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.Bytes) }
     }
 
     pub fn borrow_Bytes(&self) -> &roc_std::RocList<u8> {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Bytes);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
         use core::borrow::Borrow;
         unsafe { self.payload.Bytes.borrow() }
     }
 
     pub fn borrow_mut_Bytes(&mut self) -> &mut roc_std::RocList<u8> {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Bytes);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Bytes);
         use core::borrow::BorrowMut;
         unsafe { self.payload.Bytes.borrow_mut() }
     }
 
     pub fn is_Bytes(&self) -> bool {
-        matches!(self.discriminant, discriminant_SqliteValue::Bytes)
+        matches!(self.discriminant, discriminant_SQLiteValue::Bytes)
     }
 
     pub fn unwrap_Integer(mut self) -> i64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Integer);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
         unsafe { self.payload.Integer }
     }
 
     pub fn borrow_Integer(&self) -> i64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Integer);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
         unsafe { self.payload.Integer }
     }
 
     pub fn borrow_mut_Integer(&mut self) -> &mut i64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Integer);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Integer);
         unsafe { &mut self.payload.Integer }
     }
 
     pub fn is_Integer(&self) -> bool {
-        matches!(self.discriminant, discriminant_SqliteValue::Integer)
+        matches!(self.discriminant, discriminant_SQLiteValue::Integer)
     }
 
     pub fn is_Null(&self) -> bool {
-        matches!(self.discriminant, discriminant_SqliteValue::Null)
+        matches!(self.discriminant, discriminant_SQLiteValue::Null)
     }
 
     pub fn unwrap_Real(mut self) -> f64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Real);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { self.payload.Real }
     }
 
     pub fn borrow_Real(&self) -> f64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Real);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { self.payload.Real }
     }
 
     pub fn borrow_mut_Real(&mut self) -> &mut f64 {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::Real);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::Real);
         unsafe { &mut self.payload.Real }
     }
 
     pub fn is_Real(&self) -> bool {
-        matches!(self.discriminant, discriminant_SqliteValue::Real)
+        matches!(self.discriminant, discriminant_SQLiteValue::Real)
     }
 
     pub fn unwrap_String(mut self) -> roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::String);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
         unsafe { core::mem::ManuallyDrop::take(&mut self.payload.String) }
     }
 
     pub fn borrow_String(&self) -> &roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::String);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
         use core::borrow::Borrow;
         unsafe { self.payload.String.borrow() }
     }
 
     pub fn borrow_mut_String(&mut self) -> &mut roc_std::RocStr {
-        debug_assert_eq!(self.discriminant, discriminant_SqliteValue::String);
+        debug_assert_eq!(self.discriminant, discriminant_SQLiteValue::String);
         use core::borrow::BorrowMut;
         unsafe { self.payload.String.borrow_mut() }
     }
 
     pub fn is_String(&self) -> bool {
-        matches!(self.discriminant, discriminant_SqliteValue::String)
+        matches!(self.discriminant, discriminant_SQLiteValue::String)
     }
 }
 
-impl SqliteValue {
+impl SQLiteValue {
     pub fn Bytes(payload: roc_std::RocList<u8>) -> Self {
         Self {
-            discriminant: discriminant_SqliteValue::Bytes,
-            payload: union_SqliteValue {
+            discriminant: discriminant_SQLiteValue::Bytes,
+            payload: union_SQLiteValue {
                 Bytes: core::mem::ManuallyDrop::new(payload),
             },
         }
@@ -2809,98 +2809,58 @@ impl SqliteValue {
 
     pub fn Integer(payload: i64) -> Self {
         Self {
-            discriminant: discriminant_SqliteValue::Integer,
-            payload: union_SqliteValue { Integer: payload },
+            discriminant: discriminant_SQLiteValue::Integer,
+            payload: union_SQLiteValue { Integer: payload },
         }
     }
 
     pub fn Null() -> Self {
         Self {
-            discriminant: discriminant_SqliteValue::Null,
-            payload: union_SqliteValue { Null: () },
+            discriminant: discriminant_SQLiteValue::Null,
+            payload: union_SQLiteValue { Null: () },
         }
     }
 
     pub fn Real(payload: f64) -> Self {
         Self {
-            discriminant: discriminant_SqliteValue::Real,
-            payload: union_SqliteValue { Real: payload },
+            discriminant: discriminant_SQLiteValue::Real,
+            payload: union_SQLiteValue { Real: payload },
         }
     }
 
     pub fn String(payload: roc_std::RocStr) -> Self {
         Self {
-            discriminant: discriminant_SqliteValue::String,
-            payload: union_SqliteValue {
+            discriminant: discriminant_SQLiteValue::String,
+            payload: union_SQLiteValue {
                 String: core::mem::ManuallyDrop::new(payload),
             },
         }
     }
 }
 
-impl Drop for SqliteValue {
+impl Drop for SQLiteValue {
     fn drop(&mut self) {
         // Drop the payloads
         match self.discriminant() {
-            discriminant_SqliteValue::Bytes => unsafe {
+            discriminant_SQLiteValue::Bytes => unsafe {
                 core::mem::ManuallyDrop::drop(&mut self.payload.Bytes)
             },
-            discriminant_SqliteValue::Integer => {}
-            discriminant_SqliteValue::Null => {}
-            discriminant_SqliteValue::Real => {}
-            discriminant_SqliteValue::String => unsafe {
+            discriminant_SQLiteValue::Integer => {}
+            discriminant_SQLiteValue::Null => {}
+            discriminant_SQLiteValue::Real => {}
+            discriminant_SQLiteValue::String => unsafe {
                 core::mem::ManuallyDrop::drop(&mut self.payload.String)
             },
         }
     }
 }
 
-impl roc_std::RocRefcounted for SqliteValue {
+impl roc_std::RocRefcounted for SQLiteValue {
     fn inc(&mut self) {
         unimplemented!();
     }
     fn dec(&mut self) {
         unimplemented!();
-    }
-    fn is_refcounted() -> bool {
-        true
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[repr(C)]
-pub struct SqliteBindings {
-    pub name: roc_std::RocStr,
-    pub value: SqliteValue,
-}
-
-impl roc_std::RocRefcounted for SqliteBindings {
-    fn inc(&mut self) {
-        self.name.inc();
-        self.value.inc();
-    }
-    fn dec(&mut self) {
-        self.name.dec();
-        self.value.dec();
-    }
-    fn is_refcounted() -> bool {
-        true
-    }
-}
-
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(C)]
-pub struct SqliteError {
-    pub code: i64,
-    pub message: roc_std::RocStr,
-}
-
-impl roc_std::RocRefcounted for SqliteError {
-    fn inc(&mut self) {
-        self.message.inc();
-    }
-    fn dec(&mut self) {
-        self.message.dec();
     }
     fn is_refcounted() -> bool {
         true
@@ -4193,24 +4153,6 @@ impl roc_std::RocRefcounted for WriteErr {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(u8)]
-pub enum SqliteState {
-    Done = 0,
-    Row = 1,
-}
-
-impl core::fmt::Debug for SqliteState {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Done => f.write_str("SqliteState::Done"),
-            Self::Row => f.write_str("SqliteState::Row"),
-        }
-    }
-}
-
-roc_refcounted_noop_impl!(SqliteState);
-
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct GlueTypes {
@@ -4224,12 +4166,9 @@ pub struct GlueTypes {
     pub h: ConnectErr,
     pub i: StreamErr,
     pub j: InternalDirReadErr,
-    pub k: SqliteBindings,
-    pub l: SqliteError,
-    pub n: SqliteValue,
-    pub o: ReadErr,
-    pub p: WriteErr,
-    pub m: SqliteState,
+    pub k: SQLiteValue,
+    pub l: ReadErr,
+    pub m: WriteErr,
 }
 
 impl roc_std::RocRefcounted for GlueTypes {
@@ -4246,9 +4185,7 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.j.inc();
         self.k.inc();
         self.l.inc();
-        self.n.inc();
-        self.o.inc();
-        self.p.inc();
+        self.m.inc();
     }
     fn dec(&mut self) {
         self.a.dec();
@@ -4263,9 +4200,7 @@ impl roc_std::RocRefcounted for GlueTypes {
         self.j.dec();
         self.k.dec();
         self.l.dec();
-        self.n.dec();
-        self.o.dec();
-        self.p.dec();
+        self.m.dec();
     }
     fn is_refcounted() -> bool {
         true

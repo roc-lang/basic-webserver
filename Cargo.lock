@@ -553,15 +553,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c8640c5d730cb13ebd907d8d04b52f55ac9a2eec55b440c8892f40d56c76c1d"
 
 [[package]]
-name = "memmap2"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe751422e4a8caa417e13c3ea66452215d7d63e19e604f4980461212f3ae1322"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -819,13 +810,11 @@ dependencies = [
  "futures",
  "hyper",
  "libc",
- "memmap2",
  "reqwest",
  "roc_app",
  "roc_fn",
  "roc_std",
- "sqlite3-sys",
- "thread_local",
+ "sqlite",
  "tokio",
 ]
 
@@ -974,6 +963,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
+name = "sqlite"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78a97f6ee5b054b7cfddc3b6613fdea4c77af2ef8f8aac3048c7d0be31e605e3"
+dependencies = [
+ "libc",
+ "sqlite3-sys",
+]
+
+[[package]]
 name = "sqlite3-src"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -985,10 +984,11 @@ dependencies = [
 
 [[package]]
 name = "sqlite3-sys"
-version = "0.17.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3901ada7090c3c3584dc92ec7ef1b7091868d13bfe6d7de9f0bcaffee7d0ade5"
+checksum = "aed0b61828382e1103930d2d5df1972d493173319730b481192e63d929097321"
 dependencies = [
+ "libc",
  "sqlite3-src",
 ]
 
@@ -1035,16 +1035,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.66",
-]
-
-[[package]]
-name = "thread_local"
-version = "1.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
-dependencies = [
- "cfg-if",
- "once_cell",
 ]
 
 [[package]]
