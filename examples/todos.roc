@@ -32,7 +32,7 @@ respond = \req, _ ->
             req.url
             |> Url.fromStr
             |> Url.path
-            |> Str.split "/"
+            |> Str.splitOn "/"
 
         # Route to handler based on url path
         when splitUrl is
