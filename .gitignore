@@ -36,7 +36,6 @@ examples/file
 examples/dir
 examples/env
 examples/command
-examples/sqlite
 examples/sqlite3
 examples/hello-web
 examples/file-upload-form
@@ -52,10 +51,3 @@ crates/roc_std
 
 # build script artifacts
 build
-
-# sqlite database temp files
-*.db-*
-
-# profiler output
-profile.json
-*.svg

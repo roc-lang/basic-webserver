@@ -42,7 +42,7 @@ walkHelpFindStarts = \inputList, seperatorList ->
 # empty input
 expect
     input = []
-    seperator = [1, 2, 3]
+    seperator = [1,2,3]
     help = walkHelpFindStarts input seperator
     actual = List.walkWithIndex input [] help
     expected = []
@@ -50,7 +50,7 @@ expect
 
 # empty seperator
 expect
-    input = [1, 2, 3]
+    input = [1,2,3]
     seperator = []
     help = walkHelpFindStarts input seperator
     actual = List.walkWithIndex input [] help
@@ -59,8 +59,8 @@ expect
 
 # seperator at start
 expect
-    input = [3, 4, 5, 6, 7, 8]
-    seperator = [3, 4, 5]
+    input = [3,4,5,6,7,8]
+    seperator = [3,4,5]
     help = walkHelpFindStarts input seperator
     actual = List.walkWithIndex input [] help
     expected = [Stop 0, Start 3]
@@ -68,8 +68,8 @@ expect
 
 # multiple seperators in the middle
 expect
-    input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
-    seperator = [3, 4, 5]
+    input = [1,2,3,4,5,6,7,8,9,10,3,4,5,6,7,8,9,10]
+    seperator = [3,4,5]
     help = walkHelpFindStarts input seperator
     actual = List.walkWithIndex input [] help
     expected = [Stop 2, Start 5, Stop 10, Start 13]
@@ -77,8 +77,8 @@ expect
 
 # seperator at end
 expect
-    input = [6, 7, 8, 3, 4, 5]
-    seperator = [3, 4, 5]
+    input = [6,7,8,3,4,5]
+    seperator = [3,4,5]
     help = walkHelpFindStarts input seperator
     actual = List.walkWithIndex input [] help
     expected = [Stop 3, Start 6]
@@ -88,43 +88,47 @@ walkSplitHelp : List a, List [Start U64, Stop U64] -> List (List a) where a impl
 walkSplitHelp = \input, markers ->
     go = \remainingMarkers, state ->
         when remainingMarkers is
-            [] -> state
-            [Stop stop, .. as rest] if stop == 0 -> go rest state
-            [Stop stop, .. as rest] ->
-                go rest (List.append state (List.sublist input { start: 0, len: stop }))
 
-            [Start start, Stop stop, .. as rest] ->
-                go rest (List.append state (List.sublist input { start, len: stop - start }))
+                [] -> state
 
-            [Start start] if start >= List.len input -> state
-            [Start start] ->
-                List.append state (List.sublist input { start, len: ((List.len input) - start) })
+                [Stop stop, .. as rest] if stop == 0 -> go rest state
 
-            _ -> crash "Unreachable:\n\tThis list should have matched earlier when branches: $(Inspect.toStr remainingMarkers)"
+                [Stop stop, .. as rest] ->
+                    go rest (List.append state (List.sublist input {start: 0, len: stop}))
+
+                [Start start, Stop stop, .. as rest] ->
+                    go rest (List.append state (List.sublist input {start, len: stop - start}))
+
+                [Start start] if start >= List.len input -> state
+
+                [Start start] ->
+                    List.append state (List.sublist input {start, len: ((List.len input) - start)})
+
+                _ -> crash "Unreachable:\n\tThis list should have matched earlier when branches: $(Inspect.toStr remainingMarkers)"
 
     go markers []
 
 expect
-    actual = walkSplitHelp [1, 2, 3, 5, 6, 7, 8, 9, 10] [Stop 2]
-    expected = [[1, 2]]
+    actual = walkSplitHelp [1,2,3,5,6,7,8,9,10] [Stop 2]
+    expected = [[1,2]]
     actual == expected
 
 expect
-    input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
+    input = [1,2,3,4,5,6,7,8,9,10,3,4,5,6,7,8,9,10]
     actual = walkSplitHelp input [Stop 2, Start 5, Stop 10, Start 13]
-    expected = [[1, 2], [6, 7, 8, 9, 10], [6, 7, 8, 9, 10]]
+    expected = [[1,2], [6,7,8,9,10], [6,7,8,9,10]]
     actual == expected
 
 expect
-    input = [1, 2, 3, 4, 5, 6, 7, 3, 4, 0, 0]
-    actual = splitOnList input [3, 4]
-    expected = [[1, 2], [5, 6, 7], [0, 0]]
+    input = [1,2,3,4,5,6,7,3,4,0,0]
+    actual = splitOnList input [3,4]
+    expected = [[1,2], [5,6,7], [0, 0]]
     actual == expected
 
 expect
-    input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
-    actual = splitOnList input [3, 4, 5]
-    expected = [[1, 2], [6, 7, 8, 9, 10], [6, 7, 8, 9, 10]]
+    input = [1,2,3,4,5,6,7,8,9,10,3,4,5,6,7,8,9,10]
+    actual = splitOnList input [3,4,5]
+    expected = [[1,2], [6,7,8,9,10], [6,7,8,9,10]]
     actual == expected
 
 expect
@@ -134,13 +138,13 @@ expect
     actual == expected
 
 expect
-    input = [6, 7, 8, 3, 4, 5]
-    actual = splitOnList input [3, 4, 5]
-    expected = [[6, 7, 8]]
+    input =  [6,7,8,3,4,5]
+    actual = splitOnList input [3,4,5]
+    expected = [[6,7,8]]
     actual == expected
 
 expect
-    input = [3, 4, 5, 6, 7, 8]
-    actual = splitOnList input [3, 4, 5]
-    expected = [[6, 7, 8]]
+    input = [3,4,5,6,7,8]
+    actual = splitOnList input [3,4,5]
+    expected = [[6,7,8]]
     actual == expected

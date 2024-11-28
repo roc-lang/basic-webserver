@@ -1,14 +1,13 @@
 module [
-    SqliteErrCode,
-    SqliteError,
-    SqliteValue,
-    SqliteState,
-    SqliteBindings,
+    SQLiteErrCode,
+    SQLiteError,
+    SQLiteValue,
+    SQLiteBindings,
 ]
 
-SqliteErrCode : [
+SQLiteErrCode : [
     ERROR, # SQL error or missing database
-    INTERNAL, # Internal logic error in Sqlite
+    INTERNAL, # Internal logic error in SQLite
     PERM, # Access permission denied
     ABORT, # Callback routine requested an abort
     BUSY, # The database file is locked
@@ -39,12 +38,12 @@ SqliteErrCode : [
     DONE, # sqlite3_step() has finished executing
 ]
 
-SqliteError : {
+SQLiteError : {
     code : I64,
     message : Str,
 }
 
-SqliteValue : [
+SQLiteValue : [
     Null,
     Real F64,
     Integer I64,
@@ -52,12 +51,7 @@ SqliteValue : [
     Bytes (List U8),
 ]
 
-SqliteState : [
-    Row,
-    Done,
-]
-
-SqliteBindings : {
+SQLiteBindings : {
     name : Str,
-    value : SqliteValue,
+    value : SQLiteValue,
 }

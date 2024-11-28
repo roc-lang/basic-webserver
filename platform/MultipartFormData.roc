@@ -50,7 +50,7 @@ doubledash = ['-', '-']
 ## }
 ## ```
 ##
-parseContentF : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
+parseContentF : { upper: List U8, lower: List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
 parseContentF = \{ upper, lower } -> \bytes ->
 
         toSearchUpper = List.concat newline upper
