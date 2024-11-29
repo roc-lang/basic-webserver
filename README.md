@@ -1,6 +1,6 @@
 :book: docs: [main branch](https://roc-lang.github.io/basic-webserver/)
 
-:eyes: examples: [0.8](https://github.com/roc-lang/basic-webserver/tree/0.8.0/examples), [0.9](https://github.com/roc-lang/basic-webserver/tree/0.9.0/examples)
+:eyes: examples: [0.10](https://github.com/roc-lang/basic-webserver/tree/0.10.0/examples), [0.9](https://github.com/roc-lang/basic-webserver/tree/0.9.0/examples)
 
 :warning: On linux `--linker=legacy` is necessary for this package because of [this Roc issue](https://github.com/roc-lang/roc/issues/3609).
 
@@ -15,7 +15,7 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
-app [Model, server] { pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.9.0/taU2jQuBf-wB8EJb0hAkrYLYOGacUU5Y9reiHG45IY4.tar.br" }
+app [Model, server] { pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.10.0/BgDDIykwcg51W8HA58FE_BjdzgXVk--ucv6pVb_Adik.tar.br" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
