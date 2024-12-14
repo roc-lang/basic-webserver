@@ -1,69 +1,44 @@
-module [ReadErr, WriteErr]
-
-ReadErr : [
-    NotFound,
-    Interrupted,
-    InvalidFilename,
-    PermissionDenied,
-    TooManySymlinks, # aka FilesystemLoop
-    TooManyHardlinks,
-    TimedOut,
-    StaleNetworkFileHandle,
-    OutOfMemory,
-    Unsupported, # e.g. trying to read from a directory
-    Unrecognized I32 Str,
+module [
+    IOErr,
+    handleErr,
 ]
 
-WriteErr : [
+import Host
+
+## **NotFound** - An entity was not found, often a file.
+##
+## **PermissionDenied** - The operation lacked the necessary privileges to complete.
+##
+## **BrokenPipe** - The operation failed because a pipe was closed.
+##
+## **AlreadyExists** - An entity already exists, often a file.
+##
+## **Interrupted** - This operation was interrupted. Interrupted operations can typically be retried.
+##
+## **Unsupported** - This operation is unsupported on this platform. This means that the operation can never succeed.
+##
+## **OutOfMemory** - An operation could not be completed, because it failed to allocate enough memory.
+##
+## **Other** - A custom error that does not fall under any other I/O error kind.
+IOErr : [
     NotFound,
-    Interrupted,
-    InvalidFilename,
     PermissionDenied,
-    TooManySymlinks, # aka FilesystemLoop
-    TooManyHardlinks,
-    TimedOut,
-    StaleNetworkFileHandle,
-    ReadOnlyFilesystem,
-    AlreadyExists, # can this happen here?
-    WasADirectory,
-    WriteZero, # TODO come up with a better name for this, or roll it into another error tag
-    StorageFull,
-    FilesystemQuotaExceeded, # can this be combined with StorageFull?
-    FileTooLarge,
-    ResourceBusy,
-    ExecutableFileBusy,
-    OutOfMemory,
+    BrokenPipe,
+    AlreadyExists,
+    Interrupted,
     Unsupported,
-    Unrecognized I32 Str,
+    OutOfMemory,
+    Other Str,
 ]
 
-# DirReadErr : [
-#     NotFound,
-#     Interrupted,
-#     InvalidFilename,
-#     PermissionDenied,
-#     TooManySymlinks, # aka FilesystemLoop
-#     TooManyHardlinks,
-#     TimedOut,
-#     StaleNetworkFileHandle,
-#     NotADirectory,
-#     OutOfMemory,
-#     Unsupported,
-#     Unrecognized I32 Str,
-# ]
-# RmDirError : [
-#     NotFound,
-#     Interrupted,
-#     InvalidFilename,
-#     PermissionDenied,
-#     TooManySymlinks, # aka FilesystemLoop
-#     TooManyHardlinks,
-#     TimedOut,
-#     StaleNetworkFileHandle,
-#     NotADirectory,
-#     ReadOnlyFilesystem,
-#     DirectoryNotEmpty,
-#     OutOfMemory,
-#     Unsupported,
-#     Unrecognized I32 Str,
-# ]
+handleErr : Host.InternalIOErr -> IOErr
+handleErr = \{ tag, msg } ->
+    when tag is
+        NotFound -> NotFound
+        PermissionDenied -> PermissionDenied
+        BrokenPipe -> BrokenPipe
+        AlreadyExists -> AlreadyExists
+        Interrupted -> Interrupted
+        Unsupported -> Unsupported
+        OutOfMemory -> OutOfMemory
+        Other | EndOfFile -> Other msg

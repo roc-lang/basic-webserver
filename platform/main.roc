@@ -1,8 +1,8 @@
 platform "webserver"
-    requires { Model } { server : {
-        init : Task Model [Exit I32 Str]_,
-        respond : Http.Request, Model -> Task Http.Response [ServerErr Str]_,
-    } }
+    requires { Model } {
+        init! : {} => Result Model [Exit I32 Str]_,
+        respond! : Http.Request, Model => Result Http.Response [ServerErr Str]_,
+    }
     exposes [
         Path,
         Dir,
@@ -15,77 +15,67 @@ platform "webserver"
         Tcp,
         Url,
         Utc,
-        Sleep,
-        Command,
+        Cmd,
         SQLite3,
     ]
     packages {}
-    imports [Stderr]
-    provides [forHost]
+    imports []
+    provides [initForHost!, respondForHost!]
 
 import Http
+import Stderr
 import InternalHttp
 
-ForHost : {
-    init : Task (Box Model) I32,
-    respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost [],
-}
+initForHost! : I32 => Result (Box Model) I32
+initForHost! = \_ ->
+    when init! {} is
+        Ok model -> Ok (Box.box model)
+        Err (Exit code msg) ->
+            if Str.isEmpty msg then
+                Err code
+            else
+                _ = Stderr.line! msg
+                Err code
 
-forHost : ForHost
-forHost = { init, respond }
+        Err err ->
+            _ = Stderr.line!
+                """
+                Program exited with error:
+                    $(Inspect.toStr err)
 
-init : Task (Box Model) I32
-init =
-    Task.attempt server.init \res ->
-        when res is
-            Ok model -> Task.ok (Box.box model)
-            Err (Exit code str) ->
-                if Str.isEmpty str then
-                    Task.err code
-                else
-                    Stderr.line str
-                    |> Task.onErr \_ -> Task.err code
-                    |> Task.await \{} -> Task.err code
+                Tip: If you do not want to exit on this error, use `Task.mapErr` to handle the error.
+                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+                """
+            Err 1
 
-            Err err ->
-                Stderr.line
-                    """
-                    Program exited with error:
-                        $(Inspect.toStr err)
-
-                    Tip: If you do not want to exit on this error, use `Task.mapErr` to handle the error.
-                    Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
-                    """
-                |> Task.onErr \_ -> Task.err 1
-                |> Task.await \_ -> Task.err 1
-
-respond : InternalHttp.RequestToAndFromHost, Box Model -> Task InternalHttp.ResponseToHost []
-respond = \request, boxedModel ->
-    when server.respond (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) |> Task.result! is
-        Ok response -> Task.ok response
+respondForHost! : InternalHttp.RequestToAndFromHost, Box Model => Result InternalHttp.ResponseToHost []
+respondForHost! = \request, boxedModel ->
+    when respond! (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) is
+        Ok response -> Ok response
         Err (ServerErr msg) ->
-            Stderr.line msg
-                |> Task.onErr! \_ -> crash "unable to write to stderr"
+            # dicard the err here if stderr fails
+            _ = Stderr.line! msg
 
             # returns a http server error response
-            Task.ok {
+            Ok {
                 status: 500,
                 headers: [],
                 body: [],
             }
 
         Err err ->
-            """
-            Server error:
-                $(Inspect.toStr err)
+            # dicard the err here if stderr fails
+            _ = Stderr.line!
+                """
+                Server error:
+                    $(Inspect.toStr err)
 
-            Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
-            Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
-            """
-                |> Stderr.line
-                |> Task.onErr! \_ -> crash "unable to write to stderr"
+                Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
+                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+                """
 
-            Task.ok {
+            # returns a http server error response
+            Ok {
                 status: 500,
                 headers: [],
                 body: [],

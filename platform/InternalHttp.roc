@@ -2,7 +2,6 @@ module [
     Request,
     RequestToAndFromHost,
     fromHostRequest,
-    Response,
     ResponseToHost,
     ResponseFromHost,
     Method,
@@ -12,6 +11,7 @@ module [
     ErrorBody,
     errorBodyToUtf8,
     errorBodyFromUtf8,
+    methodToStr,
 ]
 
 Request : {
@@ -66,8 +66,6 @@ Header : {
     value : Str,
 }
 
-Response : ResponseToHost
-
 ResponseToHost : {
     status : U16,
     headers : List Header,
@@ -113,3 +111,17 @@ errorBodyToUtf8 = \@ErrorBody body -> body
 
 errorBodyFromUtf8 : List U8 -> ErrorBody
 errorBodyFromUtf8 = \body -> @ErrorBody body
+
+methodToStr : Method -> Str
+methodToStr = \method ->
+    when method is
+        Options -> "Options"
+        Get -> "Get"
+        Post -> "Post"
+        Put -> "Put"
+        Delete -> "Delete"
+        Head -> "Head"
+        Trace -> "Trace"
+        Connect -> "Connect"
+        Patch -> "Patch"
+        Extension ext -> ext

@@ -1,6 +1,6 @@
 module [
     Utc,
-    now,
+    now!,
     toMillisSinceEpoch,
     fromMillisSinceEpoch,
     toNanosSinceEpoch,
@@ -10,19 +10,15 @@ module [
     toIso8601Str,
 ]
 
-import PlatformTasks
+import Host
 import InternalDateTime
 
 ## Stores a timestamp as nanoseconds since UNIX EPOCH
 Utc := I128
 
 ## Duration since UNIX EPOCH
-now : Task Utc *
-now =
-    PlatformTasks.posixTime
-    |> Task.map Num.toI128
-    |> Task.map @Utc
-    |> Task.mapErr \_ -> crash "unreachable"
+now! : {} => Utc
+now! = \{} -> Host.posixTime! {} |> Num.toI128 |> @Utc
 
 ## Convert Utc timestamp to ISO 8601 string
 ## Example: 2023-11-14T23:39:39Z

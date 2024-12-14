@@ -10,15 +10,14 @@ module [
     defaultRequest,
     errorToString,
     errorBodyToBytes,
-    send,
-    get,
-    getUtf8,
+    send!,
+    get!,
+    getUtf8!,
     methodToStr,
     parseFormUrlEncoded,
     parseMultipartFormData,
 ]
 
-import PlatformTasks
 import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
 import MultipartFormData
 
@@ -35,7 +34,7 @@ Header : InternalHttp.Header
 TimeoutConfig : InternalHttp.TimeoutConfig
 
 ## Represents an HTTP response.
-Response : InternalHttp.Response
+Response : InternalHttp.ResponseToHost
 
 ## Represents an HTTP error.
 Err : InternalHttp.Error
@@ -92,7 +91,7 @@ errorToString = \err ->
 
         BadBody details -> "Request failed: Invalid body: $(details)"
 
-## Task to send an HTTP request, succeeds with a value of [Str] or fails with an
+## Send an HTTP request, succeeds with a value of [Str] or fails with an
 ## [Err].
 ##
 ## ```
@@ -106,50 +105,50 @@ errorToString = \err ->
 ## |> Result.withDefault "Invalid UTF-8"
 ## |> Stdout.line
 ## ```
-send : Request -> Task Response [HttpErr Err]
-send = \req ->
+send! : Request => Result InternalHttp.ResponseFromHost [HttpErr Err]
+send! = \_req ->
+    Err (HttpErr (BadBody "Not implemented yet"))
+# timeoutMs =
+#    when req.timeout is
+#        NoTimeout -> 0
+#        TimeoutMilliseconds ms -> ms
 
-    timeoutMilliseconds =
-        when req.timeout is
-            NoTimeout -> 0
-            TimeoutMilliseconds ms -> ms
+# internalRequest : InternalHttp.Request
+# internalRequest = {
+#    method: InternalHttp.methodToStr req.method,
+#    headers: req.headers,
+#    url: req.url,
+#    mimeType: req.mimeType,
+#    body: req.body,
+#    timeoutMs,
+# }
 
-    method = methodToStr req.method
+## TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
+# { variant, body, metadata } = Host.sendRequest! (Box.box internalRequest)
 
-    reqToHost : InternalHttp.RequestToAndFromHost
-    reqToHost = {
-        method,
-        headers: req.headers,
-        url: req.url,
-        mimeType: req.mimeType,
-        body: req.body,
-        timeoutMilliseconds,
-    }
+# responseResult =
+#    when variant is
+#        "Timeout" -> Err (Timeout timeoutMs)
+#        "NetworkErr" -> Err NetworkError
+#        "BadStatus" ->
+#            Err
+#                (
+#                    BadStatus {
+#                        code: metadata.statusCode,
+#                        body: errorBodyFromUtf8 body,
+#                    }
+#                )
 
-    # TODO: Fix our C ABI codegen so that we don't need this Box.box heap allocation
-    { variant, body, metadata } =
-        PlatformTasks.sendRequest (Box.box reqToHost)
-            |> Task.mapErr! \_ -> crash "unreachable"
+#        "GoodStatus" ->
+#            Ok {
+#                variant,
+#                metadata,
+#                body,
+#            }
 
-    when variant is
-        "Timeout" -> Task.err (HttpErr (Timeout timeoutMilliseconds))
-        "NetworkErr" -> Task.err (HttpErr NetworkError)
-        "BadStatus" ->
-            BadStatus {
-                code: metadata.statusCode,
-                body: errorBodyFromUtf8 body,
-            }
-            |> HttpErr
-            |> Task.err
+#        "BadRequest" | _other -> Err (BadRequest metadata.statusText)
 
-        "GoodStatus" ->
-            Task.ok {
-                status: metadata.statusCode,
-                headers: metadata.headers,
-                body,
-            }
-
-        "BadRequest" | _other -> Task.err (HttpErr (BadRequest metadata.statusText))
+# responseResult |> Result.mapErr HttpErr
 
 ## Try to perform an HTTP get request and convert (decode) the received bytes into a Roc type.
 ## Very useful for working with Json.
@@ -160,22 +159,20 @@ send = \req ->
 ## # On the server side we send `Encode.toBytes {foo: "Hello Json!"} Json.utf8`
 ## { foo } = Http.get! "http://localhost:8000" Json.utf8
 ## ```
-get : Str, fmt -> Task body [HttpErr Http.Err, HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
-get = \url, fmt ->
-    response = send! { defaultRequest & url }
+get! : Str, fmt => Result body [HttpErr Http.Err, HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
+get! = \url, fmt ->
+    response = send!? { defaultRequest & url }
 
     Decode.fromBytes response.body fmt
     |> Result.mapErr \_ -> HttpDecodingFailed
-    |> Task.fromResult
 
-getUtf8 : Str -> Task Str [HttpErr Http.Err]
-getUtf8 = \url ->
-    response = send! { defaultRequest & url }
+getUtf8! : Str => Result Str [HttpErr Http.Err]
+getUtf8! = \url ->
+    response = send!? { defaultRequest & url }
 
     response.body
     |> Str.fromUtf8
     |> Result.mapErr \_ -> HttpErr (BadBody "Invalid UTF-8")
-    |> Task.fromResult
 
 methodToStr : Method -> Str
 methodToStr = \method ->

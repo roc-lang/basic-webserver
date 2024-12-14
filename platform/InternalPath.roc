@@ -1,6 +1,7 @@
 module [
     UnwrappedPath,
     InternalPath,
+    InternalPathType,
     wrap,
     unwrap,
     toBytes,
@@ -8,7 +9,7 @@ module [
     fromOsBytes,
 ]
 
-InternalPath := UnwrappedPath
+InternalPath := UnwrappedPath implements [Inspect]
 
 UnwrappedPath : [
     # We store these separately for two reasons:
@@ -45,6 +46,8 @@ UnwrappedPath : [
     # for more details on the UTF-8 Code Page in Windows.
     FromStr Str,
 ]
+
+InternalPathType : { isFile : Bool, isSymLink : Bool, isDir : Bool }
 
 wrap : UnwrappedPath -> InternalPath
 wrap = @InternalPath

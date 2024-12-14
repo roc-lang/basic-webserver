@@ -205,42 +205,22 @@ pub extern "C" fn roc_fx_sendRequest(
 
 #[roc_fn(name = "envVar")]
 fn env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
-    match std::env::var_os(roc_str.as_str()) {
-        Some(os_str) => RocResult::ok(RocStr::from(os_str.to_string_lossy().to_string().as_str())),
-        None => RocResult::err(()),
-    }
+    roc_env::env_var(roc_str)
 }
 
-#[roc_fn(name = "envList")]
-fn env_dict() -> RocResult<RocList<(RocStr, RocStr)>, ()> {
-    use std::borrow::Borrow;
-
-    let mut entries = Vec::new();
-
-    for (key, val) in std::env::vars_os() {
-        let key = RocStr::from(key.to_string_lossy().borrow());
-        let value = RocStr::from(val.to_string_lossy().borrow());
-
-        entries.push((key, value));
-    }
-
-    RocResult::ok(RocList::from_slice(entries.as_slice()))
+#[roc_fn(name = "envDict")]
+fn env_dict() -> RocList<(RocStr, RocStr)> {
+    roc_env::env_dict()
 }
 
 #[roc_fn(name = "exePath")]
 fn exe_path() -> RocResult<RocList<u8>, ()> {
-    match std::env::current_exe() {
-        Ok(path_buf) => RocResult::ok(os_str_to_roc_path(path_buf.as_path().as_os_str())),
-        Err(_) => RocResult::err(()),
-    }
+    roc_env::exe_path()
 }
 
 #[roc_fn(name = "setCwd")]
 fn set_cwd(roc_path: &roc_std::RocList<u8>) -> RocResult<(), ()> {
-    match std::env::set_current_dir(path_from_roc_path(roc_path)) {
-        Ok(()) => RocResult::ok(()),
-        Err(_) => RocResult::err(()),
-    }
+    roc_env::set_cwd(roc_path)
 }
 
 #[roc_fn(name = "cwd")]
@@ -333,17 +313,12 @@ fn handleStderrErr(io_err: std::io::Error) -> RocStr {
 }
 
 #[roc_fn(name = "posixTime")]
-fn posix_time() -> RocResult<roc_std::U128, ()> {
-    // TODO in future may be able to avoid this panic by using C APIs
-    let since_epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("time went backwards");
-
-    RocResult::ok(roc_std::U128::from(since_epoch.as_nanos()))
+fn posix_time() -> roc_std::U128 {
+    roc_env::posix_time()
 }
 
 #[roc_fn(name = "commandOutput")]
-fn command_output(roc_cmd: &roc_app::InternalCommand) -> RocResult<roc_app::InternalOutput, ()> {
+fn command_output(roc_cmd: &roc_app::InternalCommand) -> roc_app::InternalOutput {
     let args = roc_cmd.args.into_iter().map(|arg| arg.as_str());
     let num_envs = roc_cmd.envs.len() / 2;
     let flat_envs = &roc_cmd.envs;
@@ -392,19 +367,19 @@ fn command_output(roc_cmd: &roc_app::InternalCommand) -> RocResult<roc_app::Inte
                 }
             };
 
-            RocResult::ok(roc_app::InternalOutput {
+            roc_app::InternalOutput {
                 status,
                 stdout: RocList::from(&output.stdout[..]),
                 stderr: RocList::from(&output.stderr[..]),
-            })
+            }
         }
-        Err(err) => RocResult::ok(roc_app::InternalOutput {
+        Err(err) => roc_app::InternalOutput {
             status: RocResult::err(roc_app::InternalCommandErr::IOError(RocStr::from(
                 err.to_string().as_str(),
             ))),
             stdout: RocList::empty(),
             stderr: RocList::empty(),
-        }),
+        },
     }
 }
 
@@ -601,14 +576,6 @@ fn to_tcp_stream_err(err: std::io::Error) -> roc_app::StreamErr {
             f0: err.raw_os_error().unwrap_or_default(),
         }),
     }
-}
-
-#[roc_fn(name = "sleepMillis")]
-fn sleep_millis(milliseconds: u64) -> RocResult<(), ()> {
-    let duration = std::time::Duration::from_millis(milliseconds);
-    std::thread::sleep(duration);
-
-    RocResult::ok(())
 }
 
 #[roc_fn(name = "fileWriteUtf8")]
@@ -938,10 +905,8 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_app::SQLiteValue {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tempDir() -> RocResult<RocList<u8>, ()> {
-    let path_os_string_bytes = std::env::temp_dir().into_os_string().into_encoded_bytes();
-
-    RocResult::ok(RocList::from(path_os_string_bytes.as_slice()))
+pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
+    roc_env::temp_dir()
 }
 
 #[derive(Debug)]
@@ -1095,4 +1060,19 @@ pub fn call_roc_respond(
 
         Ok(result)
     }
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_getLocale() -> RocResult<RocStr, ()> {
+    roc_env::get_locale()
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_getLocales() -> RocList<RocStr> {
+    roc_env::get_locales()
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_currentArchOS() -> roc_env::ReturnArchOS {
+    roc_env::current_arch_os()
 }
