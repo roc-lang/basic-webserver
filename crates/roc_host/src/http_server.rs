@@ -7,7 +7,6 @@ use hyper::header::{HeaderName, HeaderValue};
 use roc_std::RocList;
 use std::convert::Infallible;
 use std::env;
-use std::io::Write;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::OnceLock;
@@ -62,19 +61,7 @@ fn call_roc<'a>(
     let roc_response: ResponseToHost = roc::call_roc_respond(
         roc_request,
         ROC_MODEL.get().expect("Model was initialized at startup"),
-    )
-    .unwrap_or_else(|err_msg| {
-        // report the server error
-        std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
-        std::io::stderr().write_all(&[b'\n']).unwrap();
-
-        // respond with a http 500 error
-        roc_http::ResponseToHost {
-            body: RocList::empty(),
-            headers: RocList::empty(),
-            status: 500,
-        }
-    });
+    );
 
     to_server_response(roc_response)
 }

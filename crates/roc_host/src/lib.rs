@@ -1,8 +1,6 @@
-mod glue;
 mod http_client;
 mod http_server;
 mod roc;
-mod roc_command;
 mod roc_http;
 
 #[no_mangle]

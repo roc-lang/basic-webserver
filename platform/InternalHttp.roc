@@ -70,6 +70,9 @@ ResponseToHost : {
     status : U16,
     headers : List Header,
     body : List U8,
+    xxx : U64,
+    yyy : U64,
+    zzz : U64,
 }
 
 ResponseFromHost : {
