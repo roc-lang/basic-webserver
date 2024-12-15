@@ -34,7 +34,7 @@ Header : InternalHttp.Header
 TimeoutConfig : InternalHttp.TimeoutConfig
 
 ## Represents an HTTP response.
-Response : InternalHttp.ResponseToHost
+Response : InternalHttp.ResponseToAndFromHost
 
 ## Represents an HTTP error.
 Err : InternalHttp.Error
@@ -105,7 +105,7 @@ errorToString = \err ->
 ## |> Result.withDefault "Invalid UTF-8"
 ## |> Stdout.line
 ## ```
-send! : Request => Result InternalHttp.ResponseFromHost [HttpErr Err]
+send! : Request => Result Response [HttpErr Err]
 send! = \_req ->
     Err (HttpErr (BadBody "Not implemented yet"))
 # timeoutMs =

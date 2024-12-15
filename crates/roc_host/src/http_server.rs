@@ -1,6 +1,5 @@
 use crate::roc;
 use crate::roc_http;
-use crate::roc_http::ResponseToHost;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
@@ -56,18 +55,34 @@ fn call_roc<'a>(
         })
         .collect();
 
-    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
+    let mime_type = {
+        let content_type = headers
+            .iter()
+            .find(|header| header.name.as_str() == "Content-Type");
+        match content_type {
+            Some(header) => header.value.clone(),
+            None => "text/plain".into(),
+        }
+    };
 
-    let roc_response: ResponseToHost = roc::call_roc_respond(
-        roc_request,
-        ROC_MODEL.get().expect("Model was initialized at startup"),
+    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(
+        body,
+        headers,
+        method,
+        url.to_string().as_str().into(),
+        mime_type,
     );
 
-    to_server_response(roc_response)
+    to_server_response(roc::call_roc_respond(
+        roc_request,
+        ROC_MODEL.get().expect("Model was initialized at startup"),
+    ))
 }
 
 #[allow(dead_code)]
-fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response<hyper::Body> {
+fn to_server_response(
+    roc_response: roc_http::ResponseToAndFromHost,
+) -> hyper::Response<hyper::Body> {
     let mut builder = hyper::Response::builder();
 
     match roc_response.hyper_status() {
@@ -80,7 +95,7 @@ fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response
     };
 
     for header in roc_response.headers.iter() {
-        builder = builder.header(header.key.as_str(), header.value.as_bytes());
+        builder = builder.header(header.name.as_str(), header.value.as_bytes());
     }
 
     builder

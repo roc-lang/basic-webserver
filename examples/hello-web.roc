@@ -25,7 +25,4 @@ respond! = \req, _ ->
         status: 200,
         headers: [],
         body: Str.toUtf8 "<b>Hello from server</b></br>",
-        xxx: 0,
-        yyy: 0,
-        zzz: 0,
     }

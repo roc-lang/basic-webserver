@@ -14,7 +14,6 @@ path = "src/lib.rs"
 
 [dependencies]
 roc_std.workspace = true
-roc_app = { path = "../roc_app" }
 roc_env = { git = "https://github.com/roc-lang/basic-cli.git" }
 roc_command = { git = "https://github.com/roc-lang/basic-cli.git" }
 roc_io_error = { git = "https://github.com/roc-lang/basic-cli.git" }

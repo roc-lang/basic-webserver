@@ -1,14 +1,13 @@
 module [
     Request,
     RequestToAndFromHost,
-    fromHostRequest,
-    ResponseToHost,
-    ResponseFromHost,
+    ResponseToAndFromHost,
     Method,
     Header,
     TimeoutConfig,
     Error,
     ErrorBody,
+    fromHostRequest,
     errorBodyToUtf8,
     errorBodyFromUtf8,
     methodToStr,
@@ -24,7 +23,8 @@ Request : {
 }
 
 RequestToAndFromHost : {
-    method : Str,
+    method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension],
+    methodExt : Str,
     headers : List Header,
     url : Str,
     mimeType : Str,
@@ -33,8 +33,8 @@ RequestToAndFromHost : {
 }
 
 fromHostRequest : RequestToAndFromHost -> Request
-fromHostRequest = \{ method, headers, url, mimeType, body, timeoutMilliseconds } -> {
-    method: methodFromStr method,
+fromHostRequest = \{ method, methodExt, headers, url, mimeType, body, timeoutMilliseconds } -> {
+    method: toMethod method methodExt,
     headers,
     url,
     mimeType,
@@ -47,45 +47,29 @@ TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
 
 Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension Str]
 
-methodFromStr : Str -> Method
-methodFromStr = \str ->
-    when str is
-        "OPTIONS" -> Options
-        "GET" -> Get
-        "POST" -> Post
-        "PUT" -> Put
-        "DELETE" -> Delete
-        "HEAD" -> Head
-        "TRACE" -> Trace
-        "CONNECT" -> Connect
-        "PATCH" -> Patch
-        extension -> Extension extension
+toMethod : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension], Str -> Method
+toMethod = \tag, ext ->
+    when tag is
+        Options -> Options
+        Get -> Get
+        Post -> Post
+        Put -> Put
+        Delete -> Delete
+        Head -> Head
+        Trace -> Trace
+        Connect -> Connect
+        Patch -> Patch
+        Extension -> Extension ext
 
 Header : {
     name : Str,
     value : Str,
 }
 
-ResponseToHost : {
+ResponseToAndFromHost : {
     status : U16,
     headers : List Header,
     body : List U8,
-    xxx : U64,
-    yyy : U64,
-    zzz : U64,
-}
-
-ResponseFromHost : {
-    variant : Str,
-    metadata : Metadata,
-    body : List U8,
-}
-
-Metadata : {
-    url : Str,
-    statusCode : U16,
-    statusText : Str,
-    headers : List Header,
 }
 
 Error : [

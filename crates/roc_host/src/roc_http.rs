@@ -1,15 +1,35 @@
-use roc_std::{RocList, RocStr};
-use std::str::FromStr;
+use roc_std::{roc_refcounted_noop_impl, RocList, RocRefcounted, RocStr};
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct RequestToAndFromHost {
     pub body: RocList<u8>,
     pub headers: RocList<Header>,
-    pub method: RocStr,
+    pub method_ext: RocStr,
     pub mime_type: RocStr,
     pub timeout_ms: u64,
     pub url: RocStr,
+    pub method: MethodTag,
+}
+
+impl RocRefcounted for RequestToAndFromHost {
+    fn inc(&mut self) {
+        self.body.inc();
+        self.headers.inc();
+        self.method_ext.inc();
+        self.mime_type.inc();
+        self.url.inc();
+    }
+    fn dec(&mut self) {
+        self.body.dec();
+        self.headers.dec();
+        self.method_ext.dec();
+        self.mime_type.dec();
+        self.url.dec();
+    }
+    fn is_refcounted() -> bool {
+        true
+    }
 }
 
 impl RequestToAndFromHost {
@@ -17,17 +37,26 @@ impl RequestToAndFromHost {
         body_bytes: bytes::Bytes,
         headers: RocList<Header>,
         reqwest_method: reqwest::Method,
-        url: hyper::Uri,
+        url: RocStr,
+        mime_type: RocStr,
     ) -> RequestToAndFromHost {
-        let method = reqwest_method.as_str().into();
+        let method = (&reqwest_method).into();
+        let method_ext = {
+            if method == MethodTag::Extension {
+                RocStr::from(reqwest_method.as_str())
+            } else {
+                RocStr::empty()
+            }
+        };
 
         RequestToAndFromHost {
             body: body_bytes.to_vec().as_slice().into(),
             headers,
             method,
-            mime_type: RocStr::from("text/plain"),
-            timeout_ms: 1_000,
-            url: url.to_string().as_str().into(),
+            method_ext,
+            mime_type,
+            timeout_ms: 0, // request is from server... roc hasn't got a timeout
+            url,
         }
     }
 
@@ -40,36 +69,43 @@ impl RequestToAndFromHost {
     }
 
     pub fn to_reqwest_method(&self) -> reqwest::Method {
-        match reqwest::Method::from_str(self.method.as_str()) {
-            Ok(method) => method,
-            Err(err) => panic!(
-                "The platform reveived an unknown HTTP method Str from Roc: {}.",
-                err
-            ),
+        match self.method {
+            MethodTag::Connect => reqwest::Method::CONNECT,
+            MethodTag::Delete => reqwest::Method::DELETE,
+            MethodTag::Get => reqwest::Method::GET,
+            MethodTag::Head => reqwest::Method::HEAD,
+            MethodTag::Options => reqwest::Method::OPTIONS,
+            MethodTag::Patch => reqwest::Method::PATCH,
+            MethodTag::Post => reqwest::Method::POST,
+            MethodTag::Put => reqwest::Method::PUT,
+            MethodTag::Trace => reqwest::Method::TRACE,
+            MethodTag::Extension => {
+                reqwest::Method::from_bytes(self.method_ext.as_bytes()).unwrap()
+            }
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
 pub struct Header {
-    pub key: RocStr,
+    pub name: RocStr,
     pub value: RocStr,
 }
 
 impl Header {
-    pub fn new(key: RocStr, value: RocStr) -> Header {
-        Header { key, value }
+    pub fn new(name: RocStr, value: RocStr) -> Header {
+        Header { name, value }
     }
 }
 
 impl roc_std::RocRefcounted for Header {
     fn inc(&mut self) {
-        self.key.inc();
+        self.name.inc();
         self.value.inc();
     }
     fn dec(&mut self) {
-        self.key.dec();
+        self.name.dec();
         self.value.dec();
     }
     fn is_refcounted() -> bool {
@@ -77,104 +113,75 @@ impl roc_std::RocRefcounted for Header {
     }
 }
 
-#[repr(C)]
-pub struct Metadata {
-    pub headers: RocList<Header>,
-    pub url: RocStr,
-    pub status_code: u16,
-    pub status_text: RocStr,
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[repr(u8)]
+pub enum MethodTag {
+    Connect = 0,
+    Delete = 1,
+    Extension = 2,
+    Get = 3,
+    Head = 4,
+    Options = 5,
+    Patch = 6,
+    Post = 7,
+    Put = 8,
+    Trace = 9,
 }
 
-impl Metadata {
-    fn empty() -> Metadata {
-        Metadata {
-            headers: RocList::empty(),
-            status_text: RocStr::empty(),
-            url: RocStr::empty(),
-            status_code: 0,
-        }
-    }
-
-    pub fn from_status_code(status_code: u16) -> Metadata {
-        Metadata {
-            headers: RocList::empty(),
-            status_text: RocStr::empty(),
-            url: RocStr::empty(),
-            status_code,
+impl From<&reqwest::Method> for MethodTag {
+    fn from(method: &reqwest::Method) -> Self {
+        if method == reqwest::Method::CONNECT {
+            Self::Connect
+        } else if method == reqwest::Method::DELETE {
+            Self::Delete
+        } else if method == reqwest::Method::GET {
+            Self::Get
+        } else if method == reqwest::Method::HEAD {
+            Self::Head
+        } else if method == reqwest::Method::OPTIONS {
+            Self::Options
+        } else if method == reqwest::Method::PATCH {
+            Self::Patch
+        } else if method == reqwest::Method::POST {
+            Self::Post
+        } else if method == reqwest::Method::PUT {
+            Self::Put
+        } else if method == reqwest::Method::TRACE {
+            Self::Trace
+        } else {
+            Self::Extension
         }
     }
 }
 
+impl core::fmt::Debug for MethodTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Connect => f.write_str("MethodTag::Connect"),
+            Self::Delete => f.write_str("MethodTag::Delete"),
+            Self::Extension => f.write_str("MethodTag::Extension"),
+            Self::Get => f.write_str("MethodTag::Get"),
+            Self::Head => f.write_str("MethodTag::Head"),
+            Self::Options => f.write_str("MethodTag::Options"),
+            Self::Patch => f.write_str("MethodTag::Patch"),
+            Self::Post => f.write_str("MethodTag::Post"),
+            Self::Put => f.write_str("MethodTag::Put"),
+            Self::Trace => f.write_str("MethodTag::Trace"),
+        }
+    }
+}
+
+roc_refcounted_noop_impl!(MethodTag);
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(C)]
-pub struct ResponseFromHost {
+pub struct ResponseToAndFromHost {
     pub body: RocList<u8>,
-    pub metadata: Metadata,
-    pub variant: RocStr,
-}
-
-impl ResponseFromHost {
-    pub fn bad_request(error: &str) -> ResponseFromHost {
-        ResponseFromHost {
-            variant: "BadRequest".into(),
-            metadata: Metadata {
-                status_text: RocStr::from(error),
-                ..Metadata::empty()
-            },
-            body: RocList::empty(),
-        }
-    }
-
-    pub fn good_status(metadata: Metadata, body: RocList<u8>) -> ResponseFromHost {
-        ResponseFromHost {
-            variant: "GoodStatus".into(),
-            metadata,
-            body,
-        }
-    }
-
-    pub fn bad_status(metadata: Metadata, body: RocList<u8>) -> ResponseFromHost {
-        ResponseFromHost {
-            variant: "BadStatus".into(),
-            metadata,
-            body,
-        }
-    }
-
-    pub fn timeout() -> ResponseFromHost {
-        ResponseFromHost {
-            variant: "Timeout".into(),
-            metadata: Metadata::empty(),
-            body: RocList::empty(),
-        }
-    }
-
-    pub fn network_error() -> ResponseFromHost {
-        ResponseFromHost {
-            variant: "NetworkError".into(),
-            metadata: Metadata::empty(),
-            body: RocList::empty(),
-        }
-    }
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub struct ResponseToHost {
-    pub body: roc_std::RocList<u8>,
-    pub headers: roc_std::RocList<Header>,
+    pub headers: RocList<Header>,
     pub status: u16,
 }
 
-impl ResponseToHost {
-    pub fn hyper_status(&self) -> Result<hyper::StatusCode, ()> {
-        match hyper::StatusCode::from_u16(self.status) {
-            Ok(status) => Ok(status),
-            Err(..) => Err(()),
-        }
-    }
-}
-
-impl roc_std::RocRefcounted for ResponseToHost {
+impl RocRefcounted for ResponseToAndFromHost {
     fn inc(&mut self) {
         self.body.inc();
         self.headers.inc();
@@ -185,5 +192,14 @@ impl roc_std::RocRefcounted for ResponseToHost {
     }
     fn is_refcounted() -> bool {
         true
+    }
+}
+
+impl ResponseToAndFromHost {
+    pub fn hyper_status(&self) -> Result<hyper::StatusCode, ()> {
+        match hyper::StatusCode::from_u16(self.status) {
+            Ok(status) => Ok(status),
+            Err(..) => Err(()),
+        }
     }
 }

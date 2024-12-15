@@ -1,9 +1,9 @@
-use roc_std::{RocList, RocStr};
+use roc_std::RocList;
 use std::{iter::FromIterator, time::Duration};
 
-use crate::roc_http;
+use crate::roc_http::{Header, RequestToAndFromHost, ResponseToAndFromHost};
 
-pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::ResponseFromHost {
+pub fn send_req(roc_request: &RequestToAndFromHost) -> ResponseToAndFromHost {
     let mut builder = reqwest::blocking::ClientBuilder::new();
 
     if let Some(ms) = roc_request.has_timeout() {
@@ -13,10 +13,11 @@ pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::Respo
     let client = match builder.build() {
         Ok(c) => c,
         Err(_) => {
-            return roc_http::ResponseFromHost::bad_status(
-                roc_http::Metadata::from_status_code(500),
-                "TLS backend cannot be initialized".as_bytes().into(),
-            )
+            return ResponseToAndFromHost {
+                status: 500,
+                headers: RocList::empty(),
+                body: "TLS backend cannot be initialized".as_bytes().into(),
+            }
         }
     };
 
@@ -24,7 +25,7 @@ pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::Respo
     let mut req_builder = client.request(method, roc_request.url.as_str());
 
     for header in roc_request.headers.iter() {
-        req_builder = req_builder.header(header.key.as_str(), header.value.as_bytes());
+        req_builder = req_builder.header(header.name.as_str(), header.value.as_bytes());
     }
 
     req_builder = req_builder.header("Content-Type", roc_request.mime_type.as_str());
@@ -32,13 +33,20 @@ pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::Respo
 
     let request = match req_builder.build() {
         Ok(req) => req,
-        Err(err) => return roc_http::ResponseFromHost::bad_request(err.to_string().as_str()),
+        Err(err) => {
+            return ResponseToAndFromHost {
+                status: 400,
+                headers: RocList::empty(),
+                body: err.to_string().as_bytes().into(),
+            }
+        }
     };
 
     match client.execute(request) {
         Ok(response) => {
+            let status = response.status().as_u16();
             let headers_iter = response.headers().iter().map(|(key, value)| {
-                roc_http::Header::new(
+                Header::new(
                     key.as_str().into(),
                     value
                         .to_str()
@@ -46,35 +54,42 @@ pub fn send_req(roc_request: &roc_http::RequestToAndFromHost) -> roc_http::Respo
                         .into(),
                 )
             });
-
             let headers = RocList::from_iter(headers_iter);
-
-            let status = response.status().as_u16();
             let bytes = response.bytes().unwrap_or_default();
             let body: RocList<u8> = RocList::from_iter(bytes);
 
-            let metadata = roc_http::Metadata {
+            ResponseToAndFromHost {
+                status,
                 headers,
-                url: roc_request.url.clone(),
-                status_code: status,
-                status_text: RocStr::empty(),
-            };
-
-            roc_http::ResponseFromHost::good_status(metadata, body)
+                body,
+            }
         }
 
         Err(err) => {
             if err.is_timeout() {
-                roc_http::ResponseFromHost::timeout()
+                ResponseToAndFromHost {
+                    status: 408,
+                    headers: RocList::empty(),
+                    body: "Request Timeout".as_bytes().into(),
+                }
             } else if err.is_request() {
-                roc_http::ResponseFromHost::bad_request(err.to_string().as_str())
+                ResponseToAndFromHost {
+                    status: 400,
+                    headers: RocList::empty(),
+                    body: "Bad Request".as_bytes().into(),
+                }
             } else if err.is_connect() {
-                roc_http::ResponseFromHost::network_error()
+                ResponseToAndFromHost {
+                    status: 599,
+                    headers: RocList::empty(),
+                    body: "Network Connect Timeout Error".as_bytes().into(),
+                }
             } else {
-                roc_http::ResponseFromHost::bad_status(
-                    roc_http::Metadata::from_status_code(404),
-                    RocList::from_slice(err.to_string().as_bytes()),
-                )
+                ResponseToAndFromHost {
+                    status: 400,
+                    headers: RocList::empty(),
+                    body: err.to_string().as_bytes().into(),
+                }
             }
         }
     }

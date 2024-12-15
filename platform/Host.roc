@@ -42,7 +42,7 @@ hosted Host
     ]
     imports []
 
-import InternalHttp exposing [Request, ResponseFromHost]
+import InternalHttp
 import InternalCommand
 import InternalSQL
 import InternalPath
@@ -92,7 +92,7 @@ stderrLine! : Str => Result {} InternalIOErr
 stderrWrite! : Str => Result {} InternalIOErr
 
 # TCP
-sendRequest! : Box Request => ResponseFromHost
+sendRequest! : Box InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
 
 TcpStream := Box {}
 tcpConnect! : Str, U16 => Result TcpStream Str
