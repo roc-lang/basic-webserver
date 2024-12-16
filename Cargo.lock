@@ -70,9 +70,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bytes"
-version = "1.9.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "325918d6fe32f23b19878fe4b34794ae41fc19ddbe53b10571a4874d44ffd39b"
+checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
 name = "cc"
@@ -757,15 +757,14 @@ dependencies = [
 [[package]]
 name = "roc_command"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
 dependencies = [
+ "roc_io_error",
  "roc_std",
 ]
 
 [[package]]
 name = "roc_env"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
 dependencies = [
  "roc_file",
  "roc_std",
@@ -775,7 +774,6 @@ dependencies = [
 [[package]]
 name = "roc_file"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
 dependencies = [
  "memchr",
  "roc_io_error",
@@ -796,10 +794,10 @@ dependencies = [
  "roc_command",
  "roc_env",
  "roc_file",
+ "roc_http",
  "roc_io_error",
  "roc_std",
  "roc_stdio",
- "roc_tcp",
  "sqlite",
  "tokio",
 ]
@@ -812,46 +810,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "roc_io_error"
+name = "roc_http"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
 dependencies = [
- "roc_std",
- "roc_std_heap",
-]
-
-[[package]]
-name = "roc_std"
-version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#ef2f813a30dc13ca709383140a70110eb34f1bf1"
-dependencies = [
- "arrayvec",
- "static_assertions",
-]
-
-[[package]]
-name = "roc_std_heap"
-version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#ef2f813a30dc13ca709383140a70110eb34f1bf1"
-dependencies = [
- "memmap2",
- "roc_std",
-]
-
-[[package]]
-name = "roc_stdio"
-version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
-dependencies = [
- "roc_io_error",
- "roc_std",
-]
-
-[[package]]
-name = "roc_tcp"
-version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#fbdd5e68fe286ae7f999d549d0e761df0b3773cf"
-dependencies = [
+ "bytes",
  "hyper",
  "hyper-rustls 0.24.2",
  "memchr",
@@ -860,6 +822,40 @@ dependencies = [
  "roc_std",
  "roc_std_heap",
  "tokio",
+]
+
+[[package]]
+name = "roc_io_error"
+version = "0.0.1"
+dependencies = [
+ "roc_std",
+ "roc_std_heap",
+]
+
+[[package]]
+name = "roc_std"
+version = "0.0.1"
+source = "git+https://github.com/roc-lang/roc.git#edd7c650b9ab385a2603cdd5004b4a35b43d2b31"
+dependencies = [
+ "arrayvec",
+ "static_assertions",
+]
+
+[[package]]
+name = "roc_std_heap"
+version = "0.0.1"
+source = "git+https://github.com/roc-lang/roc.git#edd7c650b9ab385a2603cdd5004b4a35b43d2b31"
+dependencies = [
+ "memmap2",
+ "roc_std",
+]
+
+[[package]]
+name = "roc_stdio"
+version = "0.0.1"
+dependencies = [
+ "roc_io_error",
+ "roc_std",
 ]
 
 [[package]]

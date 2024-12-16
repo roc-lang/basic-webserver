@@ -5,7 +5,6 @@ use std::mem::ManuallyDrop;
 use std::os::raw::c_void;
 
 use crate::http_client;
-use crate::roc_http;
 use crate::roc_sql;
 
 #[no_mangle]
@@ -77,113 +76,112 @@ pub unsafe extern "C" fn roc_getppid() -> libc::pid_t {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_sendRequest(
+pub extern "C" fn roc_fx_send_request(
     roc_request: &roc_http::RequestToAndFromHost,
 ) -> roc_http::ResponseToAndFromHost {
     http_client::send_req(roc_request)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_envVar(roc_str: &RocStr) -> RocResult<RocStr, ()> {
+pub extern "C" fn roc_fx_env_var(roc_str: &RocStr) -> RocResult<RocStr, ()> {
     roc_env::env_var(roc_str)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_envDict() -> RocList<(RocStr, RocStr)> {
+pub extern "C" fn roc_fx_env_dict() -> RocList<(RocStr, RocStr)> {
     roc_env::env_dict()
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_exePath() -> RocResult<RocList<u8>, ()> {
+pub extern "C" fn roc_fx_exe_path() -> RocResult<RocList<u8>, ()> {
     roc_env::exe_path()
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_setCwd(roc_path: &RocList<u8>) -> RocResult<(), ()> {
+pub extern "C" fn roc_fx_set_cwd(roc_path: &RocList<u8>) -> RocResult<(), ()> {
     roc_env::set_cwd(roc_path)
 }
 
 #[no_mangle]
 pub extern "C" fn roc_fx_cwd() -> RocResult<RocList<u8>, ()> {
-    // TODO change to roc_env when that is moved in basic-cli
-    roc_file::cwd()
+    roc_env::cwd()
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_stdoutLine(line: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
+pub extern "C" fn roc_fx_stdout_line(line: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
     roc_stdio::stdout_line(line)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_stdoutWrite(text: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
+pub extern "C" fn roc_fx_stdout_write(text: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
     roc_stdio::stdout_write(text)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_stderrLine(line: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
+pub extern "C" fn roc_fx_stderr_line(line: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
     roc_stdio::stderr_line(line)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_stderrWrite(text: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
+pub extern "C" fn roc_fx_stderr_write(text: &RocStr) -> RocResult<(), roc_io_error::IOErr> {
     roc_stdio::stderr_write(text)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_posixTime() -> roc_std::U128 {
+pub extern "C" fn roc_fx_posix_time() -> roc_std::U128 {
     roc_env::posix_time()
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_commandStatus(
+pub extern "C" fn roc_fx_command_status(
     roc_cmd: &roc_command::Command,
-) -> RocResult<(), RocList<u8>> {
+) -> RocResult<i32, roc_io_error::IOErr> {
     roc_command::command_status(roc_cmd)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_commandOutput(
+pub extern "C" fn roc_fx_command_output(
     roc_cmd: &roc_command::Command,
-) -> roc_command::CommandOutput {
+) -> roc_command::OutputFromHost {
     roc_command::command_output(roc_cmd)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tcpConnect(host: &RocStr, port: u16) -> RocResult<RocBox<()>, RocStr> {
-    roc_tcp::tcp_connect(host, port)
+pub extern "C" fn roc_fx_tcp_connect(host: &RocStr, port: u16) -> RocResult<RocBox<()>, RocStr> {
+    roc_http::tcp_connect(host, port)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tcpReadUpTo(
+pub extern "C" fn roc_fx_tcp_read_up_to(
     stream: RocBox<()>,
     bytes_to_read: u64,
 ) -> RocResult<RocList<u8>, RocStr> {
-    roc_tcp::tcp_read_up_to(stream, bytes_to_read)
+    roc_http::tcp_read_up_to(stream, bytes_to_read)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tcpReadExactly(
+pub extern "C" fn roc_fx_tcp_read_exactly(
     stream: RocBox<()>,
     bytes_to_read: u64,
 ) -> RocResult<RocList<u8>, RocStr> {
-    roc_tcp::tcp_read_exactly(stream, bytes_to_read)
+    roc_http::tcp_read_exactly(stream, bytes_to_read)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tcpReadUntil(
+pub extern "C" fn roc_fx_tcp_read_until(
     stream: RocBox<()>,
     byte: u8,
 ) -> RocResult<RocList<u8>, RocStr> {
-    roc_tcp::tcp_read_until(stream, byte)
+    roc_http::tcp_read_until(stream, byte)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tcpWrite(stream: RocBox<()>, msg: &RocList<u8>) -> RocResult<(), RocStr> {
-    roc_tcp::tcp_write(stream, msg)
+pub extern "C" fn roc_fx_tcp_write(stream: RocBox<()>, msg: &RocList<u8>) -> RocResult<(), RocStr> {
+    roc_http::tcp_write(stream, msg)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileWriteUtf8(
+pub extern "C" fn roc_fx_file_write_utf8(
     roc_path: &RocList<u8>,
     roc_str: &RocStr,
 ) -> RocResult<(), IOErr> {
@@ -191,7 +189,7 @@ pub extern "C" fn roc_fx_fileWriteUtf8(
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileWriteBytes(
+pub extern "C" fn roc_fx_file_write_bytes(
     roc_path: &RocList<u8>,
     roc_bytes: &RocList<u8>,
 ) -> RocResult<(), roc_io_error::IOErr> {
@@ -199,21 +197,21 @@ pub extern "C" fn roc_fx_fileWriteBytes(
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_pathType(
+pub extern "C" fn roc_fx_path_type(
     roc_path: &RocList<u8>,
 ) -> RocResult<roc_file::InternalPathType, roc_io_error::IOErr> {
     roc_file::path_type(roc_path)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileReadBytes(
+pub extern "C" fn roc_fx_file_read_bytes(
     roc_path: &RocList<u8>,
 ) -> RocResult<RocList<u8>, roc_io_error::IOErr> {
     roc_file::file_read_bytes(roc_path)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileReader(
+pub extern "C" fn roc_fx_file_reader(
     roc_path: &RocList<u8>,
     size: u64,
 ) -> RocResult<RocBox<()>, roc_io_error::IOErr> {
@@ -221,19 +219,19 @@ pub extern "C" fn roc_fx_fileReader(
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileReadLine(
+pub extern "C" fn roc_fx_file_read_line(
     data: RocBox<()>,
 ) -> RocResult<RocList<u8>, roc_io_error::IOErr> {
     roc_file::file_read_line(data)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_fileDelete(roc_path: &RocList<u8>) -> RocResult<(), roc_io_error::IOErr> {
+pub extern "C" fn roc_fx_file_delete(roc_path: &RocList<u8>) -> RocResult<(), roc_io_error::IOErr> {
     roc_file::file_delete(roc_path)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_dirList(
+pub extern "C" fn roc_fx_dir_list(
     roc_path: &RocList<u8>,
 ) -> RocResult<RocList<RocList<u8>>, roc_io_error::IOErr> {
     roc_file::dir_list(roc_path)
@@ -317,7 +315,7 @@ fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_sql::SQLiteValue {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_tempDir() -> RocList<u8> {
+pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
     roc_env::temp_dir()
 }
 

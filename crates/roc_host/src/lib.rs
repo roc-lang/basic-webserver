@@ -1,7 +1,6 @@
 mod http_client;
 mod http_server;
 mod roc;
-mod roc_http;
 mod roc_sql;
 
 #[no_mangle]

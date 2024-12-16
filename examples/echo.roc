@@ -1,4 +1,4 @@
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
@@ -6,16 +6,20 @@ import pf.Utc
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
+respond! : Request, Model => Result Response [StdoutErr _]
+respond! = \req, _ ->
     # Log request datetime, method and url
-    datetime = Utc.now! |> Utc.toIso8601Str
-    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    datetime = Utc.to_iso_8601 (Utc.now! {})
+
+    Stdout.line!? "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
     # Respond with request body
     if List.isEmpty req.body then
-        Task.ok { status: 200, headers: [], body: [] }
+        success []
     else
-        Task.ok { status: 200, headers: [], body: req.body }
+        success req.body
+
+success = \body -> Ok { status: 200, headers: [], body }

@@ -1,9 +1,8 @@
 use crate::roc;
-use crate::roc_http;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
-use roc_std::RocList;
+use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
@@ -44,63 +43,46 @@ fn call_roc<'a>(
     body: Bytes,
 ) -> hyper::Response<hyper::Body> {
     let headers: RocList<roc_http::Header> = headers
-        .map(|(key, value)| {
-            roc_http::Header::new(
-                key.as_str().into(),
-                value
-                    .to_str()
-                    .expect("valid header value from hyper")
-                    .into(),
-            )
+        .map(|(key, value)| roc_http::Header {
+            name: key.as_str().into(),
+            value: value
+                .to_str()
+                .expect("valid header value from hyper")
+                .into(),
         })
         .collect();
 
-    let mime_type = {
-        let content_type = headers
-            .iter()
-            .find(|header| header.name.as_str() == "Content-Type");
-        match content_type {
-            Some(header) => header.value.clone(),
-            None => "text/plain".into(),
+    let (method, method_ext) = {
+        match method {
+            reqwest::Method::GET => (roc_http::MethodTag::Get, RocStr::empty()),
+            reqwest::Method::POST => (roc_http::MethodTag::Post, RocStr::empty()),
+            reqwest::Method::PUT => (roc_http::MethodTag::Put, RocStr::empty()),
+            reqwest::Method::DELETE => (roc_http::MethodTag::Delete, RocStr::empty()),
+            reqwest::Method::HEAD => (roc_http::MethodTag::Head, RocStr::empty()),
+            reqwest::Method::OPTIONS => (roc_http::MethodTag::Options, RocStr::empty()),
+            reqwest::Method::CONNECT => (roc_http::MethodTag::Connect, RocStr::empty()),
+            reqwest::Method::PATCH => (roc_http::MethodTag::Patch, RocStr::empty()),
+            reqwest::Method::TRACE => (roc_http::MethodTag::Trace, RocStr::empty()),
+            _ => (roc_http::MethodTag::Extension, method.as_str().into()),
         }
     };
 
-    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(
-        body,
+    let roc_request = roc_http::RequestToAndFromHost {
+        // TODO is this right?? just winging it here
+        body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
         headers,
         method,
-        url.to_string().as_str().into(),
-        mime_type,
-    );
-
-    to_server_response(roc::call_roc_respond(
-        roc_request,
-        ROC_MODEL.get().expect("Model was initialized at startup"),
-    ))
-}
-
-#[allow(dead_code)]
-fn to_server_response(
-    roc_response: roc_http::ResponseToAndFromHost,
-) -> hyper::Response<hyper::Body> {
-    let mut builder = hyper::Response::builder();
-
-    match roc_response.hyper_status() {
-        Ok(status_code) => {
-            builder = builder.status(status_code);
-        }
-        Err(_) => {
-            todo!("invalid status code from Roc: {:?}", roc_response.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
-        }
+        uri: url.to_string().as_str().into(),
+        method_ext,
+        timeout_ms: 0,
     };
 
-    for header in roc_response.headers.iter() {
-        builder = builder.header(header.name.as_str(), header.value.as_bytes());
-    }
+    let roc_response = roc::call_roc_respond(
+        roc_request,
+        ROC_MODEL.get().expect("Model was initialized at startup"),
+    );
 
-    builder
-        .body(Vec::from(roc_response.body.as_slice()).into()) // TODO try not to use Vec here
-        .unwrap() // TODO don't unwrap this
+    roc_response.into()
 }
 
 async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
