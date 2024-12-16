@@ -52,28 +52,15 @@ fn call_roc<'a>(
         })
         .collect();
 
-    let (method, method_ext) = {
-        match method {
-            reqwest::Method::GET => (roc_http::MethodTag::Get, RocStr::empty()),
-            reqwest::Method::POST => (roc_http::MethodTag::Post, RocStr::empty()),
-            reqwest::Method::PUT => (roc_http::MethodTag::Put, RocStr::empty()),
-            reqwest::Method::DELETE => (roc_http::MethodTag::Delete, RocStr::empty()),
-            reqwest::Method::HEAD => (roc_http::MethodTag::Head, RocStr::empty()),
-            reqwest::Method::OPTIONS => (roc_http::MethodTag::Options, RocStr::empty()),
-            reqwest::Method::CONNECT => (roc_http::MethodTag::Connect, RocStr::empty()),
-            reqwest::Method::PATCH => (roc_http::MethodTag::Patch, RocStr::empty()),
-            reqwest::Method::TRACE => (roc_http::MethodTag::Trace, RocStr::empty()),
-            _ => (roc_http::MethodTag::Extension, method.as_str().into()),
-        }
-    };
+    let hyper_method: hyper::Method = method.into();
 
     let roc_request = roc_http::RequestToAndFromHost {
         // TODO is this right?? just winging it here
         body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
         headers,
-        method,
+        method: roc_http::RequestToAndFromHost::from_hyper_method(&hyper_method),
+        method_ext: RocStr::empty(),
         uri: url.to_string().as_str().into(),
-        method_ext,
         timeout_ms: 0,
     };
 

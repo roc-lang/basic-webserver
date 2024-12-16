@@ -49,9 +49,9 @@ initForHost! = \_ ->
                 """
             Err 1
 
-respondForHost! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
-respondForHost! = \request, boxedModel ->
-    when respond! (InternalHttp.from_host_request request) (Box.unbox boxedModel) is
+respondForHost! : Box InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
+respondForHost! = \boxed_request, boxedModel ->
+    when respond! (InternalHttp.from_host_request (Box.unbox boxed_request)) (Box.unbox boxedModel) is
         Ok response -> InternalHttp.to_host_response response
         Err (ServerErr msg) ->
             # dicard the err here if stderr fails

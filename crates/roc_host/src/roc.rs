@@ -1,7 +1,6 @@
 use roc_io_error::IOErr;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::cell::RefCell;
-use std::mem::ManuallyDrop;
 use std::os::raw::c_void;
 
 use crate::http_client;
@@ -390,7 +389,7 @@ pub fn call_roc_respond(
         #[link_name = "roc__respondForHost_1_exposed"]
         fn caller(
             output: *mut roc_http::ResponseToAndFromHost,
-            request_ptr: *const ManuallyDrop<roc_http::RequestToAndFromHost>,
+            request_ptr: RocBox<roc_http::RequestToAndFromHost>,
             boxed_model: RocBox<()>,
         );
 
@@ -404,6 +403,7 @@ pub fn call_roc_respond(
         fn size() -> usize;
     }
 
+    dbg!(&request);
     dbg!("CALLING RESPOND");
 
     unsafe {
@@ -416,11 +416,7 @@ pub fn call_roc_respond(
         assert_eq!(std::mem::size_of_val(&result), size());
 
         // this call segfaults... why???
-        caller(
-            &mut result,
-            &ManuallyDrop::new(request),
-            model.model.clone(),
-        );
+        caller(&mut result, RocBox::new(request), model.model.clone());
 
         assert_eq!(std::mem::size_of_val(&result), size());
 
