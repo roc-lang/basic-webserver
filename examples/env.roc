@@ -16,10 +16,10 @@ init =
     # Check if DEBUG environment variable is set
     debug =
         Env.var "DEBUG"
-            |> Task.attempt! \maybeVar ->
-                when maybeVar is
-                    Ok var if !(Str.isEmpty var) -> Task.ok DebugPrintMode
-                    _ -> Task.ok NonDebugMode
+        |> Task.attempt! \maybeVar ->
+            when maybeVar is
+                Ok var if !(Str.isEmpty var) -> Task.ok DebugPrintMode
+                _ -> Task.ok NonDebugMode
 
     Task.ok { debug }
 

@@ -17,9 +17,9 @@ init! = \{} -> Ok {}
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \req, _ ->
     # Log request datetime, method and url
-    datetime = Utc.now! {} |> Utc.toIso8601Str
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    try Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    Stdout.line!? "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
     Ok {
         status: 200,

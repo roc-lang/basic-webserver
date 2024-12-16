@@ -14,7 +14,7 @@ respond! = \req, _ ->
     # Log request date, method and url using echo program
     datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    try Cmd.exec! "echo" ["$(datetime) $(Inspect.toStr req.method) $(req.uri)"]
+    Cmd.exec!? "echo" ["$(datetime) $(Inspect.toStr req.method) $(req.uri)"]
 
     Ok {
         status: 200,

@@ -74,10 +74,10 @@ listTodos : Str -> Task Response *
 listTodos = \dbPath ->
     output =
         Command.new "sqlite3"
-            |> Command.arg dbPath
-            |> Command.arg ".mode json"
-            |> Command.arg "SELECT id, task, status FROM todos;"
-            |> Command.output!
+        |> Command.arg dbPath
+        |> Command.arg ".mode json"
+        |> Command.arg "SELECT id, task, status FROM todos;"
+        |> Command.output!
 
     when output.status is
         Ok {} -> jsonResponse output.stdout
@@ -88,11 +88,11 @@ createTodo = \dbPath, { task, status } ->
     output =
         # TODO upgrade this to use the Sqlite API
         Command.new "sqlite3"
-            |> Command.arg dbPath
-            |> Command.arg ".mode json"
-            |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
-            |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
-            |> Command.output!
+        |> Command.arg dbPath
+        |> Command.arg ".mode json"
+        |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
+        |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
+        |> Command.output!
 
     when output.status is
         Ok {} -> jsonResponse output.stdout

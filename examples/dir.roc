@@ -13,30 +13,26 @@ init! = \{} ->
     # Get current working directory
     cwd =
         Env.cwd! {}
-        |> Result.mapErr \CwdUnavailable -> Exit 1 "Unable to read current working directory"
-        |> try
+        |> Result.mapErr? \CwdUnavailable -> Exit 1 "Unable to read current working directory"
 
-    try Stdout.line! "The current working directory is $(Path.display cwd)"
+    Stdout.line!? "The current working directory is $(Path.display cwd)"
 
     # Try to set cwd to examples
     Env.set_cwd! (Path.from_str "examples/")
-        |> Result.mapErr \InvalidCwd -> Exit 1 "Unable to set cwd to examples/"
-        |> try
+    |> Result.mapErr? \InvalidCwd -> Exit 1 "Unable to set cwd to examples/"
 
     try Stdout.line! "Set cwd to examples/"
 
     # List contents of examples directory
     paths =
         Dir.list! "./"
-        |> Result.mapErr \DirErr err -> Exit 1 "Error reading directory ./:\n\t$(Inspect.toStr err)"
-        |> try
+        |> Result.mapErr? \DirErr err -> Exit 1 "Error reading directory ./:\n\t$(Inspect.toStr err)"
 
     paths
-        |> List.map Path.display
-        |> Str.joinWith ","
-        |> \pathsStr -> "The paths are;\n$(pathsStr)"
-        |> Stdout.line!
-        |> try
+    |> List.map Path.display
+    |> Str.joinWith ","
+    |> \pathsStr -> "The paths are;\n$(pathsStr)"
+    |> Stdout.line!?
 
     Ok {}
 
@@ -45,5 +41,5 @@ respond! = \_, _ ->
     Ok {
         status: 200,
         headers: [],
-        body: Str.toUtf8 "Logged request"
+        body: Str.toUtf8 "Logged request",
     }
