@@ -4,19 +4,20 @@ platform "webserver"
         respond! : Http.Request, Model => Result Http.Response [ServerErr Str]_,
     }
     exposes [
-        Path,
+        Cmd,
         Dir,
         Env,
         File,
         FileMetadata,
         Http,
+        MultipartFormData,
+        Path,
+        SQLite3,
         Stderr,
         Stdout,
         Tcp,
         Url,
         Utc,
-        Cmd,
-        SQLite3,
     ]
     packages {}
     imports []
@@ -50,8 +51,8 @@ initForHost! = \_ ->
 
 respondForHost! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
 respondForHost! = \request, boxedModel ->
-    when respond! (InternalHttp.fromHostRequest request) (Box.unbox boxedModel) is
-        Ok response -> response
+    when respond! (InternalHttp.from_host_request request) (Box.unbox boxedModel) is
+        Ok response -> InternalHttp.to_host_response response
         Err (ServerErr msg) ->
             # dicard the err here if stderr fails
             _ = Stderr.line! msg

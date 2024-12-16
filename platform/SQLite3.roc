@@ -23,7 +23,7 @@ execute! :
     }
     => Result (List (List InternalSQL.SQLiteValue)) Error
 execute! = \{ path, query, bindings } ->
-    Host.sqliteExecute! path query bindings
+    Host.sqlite_execute! path query bindings
     |> Result.mapErr \{ code, message } -> SQLError (codeFromI64 code) message
 
 codeFromI64 : I64 -> InternalSQL.SQLiteErrCode

@@ -12,7 +12,7 @@ init! = \_ -> Ok {}
 
 respond! : _, _ => Result _ []
 respond! = \_, _ -> Ok {
-        status: 200,
+        status: Success Ok,
         headers: [],
         body: Str.toUtf8 "I'm a stub, I should be replaced by the user's Roc app.",
     }

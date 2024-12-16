@@ -1,44 +1,23 @@
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Http exposing [Request, Response]
-import pf.Command
+import pf.Cmd
 import pf.Utc
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
+respond! : Request, Model => Result Response [CmdStatusErr _]
+respond! = \req, _ ->
+
     # Log request date, method and url using echo program
-    datetime = Utc.now! |> Utc.toIso8601Str
-    result =
-        Command.new "echo"
-            |> Command.arg "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-            |> Command.status
-            |> Task.result!
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    when result is
-        Ok {} -> okHttp "Command succeeded."
-        Err (ExitCode code) ->
-            Task.err (ServerErr "Command exited with code $(Num.toStr code).")
+    try Cmd.exec! "echo" ["$(datetime) $(Inspect.toStr req.method) $(req.uri)"]
 
-        Err KilledBySignal ->
-            Task.err
-                (
-                    ServerErr
-                        """
-                        Command was killed by signal. This can happen for several reasons:
-                            - User intervention (e.g., Ctrl+C)
-                            - Exceeding resource limits
-                            - System shutdown
-                            - Parent process terminating child processes
-                            - ...
-
-                        """
-                )
-
-        Err (IOError str) ->
-            Task.err (ServerErr "IO Error: $(str).")
-
-okHttp = \str -> Task.ok { status: 200, headers: [], body: Str.toUtf8 str }
+    Ok {
+        status: 200,
+        headers: [],
+        body: Str.toUtf8 "Command succeeded.",
+    }

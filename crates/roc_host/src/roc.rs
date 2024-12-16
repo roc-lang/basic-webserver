@@ -393,7 +393,7 @@ pub fn call_roc_respond(
         fn caller(
             output: *mut roc_http::ResponseToAndFromHost,
             request_ptr: *const ManuallyDrop<roc_http::RequestToAndFromHost>,
-            boxed_model: *const RocBox<()>,
+            boxed_model: RocBox<()>,
         );
 
         // ```
@@ -418,7 +418,11 @@ pub fn call_roc_respond(
         assert_eq!(std::mem::size_of_val(&result), size());
 
         // this call segfaults... why???
-        caller(&mut result, &ManuallyDrop::new(request), &model.model);
+        caller(
+            &mut result,
+            &ManuallyDrop::new(request),
+            model.model.clone(),
+        );
 
         assert_eq!(std::mem::size_of_val(&result), size());
 

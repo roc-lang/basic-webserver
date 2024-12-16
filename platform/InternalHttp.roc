@@ -1,54 +1,114 @@
+# TODO we should be able to pull this out into a cross-platform package so multiple
+# platforms can use it.
+#
+# I haven't tried that here because I just want to get the implementation working on
+# both basic-cli and basic-webserver. Copy-pase is fine for now.
 module [
     Request,
+    Response,
     RequestToAndFromHost,
     ResponseToAndFromHost,
     Method,
     Header,
-    TimeoutConfig,
-    Error,
-    ErrorBody,
-    fromHostRequest,
-    errorBodyToUtf8,
-    errorBodyFromUtf8,
-    methodToStr,
+    to_host_request,
+    to_host_response,
+    from_host_request,
+    from_host_response,
 ]
+
+# FOR ROC
+
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension Str]
+
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers
+Header : { name : Str, value : Str }
 
 Request : {
     method : Method,
     headers : List Header,
-    url : Str,
-    mimeType : Str,
+    uri : Str,
     body : List U8,
-    timeout : TimeoutConfig,
+    timeout_ms : [TimeoutMilliseconds U64, NoTimeout],
 }
+
+Response : {
+    status : U16,
+    headers : List Header,
+    body : List U8,
+}
+
+# FOR HOST
 
 RequestToAndFromHost : {
     method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension],
-    methodExt : Str,
+    method_ext : Str,
     headers : List Header,
-    url : Str,
-    mimeType : Str,
+    uri : Str,
     body : List U8,
-    timeoutMilliseconds : U64,
+    timeout_ms : U64,
 }
 
-fromHostRequest : RequestToAndFromHost -> Request
-fromHostRequest = \{ method, methodExt, headers, url, mimeType, body, timeoutMilliseconds } -> {
-    method: toMethod method methodExt,
+ResponseToAndFromHost : {
+    status : U16,
+    headers : List Header,
+    body : List U8,
+}
+
+to_host_response : Response -> ResponseToAndFromHost
+to_host_response = \{ status, headers, body } -> {
+    status,
     headers,
-    url,
-    mimeType,
     body,
-    timeout: if timeoutMilliseconds == 0 then NoTimeout else TimeoutMilliseconds timeoutMilliseconds,
 }
 
-# Name is distinguished from the Timeout tag used in Response and Error
-TimeoutConfig : [TimeoutMilliseconds U64, NoTimeout]
+to_host_request : Request -> RequestToAndFromHost
+to_host_request = \{ method, headers, uri, body, timeout_ms } -> {
+    method: to_host_method method,
+    method_ext: to_host_method_ext method,
+    headers,
+    uri,
+    body,
+    timeout_ms: to_host_timeout timeout_ms,
+}
 
-Method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension Str]
+to_host_method : Method -> _
+to_host_method = \method ->
+    when method is
+        Options -> Options
+        Get -> Get
+        Post -> Post
+        Put -> Put
+        Delete -> Delete
+        Head -> Head
+        Trace -> Trace
+        Connect -> Connect
+        Patch -> Patch
+        Extension _ -> Extension
 
-toMethod : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension], Str -> Method
-toMethod = \tag, ext ->
+to_host_method_ext : Method -> Str
+to_host_method_ext = \method ->
+    when method is
+        Extension ext -> ext
+        _ -> ""
+
+to_host_timeout : _ -> U64
+to_host_timeout = \timeout ->
+    when timeout is
+        TimeoutMilliseconds ms -> ms
+        NoTimeout -> 0
+
+from_host_request : RequestToAndFromHost -> Request
+from_host_request = \{ method, method_ext, headers, uri, body, timeout_ms } -> {
+    method: from_host_method method method_ext,
+    headers,
+    uri,
+    body,
+    timeout_ms: from_host_timeout timeout_ms,
+}
+
+from_host_method : [Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch, Extension], Str -> Method
+from_host_method = \tag, ext ->
     when tag is
         Options -> Options
         Get -> Get
@@ -61,54 +121,18 @@ toMethod = \tag, ext ->
         Patch -> Patch
         Extension -> Extension ext
 
-Header : {
-    name : Str,
-    value : Str,
+from_host_timeout : U64 -> [TimeoutMilliseconds U64, NoTimeout]
+from_host_timeout = \timeout ->
+    when timeout is
+        0 -> NoTimeout
+        _ -> TimeoutMilliseconds timeout
+
+expect from_host_timeout 0 == NoTimeout
+expect from_host_timeout 1 == TimeoutMilliseconds 1
+
+from_host_response : ResponseToAndFromHost -> Response
+from_host_response = \{ status, headers, body } -> {
+    status,
+    headers,
+    body,
 }
-
-ResponseToAndFromHost : {
-    status : U16,
-    headers : List Header,
-    body : List U8,
-}
-
-Error : [
-    BadRequest Str,
-    Timeout U64,
-    NetworkError,
-    BadStatus { code : U16, body : ErrorBody },
-    BadBody Str,
-]
-
-ErrorBody := List U8 implements [
-        Inspect {
-            toInspector: errorBodyToInspector,
-        },
-    ]
-
-errorBodyToInspector : ErrorBody -> _
-errorBodyToInspector = \@ErrorBody val ->
-    Inspect.custom \fmt ->
-        when val |> List.takeFirst 50 |> Str.fromUtf8 is
-            Ok str -> Inspect.apply (Inspect.str str) fmt
-            Err _ -> Inspect.apply (Inspect.str "Invalid UTF-8 data") fmt
-
-errorBodyToUtf8 : ErrorBody -> List U8
-errorBodyToUtf8 = \@ErrorBody body -> body
-
-errorBodyFromUtf8 : List U8 -> ErrorBody
-errorBodyFromUtf8 = \body -> @ErrorBody body
-
-methodToStr : Method -> Str
-methodToStr = \method ->
-    when method is
-        Options -> "Options"
-        Get -> "Get"
-        Post -> "Post"
-        Put -> "Put"
-        Delete -> "Delete"
-        Head -> "Head"
-        Trace -> "Trace"
-        Connect -> "Connect"
-        Patch -> "Patch"
-        Extension ext -> ext

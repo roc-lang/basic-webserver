@@ -1,28 +1,16 @@
 module [
     Request,
+    Response,
     Method,
     Header,
-    TimeoutConfig,
-    Response,
-    Err,
     header,
-    handleStringResponse,
-    defaultRequest,
-    errorToString,
-    errorBodyToBytes,
+    default_request,
     send!,
     get!,
-    getUtf8!,
-    methodToStr,
-    parseFormUrlEncoded,
-    parseMultipartFormData,
 ]
 
-import InternalHttp exposing [errorBodyToUtf8, errorBodyFromUtf8]
-import MultipartFormData
-
-## Represents an HTTP request.
-Request : InternalHttp.Request
+import InternalHttp
+import Host
 
 ## Represents an HTTP method.
 Method : InternalHttp.Method
@@ -30,35 +18,28 @@ Method : InternalHttp.Method
 ## Represents an HTTP header e.g. `Content-Type: application/json`
 Header : InternalHttp.Header
 
-## Represents a timeout configuration for an HTTP request.
-TimeoutConfig : InternalHttp.TimeoutConfig
+## Represents an HTTP request.
+Request : InternalHttp.Request
 
 ## Represents an HTTP response.
-Response : InternalHttp.ResponseToAndFromHost
-
-## Represents an HTTP error.
-Err : InternalHttp.Error
-
-## Convert the ErrorBody of a BadStatus error to List U8.
-errorBodyToBytes = errorBodyFromUtf8
+Response : InternalHttp.Response
 
 ## A default [Request] value.
 ##
 ## ```
 ## # GET "roc-lang.org"
-## { Http.defaultRequest &
+## { Http.default_request &
 ##     url: "https://www.roc-lang.org",
 ## }
 ## ```
 ##
-defaultRequest : Request
-defaultRequest = {
+default_request : Request
+default_request = {
     method: Get,
     headers: [],
-    url: "",
-    mimeType: "",
+    uri: "",
     body: [],
-    timeout: NoTimeout,
+    timeout_ms: NoTimeout,
 }
 
 ## An HTTP header for configuring requests.
@@ -66,30 +47,7 @@ defaultRequest = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : Str, Str -> Header
-header = \name, value ->
-    { name, value }
-
-## Map a [Response] body to a [Str] or return an [Err].
-handleStringResponse : Response -> Result Str Err
-handleStringResponse = \response ->
-    response.body
-    |> Str.fromUtf8
-    |> Result.mapErr \BadUtf8 _ position ->
-        BadBody "Invalid UTF-8 at byte offset $(Num.toStr position)"
-
-## Convert an [Err] to a [Str].
-errorToString : Err -> Str
-errorToString = \err ->
-    when err is
-        BadRequest e -> "Invalid Request: $(e)"
-        Timeout milliseconds -> "Request timed out after $(Num.toStr milliseconds) ms."
-        NetworkError -> "Network error."
-        BadStatus { code, body } ->
-            when body |> errorBodyToUtf8 |> Str.fromUtf8 is
-                Ok bodyStr -> "Request failed with status $(Num.toStr code): $(bodyStr)"
-                Err _ -> "Request failed with status $(Num.toStr code)."
-
-        BadBody details -> "Request failed: Invalid body: $(details)"
+header = \name, value -> { name, value }
 
 ## Send an HTTP request, succeeds with a value of [Str] or fails with an
 ## [Err].
@@ -97,7 +55,7 @@ errorToString = \err ->
 ## ```
 ## # Prints out the HTML of the Roc-lang website.
 ## response =
-##     { Http.defaultRequest & url: "https://www.roc-lang.org" }
+##     { Http.default_request & url: "https://www.roc-lang.org" }
 ##     |> Http.send!
 ##
 ## response.body
@@ -105,50 +63,12 @@ errorToString = \err ->
 ## |> Result.withDefault "Invalid UTF-8"
 ## |> Stdout.line
 ## ```
-send! : Request => Result Response [HttpErr Err]
-send! = \_req ->
-    Err (HttpErr (BadBody "Not implemented yet"))
-# timeoutMs =
-#    when req.timeout is
-#        NoTimeout -> 0
-#        TimeoutMilliseconds ms -> ms
-
-# internalRequest : InternalHttp.Request
-# internalRequest = {
-#    method: InternalHttp.methodToStr req.method,
-#    headers: req.headers,
-#    url: req.url,
-#    mimeType: req.mimeType,
-#    body: req.body,
-#    timeoutMs,
-# }
-
-## TODO: Fix our C ABI codegen so that we don't this Box.box heap allocation
-# { variant, body, metadata } = Host.sendRequest! (Box.box internalRequest)
-
-# responseResult =
-#    when variant is
-#        "Timeout" -> Err (Timeout timeoutMs)
-#        "NetworkErr" -> Err NetworkError
-#        "BadStatus" ->
-#            Err
-#                (
-#                    BadStatus {
-#                        code: metadata.statusCode,
-#                        body: errorBodyFromUtf8 body,
-#                    }
-#                )
-
-#        "GoodStatus" ->
-#            Ok {
-#                variant,
-#                metadata,
-#                body,
-#            }
-
-#        "BadRequest" | _other -> Err (BadRequest metadata.statusText)
-
-# responseResult |> Result.mapErr HttpErr
+send! : Request => Response
+send! = \request ->
+    request
+    |> InternalHttp.to_host_request
+    |> Host.send_request!
+    |> InternalHttp.from_host_response
 
 ## Try to perform an HTTP get request and convert (decode) the received bytes into a Roc type.
 ## Very useful for working with Json.
@@ -159,161 +79,9 @@ send! = \_req ->
 ## # On the server side we send `Encode.toBytes {foo: "Hello Json!"} Json.utf8`
 ## { foo } = Http.get! "http://localhost:8000" Json.utf8
 ## ```
-get! : Str, fmt => Result body [HttpErr Http.Err, HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
-get! = \url, fmt ->
-    response = send!? { defaultRequest & url }
+get! : Str, fmt => Result body [HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
+get! = \uri, fmt ->
+    response = send! { default_request & uri }
 
     Decode.fromBytes response.body fmt
     |> Result.mapErr \_ -> HttpDecodingFailed
-
-getUtf8! : Str => Result Str [HttpErr Http.Err]
-getUtf8! = \url ->
-    response = send!? { defaultRequest & url }
-
-    response.body
-    |> Str.fromUtf8
-    |> Result.mapErr \_ -> HttpErr (BadBody "Invalid UTF-8")
-
-methodToStr : Method -> Str
-methodToStr = \method ->
-    when method is
-        Options -> "OPTIONS"
-        Get -> "GET"
-        Post -> "POST"
-        Put -> "PUT"
-        Delete -> "DELETE"
-        Head -> "HEAD"
-        Trace -> "TRACE"
-        Connect -> "CONNECT"
-        Patch -> "PATCH"
-        Extension inner -> inner
-
-## Parse URL-encoded form values (`todo=foo&status=bar`) into a Dict (`("todo", "foo"), ("status", "bar")`).
-##
-## ```
-## expect
-##     bytes = Str.toUtf8 "todo=foo&status=bar"
-##     parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
-##
-##     Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
-## ```
-parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
-parseFormUrlEncoded = \bytes ->
-
-    chainUtf8 = \bytesList, tryFun -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try tryFun
-
-    # simplify `BadUtf8 Utf8ByteProblem ...` error
-    mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
-
-    parse = \bytesRemaining, state, key, chomped, dict ->
-        tail = List.dropFirst bytesRemaining 1
-
-        when bytesRemaining is
-            [] if List.isEmpty chomped -> dict |> Ok
-            [] ->
-                # chomped last value
-                key
-                |> chainUtf8 \keyStr ->
-                    chomped
-                    |> chainUtf8 \valueStr ->
-                        Dict.insert dict keyStr valueStr |> Ok
-
-            ['=', ..] -> parse tail ParsingValue chomped [] dict # put chomped into key
-            ['&', ..] ->
-                key
-                |> chainUtf8 \keyStr ->
-                    chomped
-                    |> chainUtf8 \valueStr ->
-                        parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
-
-            ['%', secondByte, thirdByte, ..] ->
-                hex = Num.toU8 (hexBytesToU32 [secondByte, thirdByte])
-
-                parse (List.dropFirst tail 2) state key (List.append chomped hex) dict
-
-            [firstByte, ..] -> parse tail state key (List.append chomped firstByte) dict
-
-    parse bytes ParsingKey [] [] (Dict.empty {})
-
-expect hexBytesToU32 ['2', '0'] == 32
-
-expect
-    bytes = Str.toUtf8 "todo=foo&status=bar"
-    parsed = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
-
-    Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
-
-expect
-    Str.toUtf8 "task=asdfs%20adf&status=qwerwe"
-    |> parseFormUrlEncoded
-    |> Result.withDefault (Dict.empty {})
-    |> Dict.toList
-    |> Bool.isEq [("task", "asdfs adf"), ("status", "qwerwe")]
-
-hexBytesToU32 : List U8 -> U32
-hexBytesToU32 = \bytes ->
-    bytes
-    |> List.reverse
-    |> List.walkWithIndex 0 \accum, byte, i -> accum + (Num.powInt 16 (Num.toU32 i)) * (hexToDec byte)
-    |> Num.toU32
-
-expect hexBytesToU32 ['0', '0', '0', '0'] == 0
-expect hexBytesToU32 ['0', '0', '0', '1'] == 1
-expect hexBytesToU32 ['0', '0', '0', 'F'] == 15
-expect hexBytesToU32 ['0', '0', '1', '0'] == 16
-expect hexBytesToU32 ['0', '0', 'F', 'F'] == 255
-expect hexBytesToU32 ['0', '1', '0', '0'] == 256
-expect hexBytesToU32 ['0', 'F', 'F', 'F'] == 4095
-expect hexBytesToU32 ['1', '0', '0', '0'] == 4096
-expect hexBytesToU32 ['1', '6', 'F', 'F', '1'] == 94193
-
-hexToDec : U8 -> U32
-hexToDec = \byte ->
-    when byte is
-        '0' -> 0
-        '1' -> 1
-        '2' -> 2
-        '3' -> 3
-        '4' -> 4
-        '5' -> 5
-        '6' -> 6
-        '7' -> 7
-        '8' -> 8
-        '9' -> 9
-        'A' -> 10
-        'B' -> 11
-        'C' -> 12
-        'D' -> 13
-        'E' -> 14
-        'F' -> 15
-        _ -> crash "Impossible error: the `when` block I'm in should have matched before reaching the catch-all `_`."
-
-expect hexToDec '0' == 0
-expect hexToDec 'F' == 15
-
-## For HTML forms that include files or large amounts of text.
-##
-## See usage in examples/file-upload-form.roc
-parseMultipartFormData :
-    {
-        headers : List Header,
-        body : List U8,
-    }
-    -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader]
-parseMultipartFormData = \args ->
-    decodeMultipartFormDataBoundary args.headers
-    |> Result.try \boundary ->
-        { body: args.body, boundary }
-        |> MultipartFormData.parse
-        |> Result.mapErr \_ -> InvalidMultipartFormData
-
-decodeMultipartFormDataBoundary : List { name : Str, value : Str } -> Result (List U8) _
-decodeMultipartFormDataBoundary = \headers ->
-    headers
-    |> List.keepIf \{ name } -> name == "Content-Type" || name == "content-type"
-    |> List.first
-    |> Result.mapErr \ListWasEmpty -> ExpectedContentTypeHeader
-    |> Result.try \{ value } ->
-        when Str.splitLast value "=" is
-            Ok { after } -> Ok (Str.toUtf8 after)
-            Err NotFound -> Err InvalidContentTypeHeader
