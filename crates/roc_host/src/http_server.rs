@@ -52,13 +52,11 @@ fn call_roc<'a>(
         })
         .collect();
 
-    let hyper_method: hyper::Method = method.into();
-
     let roc_request = roc_http::RequestToAndFromHost {
         // TODO is this right?? just winging it here
         body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
         headers,
-        method: roc_http::RequestToAndFromHost::from_hyper_method(&hyper_method),
+        method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
         method_ext: RocStr::empty(),
         uri: url.to_string().as_str().into(),
         timeout_ms: 0,
@@ -80,7 +78,19 @@ async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::
         Ok(body) => {
             spawn_blocking(move || call_roc(parts.method, parts.uri, parts.headers.iter(), body))
                 .then(|resp| async {
-                    resp.unwrap() // TODO don't unwrap here
+                    match resp {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            eprintln!("Recovered from calling roc: {}", err);
+
+                            hyper::Response::builder()
+                        .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(
+                            "500 Internal Server Error... something catastrophic went wrong".into(),
+                        )
+                        .unwrap()
+                        }
+                    }
                 })
                 .await
         }

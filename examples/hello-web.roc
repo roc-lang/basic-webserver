@@ -1,8 +1,8 @@
 app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
-import pf.Stdout
+# import pf.Stdout
 import pf.Http exposing [Request, Response]
-import pf.Utc
+# import pf.Utc
 
 # Model is produced by `init`.
 Model : {}
@@ -15,11 +15,11 @@ init! : {} => Result Model []
 init! = \{} -> Ok {}
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, _ ->
+respond! = \_, _ ->
     # Log request datetime, method and url
-    datetime = Utc.to_iso_8601 (Utc.now! {})
+    # datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    Stdout.line!? "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+    # Stdout.line!? "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
     Ok {
         status: 200,

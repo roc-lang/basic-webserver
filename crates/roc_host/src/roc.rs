@@ -389,7 +389,7 @@ pub fn call_roc_respond(
         #[link_name = "roc__respondForHost_1_exposed"]
         fn caller(
             output: *mut roc_http::ResponseToAndFromHost,
-            request_ptr: RocBox<roc_http::RequestToAndFromHost>,
+            request_ptr: roc_http::RequestToAndFromHost,
             boxed_model: RocBox<()>,
         );
 
@@ -416,7 +416,7 @@ pub fn call_roc_respond(
         assert_eq!(std::mem::size_of_val(&result), size());
 
         // this call segfaults... why???
-        caller(&mut result, RocBox::new(request), model.model.clone());
+        caller(&mut result, request, model.model.clone());
 
         assert_eq!(std::mem::size_of_val(&result), size());
 
