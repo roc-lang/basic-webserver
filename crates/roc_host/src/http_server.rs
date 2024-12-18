@@ -5,6 +5,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
 use std::env;
+use std::mem::size_of_val;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::OnceLock;
@@ -35,6 +36,9 @@ pub fn start() -> i32 {
     }
 }
 
+const REFCOUNT_CONSTANT: u64 = 0;
+const SEAMLESS_SLICE_BIT: usize = isize::MIN as usize;
+
 #[allow(dead_code)]
 fn call_roc<'a>(
     method: reqwest::Method,
@@ -52,12 +56,18 @@ fn call_roc<'a>(
         })
         .collect();
 
+    let const_refcount_allocation =
+        (&REFCOUNT_CONSTANT as *const u64) as usize + size_of_val(&REFCOUNT_CONSTANT);
+    let const_seamless_slice = (const_refcount_allocation >> 1) | SEAMLESS_SLICE_BIT;
+    // let seamless_slice = slice_pointer
     let roc_request = roc_http::RequestToAndFromHost {
         headers,
         timeout_ms: 0,
         method_ext: RocStr::empty(),
         uri: url.to_string().as_str().into(),
-        body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
+        body: unsafe {
+            RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), const_seamless_slice)
+        },
         method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
 
