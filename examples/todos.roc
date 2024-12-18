@@ -47,10 +47,10 @@ map_app_err = \app_err ->
 route_todos! : Str, Request => Result Response _
 route_todos! = \db_path, req ->
     when req.method is
-        Get ->
+        GET ->
             list_todos! db_path
 
-        Post ->
+        POST ->
             # Create todo
             when task_from_query req.uri is
                 Ok props -> create_todo! db_path props

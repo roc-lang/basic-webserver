@@ -15,7 +15,7 @@ init! = \{} -> Ok {}
 
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \req, _ ->
-    if req.method == Get then
+    if req.method == GET then
         body =
             """
             <!DOCTYPE html>
@@ -45,7 +45,7 @@ respond! = \req, _ ->
             ],
             body,
         }
-    else if req.method == Post then
+    else if req.method == POST then
         page = \src ->
             """
             <!DOCTYPE html>
