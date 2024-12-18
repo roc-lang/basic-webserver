@@ -369,7 +369,7 @@ pub fn call_roc_respond(
         fn caller(
             output: *mut roc_http::ResponseToAndFromHost,
             request_ptr: *const roc_http::RequestToAndFromHost,
-            boxed_model: RocBox<()>,
+            boxed_model: *const RocBox<()>,
         );
 
         #[link_name = "roc__respond_for_host_1_exposed_size"]
@@ -386,7 +386,7 @@ pub fn call_roc_respond(
 
         debug_assert_eq!(std::mem::size_of_val(&result) as i64, size());
 
-        caller(&mut result, &request, model.model);
+        caller(&mut result, &request, &model.model);
 
         std::mem::forget(request);
 

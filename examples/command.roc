@@ -6,6 +6,7 @@ import pf.Utc
 
 Model : {}
 
+init! : {} => Result Model _
 init! = \{} -> Ok {}
 
 respond! : Request, Model => Result Response [CmdStatusErr _]

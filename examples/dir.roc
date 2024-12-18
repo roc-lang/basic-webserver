@@ -31,7 +31,7 @@ init! = \{} ->
     paths
     |> List.map Path.display
     |> Str.joinWith ","
-    |> \pathsStr -> "The paths are;\n$(pathsStr)"
+    |> \paths_str -> "The paths are;\n$(paths_str)"
     |> Stdout.line!?
 
     Ok {}
