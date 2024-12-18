@@ -14,21 +14,12 @@ path = "src/lib.rs"
 
 [dependencies]
 roc_std.workspace = true
-# TODO restore when basic-cli changes land
-# https://github.com/roc-lang/basic-cli/pull/288
-#
-# roc_env = { git = "https://github.com/roc-lang/basic-cli.git" }
-# roc_command = { git = "https://github.com/roc-lang/basic-cli.git" }
-# roc_io_error = { git = "https://github.com/roc-lang/basic-cli.git" }
-# roc_stdio = { git = "https://github.com/roc-lang/basic-cli.git" }
-# roc_file = { git = "https://github.com/roc-lang/basic-cli.git" }
-# roc_http = { git = "https://github.com/roc-lang/basic-cli.git" }
-roc_env = { path = "../../../basic-cli/crates/roc_env" }
-roc_command = { path = "../../../basic-cli/crates/roc_command" }
-roc_io_error = { path = "../../../basic-cli/crates/roc_io_error" }
-roc_stdio = { path = "../../../basic-cli/crates/roc_stdio" }
-roc_file = { path = "../../../basic-cli/crates/roc_file" }
-roc_http = { path = "../../../basic-cli/crates/roc_http" }
+roc_env = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_command = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_io_error = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_stdio = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_file = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_http = { git = "https://github.com/roc-lang/basic-cli.git" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",
