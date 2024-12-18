@@ -318,7 +318,7 @@ pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
     roc_env::temp_dir()
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Model {
     model: RocBox<()>,
 }
@@ -341,70 +341,40 @@ unsafe impl Sync for Model {}
 
 pub fn call_roc_init() -> Model {
     extern "C" {
-        #[link_name = "roc__initForHost_1_exposed"]
+        #[link_name = "roc__init_for_host_1_exposed"]
         fn caller(not_used: i32) -> RocResult<RocBox<()>, i32>;
 
-        #[link_name = "roc__initForHost_1_exposed_size"]
-        fn size() -> usize;
+        #[link_name = "roc__init_for_host_1_exposed_size"]
+        fn size() -> i64;
     }
-
-    dbg!("CALLING INIT");
 
     let result = unsafe {
         let result = caller(0);
-        assert_eq!(std::mem::size_of_val(&result), size());
+        debug_assert_eq!(std::mem::size_of_val(&result) as i64, size());
         result
     };
 
     match result.into() {
-        Err(exit_code) => {
-            std::process::exit(exit_code);
-        }
-        Ok(model) => {
-            dbg!("GOT MODEL");
-            unsafe { Model::init(model) }
-        }
+        Err(exit_code) => std::process::exit(exit_code),
+        Ok(model) => unsafe { Model::init(model) },
     }
 }
 
 pub fn call_roc_respond(
     request: roc_http::RequestToAndFromHost,
-    model: &Model,
+    model: Model,
 ) -> roc_http::ResponseToAndFromHost {
     extern "C" {
-        // $ roc build --no-link --emit-llvm-ir examples/hello-web.roc
-        //
-        // ```
-        // define void @roc__respondForHost_1_exposed(ptr sret({ %list.RocList, %list.RocList, i16 }) %0, ptr %1, ptr %2) !dbg !123 {
-        // entry:
-        //   %result_value = alloca { %list.RocList, %list.RocList, i16 }, align 8
-        //   call fastcc void @"_respondForHost!_a4f1bd72ba9ffa9bc6b14a41321324cb50df1636d7bfebf57c16d684c9fbc2"(ptr %1, ptr %2, ptr %result_value), !dbg !124
-        //   %load_roc_result = load { %list.RocList, %list.RocList, i16 }, ptr %result_value, align 8, !dbg !124
-        //   store { %list.RocList, %list.RocList, i16 } %load_roc_result, ptr %0, align 8, !dbg !124
-        //   ret void, !dbg !124
-        // }
-        //
-        // define internal fastcc void @"_respondForHost!_a4f1bd72ba9ffa9bc6b14a41321324cb50df1636d7bfebf57c16d684c9fbc2"(ptr %request, ptr %boxedModel, ptr %0) !dbg !117 {
-        // ```
-        #[link_name = "roc__respondForHost_1_exposed"]
+        #[link_name = "roc__respond_for_host_1_exposed_generic"]
         fn caller(
             output: *mut roc_http::ResponseToAndFromHost,
-            request_ptr: roc_http::RequestToAndFromHost,
+            request_ptr: *const roc_http::RequestToAndFromHost,
             boxed_model: RocBox<()>,
         );
 
-        // ```
-        // define i64 @roc__respondForHost_1_exposed_size() !dbg !126 {
-        // entry:
-        //   ret i64 ptrtoint (ptr getelementptr ({ %list.RocList, %list.RocList, i16 }, ptr null, i32 1) to i64), !dbg !127
-        // }
-        // ```
-        #[link_name = "roc__respondForHost_1_exposed_size"]
-        fn size() -> usize;
+        #[link_name = "roc__respond_for_host_1_exposed_size"]
+        fn size() -> i64;
     }
-
-    dbg!(&request);
-    dbg!("CALLING RESPOND");
 
     unsafe {
         // save stack space for return value
@@ -413,14 +383,12 @@ pub fn call_roc_respond(
             headers: RocList::empty(),
             status: 500,
         };
-        assert_eq!(std::mem::size_of_val(&result), size());
 
-        // this call segfaults... why???
-        caller(&mut result, request, model.model.clone());
+        debug_assert_eq!(std::mem::size_of_val(&result) as i64, size());
 
-        assert_eq!(std::mem::size_of_val(&result), size());
+        caller(&mut result, &request, model.model);
 
-        dbg!(&result);
+        std::mem::forget(request);
 
         result
     }

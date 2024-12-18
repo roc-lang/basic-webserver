@@ -53,18 +53,20 @@ fn call_roc<'a>(
         .collect();
 
     let roc_request = roc_http::RequestToAndFromHost {
-        // TODO is this right?? just winging it here
-        body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
         headers,
-        method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
+        timeout_ms: 0,
         method_ext: RocStr::empty(),
         uri: url.to_string().as_str().into(),
-        timeout_ms: 0,
+        body: unsafe { RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), body.len()) },
+        method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
 
     let roc_response = roc::call_roc_respond(
         roc_request,
-        ROC_MODEL.get().expect("Model was initialized at startup"),
+        ROC_MODEL
+            .get()
+            .expect("Model was initialized at startup")
+            .clone(),
     );
 
     roc_response.into()

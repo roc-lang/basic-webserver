@@ -21,14 +21,14 @@ platform "webserver"
     ]
     packages {}
     imports []
-    provides [initForHost!, respondForHost!]
+    provides [init_for_host!, respond_for_host!]
 
 import Http
 import Stderr
 import InternalHttp
 
-initForHost! : I32 => Result (Box Model) I32
-initForHost! = \_ ->
+init_for_host! : I32 => Result (Box Model) I32
+init_for_host! = \_ ->
     when init! {} is
         Ok model -> Ok (Box.box model)
         Err (Exit code msg) ->
@@ -49,9 +49,9 @@ initForHost! = \_ ->
                 """
             Err 1
 
-respondForHost! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
-respondForHost! = \request, boxedModel ->
-    when respond! (InternalHttp.from_host_request request) (Box.unbox boxedModel) is
+respond_for_host! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
+respond_for_host! = \request, boxed_model ->
+    when respond! (InternalHttp.from_host_request request) (Box.unbox boxed_model) is
         Ok response -> InternalHttp.to_host_response response
         Err (ServerErr msg) ->
             # dicard the err here if stderr fails
