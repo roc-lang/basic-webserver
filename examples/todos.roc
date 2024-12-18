@@ -1,9 +1,9 @@
 # Webapp for todos using a SQLite 3 database
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
-import pf.Command
+import pf.Cmd
 import pf.Env
 import pf.Url
 import pf.Utc
@@ -11,104 +11,94 @@ import "todos.html" as todoHtml : List U8
 
 Model : {}
 
-server = { init, respond }
+init! : {} => Result Model [Exit I32 Str]_
+init! = \{} ->
+    when is_sqlite_installed! {} is
+        Ok _ -> Ok {}
+        Err err -> Err err
 
-init : Task Model [Exit I32 Str]_
-init =
-    when isSqliteInstalled |> Task.result! is
-        Ok _ -> Task.ok {}
-        Err err -> Task.err err
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \req, _ ->
+    response_task =
+        try log_request! req
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
-    responseTask =
-        logRequest! req
-
-        dbPath = readEnvVar! "DB_PATH"
-
-        # TODO check if dbPath exists
-
-        splitUrl =
-            req.url
-            |> Url.fromStr
-            |> Url.path
-            |> Str.splitOn "/"
+        db_path = try read_env_var! "DB_PATH"
 
         # Route to handler based on url path
-        when splitUrl is
-            ["", ""] -> byteResponse 200 todoHtml
-            ["", "todos", ..] -> routeTodos dbPath req
-            _ -> textResponse 404 "URL Not Found (404)"
+        when Str.splitOn req.uri "/" is
+            ["", ""] -> byte_response 200 todoHtml
+            ["", "todos", ..] -> route_todos! db_path req
+            _ -> text_response 404 "URL Not Found (404)"
 
     # Handle any application errors
-    responseTask |> Task.mapErr mapAppErr
+    response_task |> Result.mapErr map_app_err
 
 AppError : [
     EnvVarNotSet Str,
     StdoutErr Str,
 ]
 
-mapAppErr : AppError -> [ServerErr Str]
-mapAppErr = \appErr ->
-    when appErr is
-        EnvVarNotSet varName -> ServerErr "Environment variable \"$(varName)\" was not set. Please set it to the path of todos.db"
+map_app_err : AppError -> [ServerErr Str]
+map_app_err = \app_err ->
+    when app_err is
+        EnvVarNotSet var_name -> ServerErr "Environment variable \"$(var_name)\" was not set. Please set it to the path of todos.db"
         StdoutErr msg -> ServerErr msg
 
-routeTodos : Str, Request -> Task Response *
-routeTodos = \dbPath, req ->
+route_todos! : Str, Request => Result Response _
+route_todos! = \db_path, req ->
     when req.method is
         Get ->
-            listTodos dbPath
+            list_todos! db_path
 
         Post ->
             # Create todo
-            when taskFromQuery req.url is
-                Ok props -> createTodo dbPath props
-                Err InvalidQuery -> textResponse 400 "Invalid query string, I expected: ?task=foo&status=bar"
+            when task_from_query req.uri is
+                Ok props -> create_todo! db_path props
+                Err InvalidQuery -> text_response 400 "Invalid query string, I expected: ?task=foo&status=bar"
 
-        otherMethod ->
+        other_method ->
             # Not supported
-            textResponse 405 "HTTP method $(Inspect.toStr otherMethod) is not supported for the URL $(req.url)"
+            text_response 405 "HTTP method $(Inspect.toStr other_method) is not supported for the URL $(req.uri)"
 
-listTodos : Str -> Task Response *
-listTodos = \dbPath ->
+list_todos! : Str => Result Response _
+list_todos! = \db_path ->
     output =
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg "SELECT id, task, status FROM todos;"
-        |> Command.output!
+        Cmd.new "sqlite3"
+        |> Cmd.arg db_path
+        |> Cmd.arg ".mode json"
+        |> Cmd.arg "SELECT id, task, status FROM todos;"
+        |> Cmd.output!
 
     when output.status is
-        Ok {} -> jsonResponse output.stdout
-        Err _ -> byteResponse 500 output.stderr
+        Ok _ -> json_response output.stdout
+        Err _ -> byte_response 500 output.stderr
 
-createTodo : Str, { task : Str, status : Str } -> Task Response *
-createTodo = \dbPath, { task, status } ->
+create_todo! : Str, { task : Str, status : Str } => Result Response _
+create_todo! = \db_path, { task, status } ->
     output =
         # TODO upgrade this to use the Sqlite API
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
-        |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
-        |> Command.output!
+        Cmd.new "sqlite3"
+        |> Cmd.arg db_path
+        |> Cmd.arg ".mode json"
+        |> Cmd.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
+        |> Cmd.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
+        |> Cmd.output!
 
     when output.status is
-        Ok {} -> jsonResponse output.stdout
-        Err _ -> byteResponse 500 output.stderr
+        Ok _ -> json_response output.stdout
+        Err _ -> byte_response 500 output.stderr
 
-taskFromQuery : Str -> Result { task : Str, status : Str } [InvalidQuery]
-taskFromQuery = \url ->
-    params = url |> Url.fromStr |> Url.queryParams
+task_from_query : Str -> Result { task : Str, status : Str } [InvalidQuery]
+task_from_query = \url ->
+    params = url |> Url.from_str |> Url.query_params
 
     when (params |> Dict.get "task", params |> Dict.get "status") is
         (Ok task, Ok status) -> Ok { task: Str.replaceEach task "%20" " ", status: Str.replaceEach status "%20" " " }
         _ -> Err InvalidQuery
 
-jsonResponse : List U8 -> Task Response *
-jsonResponse = \bytes ->
-    Task.ok {
+json_response : List U8 -> Result Response []
+json_response = \bytes ->
+    Ok {
         status: 200,
         headers: [
             { name: "Content-Type", value: "application/json; charset=utf-8" },
@@ -116,9 +106,9 @@ jsonResponse = \bytes ->
         body: bytes,
     }
 
-textResponse : U16, Str -> Task Response *
-textResponse = \status, str ->
-    Task.ok {
+text_response : U16, Str -> Result Response []
+text_response = \status, str ->
+    Ok {
         status,
         headers: [
             { name: "Content-Type", value: "text/html; charset=utf-8" },
@@ -126,9 +116,9 @@ textResponse = \status, str ->
         body: Str.toUtf8 str,
     }
 
-byteResponse : U16, List U8 -> Task Response *
-byteResponse = \status, bytes ->
-    Task.ok {
+byte_response : U16, List U8 -> Result Response *
+byte_response = \status, bytes ->
+    Ok {
         status,
         headers: [
             { name: "Content-Type", value: "text/html; charset=utf-8" },
@@ -136,27 +126,29 @@ byteResponse = \status, bytes ->
         body: bytes,
     }
 
-isSqliteInstalled : Task {} [Sqlite3NotInstalled]_
-isSqliteInstalled =
-    Stdout.line! "INFO: Checking if sqlite3 is installed..."
+is_sqlite_installed! : {} => Result {} [Sqlite3NotInstalled]_
+is_sqlite_installed! = \{} ->
 
-    sqlite3T =
-        Command.new "sqlite3"
-        |> Command.arg "--version"
-        |> Command.status
+    try Stdout.line! "INFO: Checking if sqlite3 is installed..."
 
-    when sqlite3T |> Task.result! is
-        Ok {} -> Task.ok {}
-        Err _ -> Task.err Sqlite3NotInstalled
+    sqlite3_t! : {} => Result I32 _
+    sqlite3_t! = \{} ->
+        Cmd.new "sqlite3"
+        |> Cmd.arg "--version"
+        |> Cmd.status!
 
-logRequest : Request -> Task {} [StdoutErr Str]
-logRequest = \req ->
-    datetime = Utc.now! |> Utc.toIso8601Str
+    when sqlite3_t! {} is
+        Ok _ -> Ok {}
+        Err _ -> Err Sqlite3NotInstalled
 
-    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-    |> Task.mapErr \err -> StdoutErr (Inspect.toStr err)
+log_request! : Request => Result {} [StdoutErr Str]
+log_request! = \req ->
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-readEnvVar : Str -> Task Str [EnvVarNotSet Str]_
-readEnvVar = \envVarName ->
-    Env.var envVarName
-    |> Task.mapErr \_ -> EnvVarNotSet envVarName
+    Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+    |> Result.mapErr \err -> StdoutErr (Inspect.toStr err)
+
+read_env_var! : Str => Result Str [EnvVarNotSet Str]_
+read_env_var! = \env_var_name ->
+    Env.var! env_var_name
+    |> Result.mapErr \_ -> EnvVarNotSet env_var_name

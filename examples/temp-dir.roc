@@ -1,4 +1,4 @@
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Http exposing [Request, Response]
 import pf.Path
@@ -11,10 +11,12 @@ import pf.Env
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \_, _ ->
-    tempDirStr = Path.display Env.tempDir!
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \_, _ ->
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "The temp dir path is $(tempDirStr)" }
+    temp_dir_str = Path.display (Env.temp_dir! {})
+
+    Ok { status: 200, headers: [], body: Str.toUtf8 "The temp dir path is $(temp_dir_str)" }

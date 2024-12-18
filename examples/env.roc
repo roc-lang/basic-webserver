@@ -18,7 +18,6 @@ respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \_, debug ->
     when debug is
         DebugPrintMode ->
-
             # Respond with all the current environment variables
             vars : Dict Str Str
             vars = Env.dict! {}
