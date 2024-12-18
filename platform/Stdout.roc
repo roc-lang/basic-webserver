@@ -5,6 +5,7 @@ module [
 ]
 
 import Host
+import InternalIOErr
 
 ## **NotFound** - An entity was not found, often a file.
 ##
@@ -32,8 +33,8 @@ Err : [
     Other Str,
 ]
 
-handle_rr : Host.InternalIOErr -> [StdoutErr Err]
-handle_rr = \{ tag, msg } ->
+handle_err : InternalIOErr.IOErrFromHost -> [StdoutErr Err]
+handle_err = \{ tag, msg } ->
     when tag is
         NotFound -> StdoutErr NotFound
         PermissionDenied -> StdoutErr PermissionDenied
@@ -52,7 +53,7 @@ handle_rr = \{ tag, msg } ->
 line! : Str => Result {} [StdoutErr Err]
 line! = \str ->
     Host.stdout_line! str
-    |> Result.mapErr handle_rr
+    |> Result.mapErr handle_err
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
 ##
@@ -63,4 +64,4 @@ line! = \str ->
 write! : Str => Result {} [StdoutErr Err]
 write! = \str ->
     Host.stdout_write! str
-    |> Result.mapErr handle_rr
+    |> Result.mapErr handle_err

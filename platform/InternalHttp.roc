@@ -108,8 +108,8 @@ from_host_request = \{ method, method_ext, headers, uri, body, timeout_ms } -> {
 }
 
 from_host_method : U64, Str -> Method
-from_host_method = \method, ext ->
-    when method is
+from_host_method = \tag, ext ->
+    when tag is
         5 -> Options
         3 -> Get
         7 -> Post
@@ -120,7 +120,7 @@ from_host_method = \method, ext ->
         0 -> Connect
         6 -> Patch
         2 -> Extension ext
-        _ -> crash "invalid method from host $(Num.toStr method)"
+        _ -> crash "invalid tag from host"
 
 from_host_timeout : U64 -> [TimeoutMilliseconds U64, NoTimeout]
 from_host_timeout = \timeout ->

@@ -56,23 +56,23 @@ doubledash = ['-', '-']
 parseContentF : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
 parseContentF = \{ upper, lower } -> \bytes ->
 
-        toSearchUpper = List.concat newline upper
-        toSearchLower = List.concat newline lower
-        searchLength = List.len toSearchUpper
-        afterSearch = List.sublist bytes { start: searchLength, len: Num.maxU64 }
+    toSearchUpper = List.concat newline upper
+    toSearchLower = List.concat newline lower
+    searchLength = List.len toSearchUpper
+    afterSearch = List.sublist bytes { start: searchLength, len: Num.maxU64 }
 
-        if
-            List.startsWith bytes toSearchUpper
-            || List.startsWith bytes toSearchLower
-        then
-            nextLineStart = afterSearch |> List.findFirstIndex? \b -> b == '\r'
+    if
+        List.startsWith bytes toSearchUpper
+        || List.startsWith bytes toSearchLower
+    then
+        nextLineStart = afterSearch |> List.findFirstIndex? \b -> b == '\r'
 
-            Ok {
-                value: List.sublist afterSearch { start: 0, len: nextLineStart },
-                rest: List.sublist afterSearch { start: nextLineStart, len: Num.maxU64 },
-            }
-        else
-            Err ExpectedContent
+        Ok {
+            value: List.sublist afterSearch { start: 0, len: nextLineStart },
+            rest: List.sublist afterSearch { start: nextLineStart, len: Num.maxU64 },
+        }
+    else
+        Err ExpectedContent
 
 parseContentDispositionF = parseContentF {
     upper: Str.toUtf8 "Content-Disposition:",
