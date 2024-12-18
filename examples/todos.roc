@@ -24,8 +24,14 @@ respond! = \req, _ ->
 
         db_path = try read_env_var! "DB_PATH"
 
+        split_url =
+            req.uri
+            |> Url.from_str
+            |> Url.path
+            |> Str.splitOn "/"
+
         # Route to handler based on url path
-        when Str.splitOn req.uri "/" is
+        when split_url is
             ["", ""] -> byte_response 200 todoHtml
             ["", "todos", ..] -> route_todos! db_path req
             _ -> text_response 404 "URL Not Found (404)"

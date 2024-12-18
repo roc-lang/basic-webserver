@@ -87,33 +87,6 @@ for script in ci/expect_scripts/*.exp; do
         continue
     fi
 
-    # skip todos.exp
-    # + expect ci/expect_scripts/todos.exp
-    # spawn examples/todos
-    # INFO: Checking if sqlite3 is installed...
-    # 3.46.0 2024-05-23 13:25:27 96c92aba00c8375bc32fafcdf12429c58bd8aabfcadab6683e35bbb9cdebf19e (64-bit)
-    # Listening on <http://127.0.0.1:8000>
-    # 2024-12-18T21:02:07Z GET /
-    # [{"id":1,"task":"Prepare for AoC","status":"completed"},
-    # {"id":2,"task":"Win all the Stars!","status":"in-progress"},
-    # {"id":3,"task":"Share my ❤️  for Roc","status":"todo"},
-    # {"id":4,"task":"Task 5","status":"planned"},
-    # {"id":5,"task":"Task 6","status":"planned"},
-    # {"id":6,"task":"Task 6","status":"planned"},
-    # {"id":7,"task":"Task 6","status":"planned"},
-    # {"id":8,"task":"Task 6","status":"planned"},
-    # {"id":9,"task":"Task 6","status":"planned"},
-    # {"id":10,"task":"Task 6","status":"planned"},
-    # {"id":11,"task":"Task 6","status":"planned"},
-    # {"id":12,"task":"Task 6","status":"planned"}]
-    # 2024-12-18T21:02:07Z GET /todos
-
-    # Error: output was different than expected.
-    if [ $script == "ci/expect_scripts/todos.exp" ]; then
-        continue
-    fi
-
-
     expect "$script"
 done
 

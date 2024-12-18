@@ -51,13 +51,15 @@ fn call_roc<'a>(
         })
         .collect();
 
-    // NOTE: there may be a smarter way to handle uri (directly make a RocStr here).
-    let url_string = url.to_string();
+    // NOTE: we should be able to make this a seamless slice somehow
+    // and possible avoid making this a rust String
+    let uri: RocStr = url.to_string().as_str().into();
+
     let roc_request = roc_http::RequestToAndFromHost {
         headers,
+        uri,
         timeout_ms: 0,
         method_ext: RocStr::empty(),
-        uri: unsafe { to_const_seamless_roc_str(url_string.as_str()) },
         body: unsafe { roc::to_const_seamless_roc_list(&body) },
         method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
