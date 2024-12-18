@@ -37,7 +37,7 @@ pub fn start() -> i32 {
 
 #[allow(dead_code)]
 fn call_roc<'a>(
-    method: reqwest::Method,
+    method: hyper::Method,
     url: hyper::Uri,
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,

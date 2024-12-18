@@ -1,11 +1,20 @@
+use crate::roc_sql;
 use roc_io_error::IOErr;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::cell::RefCell;
+use std::iter::FromIterator;
 use std::mem::size_of_val;
 use std::os::raw::c_void;
+use std::time::Duration;
+use tokio::runtime::Runtime;
 
-use crate::http_client;
-use crate::roc_sql;
+thread_local! {
+   static TOKIO_RUNTIME: Runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_io()
+       .enable_time()
+       .build()
+       .unwrap();
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_alloc(size: usize, _alignment: u32) -> *mut c_void {
@@ -79,7 +88,85 @@ pub unsafe extern "C" fn roc_getppid() -> libc::pid_t {
 pub extern "C" fn roc_fx_send_request(
     roc_request: &roc_http::RequestToAndFromHost,
 ) -> roc_http::ResponseToAndFromHost {
-    http_client::send_req(roc_request)
+    TOKIO_RUNTIME.with(|rt| {
+        let request = match roc_request.to_hyper_request() {
+            Ok(r) => r,
+            Err(err) => return err.into(),
+        };
+
+        match roc_request.has_timeout() {
+            Some(time_limit) => rt
+                .block_on(async {
+                    tokio::time::timeout(
+                        Duration::from_millis(time_limit),
+                        async_send_request(request),
+                    )
+                    .await
+                })
+                .unwrap_or_else(|_err| roc_http::ResponseToAndFromHost {
+                    status: 408,
+                    headers: RocList::empty(),
+                    body: "Request Timeout".as_bytes().into(),
+                }),
+            None => rt.block_on(async_send_request(request)),
+        }
+    })
+}
+
+async fn async_send_request(request: hyper::Request<String>) -> roc_http::ResponseToAndFromHost {
+    use hyper::Client;
+    use hyper_rustls::HttpsConnectorBuilder;
+
+    let https = HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_or_http()
+        .enable_http1()
+        .build();
+
+    let client: Client<_, String> = Client::builder().build(https);
+    let res = client.request(request).await;
+
+    match res {
+        Ok(response) => {
+            let status = response.status();
+
+            let headers = RocList::from_iter(response.headers().iter().map(|(name, value)| {
+                roc_http::Header::new(name.as_str(), value.to_str().unwrap_or_default())
+            }));
+
+            let status = status.as_u16();
+
+            let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+            let body: RocList<u8> = RocList::from_iter(bytes);
+
+            roc_http::ResponseToAndFromHost {
+                body,
+                status,
+                headers,
+            }
+        }
+        Err(err) => {
+            if err.is_timeout() {
+                roc_http::ResponseToAndFromHost {
+                    status: 408,
+                    headers: RocList::empty(),
+                    body: "Request Timeout".as_bytes().into(),
+                }
+            } else if err.is_connect() || err.is_closed() {
+                roc_http::ResponseToAndFromHost {
+                    status: 500,
+                    headers: RocList::empty(),
+                    body: "Network Error".as_bytes().into(),
+                }
+            } else {
+                roc_http::ResponseToAndFromHost {
+                    status: 500,
+                    headers: RocList::empty(),
+                    body: err.to_string().as_bytes().into(),
+                }
+            }
+        }
+    }
 }
 
 #[no_mangle]

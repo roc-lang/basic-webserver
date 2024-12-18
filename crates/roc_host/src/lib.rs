@@ -1,4 +1,3 @@
-mod http_client;
 mod http_server;
 mod roc;
 mod roc_sql;

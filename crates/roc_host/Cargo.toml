@@ -39,11 +39,12 @@ hyper = { version = "0.14", features = [
     "backports",
     "deprecated",
 ] }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
-reqwest = { version = "=0.11.11", default-features = false, features = [
-    "blocking",
-    "rustls-tls",
+hyper-rustls = { version = "=0.24.2", default-features = false, features = [
+    "http1",
+    "tls12",
+    "native-tokio",
 ] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
