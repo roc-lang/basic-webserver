@@ -5,7 +5,6 @@ use hyper::header::{HeaderName, HeaderValue};
 use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
 use std::env;
-use std::mem::size_of_val;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::OnceLock;
