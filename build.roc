@@ -16,8 +16,8 @@ import cli.Arg.Cli
 main : Task {} _
 main =
 
-    cliParser =
-        Arg.Opt.maybeStr { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path."}
+    cli_parser =
+        Arg.Opt.maybeStr { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path." }
         |> Arg.Cli.finish {
             name: "basic-webserver-builder",
             version: "",
@@ -26,93 +26,92 @@ main =
         }
         |> Arg.Cli.assertValid
 
-    when Arg.Cli.parseOrDisplayMessage cliParser (Arg.list! {}) is
-        Ok parsedArgs -> run parsedArgs
-        Err errMsg -> Task.err (Exit 1 errMsg)
+    when Arg.Cli.parseOrDisplayMessage cli_parser (Arg.list! {}) is
+        Ok parsed_args -> run parsed_args
+        Err err_msg -> Task.err (Exit 1 err_msg)
 
 run : Result Str err -> Task {} _
-run = \maybeRoc ->
+run = \maybe_roc ->
 
-    # rocCmd may be a path or just roc
-    rocCmd = maybeRoc |> Result.withDefault "roc"
+    # roc_cmd may be a path or just roc
+    roc_cmd = maybe_roc |> Result.withDefault "roc"
 
-    rocVersion! rocCmd
+    roc_version! roc_cmd
 
-    osAndArch = getOSAndArch!
+    os_and_arch = get_os_and_arch!
 
-    stubLibPath = "platform/libapp.$(stubFileExtension osAndArch)"
+    stub_lib_path = "platform/libapp.$(stub_file_extension os_and_arch)"
 
-    buildStubAppLib! rocCmd stubLibPath
+    build_stub_app_lib! roc_cmd stub_lib_path
 
-    cargoBuildHost!
+    cargo_build_host!
 
-    rustTargetFolder = getRustTargetFolder!
+    rust_target_folder = get_rust_target_folder!
 
-    copyHostLib! osAndArch rustTargetFolder
+    copy_host_lib! os_and_arch rust_target_folder
 
-    preprocessHost! rocCmd stubLibPath rustTargetFolder
+    preprocess_host! roc_cmd stub_lib_path rust_target_folder
 
     info! "Successfully built platform files!"
 
+roc_version : Str -> Task {} _
+roc_version = \roc_cmd ->
 
-rocVersion : Str -> Task {} _
-rocVersion = \rocCmd ->
+    info! "Checking provided roc; executing `$(roc_cmd) version`:"
 
-    info! "Checking provided roc; executing `$(rocCmd) version`:"
+    roc_cmd
+    |> Cmd.exec ["version"]
+    |> Task.mapErr! RocVersionCheckFailed
 
-    rocCmd
-        |> Cmd.exec  ["version"]
-        |> Task.mapErr! RocVersionCheckFailed
-
-getOSAndArch : Task OSAndArch _
-getOSAndArch =
+get_os_and_arch : Task OSAndArch _
+get_os_and_arch =
 
     info! "Getting the native operating system and architecture..."
 
     Env.platform
-    |> Task.await convertOSAndArch
+    |> Task.await convert_os_and_arch
 
-buildStubAppLib : Str, Str -> Task {} _
-buildStubAppLib = \rocCmd, stubLibPath ->
+build_stub_app_lib : Str, Str -> Task {} _
+build_stub_app_lib = \roc_cmd, stub_lib_path ->
 
     info! "Building stubbed app shared library ..."
 
-    rocCmd
-        |> Cmd.exec  ["build", "--lib", "platform/libapp.roc", "--output", stubLibPath, "--optimize"]
-        |> Task.mapErr! ErrBuildingAppStub
+    roc_cmd
+    |> Cmd.exec ["build", "--lib", "platform/libapp.roc", "--output", stub_lib_path, "--optimize"]
+    |> Task.mapErr! ErrBuildingAppStub
 
-getRustTargetFolder : Task Str _
-getRustTargetFolder =
+get_rust_target_folder : Task Str _
+get_rust_target_folder =
     when Env.var "CARGO_BUILD_TARGET" |> Task.result! is
-        Ok targetEnvVar ->
-            if Str.isEmpty targetEnvVar then
+        Ok target_env_var ->
+            if Str.isEmpty target_env_var then
                 Task.ok "target/release/"
             else
-                Task.ok "target/$(targetEnvVar)/release/"
+                Task.ok "target/$(target_env_var)/release/"
+
         Err e ->
             info! "Failed to get env var CARGO_BUILD_TARGET with error $(Inspect.toStr e). Assuming default CARGO_BUILD_TARGET (native)..."
 
             Task.ok "target/release/"
 
-cargoBuildHost : Task {} _
-cargoBuildHost =
+cargo_build_host : Task {} _
+cargo_build_host =
 
     info! "Building rust host ..."
 
     "cargo"
-        |> Cmd.exec ["build", "--release"]
-        |> Task.mapErr! ErrBuildingHostBinaries
+    |> Cmd.exec ["build", "--release"]
+    |> Task.mapErr! ErrBuildingHostBinaries
 
-copyHostLib : OSAndArch, Str -> Task {} _
-copyHostLib = \osAndArch, rustTargetFolder ->
-    hostBuildPath = "$(rustTargetFolder)libhost.a"
-    hostDestPath = "platform/$(prebuiltStaticLibFile osAndArch)"
+copy_host_lib : OSAndArch, Str -> Task {} _
+copy_host_lib = \os_and_arch, rust_target_folder ->
+    host_build_path = "$(rust_target_folder)libhost.a"
+    host_dest_path = "platform/$(prebuilt_static_lib_file os_and_arch)"
 
-    info! "Moving the prebuilt binary from $(hostBuildPath) to $(hostDestPath) ..."
+    info! "Moving the prebuilt binary from $(host_build_path) to $(host_dest_path) ..."
     "cp"
-        |> Cmd.exec  [hostBuildPath, hostDestPath]
-        |> Task.mapErr! ErrMovingPrebuiltLegacyBinary
-
+    |> Cmd.exec [host_build_path, host_dest_path]
+    |> Task.mapErr! ErrMovingPrebuiltLegacyBinary
 
 OSAndArch : [
     MacosArm64,
@@ -123,8 +122,8 @@ OSAndArch : [
     WindowsX64,
 ]
 
-convertOSAndArch : _ -> Task OSAndArch _
-convertOSAndArch =\{os, arch} ->
+convert_os_and_arch : _ -> Task OSAndArch _
+convert_os_and_arch = \{ os, arch } ->
     when (os, arch) is
         (MACOS, AARCH64) -> Task.ok MacosArm64
         (MACOS, X64) -> Task.ok MacosX64
@@ -132,16 +131,16 @@ convertOSAndArch =\{os, arch} ->
         (LINUX, X64) -> Task.ok LinuxX64
         _ -> Task.err (UnsupportedNative os arch)
 
-stubFileExtension : OSAndArch -> Str
-stubFileExtension = \osAndArch ->
-    when osAndArch is
+stub_file_extension : OSAndArch -> Str
+stub_file_extension = \os_and_arch ->
+    when os_and_arch is
         MacosX64 | MacosArm64 -> "dylib"
-        LinuxArm64 | LinuxX64-> "so"
-        WindowsX64| WindowsArm64 -> "dll"
+        LinuxArm64 | LinuxX64 -> "so"
+        WindowsX64 | WindowsArm64 -> "dll"
 
-prebuiltStaticLibFile : OSAndArch -> Str
-prebuiltStaticLibFile = \osAndArch ->
-    when osAndArch is
+prebuilt_static_lib_file : OSAndArch -> Str
+prebuilt_static_lib_file = \os_and_arch ->
+    when os_and_arch is
         MacosArm64 -> "macos-arm64.a"
         MacosX64 -> "macos-x64.a"
         LinuxArm64 -> "linux-arm64.a"
@@ -149,14 +148,14 @@ prebuiltStaticLibFile = \osAndArch ->
         WindowsArm64 -> "windows-arm64.lib"
         WindowsX64 -> "windows-x64.lib"
 
-preprocessHost : Str, Str, Str -> Task {} _
-preprocessHost = \rocCmd, stubLibPath, rustTargetFolder ->
+preprocess_host : Str, Str, Str -> Task {} _
+preprocess_host = \roc_cmd, stub_lib_path, rust_target_folder ->
     info! "Preprocessing surgical host ..."
-    surgicalBuildPath = "$(rustTargetFolder)host"
+    surgical_build_path = "$(rust_target_folder)host"
 
-    rocCmd
-        |> Cmd.exec  ["preprocess-host", surgicalBuildPath, "platform/main.roc", stubLibPath]
-        |> Task.mapErr! ErrPreprocessingSurgicalBinary
+    roc_cmd
+    |> Cmd.exec ["preprocess-host", surgical_build_path, "platform/main.roc", stub_lib_path]
+    |> Task.mapErr! ErrPreprocessingSurgicalBinary
 
 info : Str -> Task {} _
 info = \msg ->
