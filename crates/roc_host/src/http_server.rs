@@ -1,4 +1,4 @@
-use crate::roc;
+use crate::roc::{self, to_const_seamless_roc_str};
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
@@ -36,9 +36,6 @@ pub fn start() -> i32 {
     }
 }
 
-const REFCOUNT_CONSTANT: u64 = 0;
-const SEAMLESS_SLICE_BIT: usize = isize::MIN as usize;
-
 #[allow(dead_code)]
 fn call_roc<'a>(
     method: reqwest::Method,
@@ -48,26 +45,21 @@ fn call_roc<'a>(
 ) -> hyper::Response<hyper::Body> {
     let headers: RocList<roc_http::Header> = headers
         .map(|(key, value)| roc_http::Header {
-            name: key.as_str().into(),
-            value: value
-                .to_str()
-                .expect("valid header value from hyper")
-                .into(),
+            name: unsafe { to_const_seamless_roc_str(key.as_str()) },
+            value: unsafe {
+                to_const_seamless_roc_str(value.to_str().expect("valid header value from hyper"))
+            },
         })
         .collect();
 
-    let const_refcount_allocation =
-        (&REFCOUNT_CONSTANT as *const u64) as usize + size_of_val(&REFCOUNT_CONSTANT);
-    let const_seamless_slice = (const_refcount_allocation >> 1) | SEAMLESS_SLICE_BIT;
-    // let seamless_slice = slice_pointer
+    // NOTE: there may be a smarter way to handle uri (directly make a RocStr here).
+    let url_string = url.to_string();
     let roc_request = roc_http::RequestToAndFromHost {
         headers,
         timeout_ms: 0,
         method_ext: RocStr::empty(),
-        uri: url.to_string().as_str().into(),
-        body: unsafe {
-            RocList::from_raw_parts(body.as_ptr() as *mut u8, body.len(), const_seamless_slice)
-        },
+        uri: unsafe { to_const_seamless_roc_str(url_string.as_str()) },
+        body: unsafe { roc::to_const_seamless_roc_list(&body) },
         method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
 
