@@ -237,7 +237,7 @@ pub extern "C" fn roc_fx_dir_list(
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_sqliteExecute(
+pub extern "C" fn roc_fx_sqlite_execute(
     db_path: &roc_std::RocStr,
     query: &roc_std::RocStr,
     bindings: &RocList<roc_sql::SQLiteBindings>,
