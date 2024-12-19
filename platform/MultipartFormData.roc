@@ -40,7 +40,7 @@ doubledash = ['-', '-']
 ##
 ## Example call:
 ## ```roc
-## parseContentF {
+## parse_content_f {
 ##    upper: Str.toUtf8 "Content-Disposition:",
 ##    lower: Str.toUtf8 "content-disposition:",
 ## }
@@ -53,8 +53,8 @@ doubledash = ['-', '-']
 ## }
 ## ```
 ##
-parseContentF : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
-parseContentF = \{ upper, lower } -> \bytes ->
+parse_content_f : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
+parse_content_f = \{ upper, lower } -> \bytes ->
 
     toSearchUpper = List.concat newline upper
     toSearchLower = List.concat newline lower
@@ -74,7 +74,7 @@ parseContentF = \{ upper, lower } -> \bytes ->
     else
         Err ExpectedContent
 
-parseContentDispositionF = parseContentF {
+parseContentDispositionF = parse_content_f {
     upper: Str.toUtf8 "Content-Disposition:",
     lower: Str.toUtf8 "content-disposition:",
 }
@@ -89,7 +89,7 @@ expect
 
     actual == expected
 
-parseContentTypeF = parseContentF {
+parseContentTypeF = parse_content_f {
     upper: Str.toUtf8 "Content-Type:",
     lower: Str.toUtf8 "content-type:",
 }
@@ -104,7 +104,7 @@ expect
 
     actual == expected
 
-parseContentTransferEncodingF = parseContentF {
+parseContentTransferEncodingF = parse_content_f {
     upper: Str.toUtf8 "Content-Transfer-Encoding:",
     lower: Str.toUtf8 "content-transfer-encoding:",
 }
