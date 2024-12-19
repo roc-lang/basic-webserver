@@ -14,7 +14,7 @@ respond! = \req, _ ->
     # Log request datetime, method and url
     datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    Stdout.line!? "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+    try Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
     # Respond with request body
     if List.isEmpty req.body then

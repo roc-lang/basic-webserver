@@ -15,7 +15,7 @@ init! = \{} ->
         Env.cwd! {}
         |> Result.mapErr? \CwdUnavailable -> Exit 1 "Unable to read current working directory"
 
-    Stdout.line!? "The current working directory is $(Path.display cwd)"
+    try Stdout.line! "The current working directory is $(Path.display cwd)"
 
     # Try to set cwd to examples
     Env.set_cwd! (Path.from_str "examples/")
@@ -32,7 +32,8 @@ init! = \{} ->
     |> List.map Path.display
     |> Str.joinWith ","
     |> \paths_str -> "The paths are;\n$(paths_str)"
-    |> Stdout.line!?
+    |> Stdout.line!
+    |> try
 
     Ok {}
 
