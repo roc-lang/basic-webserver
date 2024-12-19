@@ -482,10 +482,15 @@ pub fn call_roc_respond(
     }
 }
 
+//  TODO use these functions to create seamless slices and avoid unnecessary allocations
+
+#[allow(dead_code)]
 const REFCOUNT_CONSTANT: u64 = 0;
+#[allow(dead_code)]
 const SEAMLESS_SLICE_BIT: usize = isize::MIN as usize;
 
 // This is only safe to call if the underlying data is guaranteed to be alive for the lifetime of the roc list.
+#[allow(dead_code)]
 pub unsafe fn to_const_seamless_roc_list(data: &[u8]) -> RocList<u8> {
     let const_refcount_allocation =
         (&REFCOUNT_CONSTANT as *const u64) as usize + size_of_val(&REFCOUNT_CONSTANT);
@@ -493,8 +498,8 @@ pub unsafe fn to_const_seamless_roc_list(data: &[u8]) -> RocList<u8> {
 
     RocList::from_raw_parts(data.as_ptr() as *mut u8, data.len(), const_seamless_slice)
 }
-
 // This is only safe to call if the underlying data is guaranteed to be alive for the lifetime of the roc list.
+#[allow(dead_code)]
 pub unsafe fn to_const_seamless_roc_str(data: &str) -> RocStr {
     // TODO: consider still generating small strings here if the str is small enough.
     let const_refcount_allocation =

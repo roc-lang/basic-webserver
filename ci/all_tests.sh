@@ -67,26 +67,6 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
 done
 
 for script in ci/expect_scripts/*.exp; do
-
-    # skip file-upload-form.exp
-    # + expect ci/expect_scripts/file-upload-form.exp
-    # spawn examples/file-upload-form
-    # Listening on <http://127.0.0.1:8000>
-    # WARNING: The convert command is deprecated in IMv7, use "magick" instead of "convert" or "magick convert"
-
-    #     while executing
-    # "exec convert -size 100x100 xc:red red_test_image.png"
-    #     invoked from within
-    # "expect "Listening on <http://127.0.0.1:8000>\r\n" {
-
-    #     exec convert -size 100x100 xc:red red_test_image.png
-
-    #     set script_dir [file dirname [info ..."
-    #     (file "ci/expect_scripts/file-upload-form.exp" line 10)
-    if [ $script == "ci/expect_scripts/file-upload-form.exp" ]; then
-        continue
-    fi
-
     expect "$script"
 done
 

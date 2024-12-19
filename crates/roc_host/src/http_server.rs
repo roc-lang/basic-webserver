@@ -1,4 +1,4 @@
-use crate::roc::{self, to_const_seamless_roc_str};
+use crate::roc::{self};
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
@@ -44,23 +44,29 @@ fn call_roc<'a>(
 ) -> hyper::Response<hyper::Body> {
     let headers: RocList<roc_http::Header> = headers
         .map(|(key, value)| roc_http::Header {
-            name: unsafe { to_const_seamless_roc_str(key.as_str()) },
-            value: unsafe {
-                to_const_seamless_roc_str(value.to_str().expect("valid header value from hyper"))
-            },
+            // NOTE: we should be able to make this a seamless slice somehow
+            // we tried but it was causing some issues, so removing just land the PI upgrade with
+            // for now with something we know works ok.
+            // TODO use to_const_seamless_roc_str()
+            name: key.as_str().into(),
+            value: value
+                .to_str()
+                .expect("valid header value from hyper")
+                .into(),
         })
         .collect();
 
     // NOTE: we should be able to make this a seamless slice somehow
-    // and possible avoid making this a rust String
+    // and possible avoid making this a rust String or Vev<u8> first
     let uri: RocStr = url.to_string().as_str().into();
+    let body: RocList<u8> = body.to_vec().as_slice().into();
 
     let roc_request = roc_http::RequestToAndFromHost {
         headers,
         uri,
         timeout_ms: 0,
         method_ext: RocStr::empty(),
-        body: unsafe { roc::to_const_seamless_roc_list(&body) },
+        body,
         method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
 
