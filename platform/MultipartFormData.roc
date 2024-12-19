@@ -8,7 +8,7 @@ module [
 ]
 
 import InternalHttp
-import SplitList exposing [splitOnList]
+import SplitList
 
 FormData : {
     ## Content-Disposition response header
@@ -221,7 +221,7 @@ parse_form_data = \{ body, boundary } ->
     if isEnclosedByBoundary then
         body
         |> List.dropFirst (List.len startMarker)
-        |> splitOnList boundaryWithPrefix
+        |> SplitList.split_on_list boundaryWithPrefix
         |> List.dropIf \part -> part == doubledash
         |> List.keepOks parseAllHeaders
         |> Ok
