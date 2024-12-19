@@ -41,7 +41,6 @@ examples/hello-web
 examples/file-upload-form
 
 # for file-upload-form test
-red_test_image.png
 curl_file_output.txt
 
 .DS_Store
