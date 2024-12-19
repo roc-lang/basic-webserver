@@ -27,7 +27,7 @@ if [ "$NO_BUILD" != "1" ]; then
     if [ "$JUMP_START" == "1" ]; then
     echo "building platform..."
 
-    # we can't use a release of basic-cli becuase we are making a breaking change
+    # we can't use a release of basic-cli because we are making a breaking change
     # let's build the platform using bash instead
     bash jump-start.sh
 

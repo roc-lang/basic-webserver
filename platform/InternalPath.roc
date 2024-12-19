@@ -1,14 +1,15 @@
 module [
     UnwrappedPath,
     InternalPath,
+    InternalPathType,
     wrap,
     unwrap,
-    toBytes,
-    fromArbitraryBytes,
-    fromOsBytes,
+    to_bytes,
+    from_arbitrary_bytes,
+    from_os_bytes,
 ]
 
-InternalPath := UnwrappedPath
+InternalPath := UnwrappedPath implements [Inspect]
 
 UnwrappedPath : [
     # We store these separately for two reasons:
@@ -46,6 +47,12 @@ UnwrappedPath : [
     FromStr Str,
 ]
 
+InternalPathType : {
+    is_file : Bool,
+    is_sym_link : Bool,
+    is_dir : Bool,
+}
+
 wrap : UnwrappedPath -> InternalPath
 wrap = @InternalPath
 
@@ -55,17 +62,17 @@ unwrap = \@InternalPath raw -> raw
 ## TODO do this in the host, and iterate over the Str
 ## bytes when possible instead of always converting to
 ## a heap-allocated List.
-toBytes : InternalPath -> List U8
-toBytes = \@InternalPath path ->
+to_bytes : InternalPath -> List U8
+to_bytes = \@InternalPath path ->
     when path is
         FromOperatingSystem bytes -> bytes
         ArbitraryBytes bytes -> bytes
         FromStr str -> Str.toUtf8 str
 
-fromArbitraryBytes : List U8 -> InternalPath
-fromArbitraryBytes = \bytes ->
+from_arbitrary_bytes : List U8 -> InternalPath
+from_arbitrary_bytes = \bytes ->
     @InternalPath (ArbitraryBytes bytes)
 
-fromOsBytes : List U8 -> InternalPath
-fromOsBytes = \bytes ->
+from_os_bytes : List U8 -> InternalPath
+from_os_bytes = \bytes ->
     @InternalPath (FromOperatingSystem bytes)

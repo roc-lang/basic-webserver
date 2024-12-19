@@ -1,5 +1,5 @@
 # This example demonstrates error handling and fetching content from another website.
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
@@ -8,59 +8,60 @@ import pf.Env
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ -> handleReq req |> Task.mapErr mapAppErr
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \req, _ -> handle_req! req |> Result.mapErr map_app_err
 
 AppError : [
     EnvVarNotSet Str,
-    HttpErr Http.Err,
+    BadBody Str,
     StdoutErr Str,
 ]
 
-mapAppErr : AppError -> [ServerErr Str]
-mapAppErr = \appErr ->
-    when appErr is
-        EnvVarNotSet envVarName -> ServerErr "Environment variable \"$(envVarName)\" was not set."
-        HttpErr err -> ServerErr "Http error fetching content:\n\t$(Inspect.toStr err)"
+map_app_err : AppError -> [ServerErr Str]
+map_app_err = \app_err ->
+    when app_err is
+        EnvVarNotSet env_var_name -> ServerErr "Environment variable \"$(env_var_name)\" was not set."
+        BadBody err -> ServerErr "Http error fetching content:\n\t$(Inspect.toStr err)"
         StdoutErr err -> ServerErr "Stdout error logging request:\n\t$(err)"
 
 # Here we use AppError to ensure all errors must be handled within our application.
-handleReq : Request -> Task Response AppError
-handleReq = \req ->
+handle_req! : Request => Result Response AppError
+handle_req! = \req ->
     # Log the date, time, method, and url to stdout
-    logRequest! req
+    try log_request! req
 
     # Read environment variable
-    url = readEnvVar! "TARGET_URL"
+    url = try read_env_var! "TARGET_URL"
 
     # Fetch content of url
-    content = fetchContent! url
+    content = try fetch_content! url
 
     # Respond with the website content
-    responseWithCode 200 content
+    response_with_code! 200 content
 
-logRequest : Request -> Task {} [StdoutErr Str]
-logRequest = \req ->
-    datetime = Utc.now! |> Utc.toIso8601Str
+log_request! : Request => Result {} [StdoutErr Str]
+log_request! = \req ->
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    Stdout.line "$(datetime) $(Http.methodToStr req.method) $(req.url)"
-    |> Task.mapErr \err -> StdoutErr (Inspect.toStr err)
+    Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+    |> Result.mapErr \err -> StdoutErr (Inspect.toStr err)
 
-readEnvVar : Str -> Task Str [EnvVarNotSet Str]
-readEnvVar = \envVarName ->
-    Env.var envVarName
-    |> Task.mapErr \_ -> EnvVarNotSet envVarName
+read_env_var! : Str => Result Str [EnvVarNotSet Str]
+read_env_var! = \env_var_name ->
+    Env.var! env_var_name
+    |> Result.mapErr \_ -> EnvVarNotSet env_var_name
 
-fetchContent : Str -> Task Str [HttpErr Http.Err]
-fetchContent = \url ->
-    Http.getUtf8 url
+fetch_content! : Str => Result Str _
+fetch_content! = \url ->
+    Http.get_utf8! url
 
 # Respond with the given status code and body
-responseWithCode : U16, Str -> Task Response *
-responseWithCode = \code, body ->
-    Task.ok {
+response_with_code! : U16, Str => Result Response *
+response_with_code! = \code, body ->
+    Ok {
         status: code,
         headers: [],
         body: Str.toUtf8 body,

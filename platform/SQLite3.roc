@@ -3,11 +3,11 @@ module [
     Code,
     Error,
     Binding,
-    execute,
+    execute!,
     errToStr,
 ]
 
-import PlatformTasks
+import Host
 import InternalSQL
 
 Value : InternalSQL.SQLiteValue
@@ -15,17 +15,16 @@ Code : InternalSQL.SQLiteErrCode
 Error : [SQLError Code Str]
 Binding : InternalSQL.SQLiteBindings
 
-execute :
+execute! :
     {
         path : Str,
         query : Str,
         bindings : List Binding,
     }
-    -> Task (List (List InternalSQL.SQLiteValue)) Error
-execute = \{ path, query, bindings } ->
-    when PlatformTasks.sqliteExecute path query bindings |> Task.result! is
-        Ok rows -> Task.ok rows
-        Err { code, message } -> Task.err (SQLError (codeFromI64 code) message)
+    => Result (List (List InternalSQL.SQLiteValue)) Error
+execute! = \{ path, query, bindings } ->
+    Host.sqlite_execute! path query bindings
+    |> Result.mapErr \{ code, message } -> SQLError (codeFromI64 code) message
 
 codeFromI64 : I64 -> InternalSQL.SQLiteErrCode
 codeFromI64 = \code ->

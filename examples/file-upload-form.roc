@@ -1,20 +1,21 @@
-app [Model, server] {
+app [Model, init!, respond!] {
     pf: platform "../platform/main.roc",
     utils: "https://github.com/quelgar/roc-utils/releases/download/v0.1.0/keYHFjUG1pMAT8ECePEAIS-ncYxEV0DdhTvENUf0USs.tar.br",
 }
 
 import utils.Base64
 import pf.Http exposing [Request, Response]
+import pf.MultipartFormData
 
 # Model is produced by `init`.
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
-
-    if req.method == Get then
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \req, _ ->
+    if req.method == GET then
         body =
             """
             <!DOCTYPE html>
@@ -37,14 +38,14 @@ respond = \req, _ ->
             """
             |> Str.toUtf8
 
-        Task.ok {
+        Ok {
             status: 200,
             headers: [
                 { name: "Content-Type", value: "text/html" },
             ],
             body,
         }
-    else if req.method == Post then
+    else if req.method == POST then
         page = \src ->
             """
             <!DOCTYPE html>
@@ -71,16 +72,16 @@ respond = \req, _ ->
             """
             |> Str.toUtf8
 
-        maybeImage =
+        maybe_image =
             { headers: req.headers, body: req.body }
-            |> Http.parseMultipartFormData
+            |> MultipartFormData.parse_multipart_form_data
             |> Result.try List.first
             |> Result.map .data
             |> Result.map Base64.encode
 
-        when maybeImage is
+        when maybe_image is
             Ok img ->
-                Task.ok {
+                Ok {
                     status: 200,
                     headers: [
                         { name: "Content-Type", value: "text/html" },
@@ -88,6 +89,6 @@ respond = \req, _ ->
                     body: page img,
                 }
 
-            Err err -> Task.ok { status: 500, headers: [], body: err |> Inspect.toStr |> Str.toUtf8 }
+            Err err -> Ok { status: 500, headers: [], body: err |> Inspect.toStr |> Str.toUtf8 }
     else
-        Task.ok { status: 500, headers: [], body: [] }
+        Ok { status: 500, headers: [], body: [] }

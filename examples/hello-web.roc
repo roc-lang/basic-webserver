@@ -1,4 +1,4 @@
-app [Model, server] { pf: platform "../platform/main.roc" }
+app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
@@ -9,15 +9,19 @@ Model : {}
 
 # With `init` you can set up a database connection once at server startup,
 # generate css by running `tailwindcss`,...
-# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
+# In this case we don't have anything to initialize, so it is just `Ok {}`.
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-server = { init: Task.ok {}, respond }
-
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \req, _ ->
     # Log request datetime, method and url
-    datetime = Utc.now! |> Utc.toIso8601Str
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    try Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello from server</b></br>" }
+    Ok {
+        status: 200,
+        headers: [],
+        body: Str.toUtf8 "<b>Hello from server</b></br>",
+    }

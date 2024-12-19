@@ -1,45 +1,53 @@
-module [cwd, list, var, decode, exePath, setCwd, tempDir]
+module [
+    cwd!,
+    dict!,
+    var!,
+    decode!,
+    exe_path!,
+    set_cwd!,
+    platform!,
+    temp_dir!,
+]
 
 import Path exposing [Path]
 import InternalPath
-import PlatformTasks
 import EnvDecoding
+import Host
 
 ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## from the environment. File operations on relative [Path]s are relative to this directory.
-cwd : Task Path [CwdUnavailable]
-cwd =
-    PlatformTasks.cwd
-    |> Task.mapErr \_ -> crash "unreachable"
-    |> Task.await \bytes ->
-        if List.isEmpty bytes then
-            Task.err CwdUnavailable
-        else
-            Task.ok (InternalPath.fromArbitraryBytes bytes)
+cwd! : {} => Result Path [CwdUnavailable]
+cwd! = \{} ->
+    bytes = Host.cwd! {} |> Result.withDefault []
+
+    if List.isEmpty bytes then
+        Err CwdUnavailable
+    else
+        Ok (InternalPath.from_arbitrary_bytes bytes)
 
 ## Sets the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## in the environment. After changing it, file operations on relative [Path]s will be relative
 ## to this directory.
-setCwd : Path -> Task {} [InvalidCwd]
-setCwd = \path ->
-    PlatformTasks.setCwd (InternalPath.toBytes path)
-    |> Task.mapErr \{} -> InvalidCwd
+set_cwd! : Path => Result {} [InvalidCwd]
+set_cwd! = \path ->
+    Host.set_cwd! (InternalPath.to_bytes path)
+    |> Result.mapErr \{} -> InvalidCwd
 
 ## Gets the path to the currently-running executable.
-exePath : Task Path [ExePathUnavailable]
-exePath =
-    PlatformTasks.exePath
-    |> Task.map \bytes -> InternalPath.fromOsBytes bytes
-    |> Task.mapErr \{} -> ExePathUnavailable
+exe_path! : {} => Result Path [ExePathUnavailable]
+exe_path! = \{} ->
+    when Host.exe_path! {} is
+        Ok bytes -> Ok (InternalPath.from_os_bytes bytes)
+        Err {} -> Err ExePathUnavailable
 
 ## Reads the given environment variable.
 ##
 ## If the value is invalid Unicode, the invalid parts will be replaced with the
 ## [Unicode replacement character](https://unicode.org/glossary/#replacement_character) ('�').
-var : Str -> Task Str [VarNotFound]
-var = \name ->
-    PlatformTasks.envVar name
-    |> Task.mapErr \{} -> VarNotFound
+var! : Str => Result Str [VarNotFound]
+var! = \name ->
+    Host.env_var! name
+    |> Result.mapErr \{} -> VarNotFound
 
 ## Reads the given environment variable and attempts to decode it.
 ##
@@ -58,7 +66,7 @@ var = \name ->
 ## ```
 ## # Reads "NUM_THINGS" and decodes into a U16
 ## getU16Var : Str -> Task U16 [VarNotFound, DecodeErr DecodeError] [Read [Env]]
-## getU16Var = \var -> Env.decode var
+## getU16Var = \var -> Env.decode! var
 ## ```
 ##
 ## If `NUM_THINGS=123` then `getU16Var` succeeds with the value of `123u16`.
@@ -66,23 +74,23 @@ var = \name ->
 ## fail with [DecodeErr](https://www.roc-lang.org/builtins/Decode#DecodeError)
 ## because `123456789` is too large to fit in a [U16](https://www.roc-lang.org/builtins/Num#U16).
 ##
-decode : Str -> Task val [VarNotFound, DecodeErr DecodeError] where val implements Decoding
-decode = \name ->
-    PlatformTasks.envVar name
-    |> Task.mapErr \{} -> VarNotFound
-    |> Task.await \varStr ->
-        Decode.fromBytes (Str.toUtf8 varStr) (EnvDecoding.format {})
-        |> Result.mapErr \_ -> DecodeErr TooShort
-        |> Task.fromResult
+decode! : Str => Result val [VarNotFound, DecodeErr DecodeError] where val implements Decoding
+decode! = \name ->
+    when Host.env_var! name is
+        Err {} -> Err VarNotFound
+        Ok var_str ->
+            Str.toUtf8 var_str
+            |> Decode.fromBytes (EnvDecoding.format {})
+            |> Result.mapErr (\_ -> DecodeErr TooShort)
 
-## Reads all the process's environment variables into a List (Str, Str).
+## Reads all the process's environment variables into a [Dict].
 ##
 ## If any key or value contains invalid Unicode, the [Unicode replacement character](https://unicode.org/glossary/#replacement_character)
 ## will be used in place of any parts of keys or values that are invalid Unicode.
-list : Task (List (Str, Str)) *
-list =
-    PlatformTasks.envList
-    |> Task.mapErr \_ -> crash "unreachable"
+dict! : {} => Dict Str Str
+dict! = \{} ->
+    Host.env_dict! {}
+    |> Dict.fromList
 
 # ## Walks over the process's environment variables as key-value arguments to the walking function.
 # ##
@@ -117,6 +125,38 @@ list =
 # if decoding into a tag union of [Present val, Missing], then it knows what to do.
 # decodeAll : Task val [] [EnvDecodingFailed Str] [Env] where val implements Decoding
 
+ARCH : [X86, X64, ARM, AARCH64, OTHER Str]
+OS : [LINUX, MACOS, WINDOWS, OTHER Str]
+
+## Returns the current Achitecture and Operating System.
+##
+## `ARCH : [X86, X64, ARM, AARCH64, OTHER Str]`
+## `OS : [LINUX, MACOS, WINDOWS, OTHER Str]`
+##
+## Note these values are constants from when the platform is built.
+##
+platform! : {} => { arch : ARCH, os : OS }
+platform! = \{} ->
+
+    from_rust = Host.current_arch_os! {}
+
+    arch =
+        when from_rust.arch is
+            "x86" -> X86
+            "x86_64" -> X64
+            "arm" -> ARM
+            "aarch64" -> AARCH64
+            _ -> OTHER from_rust.arch
+
+    os =
+        when from_rust.os is
+            "linux" -> LINUX
+            "macos" -> MACOS
+            "windows" -> WINDOWS
+            _ -> OTHER from_rust.os
+
+    { arch, os }
+
 ## This uses rust's [`std::env::temp_dir()`](https://doc.rust-lang.org/std/env/fn.temp_dir.html)
 ##
 ## !! From the Rust documentation:
@@ -126,8 +166,7 @@ list =
 ## to create a uniquely named file. Creating a file or directory with a fixed or predictable name may
 ## result in “insecure temporary file” security vulnerabilities.
 ##
-tempDir : Task Path []_
-tempDir =
-    PlatformTasks.tempDir
-    |> Task.map InternalPath.fromOsBytes
-    |> Task.mapErr \_ -> crash "unreachable"
+temp_dir! : {} => Path
+temp_dir! = \{} ->
+    Host.temp_dir! {}
+    |> InternalPath.from_os_bytes

@@ -13,9 +13,13 @@ name = "roc_host"
 path = "src/lib.rs"
 
 [dependencies]
-roc_std = { path = "../roc_std" }
-roc_app = { path = "../roc_app" }
-roc_fn = { path = "../roc_fn" }
+roc_std.workspace = true
+roc_env = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_command = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_io_error = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_stdio = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_file = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_http = { git = "https://github.com/roc-lang/basic-cli.git" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",
@@ -26,11 +30,12 @@ hyper = { version = "0.14", features = [
     "backports",
     "deprecated",
 ] }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
-reqwest = { version = "=0.11.11", default-features = false, features = [
-    "blocking",
-    "rustls-tls",
+hyper-rustls = { version = "=0.24.2", default-features = false, features = [
+    "http1",
+    "tls12",
+    "native-tokio",
 ] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"

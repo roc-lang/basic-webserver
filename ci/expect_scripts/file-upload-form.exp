@@ -9,8 +9,6 @@ spawn $env(EXAMPLES_DIR)file-upload-form
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
-    exec convert -size 100x100 xc:red red_test_image.png
-
     set script_dir [file dirname [info script]]
 
     exec bash $script_dir/file-upload-curl.sh

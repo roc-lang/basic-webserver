@@ -1,13 +1,10 @@
-use crate::roc;
-use crate::roc_http;
-use crate::roc_http::ResponseToHost;
+use crate::roc::{self};
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use hyper::header::{HeaderName, HeaderValue};
-use roc_std::RocList;
+use roc_std::{RocList, RocStr};
 use std::convert::Infallible;
 use std::env;
-use std::io::Write;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::OnceLock;
@@ -40,65 +37,48 @@ pub fn start() -> i32 {
 
 #[allow(dead_code)]
 fn call_roc<'a>(
-    method: reqwest::Method,
+    method: hyper::Method,
     url: hyper::Uri,
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
 ) -> hyper::Response<hyper::Body> {
     let headers: RocList<roc_http::Header> = headers
-        .map(|(key, value)| {
-            roc_http::Header::new(
-                key.as_str().into(),
-                value
-                    .to_str()
-                    .expect("valid header value from hyper")
-                    .into(),
-            )
+        .map(|(key, value)| roc_http::Header {
+            // NOTE: we should be able to make this a seamless slice somehow
+            // we tried but it was causing some issues, so removing just land the PI upgrade with
+            // for now with something we know works ok.
+            // TODO use to_const_seamless_roc_str()
+            name: key.as_str().into(),
+            value: value
+                .to_str()
+                .expect("valid header value from hyper")
+                .into(),
         })
         .collect();
 
-    let roc_request = roc_http::RequestToAndFromHost::from_reqwest(body, headers, method, url);
+    // NOTE: we should be able to make this a seamless slice somehow
+    // and possible avoid making this a rust String or Vev<u8> first
+    let uri: RocStr = url.to_string().as_str().into();
+    let body: RocList<u8> = body.to_vec().as_slice().into();
 
-    let roc_response: ResponseToHost = roc::call_roc_respond(
-        roc_request,
-        ROC_MODEL.get().expect("Model was initialized at startup"),
-    )
-    .unwrap_or_else(|err_msg| {
-        // report the server error
-        std::io::stderr().write_all(err_msg.as_bytes()).unwrap();
-        std::io::stderr().write_all(&[b'\n']).unwrap();
-
-        // respond with a http 500 error
-        roc_http::ResponseToHost {
-            body: RocList::empty(),
-            headers: RocList::empty(),
-            status: 500,
-        }
-    });
-
-    to_server_response(roc_response)
-}
-
-#[allow(dead_code)]
-fn to_server_response(roc_response: roc_http::ResponseToHost) -> hyper::Response<hyper::Body> {
-    let mut builder = hyper::Response::builder();
-
-    match roc_response.hyper_status() {
-        Ok(status_code) => {
-            builder = builder.status(status_code);
-        }
-        Err(_) => {
-            todo!("invalid status code from Roc: {:?}", roc_response.status) // TODO respond with a 500 and a message saying tried to return an invalid status code
-        }
+    let roc_request = roc_http::RequestToAndFromHost {
+        headers,
+        uri,
+        timeout_ms: 0,
+        method_ext: RocStr::empty(),
+        body,
+        method: roc_http::RequestToAndFromHost::from_hyper_method(&method),
     };
 
-    for header in roc_response.headers.iter() {
-        builder = builder.header(header.key.as_str(), header.value.as_bytes());
-    }
+    let roc_response = roc::call_roc_respond(
+        roc_request,
+        ROC_MODEL
+            .get()
+            .expect("Model was initialized at startup")
+            .clone(),
+    );
 
-    builder
-        .body(Vec::from(roc_response.body.as_slice()).into()) // TODO try not to use Vec here
-        .unwrap() // TODO don't unwrap this
+    roc_response.into()
 }
 
 async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
@@ -109,7 +89,19 @@ async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::
         Ok(body) => {
             spawn_blocking(move || call_roc(parts.method, parts.uri, parts.headers.iter(), body))
                 .then(|resp| async {
-                    resp.unwrap() // TODO don't unwrap here
+                    match resp {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            eprintln!("Recovered from calling roc: {}", err);
+
+                            hyper::Response::builder()
+                        .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(
+                            "500 Internal Server Error... something catastrophic went wrong".into(),
+                        )
+                        .unwrap()
+                        }
+                    }
                 })
                 .await
         }
