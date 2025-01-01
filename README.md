@@ -1,3 +1,8 @@
+[![Roc-Lang][roc_badge]][roc_link]
+
+[roc_badge]: https://img.shields.io/endpoint?url=https%3A%2F%2Fpastebin.com%2Fraw%2FcFzuCCd7
+[roc_link]: https://github.com/roc-lang/roc
+
 :book: docs: [main branch](https://roc-lang.github.io/basic-webserver/)
 
 :eyes: examples: [0.10](https://github.com/roc-lang/basic-webserver/tree/0.10.0/examples), [0.9](https://github.com/roc-lang/basic-webserver/tree/0.9.0/examples)
