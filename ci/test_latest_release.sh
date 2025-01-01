@@ -15,13 +15,11 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # for this script
     command -v jq &>/dev/null || brew install jq
     # for Tests
-    command -v ncat &>/dev/null || brew install ncat
     command -v expect &>/dev/null || brew install expect
 else
     # for this script
     command -v jq &>/dev/null || sudo apt install -y jq
     # for tests
-    command -v ncat &>/dev/null || sudo apt install -y ncat
     command -v expect &>/dev/null || sudo apt install -y expect
 fi
 
