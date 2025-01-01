@@ -9,10 +9,24 @@ if [ -z "${EXAMPLES_DIR}" ]; then
 fi
 
 # Install jq if it's not already available
-command -v jq &>/dev/null || sudo apt install -y jq
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    command -v jq &>/dev/null || brew install jq
+else
+    command -v jq &>/dev/null || sudo apt install -y jq
+fi
 
 # Get the latest roc nightly
-curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-latest.tar.gz
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [[ $(uname -m) == "arm64" ]]; then
+        os_arch="macos_apple_silicon"
+    else
+        os_arch="macos_x86_64"
+    fi
+else
+    os_arch="linux_x86_64"
+fi
+
+curl -fOL "https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-${os_arch}-latest.tar.gz"
 
 # Rename nightly tar
 TAR_NAME=$(ls | grep "roc_nightly.*tar\.gz")
@@ -36,10 +50,19 @@ WS_RELEASES_JSON=$(curl -s https://api.github.com/repos/roc-lang/basic-webserver
 WS_RELEASE_URL=$(echo $WS_RELEASES_JSON | jq -r '.[0].assets | .[] | select(.name | test("\\.tar\\.br$")) | .browser_download_url')
 
 # Use the latest basic-webserver release as the platform for every example
-sed -i "s|../platform/main.roc|$WS_RELEASE_URL|g" $EXAMPLES_DIR/*.roc
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s|../platform/main.roc|$WS_RELEASE_URL|g" $EXAMPLES_DIR/*.roc
+else
+    sed -i "s|../platform/main.roc|$WS_RELEASE_URL|g" $EXAMPLES_DIR/*.roc
+fi
 
 # Install required packages for tests if they're not already available
-command -v ncat &>/dev/null || sudo apt install -y ncat
-command -v expect &>/dev/null || sudo apt install -y expect
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    command -v ncat &>/dev/null || brew install ncat
+    command -v expect &>/dev/null || brew install expect
+else
+    command -v ncat &>/dev/null || sudo apt install -y ncat
+    command -v expect &>/dev/null || sudo apt install -y expect
+fi
 
 ROC=./roc_nightly/roc ./ci/all_tests.sh

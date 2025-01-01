@@ -9,8 +9,10 @@ concurrency:
 
 jobs:
   test-latest-release:
-    # TODO macos
-    runs-on: [ubuntu-22.04]
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
