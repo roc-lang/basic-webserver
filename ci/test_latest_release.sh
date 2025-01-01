@@ -8,11 +8,21 @@ if [ -z "${EXAMPLES_DIR}" ]; then
   exit 1
 fi
 
-# Install jq if it's not already available
+# Install dependencies
 if [[ "$OSTYPE" == "darwin"* ]]; then
+    # for Roc
+    brew install z3
+    # for this script
     command -v jq &>/dev/null || brew install jq
+    # for Tests
+    command -v ncat &>/dev/null || brew install ncat
+    command -v expect &>/dev/null || brew install expect
 else
+    # for this script
     command -v jq &>/dev/null || sudo apt install -y jq
+    # for tests
+    command -v ncat &>/dev/null || sudo apt install -y ncat
+    command -v expect &>/dev/null || sudo apt install -y expect
 fi
 
 # Get the latest roc nightly
@@ -56,13 +66,6 @@ else
     sed -i "s|../platform/main.roc|$WS_RELEASE_URL|g" $EXAMPLES_DIR/*.roc
 fi
 
-# Install required packages for tests if they're not already available
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    command -v ncat &>/dev/null || brew install ncat
-    command -v expect &>/dev/null || brew install expect
-else
-    command -v ncat &>/dev/null || sudo apt install -y ncat
-    command -v expect &>/dev/null || sudo apt install -y expect
-fi
+
 
 ROC=./roc_nightly/roc ./ci/all_tests.sh
