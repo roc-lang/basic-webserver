@@ -1,0 +1,31 @@
+on:
+  pull_request:
+  workflow_dispatch:
+
+# this cancels workflows currently in progress if you start a new one
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-latest-release:
+    # TODO macos
+    runs-on: [ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: remove everything except some ci scripts
+        run: |
+          mkdir temp
+          mv ./ci/test_latest_release.sh temp
+          mv ./ci/get_latest_release_git_files.sh temp
+          find . -mindepth 1 -maxdepth 1 ! -name 'temp' -exec rm -rf {} +
+
+      - name: Get all git files of the latest basic-webserver release
+        run: ./temp/get_latest_release_git_files.sh
+
+      - name: Use ./ci/test_latest_release.sh of the latest git main
+        run: mv -f ./temp/test_latest_release.sh ./ci/
+
+      - name: Run all tests with latest roc release + latest basic-webserver release
+        run: EXAMPLES_DIR=./examples/ ./ci/test_latest_release.sh
