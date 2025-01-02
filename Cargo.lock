@@ -345,6 +345,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
 
 [[package]]
+name = "libsqlite3-sys"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,7 +475,7 @@ dependencies = [
 [[package]]
 name = "roc_command"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -473,7 +484,7 @@ dependencies = [
 [[package]]
 name = "roc_env"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "roc_file",
  "roc_std",
@@ -483,7 +494,7 @@ dependencies = [
 [[package]]
 name = "roc_file"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "memchr",
  "roc_io_error",
@@ -506,9 +517,9 @@ dependencies = [
  "roc_file",
  "roc_http",
  "roc_io_error",
+ "roc_sqlite",
  "roc_std",
  "roc_stdio",
- "sqlite",
  "tokio",
 ]
 
@@ -522,7 +533,7 @@ dependencies = [
 [[package]]
 name = "roc_http"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "bytes",
  "hyper",
@@ -538,16 +549,27 @@ dependencies = [
 [[package]]
 name = "roc_io_error"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "roc_std",
  "roc_std_heap",
 ]
 
 [[package]]
+name = "roc_sqlite"
+version = "0.0.1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+dependencies = [
+ "libsqlite3-sys",
+ "roc_std",
+ "roc_std_heap",
+ "thread_local",
+]
+
+[[package]]
 name = "roc_std"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#2765864a441f7ff42791ba055ba1ec9a15a9c98d"
+source = "git+https://github.com/roc-lang/roc.git#91ed6a5a8e67f4e1a1255fd21f7dca3570e95202"
 dependencies = [
  "arrayvec",
  "static_assertions",
@@ -556,7 +578,7 @@ dependencies = [
 [[package]]
 name = "roc_std_heap"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#2765864a441f7ff42791ba055ba1ec9a15a9c98d"
+source = "git+https://github.com/roc-lang/roc.git#91ed6a5a8e67f4e1a1255fd21f7dca3570e95202"
 dependencies = [
  "memmap2",
  "roc_std",
@@ -565,7 +587,7 @@ dependencies = [
 [[package]]
 name = "roc_stdio"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bb7295ba1bafea2d1d2a2f5fe82740cb272b04b1"
+source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -703,36 +725,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
-name = "sqlite"
-version = "0.33.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78a97f6ee5b054b7cfddc3b6613fdea4c77af2ef8f8aac3048c7d0be31e605e3"
-dependencies = [
- "libc",
- "sqlite3-sys",
-]
-
-[[package]]
-name = "sqlite3-src"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "174d4a6df77c27db281fb23de1a6d968f3aaaa4807c2a1afa8056b971f947b4a"
-dependencies = [
- "cc",
- "pkg-config",
-]
-
-[[package]]
-name = "sqlite3-sys"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aed0b61828382e1103930d2d5df1972d493173319730b481192e63d929097321"
-dependencies = [
- "libc",
- "sqlite3-src",
-]
-
-[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -756,6 +748,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "thread_local"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
+dependencies = [
+ "cfg-if",
+ "once_cell",
 ]
 
 [[package]]
@@ -851,6 +853,12 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "want"
