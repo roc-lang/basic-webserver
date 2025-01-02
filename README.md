@@ -17,10 +17,10 @@ A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explain
 
 ## Example
 
-Run this example server with `$ roc helloweb.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
+Run this example server with `$ roc hello-web.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
-app [Model, server] { pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.10.0/BgDDIykwcg51W8HA58FE_BjdzgXVk--ucv6pVb_Adik.tar.br" }
+app [Model, init!, respond!] { pf: platform "<latest release URL from https://github.com/roc-lang/basic-webserver/releases/latest>" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
@@ -31,19 +31,22 @@ Model : {}
 
 # With `init` you can set up a database connection once at server startup,
 # generate css by running `tailwindcss`,...
-# In this case we don't have anything to initialize, so it is just `Task.ok {}`.
+# In this case we don't have anything to initialize, so it is just `Ok {}`.
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-server = { init: Task.ok {}, respond }
-
-respond : Request, Model -> Task Response [ServerErr Str]_
-respond = \req, _ ->
+respond! : Request, Model => Result Response [ServerErr Str]_
+respond! = \req, _ ->
     # Log request datetime, method and url
-    datetime = Utc.now! |> Utc.toIso8601Str
+    datetime = Utc.to_iso_8601 (Utc.now! {})
 
-    Stdout.line! "$(datetime) $(Http.methodToStr req.method) $(req.url)"
+    try Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
 
-    Task.ok { status: 200, headers: [], body: Str.toUtf8 "<b>Hello, web!</b></br>" }
-
+    Ok {
+        status: 200,
+        headers: [],
+        body: Str.toUtf8 "<b>Hello from server</b></br>",
+    }
 ```
 
 
