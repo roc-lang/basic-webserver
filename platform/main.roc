@@ -44,8 +44,8 @@ init_for_host! = \_ ->
                 Program exited with error:
                     $(Inspect.toStr err)
 
-                Tip: If you do not want to exit on this error, use `Task.mapErr` to handle the error.
-                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+                Tip: If you do not want to exit on this error, use `Result.mapErr` to handle the error.
+                Docs for `Result.mapErr`: <https://www.roc-lang.org/builtins/Result#mapErr>
                 """
             Err 1
 
@@ -71,8 +71,8 @@ respond_for_host! = \request, boxed_model ->
                 Server error:
                     $(Inspect.toStr err)
 
-                Tip: If you do not want to see this error, use `Task.mapErr` to handle the error.
-                Docs for `Task.mapErr`: <https://roc-lang.github.io/basic-webserver/Task/#mapErr>
+                Tip: If you do not want to see this error, use `Result.mapErr` to handle the error.
+                Docs for `Result.mapErr`: <https://www.roc-lang.org/builtins/Result#mapErr>
                 """
 
             # returns a http server error response
