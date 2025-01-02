@@ -22,53 +22,12 @@ init! : {} => Result Model [Exit I32 Str]_
 init! = \{} ->
     db_path = try read_env_var! "DB_PATH"
 
-    list_todos_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "SELECT id, task, status FROM todos",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    create_todo_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "INSERT INTO todos (task, status) VALUES (:task, :status)",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    last_created_todo_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    begin_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "BEGIN",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    end_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "END",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    rollback_stmt =
-        Sqlite.prepare! {
-            path: db_path,
-            query: "ROLLBACK",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
+    list_todos_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos"
+    create_todo_stmt = try prepare_stmt! db_path "INSERT INTO todos (task, status) VALUES (:task, :status)"
+    last_created_todo_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()"
+    begin_stmt = try prepare_stmt! db_path "BEGIN"
+    end_stmt = try prepare_stmt! db_path "END"
+    rollback_stmt = try prepare_stmt! db_path "ROLLBACK"
 
     Ok { list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt }
 
@@ -273,3 +232,8 @@ read_env_var! : Str => Result Str [EnvVarNotSet Str]_
 read_env_var! = \env_var_name ->
     Env.var! env_var_name
     |> Result.mapErr \_ -> EnvVarNotSet env_var_name
+
+prepare_stmt! : Str, Str => Result Sqlite.Stmt [FailedToPrepareQuery _]
+prepare_stmt! = \path, query ->
+    Sqlite.prepare! { path, query }
+    |> Result.mapErr FailedToPrepareQuery
