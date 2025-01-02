@@ -20,6 +20,7 @@ roc_io_error = { git = "https://github.com/roc-lang/basic-cli.git" }
 roc_stdio = { git = "https://github.com/roc-lang/basic-cli.git" }
 roc_file = { git = "https://github.com/roc-lang/basic-cli.git" }
 roc_http = { git = "https://github.com/roc-lang/basic-cli.git" }
+roc_sqlite = { git = "https://github.com/roc-lang/basic-cli.git" }
 libc = "0.2"
 hyper = { version = "0.14", features = [
     "http1",
@@ -39,4 +40,3 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 futures = "0.3"
 backtrace = "0.3.68"
 bytes = "1.0"
-sqlite = { version = "0.33.0", features = ["bundled"] }

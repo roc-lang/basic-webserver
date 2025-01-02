@@ -1,4 +1,3 @@
-use crate::roc_sql;
 use roc_io_error::IOErr;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use std::cell::RefCell;
@@ -325,83 +324,6 @@ pub extern "C" fn roc_fx_dir_list(
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_sqlite_execute(
-    db_path: &roc_std::RocStr,
-    query: &roc_std::RocStr,
-    bindings: &RocList<roc_sql::SQLiteBindings>,
-) -> RocResult<RocList<RocList<roc_sql::SQLiteValue>>, roc_sql::SQLiteError> {
-    // Get the connection
-    let connection = {
-        match roc_sql::get_connection(db_path.as_str()) {
-            Ok(c) => c,
-            Err(err) => {
-                return RocResult::err(roc_sql::SQLiteError {
-                    code: err.code.unwrap_or_default() as i64,
-                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
-                });
-            }
-        }
-    };
-
-    // Prepare the query
-    let mut statement = {
-        match connection.prepare(query.as_str()) {
-            Ok(c) => c,
-            Err(err) => {
-                return RocResult::err(roc_sql::SQLiteError {
-                    code: err.code.unwrap_or_default() as i64,
-                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
-                });
-            }
-        }
-    };
-
-    // Add bindings for the query
-    for binding in bindings {
-        match statement.bind(binding) {
-            Ok(()) => {}
-            Err(err) => {
-                return RocResult::err(roc_sql::SQLiteError {
-                    code: err.code.unwrap_or_default() as i64,
-                    message: RocStr::from(err.message.unwrap_or_default().as_str()),
-                });
-            }
-        }
-    }
-
-    let mut cursor = statement.iter();
-    let column_count = cursor.column_count();
-
-    // Save space for 1000 rows without allocating
-    let mut roc_values: RocList<RocList<roc_sql::SQLiteValue>> = RocList::with_capacity(1000);
-
-    while let Ok(Some(row_values)) = cursor.try_next() {
-        let mut row = RocList::with_capacity(column_count);
-
-        // For each column in the row
-        for value in row_values {
-            row.push(roc_sql_from_sqlite_value(value));
-        }
-
-        roc_values.push(row);
-    }
-
-    RocResult::ok(roc_values)
-}
-
-fn roc_sql_from_sqlite_value(value: sqlite::Value) -> roc_sql::SQLiteValue {
-    match value {
-        sqlite::Value::Binary(bytes) => {
-            roc_sql::SQLiteValue::bytes(RocList::from_slice(&bytes[..]))
-        }
-        sqlite::Value::Float(f64) => roc_sql::SQLiteValue::real(f64),
-        sqlite::Value::Integer(i64) => roc_sql::SQLiteValue::integer(i64),
-        sqlite::Value::String(str) => roc_sql::SQLiteValue::string(RocStr::from(str.as_str())),
-        sqlite::Value::Null => roc_sql::SQLiteValue::null(),
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
     roc_env::temp_dir()
 }
@@ -418,6 +340,12 @@ impl Model {
         let rc_ptr = data_ptr.offset(-1);
         let max_refcount = 0;
         *rc_ptr = max_refcount;
+
+        // Ensure all sqlite stmts that escapes init has an zero (constant) refcount.
+        // This ensures it is safe to share between threads and is never freed.
+        let heap = roc_sqlite::heap();
+        heap.promote_all_to_constant();
+
         Self {
             model: std::mem::transmute::<*mut usize, roc_std::RocBox<()>>(data_ptr),
         }
@@ -522,4 +450,45 @@ pub extern "C" fn roc_fx_getLocales() -> RocList<RocStr> {
 #[no_mangle]
 pub extern "C" fn roc_fx_currentArchOS() -> roc_env::ReturnArchOS {
     roc_env::current_arch_os()
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_bind(
+    stmt: RocBox<()>,
+    bindings: &RocList<roc_sqlite::SqliteBindings>,
+) -> RocResult<(), roc_sqlite::SqliteError> {
+    roc_sqlite::bind(stmt, bindings)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_prepare(
+    db_path: &roc_std::RocStr,
+    query: &roc_std::RocStr,
+) -> roc_std::RocResult<RocBox<()>, roc_sqlite::SqliteError> {
+    roc_sqlite::prepare(db_path, query)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_columns(stmt: RocBox<()>) -> RocList<RocStr> {
+    roc_sqlite::columns(stmt)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_column_value(
+    stmt: RocBox<()>,
+    i: u64,
+) -> RocResult<roc_sqlite::SqliteValue, roc_sqlite::SqliteError> {
+    roc_sqlite::column_value(stmt, i)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_step(
+    stmt: RocBox<()>,
+) -> RocResult<roc_sqlite::SqliteState, roc_sqlite::SqliteError> {
+    roc_sqlite::step(stmt)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_sqlite::SqliteError> {
+    roc_sqlite::reset(stmt)
 }

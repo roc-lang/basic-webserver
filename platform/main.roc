@@ -12,7 +12,7 @@ platform "webserver"
         Http,
         MultipartFormData,
         Path,
-        SQLite3,
+        Sqlite,
         Stderr,
         Stdout,
         Tcp,

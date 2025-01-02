@@ -42,7 +42,12 @@ hosted Host
         temp_dir!,
         get_locale!,
         get_locales!,
-        sqlite_execute!,
+        sqlite_prepare!,
+        sqlite_bind!,
+        sqlite_columns!,
+        sqlite_column_value!,
+        sqlite_step!,
+        sqlite_reset!,
     ]
     imports []
 
@@ -50,7 +55,7 @@ import InternalHttp
 import InternalCmd
 import InternalIOErr
 import InternalPath
-import InternalSQL
+import InternalSqlite
 
 InternalIOErr : {
     tag : [
@@ -130,5 +135,10 @@ set_cwd! : List U8 => Result {} {}
 # the Unicode replacement char where necessary.
 args! : {} => List Str
 
-# SQLite3
-sqlite_execute! : Str, Str, List InternalSQL.SQLiteBindings => Result (List (List InternalSQL.SQLiteValue)) InternalSQL.SQLiteError
+# SQLITE
+sqlite_prepare! : Str, Str => Result (Box {}) InternalSqlite.SqliteError
+sqlite_bind! : Box {}, List InternalSqlite.SqliteBindings => Result {} InternalSqlite.SqliteError
+sqlite_columns! : Box {} => List Str
+sqlite_column_value! : Box {}, U64 => Result InternalSqlite.SqliteValue InternalSqlite.SqliteError
+sqlite_step! : Box {} => Result InternalSqlite.SqliteState InternalSqlite.SqliteError
+sqlite_reset! : Box {} => Result {} InternalSqlite.SqliteError

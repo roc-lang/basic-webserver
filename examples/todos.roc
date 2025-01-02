@@ -1,28 +1,40 @@
 # Webapp for todos using a SQLite 3 database
 app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
-import pf.Stdout
-import pf.Http exposing [Request, Response]
-import pf.Cmd
 import pf.Env
+import pf.Http exposing [Request, Response]
+import pf.Sqlite
+import pf.Stdout
 import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
 
-Model : {}
+Model : {
+    list_todos_stmt : Sqlite.Stmt,
+    create_todo_stmt : Sqlite.Stmt,
+    last_created_todo_stmt : Sqlite.Stmt,
+    begin_stmt : Sqlite.Stmt,
+    rollback_stmt : Sqlite.Stmt,
+    end_stmt : Sqlite.Stmt,
+}
 
 init! : {} => Result Model [Exit I32 Str]_
 init! = \{} ->
-    when is_sqlite_installed! {} is
-        Ok _ -> Ok {}
-        Err err -> Err err
+    db_path = try read_env_var! "DB_PATH"
+
+    list_todos_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos"
+    create_todo_stmt = try prepare_stmt! db_path "INSERT INTO todos (task, status) VALUES (:task, :status)"
+    last_created_todo_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()"
+    begin_stmt = try prepare_stmt! db_path "BEGIN"
+    end_stmt = try prepare_stmt! db_path "END"
+    rollback_stmt = try prepare_stmt! db_path "ROLLBACK"
+
+    Ok { list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt }
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, _ ->
+respond! = \req, model ->
     response_task =
         try log_request! req
-
-        db_path = try read_env_var! "DB_PATH"
 
         split_url =
             req.uri
@@ -33,7 +45,7 @@ respond! = \req, _ ->
         # Route to handler based on url path
         when split_url is
             ["", ""] -> byte_response 200 todoHtml
-            ["", "todos", ..] -> route_todos! db_path req
+            ["", "todos", ..] -> route_todos! model req
             _ -> text_response 404 "URL Not Found (404)"
 
     # Handle any application errors
@@ -50,49 +62,115 @@ map_app_err = \app_err ->
         EnvVarNotSet var_name -> ServerErr "Environment variable \"$(var_name)\" was not set. Please set it to the path of todos.db"
         StdoutErr msg -> ServerErr msg
 
-route_todos! : Str, Request => Result Response _
-route_todos! = \db_path, req ->
+route_todos! : Model, Request => Result Response _
+route_todos! = \model, req ->
     when req.method is
         GET ->
-            list_todos! db_path
+            list_todos! model
 
         POST ->
             # Create todo
             when task_from_query req.uri is
-                Ok props -> create_todo! db_path props
+                Ok props -> create_todo! model props
                 Err InvalidQuery -> text_response 400 "Invalid query string, I expected: ?task=foo&status=bar"
 
         other_method ->
             # Not supported
             text_response 405 "HTTP method $(Inspect.toStr other_method) is not supported for the URL $(req.uri)"
 
-list_todos! : Str => Result Response _
-list_todos! = \db_path ->
-    output =
-        Cmd.new "sqlite3"
-        |> Cmd.arg db_path
-        |> Cmd.arg ".mode json"
-        |> Cmd.arg "SELECT id, task, status FROM todos;"
-        |> Cmd.output!
+list_todos! : Model => Result Response _
+list_todos! = \{ list_todos_stmt } ->
+    result =
+        # TODO: it might be nicer if the decoder was stored with the prepared query instead of defined here.
+        Sqlite.query_many_prepared! {
+            stmt: list_todos_stmt,
+            bindings: [],
+            rows: { Sqlite.decode_record <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
+    when result is
+        Ok task ->
+            task
+            |> List.map encode_task
+            |> Str.joinWith ","
+            |> \list -> "[$(list)]"
+            |> Str.toUtf8
+            |> json_response
 
-    when output.status is
-        Ok _ -> json_response output.stdout
-        Err _ -> byte_response 500 output.stderr
+        Err err ->
+            err_response err
 
-create_todo! : Str, { task : Str, status : Str } => Result Response _
-create_todo! = \db_path, { task, status } ->
-    output =
-        # TODO upgrade this to use the Sqlite API
-        Cmd.new "sqlite3"
-        |> Cmd.arg db_path
-        |> Cmd.arg ".mode json"
-        |> Cmd.arg "INSERT INTO todos (task, status) VALUES ('$(task)', '$(status)');"
-        |> Cmd.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
-        |> Cmd.output!
+create_todo! : Model, { task : Str, status : Str } => Result Response _
+create_todo! = \model, params ->
+    result =
+        exec_transaction! model \{} ->
+            try Sqlite.execute_prepared! {
+                stmt: model.create_todo_stmt,
+                bindings: [
+                    { name: ":task", value: String params.task },
+                    { name: ":status", value: String params.status },
+                ],
+            }
+            Sqlite.query_prepared! {
+                stmt: model.last_created_todo_stmt,
+                bindings: [],
+                row: { Sqlite.decode_record <-
+                    id: Sqlite.i64 "id",
+                    task: Sqlite.str "task",
+                    status: Sqlite.str "status",
+                },
+            }
 
-    when output.status is
-        Ok _ -> json_response output.stdout
-        Err _ -> byte_response 500 output.stderr
+    when result is
+        Ok task ->
+            task
+            |> encode_task
+            |> Str.toUtf8
+            |> json_response
+
+        Err err ->
+            err_response err
+
+exec_transaction! : Model, ({} => Result ok err) => Result ok [FailedToBeginTransaction, FailedToEndTransaction, FailedToRollbackTransaction, TransactionFailed err]
+exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
+    # TODO: create a nicer transaction wrapper
+    Sqlite.execute_prepared! {
+        stmt: begin_stmt,
+        bindings: [],
+    }
+    |> Result.mapErr \_ -> FailedToBeginTransaction
+    |> try
+
+    end_transaction! = \res ->
+        when res is
+            Ok v ->
+                Sqlite.execute_prepared! {
+                    stmt: end_stmt,
+                    bindings: [],
+                }
+                |> Result.mapErr \_ -> FailedToEndTransaction
+                |> try
+                Ok v
+
+            Err e ->
+                Err (TransactionFailed e)
+
+    when transaction! {} |> end_transaction! is
+        Ok v ->
+            Ok v
+
+        Err e ->
+            Sqlite.execute_prepared! {
+                stmt: rollback_stmt,
+                bindings: [],
+            }
+            |> Result.mapErr \_ -> FailedToRollbackTransaction
+            |> try
+
+            Err e
 
 task_from_query : Str -> Result { task : Str, status : Str } [InvalidQuery]
 task_from_query = \url ->
@@ -101,6 +179,13 @@ task_from_query = \url ->
     when (params |> Dict.get "task", params |> Dict.get "status") is
         (Ok task, Ok status) -> Ok { task: Str.replaceEach task "%20" " ", status: Str.replaceEach status "%20" " " }
         _ -> Err InvalidQuery
+
+encode_task : { id : I64, task : Str, status : Str } -> Str
+encode_task = \{ id, task, status } ->
+    # TODO: this should use our json encoder
+    """
+    {"id":$(Num.toStr id),"task":"$(task)","status":"$(status)"}
+    """
 
 json_response : List U8 -> Result Response []
 json_response = \bytes ->
@@ -111,6 +196,10 @@ json_response = \bytes ->
         ],
         body: bytes,
     }
+
+err_response : err -> Result Response * where err implements Inspect
+err_response = \err ->
+    byte_response 500 (Str.toUtf8 (Inspect.toStr err))
 
 text_response : U16, Str -> Result Response []
 text_response = \status, str ->
@@ -132,21 +221,6 @@ byte_response = \status, bytes ->
         body: bytes,
     }
 
-is_sqlite_installed! : {} => Result {} [Sqlite3NotInstalled]_
-is_sqlite_installed! = \{} ->
-
-    try Stdout.line! "INFO: Checking if sqlite3 is installed..."
-
-    sqlite3_t! : {} => Result I32 _
-    sqlite3_t! = \{} ->
-        Cmd.new "sqlite3"
-        |> Cmd.arg "--version"
-        |> Cmd.status!
-
-    when sqlite3_t! {} is
-        Ok _ -> Ok {}
-        Err _ -> Err Sqlite3NotInstalled
-
 log_request! : Request => Result {} [StdoutErr Str]
 log_request! = \req ->
     datetime = Utc.to_iso_8601 (Utc.now! {})
@@ -158,3 +232,8 @@ read_env_var! : Str => Result Str [EnvVarNotSet Str]_
 read_env_var! = \env_var_name ->
     Env.var! env_var_name
     |> Result.mapErr \_ -> EnvVarNotSet env_var_name
+
+prepare_stmt! : Str, Str => Result Sqlite.Stmt [FailedToPrepareQuery _]
+prepare_stmt! = \path, query ->
+    Sqlite.prepare! { path, query }
+    |> Result.mapErr FailedToPrepareQuery
