@@ -5,7 +5,23 @@ import pf.Http exposing [Request, Response]
 import pf.Sqlite
 import pf.Env
 
-Model : { stmt : Sqlite.Stmt }
+Model : {
+    query_todos_by_status! : Sqlite.QueryManyFn Str { id : I64, task : Str } [
+        FailedToDecodeInteger [],
+        UnexpectedType [Bytes, Integer, Null, Real, String],
+        StdoutErr [
+                AlreadyExists,
+                BrokenPipe,
+                Interrupted,
+                NotFound,
+                Other Str,
+                OutOfMemory,
+                PermissionDenied,
+                Unsupported,
+            ],
+        ServerErr Str,
+    ],
+}
 
 init! : {} => Result Model _
 init! = \{} ->
@@ -15,29 +31,27 @@ init! = \{} ->
         |> Result.mapErr \_ -> ServerErr "DB_PATH not set on environment"
         |> try
 
-    stmt =
-        Sqlite.prepare! {
+    query_todos_by_status! =
+        Sqlite.prepare_query_many! {
             path: db_path,
             query: "SELECT id, task FROM todos WHERE status = :status;",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
-
-    Ok { stmt }
-
-respond! : Request, Model => Result Response _
-respond! = \_, { stmt } ->
-    # Query todos table
-    strings : Str
-    strings =
-        Sqlite.query_many_prepared! {
-            stmt,
-            bindings: [{ name: ":status", value: String "completed" }],
+            bindings: \name -> [{ name: ":status", value: String name }],
             rows: { Sqlite.decode_record <-
                 id: Sqlite.i64 "id",
                 task: Sqlite.str "task",
             },
         }
+        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
+        |> try
+
+    Ok { query_todos_by_status! }
+
+respond! : Request, Model => Result Response _
+respond! = \_, { query_todos_by_status! } ->
+    # Query todos table
+    strings : Str
+    strings =
+        query_todos_by_status! "completed"
         |> try
         |> List.map \{ id, task } -> "row $(Num.toStr id), task: $(task)"
         |> Str.joinWith "\n"
