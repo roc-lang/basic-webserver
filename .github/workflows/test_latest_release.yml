@@ -31,4 +31,6 @@ jobs:
         run: mv -f ./temp/test_latest_release.sh ./ci/
 
       - name: Run all tests with latest roc release + latest basic-webserver release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: EXAMPLES_DIR=./examples/ ./ci/test_latest_release.sh

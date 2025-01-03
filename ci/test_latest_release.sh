@@ -54,7 +54,7 @@ mv "$NIGHTLY_FOLDER" roc_nightly
 ./roc_nightly/roc version
 
 # Get the latest basic-webserver release file URL
-WS_RELEASES_JSON=$(curl -s https://api.github.com/repos/roc-lang/basic-webserver/releases)
+WS_RELEASES_JSON=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/roc-lang/basic-webserver/releases)
 WS_RELEASE_URL=$(echo $WS_RELEASES_JSON | jq -r '.[0].assets | .[] | select(.name | test("\\.tar\\.br$")) | .browser_download_url')
 
 # Use the latest basic-webserver release as the platform for every example
