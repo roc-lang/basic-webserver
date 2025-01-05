@@ -12,35 +12,35 @@ init! : {} => Result Model _
 init! = \{} ->
     # Get current working directory
     cwd =
-        Env.cwd! {}
-        |> Result.mapErr? \CwdUnavailable -> Exit 1 "Unable to read current working directory"
+        Env.cwd!({})
+        |> Result.map_err?(\CwdUnavailable -> Exit(1, "Unable to read current working directory"))
 
-    try Stdout.line! "The current working directory is $(Path.display cwd)"
+    Stdout.line!("The current working directory is $(Path.display(cwd))")?
 
     # Try to set cwd to examples
-    Env.set_cwd! (Path.from_str "examples/")
-    |> Result.mapErr? \InvalidCwd -> Exit 1 "Unable to set cwd to examples/"
+    Env.set_cwd!(Path.from_str("examples/"))
+    |> Result.map_err?(\InvalidCwd -> Exit(1, "Unable to set cwd to examples/"))
 
-    try Stdout.line! "Set cwd to examples/"
+    Stdout.line!("Set cwd to examples/")?
 
     # List contents of examples directory
     paths =
-        Dir.list! "./"
-        |> Result.mapErr? \DirErr err -> Exit 1 "Error reading directory ./:\n\t$(Inspect.toStr err)"
+        Dir.list!("./")
+        |> Result.map_err?(\DirErr(err) -> Exit(1, "Error reading directory ./:\n\t$(Inspect.to_str(err))"))
 
     paths
-    |> List.map Path.display
-    |> Str.joinWith ","
+    |> List.map(Path.display)
+    |> Str.join_with(",")
     |> \paths_str -> "The paths are;\n$(paths_str)"
     |> Stdout.line!
     |> try
 
-    Ok {}
+    Ok({})
 
 respond! : Request, Model => Result Response []
 respond! = \_, _ ->
-    Ok {
+    Ok({
         status: 200,
         headers: [],
-        body: Str.toUtf8 "Logged request",
-    }
+        body: Str.to_utf8("Logged request"),
+    })

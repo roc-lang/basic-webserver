@@ -11,42 +11,39 @@ init! : {} => Result Model _
 init! = \{} ->
     # Read DB_PATH environment variable
     db_path =
-        Env.var! "DB_PATH"
-        |> Result.mapErr \_ -> ServerErr "DB_PATH not set on environment"
-        |> try
+        Env.var!("DB_PATH")
+        |> Result.map_err(\_ -> ServerErr("DB_PATH not set on environment"))?
 
     stmt =
-        Sqlite.prepare! {
+        Sqlite.prepare!({
             path: db_path,
             query: "SELECT id, task FROM todos WHERE status = :status;",
-        }
-        |> Result.mapErr \err -> ServerErr "Failed to prepare Sqlite statement: $(Inspect.toStr err)"
-        |> try
+        })
+        |> Result.map_err(\err -> ServerErr("Failed to prepare Sqlite statement: $(Inspect.to_str(err))"))?
 
-    Ok { stmt }
+    Ok({ stmt })
 
 respond! : Request, Model => Result Response _
 respond! = \_, { stmt } ->
     # Query todos table
     strings : Str
     strings =
-        Sqlite.query_many_prepared! {
+        Sqlite.query_many_prepared!({
             stmt,
-            bindings: [{ name: ":status", value: String "completed" }],
+            bindings: [{ name: ":status", value: String("completed") }],
             rows: { Sqlite.decode_record <-
-                id: Sqlite.i64 "id",
-                task: Sqlite.str "task",
+                id: Sqlite.i64("id"),
+                task: Sqlite.str("task"),
             },
-        }
-        |> try
-        |> List.map \{ id, task } -> "row $(Num.toStr id), task: $(task)"
-        |> Str.joinWith "\n"
+        })?
+        |> List.map(\{ id, task } -> "row $(Num.to_str(id)), task: $(task)")
+        |> Str.join_with("\n")
 
     # Print out the results
-    try Stdout.line! strings
+    Stdout.line!(strings)?
 
-    Ok {
+    Ok({
         status: 200,
         headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
-        body: Str.toUtf8 strings,
-    }
+        body: Str.to_utf8(strings),
+    })

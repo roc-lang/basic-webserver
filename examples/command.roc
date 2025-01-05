@@ -7,18 +7,18 @@ import pf.Utc
 Model : {}
 
 init! : {} => Result Model _
-init! = \{} -> Ok {}
+init! = \{} -> Ok({})
 
 respond! : Request, Model => Result Response [CmdStatusErr _]
 respond! = \req, _ ->
 
     # Log request date, method and url using echo program
-    datetime = Utc.to_iso_8601 (Utc.now! {})
+    datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    try Cmd.exec! "echo" ["$(datetime) $(Inspect.toStr req.method) $(req.uri)"]
+    Cmd.exec!("echo", ["$(datetime) $(Inspect.to_str(req.method)) $(req.uri)"])?
 
-    Ok {
+    Ok({
         status: 200,
         headers: [],
-        body: Str.toUtf8 "Command succeeded.",
-    }
+        body: Str.to_utf8("Command succeeded."),
+    })

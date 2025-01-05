@@ -11,7 +11,7 @@ import pf.MultipartFormData
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok {}
+init! = \{} -> Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \req, _ ->
@@ -36,15 +36,15 @@ respond! = \req, _ ->
             </body>
             </html>
             """
-            |> Str.toUtf8
+            |> Str.to_utf8
 
-        Ok {
+        Ok({
             status: 200,
             headers: [
                 { name: "Content-Type", value: "text/html" },
             ],
             body,
-        }
+        })
     else if req.method == POST then
         page = \src ->
             """
@@ -70,25 +70,25 @@ respond! = \req, _ ->
                 </body>
             </html>
             """
-            |> Str.toUtf8
+            |> Str.to_utf8
 
         maybe_image =
             { headers: req.headers, body: req.body }
             |> MultipartFormData.parse_multipart_form_data
-            |> Result.try List.first
-            |> Result.map .data
-            |> Result.map Base64.encode
+            |> Result.try(List.first)
+            |> Result.map(.data)
+            |> Result.map(Base64.encode)
 
         when maybe_image is
-            Ok img ->
-                Ok {
+            Ok(img) ->
+                Ok({
                     status: 200,
                     headers: [
                         { name: "Content-Type", value: "text/html" },
                     ],
-                    body: page img,
-                }
+                    body: page(img),
+                })
 
-            Err err -> Ok { status: 500, headers: [], body: err |> Inspect.toStr |> Str.toUtf8 }
+            Err(err) -> Ok({ status: 500, headers: [], body: err |> Inspect.to_str |> Str.to_utf8 })
     else
-        Ok { status: 500, headers: [], body: [] }
+        Ok({ status: 500, headers: [], body: [] })

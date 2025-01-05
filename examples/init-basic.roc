@@ -11,13 +11,13 @@ Model : Str
 # generate css by running `tailwindcss`,...
 # In this example it is just `Ok "🎁"`.
 init! : {} => Result Model []
-init! = \{} -> Ok "🎁"
+init! = \{} -> Ok("🎁")
 
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \req, model ->
     # Log request datetime, method and url
-    datetime = Utc.to_iso_8601 (Utc.now! {})
+    datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    try Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+    Stdout.line!("$(datetime) $(Inspect.to_str(req.method)) $(req.uri)")?
 
-    Ok { status: 200, headers: [], body: Str.toUtf8 "<b>init gave me $(model)</b>" }
+    Ok({ status: 200, headers: [], body: Str.to_utf8("<b>init gave me $(model)</b>") })
