@@ -227,7 +227,7 @@ execute! = \{ path, query: q, bindings } ->
     execute_prepared! { stmt, bindings }
 
 ## A function that executes a prepared execute stmt that doesn't return any data.
-ExecuteFn in : in => Result {} [SqliteErr ErrCode Str, UnhandledRows]
+ExecuteFn in err : in => Result {} [SqliteErr ErrCode Str, UnhandledRows]err
 
 ## Prepare a lambda to execute a SQL statement that doesn't return any rows (like INSERT, UPDATE, DELETE).
 ##
@@ -249,7 +249,7 @@ prepare_execute! :
         query : Str,
         bindings : in -> List Binding,
     }
-    => Result (ExecuteFn in) [SqliteErr ErrCode Str]
+    => Result (ExecuteFn in err) [SqliteErr ErrCode Str]
 prepare_execute! = \{ path, query: q, bindings: tranform } ->
     stmt = try prepare! { path, query: q }
     Ok \input ->
@@ -458,11 +458,11 @@ TransactionFn ok err : ({} => Result ok err) => Result ok [FailedToBeginTransact
 prepare_transaction! :
     {
         path : Str,
-        mode ? [Deferred, Immediate, Exclusive],
+        mode ?? [Deferred, Immediate, Exclusive],
     }
     =>
     Result (TransactionFn ok err) [SqliteErr ErrCode Str]
-prepare_transaction! = \{ path, mode ? Deferred } ->
+prepare_transaction! = \{ path, mode ?? Deferred } ->
     mode_str =
         when mode is
             Deferred -> "DEFERRED"

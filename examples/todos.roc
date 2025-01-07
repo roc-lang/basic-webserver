@@ -1,5 +1,5 @@
 # Webapp for todos using a SQLite 3 database
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+app [server] { pf: platform "../platform/main.roc" }
 
 import pf.Env
 import pf.Http exposing [Request, Response]
@@ -9,29 +9,55 @@ import pf.Url
 import pf.Utc
 import "todos.html" as todoHtml : List U8
 
-Model : {
-    list_todos_stmt : Sqlite.Stmt,
-    create_todo_stmt : Sqlite.Stmt,
-    last_created_todo_stmt : Sqlite.Stmt,
-    begin_stmt : Sqlite.Stmt,
-    rollback_stmt : Sqlite.Stmt,
-    end_stmt : Sqlite.Stmt,
+server = { init!, respond! }
+
+Model ok err1 err2 err3 err4 : {
+    list_todos_query! : Sqlite.QueryManyFn {} { id : I64, task : Str, status : Str } err1,
+    create_todo_query! : Sqlite.ExecuteFn { task : Str, status : Str } err2,
+    last_created_todo_query! : Sqlite.QueryFn {} { id : I64, task : Str, status : Str } err3,
+    exec_transaction! : Sqlite.TransactionFn ok err4,
 }
 
-init! : {} => Result Model [Exit I32 Str]_
+init! : {} => Result (Model _ _ _ _ _) [Exit I32 Str]_
 init! = \{} ->
     db_path = try read_env_var! "DB_PATH"
 
-    list_todos_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos"
-    create_todo_stmt = try prepare_stmt! db_path "INSERT INTO todos (task, status) VALUES (:task, :status)"
-    last_created_todo_stmt = try prepare_stmt! db_path "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()"
-    begin_stmt = try prepare_stmt! db_path "BEGIN"
-    end_stmt = try prepare_stmt! db_path "END"
-    rollback_stmt = try prepare_stmt! db_path "ROLLBACK"
+    list_todos_query! =
+        try Sqlite.prepare_query_many! {
+            path: db_path,
+            query: "SELECT id, task, status FROM todos",
+            bindings: \{} -> [],
+            rows: { Sqlite.decode_record <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
+    create_todo_query! =
+        try Sqlite.prepare_execute! {
+            path: db_path,
+            query: "INSERT INTO todos (task, status) VALUES (:task, :status)",
+            bindings: \{ task, status } -> [
+                { name: ":task", value: String task },
+                { name: ":status", value: String status },
+            ],
+        }
+    last_created_todo_query! =
+        try Sqlite.prepare_query! {
+            path: db_path,
+            query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()",
+            bindings: \{} -> [],
+            row: { Sqlite.decode_record <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
+    exec_transaction! = try Sqlite.prepare_transaction! { path: db_path }
 
-    Ok { list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt }
+    Ok { list_todos_query!, create_todo_query!, last_created_todo_query!, exec_transaction! }
 
-respond! : Request, Model => Result Response [ServerErr Str]_
+respond! : Request, Model _ _ _ _ _ => Result Response [ServerErr Str]_
 respond! = \req, model ->
     response_task =
         try log_request! req
@@ -62,7 +88,7 @@ map_app_err = \app_err ->
         EnvVarNotSet var_name -> ServerErr "Environment variable \"$(var_name)\" was not set. Please set it to the path of todos.db"
         StdoutErr msg -> ServerErr msg
 
-route_todos! : Model, Request => Result Response _
+route_todos! : Model _ _ _ _ _, Request => Result Response _
 route_todos! = \model, req ->
     when req.method is
         GET ->
@@ -78,20 +104,9 @@ route_todos! = \model, req ->
             # Not supported
             text_response 405 "HTTP method $(Inspect.toStr other_method) is not supported for the URL $(req.uri)"
 
-list_todos! : Model => Result Response _
-list_todos! = \{ list_todos_stmt } ->
-    result =
-        # TODO: it might be nicer if the decoder was stored with the prepared query instead of defined here.
-        Sqlite.query_many_prepared! {
-            stmt: list_todos_stmt,
-            bindings: [],
-            rows: { Sqlite.decode_record <-
-                id: Sqlite.i64 "id",
-                task: Sqlite.str "task",
-                status: Sqlite.str "status",
-            },
-        }
-    when result is
+list_todos! : Model _ _ _ _ _ => Result Response _
+list_todos! = \{ list_todos_query! } ->
+    when list_todos_query! {} is
         Ok task ->
             task
             |> List.map encode_task
@@ -103,26 +118,13 @@ list_todos! = \{ list_todos_stmt } ->
         Err err ->
             err_response err
 
-create_todo! : Model, { task : Str, status : Str } => Result Response _
+create_todo! : Model _ _ _ _ _, { task : Str, status : Str } => Result Response _
 create_todo! = \model, params ->
     result =
-        exec_transaction! model \{} ->
-            try Sqlite.execute_prepared! {
-                stmt: model.create_todo_stmt,
-                bindings: [
-                    { name: ":task", value: String params.task },
-                    { name: ":status", value: String params.status },
-                ],
-            }
-            Sqlite.query_prepared! {
-                stmt: model.last_created_todo_stmt,
-                bindings: [],
-                row: { Sqlite.decode_record <-
-                    id: Sqlite.i64 "id",
-                    task: Sqlite.str "task",
-                    status: Sqlite.str "status",
-                },
-            }
+        model.exec_transaction! \{} ->
+            try model.create_todo_query! params
+            out = try model.last_created_todo_query! {}
+            Ok out
 
     when result is
         Ok task ->
@@ -133,44 +135,6 @@ create_todo! = \model, params ->
 
         Err err ->
             err_response err
-
-exec_transaction! : Model, ({} => Result ok err) => Result ok [FailedToBeginTransaction, FailedToEndTransaction, FailedToRollbackTransaction, TransactionFailed err]
-exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
-    # TODO: create a nicer transaction wrapper
-    Sqlite.execute_prepared! {
-        stmt: begin_stmt,
-        bindings: [],
-    }
-    |> Result.mapErr \_ -> FailedToBeginTransaction
-    |> try
-
-    end_transaction! = \res ->
-        when res is
-            Ok v ->
-                Sqlite.execute_prepared! {
-                    stmt: end_stmt,
-                    bindings: [],
-                }
-                |> Result.mapErr \_ -> FailedToEndTransaction
-                |> try
-                Ok v
-
-            Err e ->
-                Err (TransactionFailed e)
-
-    when transaction! {} |> end_transaction! is
-        Ok v ->
-            Ok v
-
-        Err e ->
-            Sqlite.execute_prepared! {
-                stmt: rollback_stmt,
-                bindings: [],
-            }
-            |> Result.mapErr \_ -> FailedToRollbackTransaction
-            |> try
-
-            Err e
 
 task_from_query : Str -> Result { task : Str, status : Str } [InvalidQuery]
 task_from_query = \url ->
@@ -232,8 +196,3 @@ read_env_var! : Str => Result Str [EnvVarNotSet Str]_
 read_env_var! = \env_var_name ->
     Env.var! env_var_name
     |> Result.mapErr \_ -> EnvVarNotSet env_var_name
-
-prepare_stmt! : Str, Str => Result Sqlite.Stmt [FailedToPrepareQuery _]
-prepare_stmt! = \path, query ->
-    Sqlite.prepare! { path, query }
-    |> Result.mapErr FailedToPrepareQuery

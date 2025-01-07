@@ -1,29 +1,17 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+app [server] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Http exposing [Request, Response]
 import pf.Sqlite
 import pf.Env
 
-Model : {
-    query_todos_by_status! : Sqlite.QueryManyFn Str { id : I64, task : Str } [
-        FailedToDecodeInteger [],
-        UnexpectedType [Bytes, Integer, Null, Real, String],
-        StdoutErr [
-                AlreadyExists,
-                BrokenPipe,
-                Interrupted,
-                NotFound,
-                Other Str,
-                OutOfMemory,
-                PermissionDenied,
-                Unsupported,
-            ],
-        ServerErr Str,
-    ],
+server = { init!, respond! }
+
+Model err : {
+    query_todos_by_status! : Sqlite.QueryManyFn Str { id : I64, task : Str } err,
 }
 
-init! : {} => Result Model _
+init! : {} => Result (Model _) _
 init! = \{} ->
     # Read DB_PATH environment variable
     db_path =
@@ -46,7 +34,7 @@ init! = \{} ->
 
     Ok { query_todos_by_status! }
 
-respond! : Request, Model => Result Response _
+respond! : Request, Model _ => Result Response _
 respond! = \_, { query_todos_by_status! } ->
     # Query todos table
     strings : Str

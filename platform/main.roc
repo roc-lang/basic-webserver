@@ -1,8 +1,5 @@
 platform "webserver"
-    requires { Model } {
-        init! : {} => Result Model [Exit I32 Str]_,
-        respond! : Http.Request, Model => Result Http.Response [ServerErr Str]_,
-    }
+    requires {} { server : Server _ _ _ }
     exposes [
         Cmd,
         Dir,
@@ -27,9 +24,18 @@ import Http
 import Stderr
 import InternalHttp
 
-init_for_host! : I32 => Result (Box Model) I32
+Server model init_err respond_err : {
+    init! : {} => Result model init_err,
+    respond! : Http.Request, model => Result Http.Response respond_err,
+}
+
+# This just removes the unused error for `Server`
+s : Server _ _ _
+s = server
+
+init_for_host! : I32 => Result (Box _) I32
 init_for_host! = \_ ->
-    when init! {} is
+    when s.init! {} is
         Ok model -> Ok (Box.box model)
         Err (Exit code msg) ->
             if Str.isEmpty msg then
@@ -49,9 +55,9 @@ init_for_host! = \_ ->
                 """
             Err 1
 
-respond_for_host! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
+respond_for_host! : InternalHttp.RequestToAndFromHost, Box _ => InternalHttp.ResponseToAndFromHost
 respond_for_host! = \request, boxed_model ->
-    when respond! (InternalHttp.from_host_request request) (Box.unbox boxed_model) is
+    when s.respond! (InternalHttp.from_host_request request) (Box.unbox boxed_model) is
         Ok response -> InternalHttp.to_host_response response
         Err (ServerErr msg) ->
             # dicard the err here if stderr fails
