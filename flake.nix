@@ -2,7 +2,7 @@
   description = "basic-webserver devShell flake";
 
   inputs = {
-    roc.url = "github:smores56/roc?ref=remove-task";
+    roc.url = "github:roc-lang/roc";
 
     nixpkgs.follows = "roc/nixpkgs";
 
