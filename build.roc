@@ -19,8 +19,10 @@ main! : _ => Result {} _
 main! = \args ->
 
     parsed_args =
-        Cli.parse_or_display_message(cli_parser, args, Arg.to_os_raw)
-        |> try Result.on_err! \message -> Err (Exit 1 message)
+        Result.on_err!(
+            Cli.parse_or_display_message(cli_parser, args, Arg.to_os_raw),
+            \message -> Err (Exit 1 message),
+        )?
 
     run!(parsed_args)
 
@@ -48,7 +50,7 @@ run! = \maybe_roc ->
 
     build_stub_app_lib!(roc_cmd, stub_lib_path)?
 
-    (cargo_build_host! {})?
+    cargo_build_host!({})?
 
     rust_target_folder = get_rust_target_folder!({})?
 
