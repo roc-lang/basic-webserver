@@ -5,14 +5,14 @@ import pf.Http exposing [Request, Response]
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok {}
+init! = \{} -> Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \_, _ ->
-    when check_file! "good" is
-        Ok Good -> Ok { status: 200, headers: [], body: Str.toUtf8 "GOOD" }
-        Ok Bad -> Ok { status: 200, headers: [], body: Str.toUtf8 "BAD" }
-        Err IOError -> Ok { status: 500, headers: [], body: Str.toUtf8 "ERROR: IoError when executing checkFile!." }
+    when check_file!("good") is
+        Ok(Good) -> Ok({ status: 200, headers: [], body: Str.to_utf8("GOOD") })
+        Ok(Bad) -> Ok({ status: 200, headers: [], body: Str.to_utf8("BAD") })
+        Err(IOError) -> Ok({ status: 500, headers: [], body: Str.to_utf8("ERROR: IoError when executing checkFile!.") })
 
 # imagine this function does some IO operation
 # and returns a Result, succeding with a tag either Good or Bad,
@@ -20,8 +20,8 @@ respond! = \_, _ ->
 check_file! : Str => Result [Good, Bad] [IOError]
 check_file! = \str ->
     if str == "good" then
-        Ok Good
+        Ok(Good)
     else if str == "bad" then
-        Ok Bad
+        Ok(Bad)
     else
-        Err IOError
+        Err(IOError)

@@ -10,9 +10,9 @@ init! : {} => Result Model [Exit I32 Str]_
 init! = \{} ->
 
     # Check if DEBUG environment variable is set
-    when Env.var! "DEBUG" is
-        Ok var if !(Str.isEmpty var) -> Ok DebugPrintMode
-        _ -> Ok NonDebugMode
+    when Env.var!("DEBUG") is
+        Ok(var) if !(Str.is_empty(var)) -> Ok(DebugPrintMode)
+        _ -> Ok(NonDebugMode)
 
 respond! : Request, Model => Result Response [ServerErr Str]_
 respond! = \_, debug ->
@@ -20,19 +20,19 @@ respond! = \_, debug ->
         DebugPrintMode ->
             # Respond with all the current environment variables
             vars : Dict Str Str
-            vars = Env.dict! {}
+            vars = Env.dict!({})
 
             # Convert the Dict to a list of key-value pairs
             body =
                 vars
-                |> Dict.toList
-                |> List.map \(k, v) -> "$(k): $(v)"
-                |> Str.joinWith "\n"
-                |> Str.concat "\n"
-                |> Str.toUtf8
+                |> Dict.to_list
+                |> List.map(\(k, v) -> "$(k): $(v)")
+                |> Str.join_with("\n")
+                |> Str.concat("\n")
+                |> Str.to_utf8
 
-            Ok { status: 200, headers: [], body }
+            Ok({ status: 200, headers: [], body })
 
         NonDebugMode ->
             # Respond with a message that DEBUG is not set
-            Ok { status: 200, headers: [], body: Str.toUtf8 "DEBUG var not set" }
+            Ok({ status: 200, headers: [], body: Str.to_utf8("DEBUG var not set") })

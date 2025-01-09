@@ -64,9 +64,9 @@ checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
 name = "cc"
-version = "1.2.4"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9157bbaa6b165880c27a4293a474c91cdcf265cc68cc829bf10be0964a391caf"
+checksum = "a012a0df96dd6d06ba9a1b29d6402d1a5d77c6befd2566afdc26e10603dc93d7"
 dependencies = [
  "shlex",
 ]
@@ -340,9 +340,9 @@ checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
 name = "libc"
-version = "0.2.168"
+version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
+checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "libsqlite3-sys"
@@ -402,9 +402,9 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.36.5"
+version = "0.36.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aedf0a2d09c573ed1d8d85b30c119153926a2b36dce0ab28322c09a117a4683e"
+checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
  "memchr",
 ]
@@ -423,9 +423,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "915a1e146535de9163f3987b8944ed8cf49a18bb0056bcebcdcece385cece4ff"
+checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 
 [[package]]
 name = "pin-utils"
@@ -450,9 +450,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.37"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
+checksum = "0e4dccaaaf89514f546c693ddc140f729f958c247918a13380cccc6078391acc"
 dependencies = [
  "proc-macro2",
 ]
@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "roc_command"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -484,7 +484,7 @@ dependencies = [
 [[package]]
 name = "roc_env"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "roc_file",
  "roc_std",
@@ -494,7 +494,7 @@ dependencies = [
 [[package]]
 name = "roc_file"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "memchr",
  "roc_io_error",
@@ -533,7 +533,7 @@ dependencies = [
 [[package]]
 name = "roc_http"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "bytes",
  "hyper",
@@ -549,7 +549,7 @@ dependencies = [
 [[package]]
 name = "roc_io_error"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "roc_std",
  "roc_std_heap",
@@ -558,7 +558,7 @@ dependencies = [
 [[package]]
 name = "roc_sqlite"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "libsqlite3-sys",
  "roc_std",
@@ -569,7 +569,7 @@ dependencies = [
 [[package]]
 name = "roc_std"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#91ed6a5a8e67f4e1a1255fd21f7dca3570e95202"
+source = "git+https://github.com/roc-lang/roc.git#fbf448cac882ed9f81cb68242e0091a75f4f202d"
 dependencies = [
  "arrayvec",
  "static_assertions",
@@ -578,7 +578,7 @@ dependencies = [
 [[package]]
 name = "roc_std_heap"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#91ed6a5a8e67f4e1a1255fd21f7dca3570e95202"
+source = "git+https://github.com/roc-lang/roc.git#fbf448cac882ed9f81cb68242e0091a75f4f202d"
 dependencies = [
  "memmap2",
  "roc_std",
@@ -587,7 +587,7 @@ dependencies = [
 [[package]]
 name = "roc_stdio"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#71a0666c70950212714e881304c75d95e3f082b7"
+source = "git+https://github.com/roc-lang/basic-cli.git#24075b397b52237d99bb665df4c0b4e31ef61629"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -675,9 +675,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
-version = "2.13.0"
+version = "2.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1863fd3768cd83c56a7f60faa4dc0d403f1b6df0a38c3c25f44b7894e45370d5"
+checksum = "49db231d56a190491cb4aeda9527f1ad45345af50b0851622a7adb8c03b01c32"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -732,9 +732,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "syn"
-version = "2.0.90"
+version = "2.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
+checksum = "46f71c0377baf4ef1cc3e3402ded576dccc315800fbc62dfc7fe04b009773b4a"
 dependencies = [
  "proc-macro2",
  "quote",
