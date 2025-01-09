@@ -40,17 +40,17 @@ doubledash = ['-', '-']
 ##
 ## Example call:
 ## ```roc
-## parse_content_f {
+## parse_content_f({
 ##    upper: Str.toUtf8 "Content-Disposition:",
 ##    lower: Str.toUtf8 "content-disposition:",
-## }
+## })
 ##
-## input = Str.toUtf8 "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here..."
-## actual = parseContentDispositionF input
-## expected = Ok {
+## input = Str.toUtf8("\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here...")
+## actual = parseContentDispositionF(input)
+## expected = Ok({
 ##    value: Str.toUtf8 " form-data; name=\"sometext\"",
 ##    rest: Str.toUtf8 "\r\nSome text here...",
-## }
+## })
 ## ```
 ##
 parse_content_f : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
@@ -335,10 +335,10 @@ expect
 ##
 ## ```
 ## expect
-##     bytes = Str.toUtf8 "todo=foo&status=bar"
-##     parsed = parse_form_url_encoded bytes |> Result.withDefault (Dict.empty {})
+##     bytes = Str.toUtf8("todo=foo&status=bar")
+##     parsed = parse_form_url_encoded(bytes) |> Result.withDefault(Dict.empty({}))
 ##
-##     Dict.toList parsed == [("todo", "foo"), ("status", "bar")]
+##     Dict.toList(parsed) == [("todo", "foo"), ("status", "bar")]
 ## ```
 parse_form_url_encoded : List U8 -> Result (Dict Str Str) [BadUtf8]
 parse_form_url_encoded = \bytes ->

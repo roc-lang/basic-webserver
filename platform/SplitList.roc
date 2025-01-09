@@ -7,7 +7,7 @@ module [
 ## Example:
 ## ```roc
 ## input = [1,2,3,4,5,6,7,3,4,0,0]
-## actual = splitOnList input [3,4]
+## actual = splitOnList(input, [3,4])
 ## expected = [[1,2], [5,6,7], [0, 0]]
 ## ```
 ##

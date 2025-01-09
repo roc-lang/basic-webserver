@@ -51,10 +51,11 @@ IOErr : InternalIOErr.IOErr
 ##
 ## ```
 ## # Writes `{"some":"json stuff"}` to the file `output.json`:
-## File.write!
-##     { some: "json stuff" }
-##     (Path.from_str "output.json")
-##     Json.toCompactUtf8
+## File.write!(
+##     { some: "json stuff" },
+##     Path.from_str("output.json"),
+##     Json.toCompactUtf8,
+## )
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -71,7 +72,7 @@ write! = \val, path, fmt ->
 ##
 ## ```
 ## # Writes the bytes 1, 2, 3 to the file `myfile.dat`.
-## File.write_bytes! [1, 2, 3] (Path.from_str "myfile.dat")
+## File.write_bytes!([1, 2, 3], Path.from_str("myfile.dat"))?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -87,7 +88,7 @@ write_bytes! = \bytes, path ->
 ##
 ## ```
 ## # Writes "Hello!" encoded as UTF-8 to the file `myfile.txt`.
-## File.write_utf8! "Hello!" "myfile.txt"
+## File.write_utf8!("Hello!", "myfile.txt")?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -109,7 +110,7 @@ write_utf8! = \str, path ->
 ##
 ## ```
 ## # Deletes the file named `myfile.dat`
-## File.delete! (Path.from_str "myfile.dat") [1, 2, 3]
+## File.delete!(Path.from_str("myfile.dat"), [1, 2, 3])?
 ## ```
 ##
 ## > This does not securely erase the file's contents from disk; instead, the operating
@@ -127,12 +128,12 @@ delete! = \path ->
 ##
 ## ```
 ## # Read all the bytes in `myfile.txt`.
-## File.read_bytes! "myfile.txt"
+## bytes = File.read_bytes!("myfile.txt")?
 ## ```
 ##
 ## This opens the file first and closes it after reading its contents.
 ##
-## > To read and decode data from a file, you can use `File.read` instead.
+## > To read and decode data from a file into a [Str], you can use [File.read_utf8!] instead.
 ## >
 ## > [Path.read_bytes!] does the same thing, except it takes a [Path] instead of a [Str].
 read_bytes! : Str => Result (List U8) [FileReadErr Path IOErr]
@@ -143,10 +144,10 @@ read_bytes! = \path ->
 ##
 ## ```
 ## # Reads UTF-8 encoded text into a Str from the file "myfile.txt"
-## File.read_utf8! "myfile.txt"
+## str = File.read_utf8!("myfile.txt")?
 ## ```
 ##
-## This opens the file first and closes it after writing to it.
+## This opens the file first and closes it after reading its contents.
 ## The task will fail with `FileReadUtf8Err` if the given file contains invalid UTF-8.
 ##
 ## > To read unformatted bytes from a file, you can use [File.read_bytes!] instead.
