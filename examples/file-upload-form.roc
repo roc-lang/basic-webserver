@@ -1,8 +1,6 @@
 app [Model, init!, respond!] {
     pf: platform "../platform/main.roc",
-
-    # TODO replace with roc-utils package release compatible with snake_case_builtins
-    utils: "../../roc-utils/package/main.roc",
+    utils: "https://github.com/quelgar/roc-utils/releases/download/v0.2.0/Ln38Q74rVeU6KAlT8dsB6nyKlUoD-O-43H41nCJ52Yk.tar.br",
 }
 
 import utils.Base64
