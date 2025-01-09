@@ -207,8 +207,8 @@ reset! = \@Stmt(stmt) ->
 ##     path: "path/to/database.db",
 ##     query: "INSERT INTO users (first, last) VALUES (:first, :last);",
 ##     bindings: [
-##         { name: ":first", value: String "John" },
-##         { name: ":last", value: String "Smith" },
+##         { name: ":first", value: String("John") },
+##         { name: ":last", value: String("Smith) },
 ##     ],
 ## })?
 ## ```
