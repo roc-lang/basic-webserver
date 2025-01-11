@@ -22,7 +22,7 @@ init! = \{} ->
                 query: "SELECT id, task FROM todos WHERE status = :status;",
             },
         )
-        |> Result.map_err(\err -> ServerErr("Failed to prepare Sqlite statement: $(Inspect.to_str(err))"))
+        |> Result.map_err(\err -> ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}"))
         |> try
 
     Ok({ stmt })
@@ -42,7 +42,7 @@ respond! = \_, { stmt } ->
                 },
             },
         )?
-        |> List.map(\{ id, task } -> "row $(Num.to_str(id)), task: $(task)")
+        |> List.map(\{ id, task } -> "row ${Num.to_str(id)}, task: ${task}")
         |> Str.join_with("\n")
 
     # Print out the results

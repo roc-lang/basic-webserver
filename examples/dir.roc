@@ -17,7 +17,7 @@ init! = \{} ->
             \CwdUnavailable -> Exit(1, "Unable to read current working directory"),
         )?
 
-    Stdout.line!("The current working directory is $(Path.display(cwd))")?
+    Stdout.line!("The current working directory is ${Path.display(cwd)}")?
 
     # Try to set cwd to examples
     Result.map_err(
@@ -31,13 +31,13 @@ init! = \{} ->
     paths =
         Result.map_err(
             Dir.list!("./"),
-            \DirErr(err) -> Exit(1, "Error reading directory ./:\n\t$(Inspect.to_str(err))"),
+            \DirErr(err) -> Exit(1, "Error reading directory ./:\n\t${Inspect.to_str(err)}"),
         )?
 
     paths
     |> List.map(Path.display)
     |> Str.join_with(",")
-    |> \paths_str -> "The paths are;\n$(paths_str)"
+    |> \paths_str -> "The paths are;\n${paths_str}"
     |> Stdout.line!
     |> try
 

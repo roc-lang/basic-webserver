@@ -18,6 +18,6 @@ respond! = \req, model ->
     # Log request datetime, method and url
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    Stdout.line!("$(datetime) $(Inspect.to_str(req.method)) $(req.uri)")?
+    Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")?
 
-    Ok({ status: 200, headers: [], body: Str.to_utf8("<b>init gave me $(model)</b>") })
+    Ok({ status: 200, headers: [], body: Str.to_utf8("<b>init gave me ${model}</b>") })

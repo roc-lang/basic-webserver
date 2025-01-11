@@ -15,10 +15,12 @@ respond! = \req, _ ->
     # Log request date, method and url using echo program
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    Cmd.exec!("echo", ["$(datetime) $(Inspect.to_str(req.method)) $(req.uri)"])?
+    Cmd.exec!("echo", ["${datetime} ${Inspect.to_str(req.method)} ${req.uri}"])?
 
-    Ok({
-        status: 200,
-        headers: [],
-        body: Str.to_utf8("Command succeeded."),
-    })
+    Ok(
+        {
+            status: 200,
+            headers: [],
+            body: Str.to_utf8("Command succeeded."),
+        },
+    )

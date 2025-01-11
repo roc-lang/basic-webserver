@@ -59,7 +59,7 @@ AppError : [
 map_app_err : AppError -> [ServerErr Str]
 map_app_err = \app_err ->
     when app_err is
-        EnvVarNotSet(var_name) -> ServerErr("Environment variable \"$(var_name)\" was not set. Please set it to the path of todos.db")
+        EnvVarNotSet(var_name) -> ServerErr("Environment variable \"${var_name}\" was not set. Please set it to the path of todos.db")
         StdoutErr(msg) -> ServerErr(msg)
 
 route_todos! : Model, Request => Result Response _
@@ -76,7 +76,7 @@ route_todos! = \model, req ->
 
         other_method ->
             # Not supported
-            text_response(405, "HTTP method $(Inspect.to_str(other_method)) is not supported for the URL $(req.uri)")
+            text_response(405, "HTTP method ${Inspect.to_str(other_method)} is not supported for the URL ${req.uri}")
 
 list_todos! : Model => Result Response _
 list_todos! = \{ list_todos_stmt } ->
@@ -99,7 +99,7 @@ list_todos! = \{ list_todos_stmt } ->
             task
             |> List.map(encode_task)
             |> Str.join_with(",")
-            |> \list -> "[$(list)]"
+            |> \list -> "[${list}]"
             |> Str.to_utf8
             |> json_response
 
@@ -205,7 +205,7 @@ encode_task : { id : I64, task : Str, status : Str } -> Str
 encode_task = \{ id, task, status } ->
     # TODO: this should use our json encoder
     """
-    {"id":$(Num.to_str(id)),"task":"$(task)","status":"$(status)"}
+    {"id":${Num.to_str(id)},"task":"${task}","status":"${status}"}
     """
 
 json_response : List U8 -> Result Response []
@@ -252,7 +252,7 @@ log_request! : Request => Result {} [StdoutErr Str]
 log_request! = \req ->
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    Stdout.line!("$(datetime) $(Inspect.to_str(req.method)) $(req.uri)")
+    Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")
     |> Result.map_err(\err -> StdoutErr(Inspect.to_str(err)))
 
 read_env_var! : Str => Result Str [EnvVarNotSet Str]_

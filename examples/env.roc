@@ -26,7 +26,7 @@ respond! = \_, debug ->
             body =
                 vars
                 |> Dict.to_list
-                |> List.map(\(k, v) -> "$(k): $(v)")
+                |> List.map(\(k, v) -> "${k}: ${v}")
                 |> Str.join_with("\n")
                 |> Str.concat("\n")
                 |> Str.to_utf8

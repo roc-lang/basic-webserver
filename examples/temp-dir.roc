@@ -19,4 +19,4 @@ respond! = \_, _ ->
 
     temp_dir_str = Path.display(Env.temp_dir!({}))
 
-    Ok({ status: 200, headers: [], body: Str.to_utf8("The temp dir path is $(temp_dir_str)") })
+    Ok({ status: 200, headers: [], body: Str.to_utf8("The temp dir path is ${temp_dir_str}") })

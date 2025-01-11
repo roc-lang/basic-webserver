@@ -23,9 +23,9 @@ AppError : [
 map_app_err : AppError -> [ServerErr Str]
 map_app_err = \app_err ->
     when app_err is
-        EnvVarNotSet(env_var_name) -> ServerErr("Environment variable \"$(env_var_name)\" was not set.")
-        BadBody(err) -> ServerErr("Http error fetching content:\n\t$(Inspect.to_str(err))")
-        StdoutErr(err) -> ServerErr("Stdout error logging request:\n\t$(err)")
+        EnvVarNotSet(env_var_name) -> ServerErr("Environment variable \"${env_var_name}\" was not set.")
+        BadBody(err) -> ServerErr("Http error fetching content:\n\t${Inspect.to_str(err)}")
+        StdoutErr(err) -> ServerErr("Stdout error logging request:\n\t${err}")
 
 # Here we use AppError to ensure all errors must be handled within our application.
 handle_req! : Request => Result Response AppError
@@ -46,7 +46,7 @@ log_request! : Request => Result {} [StdoutErr Str]
 log_request! = \req ->
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
-    Stdout.line!("$(datetime) $(Inspect.to_str(req.method)) $(req.uri)")
+    Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")
     |> Result.map_err(\err -> StdoutErr(Inspect.to_str(err)))
 
 read_env_var! : Str => Result Str [EnvVarNotSet Str]

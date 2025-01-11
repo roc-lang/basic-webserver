@@ -100,7 +100,7 @@ walk_split_help = \input, markers ->
             [Start(start)] ->
                 List.append(state, List.sublist(input, { start, len: ((List.len(input)) - start) }))
 
-            _ -> crash("Unreachable:\n\tThis list should have matched earlier when branches: $(Inspect.to_str(remaining_markers))")
+            _ -> crash("Unreachable:\n\tThis list should have matched earlier when branches: ${Inspect.to_str(remaining_markers)}")
 
     go(markers, [])
 

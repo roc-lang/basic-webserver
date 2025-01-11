@@ -58,7 +58,7 @@ respond! = \req, _ ->
                         <style>
                             .image-container {
                                 height: 200px;
-                                background-image: url('data:image/png;base64,$(src)');
+                                background-image: url('data:image/png;base64,${src}');
                                 background-repeat: no-repeat;
                                 background-size: contain; /*scales the image to fit within the container while maintaining its aspect ratio*/
                                 background-position: center;
