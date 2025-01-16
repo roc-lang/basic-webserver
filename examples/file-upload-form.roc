@@ -77,8 +77,8 @@ respond! = \req, _ ->
             { headers: req.headers, body: req.body }
             |> MultipartFormData.parse_multipart_form_data
             |> Result.try(List.first)
-            |> Result.map(.data)
-            |> Result.map(Base64.encode)
+            |> Result.map_ok(.data)
+            |> Result.map_ok(Base64.encode)
 
         when maybe_image is
             Ok(img) ->
