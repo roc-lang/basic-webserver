@@ -12,7 +12,7 @@ init! : {} => Result Model [Exit I32 Str]_
 init! = \{} ->
     # Read the contents of examples/file.roc
     File.read_utf8!("examples/file.roc")
-    |> Result.map(\contents -> "Source code of current program:\n\n${contents}")
+    |> Result.map_ok(\contents -> "Source code of current program:\n\n${contents}")
     |> Result.map_err(
         \err ->
             when err is
