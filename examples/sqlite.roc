@@ -8,12 +8,9 @@ import pf.Env
 Model : { stmt : Sqlite.Stmt }
 
 init! : {} => Result Model _
-init! = \{} ->
+init! = |{}|
     # Read DB_PATH environment variable
-    db_path =
-        Env.var!("DB_PATH")
-        |> Result.map_err(\_ -> ServerErr("DB_PATH not set on environment"))
-        |> try
+    db_path = Env.var!("DB_PATH") ? |_| ServerErr("DB_PATH not set on environment")
 
     stmt =
         Sqlite.prepare!(
@@ -22,13 +19,12 @@ init! = \{} ->
                 query: "SELECT id, task FROM todos WHERE status = :status;",
             },
         )
-        |> Result.map_err(\err -> ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}"))
-        |> try
+        ? |err| ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}")
 
     Ok({ stmt })
 
 respond! : Request, Model => Result Response _
-respond! = \_, { stmt } ->
+respond! = |_, { stmt }|
     # Query todos table
     strings : Str
     strings =
@@ -42,7 +38,7 @@ respond! = \_, { stmt } ->
                 },
             },
         )?
-        |> List.map(\{ id, task } -> "row ${Num.to_str(id)}, task: ${task}")
+        |> List.map(|{ id, task }| "row ${Num.to_str(id)}, task: ${task}")
         |> Str.join_with("\n")
 
     # Print out the results

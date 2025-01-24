@@ -7,10 +7,10 @@ import pf.Utc
 Model : {}
 
 init! : {} => Result Model _
-init! = \{} -> Ok({})
+init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [CmdStatusErr _]
-respond! = \req, _ ->
+respond! = |req, _|
 
     # Log request date, method and url using echo program
     datetime = Utc.to_iso_8601(Utc.now!({}))

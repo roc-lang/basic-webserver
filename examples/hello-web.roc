@@ -11,10 +11,10 @@ Model : {}
 # generate css by running `tailwindcss`,...
 # In this case we don't have anything to initialize, so it is just `Ok {}`.
 init! : {} => Result Model []
-init! = \{} -> Ok({})
+init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, _ ->
+respond! = |req, _|
     # Log request datetime, method and url
     datetime = Utc.to_iso_8601(Utc.now!({}))
 

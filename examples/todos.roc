@@ -19,7 +19,7 @@ Model : {
 }
 
 init! : {} => Result Model [Exit I32 Str]_
-init! = \{} ->
+init! = |{}|
     db_path = read_env_var!("DB_PATH")?
 
     list_todos_stmt = prepare_stmt!(db_path, "SELECT id, task, status FROM todos")?
@@ -32,7 +32,7 @@ init! = \{} ->
     Ok({ list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt })
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, model ->
+respond! = |req, model|
     response_task =
         log_request!(req)?
 
@@ -57,13 +57,13 @@ AppError : [
 ]
 
 map_app_err : AppError -> [ServerErr Str]
-map_app_err = \app_err ->
+map_app_err = |app_err|
     when app_err is
         EnvVarNotSet(var_name) -> ServerErr("Environment variable \"${var_name}\" was not set. Please set it to the path of todos.db")
         StdoutErr(msg) -> ServerErr(msg)
 
 route_todos! : Model, Request => Result Response _
-route_todos! = \model, req ->
+route_todos! = |model, req|
     when req.method is
         GET ->
             list_todos!(model)
@@ -79,7 +79,7 @@ route_todos! = \model, req ->
             text_response(405, "HTTP method ${Inspect.to_str(other_method)} is not supported for the URL ${req.uri}")
 
 list_todos! : Model => Result Response _
-list_todos! = \{ list_todos_stmt } ->
+list_todos! = |{ list_todos_stmt }|
     result =
         # TODO: it might be nicer if the decoder was stored with the prepared query instead of defined here.
         Sqlite.query_many_prepared!(
@@ -99,7 +99,7 @@ list_todos! = \{ list_todos_stmt } ->
             task
             |> List.map(encode_task)
             |> Str.join_with(",")
-            |> \list -> "[${list}]"
+            |> |list| "[${list}]"
             |> Str.to_utf8
             |> json_response
 
@@ -107,11 +107,11 @@ list_todos! = \{ list_todos_stmt } ->
             err_response(err)
 
 create_todo! : Model, { task : Str, status : Str } => Result Response _
-create_todo! = \model, params ->
+create_todo! = |model, params|
     result =
         exec_transaction!(
             model,
-            \{} ->
+            |{}|
                 # prepare create todo statement
                 Sqlite.execute_prepared!(
                     {
@@ -148,7 +148,8 @@ create_todo! = \model, params ->
             err_response(err)
 
 exec_transaction! : Model, ({} => Result ok err) => Result ok [FailedToBeginTransaction, FailedToEndTransaction, FailedToRollbackTransaction, TransactionFailed err]
-exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
+exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
+
     # TODO: create a nicer transaction wrapper
     Sqlite.execute_prepared!(
         {
@@ -156,10 +157,9 @@ exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
             bindings: [],
         },
     )
-    |> Result.map_err(\_ -> FailedToBeginTransaction)
-    |> try
+    ? |_| FailedToBeginTransaction
 
-    end_transaction! = \res ->
+    end_transaction! = |res|
         when res is
             Ok(v) ->
                 Sqlite.execute_prepared!(
@@ -168,8 +168,7 @@ exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
                         bindings: [],
                     },
                 )
-                |> Result.map_err(\_ -> FailedToEndTransaction)
-                |> try
+                ? |_| FailedToEndTransaction
 
                 Ok(v)
 
@@ -187,29 +186,36 @@ exec_transaction! = \{ begin_stmt, rollback_stmt, end_stmt }, transaction! ->
                     bindings: [],
                 },
             )
-            |> Result.map_err(\_ -> FailedToRollbackTransaction)
+            |> Result.map_err(|_| FailedToRollbackTransaction)
             |> try
 
             Err(e)
 
 task_from_query : Str -> Result { task : Str, status : Str } [InvalidQuery]
-task_from_query = \url ->
+task_from_query = |url|
 
     params = url |> Url.from_str |> Url.query_params
 
     when (params |> Dict.get("task"), params |> Dict.get("status")) is
-        (Ok(task), Ok(status)) -> Ok({ task: Str.replace_each(task, "%20", " "), status: Str.replace_each(status, "%20", " ") })
+        (Ok(task), Ok(status)) ->
+            Ok(
+                {
+                    task: Str.replace_each(task, "%20", " "),
+                    status: Str.replace_each(status, "%20", " "),
+                },
+            )
+
         _ -> Err(InvalidQuery)
 
 encode_task : { id : I64, task : Str, status : Str } -> Str
-encode_task = \{ id, task, status } ->
+encode_task = |{ id, task, status }|
     # TODO: this should use our json encoder
     """
     {"id":${Num.to_str(id)},"task":"${task}","status":"${status}"}
     """
 
 json_response : List U8 -> Result Response []
-json_response = \bytes ->
+json_response = |bytes|
     Ok(
         {
             status: 200,
@@ -221,11 +227,11 @@ json_response = \bytes ->
     )
 
 err_response : err -> Result Response * where err implements Inspect
-err_response = \err ->
+err_response = |err|
     byte_response(500, Str.to_utf8(Inspect.to_str(err)))
 
 text_response : U16, Str -> Result Response []
-text_response = \status, str ->
+text_response = |status, str|
     Ok(
         {
             status,
@@ -237,7 +243,7 @@ text_response = \status, str ->
     )
 
 byte_response : U16, List U8 -> Result Response *
-byte_response = \status, bytes ->
+byte_response = |status, bytes|
     Ok(
         {
             status,
@@ -249,18 +255,18 @@ byte_response = \status, bytes ->
     )
 
 log_request! : Request => Result {} [StdoutErr Str]
-log_request! = \req ->
+log_request! = |req|
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
     Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")
-    |> Result.map_err(\err -> StdoutErr(Inspect.to_str(err)))
+    |> Result.map_err(|err| StdoutErr(Inspect.to_str(err)))
 
 read_env_var! : Str => Result Str [EnvVarNotSet Str]_
-read_env_var! = \env_var_name ->
+read_env_var! = |env_var_name|
     Env.var!(env_var_name)
-    |> Result.map_err(\_ -> EnvVarNotSet(env_var_name))
+    |> Result.map_err(|_| EnvVarNotSet(env_var_name))
 
 prepare_stmt! : Str, Str => Result Sqlite.Stmt [FailedToPrepareQuery _]
-prepare_stmt! = \path, query ->
+prepare_stmt! = |path, query|
     Sqlite.prepare!({ path, query })
     |> Result.map_err(FailedToPrepareQuery)

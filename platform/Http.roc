@@ -48,7 +48,7 @@ default_request = {
 ## See common headers [here](https://en.wikipedia.org/wiki/List_of_HTTP_header_fields).
 ##
 header : (Str, Str) -> Header
-header = \(name, value) -> { name, value }
+header = |(name, value)| { name, value }
 
 ## Send an HTTP request, succeeds with a value of [Str] or fails with an
 ## [Err].
@@ -64,7 +64,7 @@ header = \(name, value) -> { name, value }
 ## |> Stdout.line
 ## ```
 send! : Request => Response
-send! = \request ->
+send! = |request|
     request
     |> InternalHttp.to_host_request
     |> Host.send_request!
@@ -80,16 +80,16 @@ send! = \request ->
 ## { foo } = Http.get!("http://localhost:8000", Json.utf8)?
 ## ```
 get! : Str, fmt => Result body [HttpDecodingFailed] where body implements Decoding, fmt implements DecoderFormatting
-get! = \uri, fmt ->
+get! = |uri, fmt|
     response = send!({ default_request & uri })
 
     Decode.from_bytes(response.body, fmt)
-    |> Result.map_err(\_ -> HttpDecodingFailed)
+    |> Result.map_err(|_| HttpDecodingFailed)
 
 get_utf8! : Str => Result Str [BadBody Str]
-get_utf8! = \uri ->
+get_utf8! = |uri|
     response = send!({ default_request & uri })
 
     response.body
     |> Str.from_utf8
-    |> Result.map_err(\_ -> BadBody("Invalid UTF-8"))
+    |> Result.map_err(|_| BadBody("Invalid UTF-8"))

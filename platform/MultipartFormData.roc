@@ -41,21 +41,21 @@ doubledash = ['-', '-']
 ## Example call:
 ## ```roc
 ## parse_content_f({
-##    upper: Str.toUtf8 "Content-Disposition:",
-##    lower: Str.toUtf8 "content-disposition:",
+##    upper: Str.to_utf8("Content-Disposition:"),
+##    lower: Str.to_utf8("content-disposition:"),
 ## })
 ##
-## input = Str.toUtf8("\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here...")
+## input = Str.to_utf8("\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here...")
 ## actual = parseContentDispositionF(input)
 ## expected = Ok({
-##    value: Str.toUtf8 " form-data; name=\"sometext\"",
-##    rest: Str.toUtf8 "\r\nSome text here...",
+##    value: Str.to_utf8(" form-data; name=\"sometext\""),
+##    rest: Str.to_utf8("\r\nSome text here..."),
 ## })
 ## ```
 ##
 parse_content_f : { upper : List U8, lower : List U8 } -> (List U8 -> Result { value : List U8, rest : List U8 } _)
-parse_content_f = \{ upper, lower } ->
-    \bytes ->
+parse_content_f = |{ upper, lower }|
+    |bytes|
 
         to_search_upper = List.concat(newline, upper)
         to_search_lower = List.concat(newline, lower)
@@ -64,9 +64,9 @@ parse_content_f = \{ upper, lower } ->
 
         if
             List.starts_with(bytes, to_search_upper)
-            || List.starts_with(bytes, to_search_lower)
+            or List.starts_with(bytes, to_search_lower)
         then
-            next_line_start = after_search |> List.find_first_index?(\b -> b == '\r')
+            next_line_start = after_search |> List.find_first_index?(|b| b == '\r')
 
             Ok(
                 {
@@ -136,7 +136,7 @@ expect
 
 ## Parses all headers: Content-Disposition, Content-Type and Content-Transfer-Encoding.
 parse_all_headers : List U8 -> Result FormData _
-parse_all_headers = \bytes ->
+parse_all_headers = |bytes|
 
     double_newline_length = 4 # \r\n\r\n
 
@@ -235,7 +235,7 @@ parse_form_data :
         boundary : List U8,
     }
     -> Result (List FormData) [ExpectedEnclosedByBoundary]
-parse_form_data = \{ body, boundary } ->
+parse_form_data = |{ body, boundary }|
 
     start_marker = List.join([doubledash, boundary])
     end_marker = List.join([newline, doubledash, boundary, doubledash, newline])
@@ -243,13 +243,13 @@ parse_form_data = \{ body, boundary } ->
 
     is_enclosed_by_boundary =
         List.starts_with(body, start_marker)
-        && List.ends_with(body, end_marker)
+        and List.ends_with(body, end_marker)
 
     if is_enclosed_by_boundary then
         body
         |> List.drop_first(List.len(start_marker))
         |> SplitList.split_on_list(boundary_with_prefix)
-        |> List.drop_if(\part -> part == doubledash)
+        |> List.drop_if(|part| part == doubledash)
         |> List.keep_oks(parse_all_headers)
         |> Ok
     else
@@ -335,20 +335,20 @@ expect
 ##
 ## ```
 ## expect
-##     bytes = Str.toUtf8("todo=foo&status=bar")
-##     parsed = parse_form_url_encoded(bytes) |> Result.withDefault(Dict.empty({}))
+##     bytes = Str.to_utf8("todo=foo&status=bar")
+##     parsed = parse_form_url_encoded(bytes) |> Result.with_default(Dict.empty({}))
 ##
-##     Dict.toList(parsed) == [("todo", "foo"), ("status", "bar")]
+##     Dict.to_list(parsed) == [("todo", "foo"), ("status", "bar")]
 ## ```
 parse_form_url_encoded : List U8 -> Result (Dict Str Str) [BadUtf8]
-parse_form_url_encoded = \bytes ->
+parse_form_url_encoded = |bytes|
 
-    chain_utf8 = \bytes_list, try_fun -> Str.from_utf8(bytes_list) |> map_utf8_err |> Result.try(try_fun)
+    chain_utf8 = |bytes_list, try_fun| Str.from_utf8(bytes_list) |> map_utf8_err |> Result.try(try_fun)
 
     # simplify `BadUtf8 Utf8ByteProblem ...` error
-    map_utf8_err = \err -> err |> Result.map_err(\_ -> BadUtf8)
+    map_utf8_err = |err| err |> Result.map_err(|_| BadUtf8)
 
-    help = \bytes_remaining, state, key, chomped, dict ->
+    help = |bytes_remaining, state, key, chomped, dict|
         tail = List.drop_first(bytes_remaining, 1)
 
         when bytes_remaining is
@@ -357,10 +357,10 @@ parse_form_url_encoded = \bytes ->
                 # chomped last value
                 key
                 |> chain_utf8(
-                    \key_str ->
+                    |key_str|
                         chomped
                         |> chain_utf8(
-                            \value_str ->
+                            |value_str|
                                 Dict.insert(dict, key_str, value_str) |> Ok,
                         ),
                 )
@@ -369,10 +369,10 @@ parse_form_url_encoded = \bytes ->
             ['&', ..] ->
                 key
                 |> chain_utf8(
-                    \key_str ->
+                    |key_str|
                         chomped
                         |> chain_utf8(
-                            \value_str ->
+                            |value_str|
                                 help(tail, ParsingKey, [], [], Dict.insert(dict, key_str, value_str)),
                         ),
                 )
@@ -402,10 +402,10 @@ expect
     |> Bool.is_eq([("task", "asdfs adf"), ("status", "qwerwe")])
 
 hex_bytes_to_u32 : List U8 -> U32
-hex_bytes_to_u32 = \bytes ->
+hex_bytes_to_u32 = |bytes|
     bytes
     |> List.reverse
-    |> List.walk_with_index(0, \accum, byte, i -> accum + (Num.pow_int(16, Num.to_u32(i))) * (hex_to_dec(byte)))
+    |> List.walk_with_index(0, |accum, byte, i| accum + (Num.pow_int(16, Num.to_u32(i))) * (hex_to_dec(byte)))
     |> Num.to_u32
 
 expect hex_bytes_to_u32(['0', '0', '0', '0']) == 0
@@ -419,7 +419,7 @@ expect hex_bytes_to_u32(['1', '0', '0', '0']) == 4096
 expect hex_bytes_to_u32(['1', '6', 'F', 'F', '1']) == 94193
 
 hex_to_dec : U8 -> U32
-hex_to_dec = \byte ->
+hex_to_dec = |byte|
     when byte is
         '0' -> 0
         '1' -> 1
@@ -451,23 +451,23 @@ parse_multipart_form_data :
         body : List U8,
     }
     -> Result (List MultipartFormData.FormData) [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader]
-parse_multipart_form_data = \args ->
+parse_multipart_form_data = |args|
     decode_multipart_form_data_boundary(args.headers)
     |> Result.try(
-        \boundary ->
+        |boundary|
             { body: args.body, boundary }
             |> parse_form_data
-            |> Result.map_err(\_ -> InvalidMultipartFormData),
+            |> Result.map_err(|_| InvalidMultipartFormData),
     )
 
 decode_multipart_form_data_boundary : List { name : Str, value : Str } -> Result (List U8) _
-decode_multipart_form_data_boundary = \headers ->
+decode_multipart_form_data_boundary = |headers|
     headers
-    |> List.keep_if(\{ name } -> name == "Content-Type" || name == "content-type")
+    |> List.keep_if(|{ name }| name == "Content-Type" or name == "content-type")
     |> List.first
-    |> Result.map_err(\ListWasEmpty -> ExpectedContentTypeHeader)
+    |> Result.map_err(|ListWasEmpty| ExpectedContentTypeHeader)
     |> Result.try(
-        \{ value } ->
+        |{ value }|
             when Str.split_last(value, "=") is
                 Ok({ after }) -> Ok(Str.to_utf8(after))
                 Err(NotFound) -> Err(InvalidContentTypeHeader),

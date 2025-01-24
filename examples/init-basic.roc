@@ -11,10 +11,10 @@ Model : Str
 # generate css by running `tailwindcss`,...
 # In this example it is just `Ok "🎁"`.
 init! : {} => Result Model []
-init! = \{} -> Ok("🎁")
+init! = |{}| Ok("🎁")
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, model ->
+respond! = |req, model|
     # Log request datetime, method and url
     datetime = Utc.to_iso_8601(Utc.now!({}))
 

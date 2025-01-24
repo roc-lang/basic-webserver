@@ -7,12 +7,12 @@ module [
 ## Example:
 ## ```roc
 ## input = [1,2,3,4,5,6,7,3,4,0,0]
-## actual = splitOnList(input, [3,4])
+## actual = split_on_list(input, [3,4])
 ## expected = [[1,2], [5,6,7], [0, 0]]
 ## ```
 ##
 split_on_list : List a, List a -> List (List a) where a implements Eq
-split_on_list = \input_list, separator ->
+split_on_list = |input_list, separator|
 
     # reserve capacity for markers which mark split boundaries
     init_markers = List.with_capacity(100)
@@ -24,11 +24,11 @@ split_on_list = \input_list, separator ->
     walk_split_help(input_list, markers)
 
 # produces a Stop, followed by a sequence of Start, Stop, Start, Stop, ...
-walk_help_find_starts = \input_list, separator_list ->
-    if input_list == [] || separator_list == [] then
-        \_, _, _ -> []
+walk_help_find_starts = |input_list, separator_list|
+    if input_list == [] or separator_list == [] then
+        |_, _, _| []
     else
-        \all_markers, _, idx ->
+        |all_markers, _, idx|
 
             len = List.len(separator_list)
 
@@ -85,8 +85,8 @@ expect
     actual == expected
 
 walk_split_help : List a, List [Start U64, Stop U64] -> List (List a) where a implements Eq
-walk_split_help = \input, markers ->
-    go = \remaining_markers, state ->
+walk_split_help = |input, markers|
+    go = |remaining_markers, state|
         when remaining_markers is
             [] -> state
             [Stop(stop), .. as rest] if stop == 0 -> go(rest, state)

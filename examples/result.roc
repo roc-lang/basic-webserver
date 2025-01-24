@@ -5,10 +5,10 @@ import pf.Http exposing [Request, Response]
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok({})
+init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \_, _ ->
+respond! = |_, _|
     when check_file!("good") is
         Ok(Good) -> Ok({ status: 200, headers: [], body: Str.to_utf8("GOOD") })
         Ok(Bad) -> Ok({ status: 200, headers: [], body: Str.to_utf8("BAD") })
@@ -18,7 +18,7 @@ respond! = \_, _ ->
 # and returns a Result, succeding with a tag either Good or Bad,
 # or failing with an IOError
 check_file! : Str => Result [Good, Bad] [IOError]
-check_file! = \str ->
+check_file! = |str|
     if str == "good" then
         Ok(Good)
     else if str == "bad" then

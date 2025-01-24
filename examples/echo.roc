@@ -7,10 +7,10 @@ import pf.Utc
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok({})
+init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [StdoutErr _]
-respond! = \req, _ ->
+respond! = |req, _|
     # Log request datetime, method and url
     datetime = Utc.to_iso_8601(Utc.now!({}))
 
@@ -22,4 +22,5 @@ respond! = \req, _ ->
     else
         success(req.body)
 
-success = \body -> Ok({ status: 200, headers: [], body })
+success = |body|
+    Ok({ status: 200, headers: [], body })

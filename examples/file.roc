@@ -9,12 +9,12 @@ Model : Str
 
 # We only read the file once in `init`. If that fails, we don't launch the server.
 init! : {} => Result Model [Exit I32 Str]_
-init! = \{} ->
+init! = |{}|
     # Read the contents of examples/file.roc
     File.read_utf8!("examples/file.roc")
-    |> Result.map_ok(\contents -> "Source code of current program:\n\n${contents}")
+    |> Result.map_ok(|contents| "Source code of current program:\n\n${contents}")
     |> Result.map_err(
-        \err ->
+        |err|
             when err is
                 FileReadErr(path, file_err) ->
                     Exit(
@@ -30,6 +30,6 @@ init! = \{} ->
     )
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \_, model ->
+respond! = |_, model|
     # If the server launched, the model contains the file content.
     Ok({ status: 200, headers: [], body: Str.to_utf8(model) })

@@ -1,6 +1,6 @@
 app [Model, init!, respond!] {
     pf: platform "../platform/main.roc",
-    utils: "https://github.com/quelgar/roc-utils/releases/download/v0.2.0/Ln38Q74rVeU6KAlT8dsB6nyKlUoD-O-43H41nCJ52Yk.tar.br",
+    utils: "https://github.com/lukewilliamboswell/roc-utils/releases/download/0.3.0/w1rWVzjiBSrvc1VHPNX10o0bHI7rmBdT36hFQ0f5R_w.tar.br",
 }
 
 import utils.Base64
@@ -11,10 +11,10 @@ import pf.MultipartFormData
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok({})
+init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, _ ->
+respond! = |req, _|
     if req.method == GET then
         Ok(
             {
@@ -46,7 +46,7 @@ respond! = \req, _ ->
             },
         )
     else if req.method == POST then
-        page = \src ->
+        page = |src|
             Str.to_utf8(
                 """
                 <!DOCTYPE html>

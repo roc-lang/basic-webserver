@@ -8,10 +8,11 @@ Model : {}
 # That file is an executable that runs a webserver that returns "I'm a stub...".
 
 init! : {} => Result Model []
-init! = \_ -> Ok({})
+init! = |_|
+    Ok({})
 
 respond! : _, _ => Result _ []
-respond! = \_, _ ->
+respond! = |_, _|
     Ok(
         {
             status: 200,

@@ -1,7 +1,6 @@
 app [main!] {
-    # TODO replace with snake_case_builtins release
-    cli: platform "../basic-cli/platform/main.roc",
-    weaver: "https://github.com/smores56/weaver/releases/download/0.6.0/6WdRio4quZ_3HL8cEY_vyx5mzl1xXrEv2a_c1Bswrq4.tar.br",
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.19.0/bi5zubJ-_Hva9vxxPq4kNx4WHX6oFs8OP6Ad0tCYlrY.tar.br",
+    weaver: "https://github.com/smores56/weaver/releases/download/0.6.0/4GmRnyE7EFjzv6dDpebJoWWwXV285OMt4ntHIc6qvmY.tar.br",
 }
 
 import cli.Cmd
@@ -16,28 +15,30 @@ import weaver.Cli
 ## run with: roc ./build.roc
 ##
 main! : _ => Result {} _
-main! = \args ->
+main! = |args|
 
     parsed_args =
         Result.on_err!(
             Cli.parse_or_display_message(cli_parser, args, Arg.to_os_raw),
-            \message -> Err (Exit 1 message),
+            |message| Err(Exit(1, message)),
         )?
 
     run!(parsed_args)
 
 cli_parser =
-    Opt.maybe_str { short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path." }
-    |> Cli.finish {
-        name: "basic-webserver-builder",
-        version: "",
-        authors: ["Luke Boswell <https://github.com/lukewilliamboswell>"],
-        description: "Generates all files needed by Roc to use this basic-cli platform.",
-    }
+    Opt.maybe_str({ short: "p", long: "roc", help: "Path to the roc executable. Can be just `roc` or a full path." })
+    |> Cli.finish(
+        {
+            name: "basic-webserver-builder",
+            version: "",
+            authors: ["Luke Boswell <https://github.com/lukewilliamboswell>"],
+            description: "Generates all files needed by Roc to use this basic-cli platform.",
+        },
+    )
     |> Cli.assert_valid
 
 run! : Result Str err => Result {} _
-run! = \maybe_roc ->
+run! = |maybe_roc|
 
     # roc_cmd may be a path or just roc
     roc_cmd = maybe_roc |> Result.with_default("roc")
@@ -61,7 +62,7 @@ run! = \maybe_roc ->
     info!("Successfully built platform files!")
 
 roc_version! : Str => Result {} _
-roc_version! = \roc_cmd ->
+roc_version! = |roc_cmd|
 
     info!("Checking provided roc; executing `${roc_cmd} version`:")?
 
@@ -69,14 +70,14 @@ roc_version! = \roc_cmd ->
     |> Result.map_err(RocVersionCheckFailed)
 
 get_os_and_arch! : {} => Result OSAndArch _
-get_os_and_arch! = \{} ->
+get_os_and_arch! = |{}|
 
     info!("Getting the native operating system and architecture...")?
 
     convert_os_and_arch(Env.platform!({}))
 
 build_stub_app_lib! : Str, Str => Result {} _
-build_stub_app_lib! = \roc_cmd, stub_lib_path ->
+build_stub_app_lib! = |roc_cmd, stub_lib_path|
 
     info!("Building stubbed app shared library ...")?
 
@@ -84,7 +85,7 @@ build_stub_app_lib! = \roc_cmd, stub_lib_path ->
     |> Result.map_err(ErrBuildingAppStub)
 
 get_rust_target_folder! : {} => Result Str _
-get_rust_target_folder! = \{} ->
+get_rust_target_folder! = |{}|
     when Env.var!("CARGO_BUILD_TARGET") is
         Ok(target_env_var) ->
             if Str.is_empty(target_env_var) then
@@ -98,7 +99,7 @@ get_rust_target_folder! = \{} ->
             Ok("target/release/")
 
 cargo_build_host! : {} => Result {} _
-cargo_build_host! = \{} ->
+cargo_build_host! = |{}|
 
     info!("Building rust host ...")?
 
@@ -106,7 +107,7 @@ cargo_build_host! = \{} ->
     |> Result.map_err(ErrBuildingHostBinaries)
 
 copy_host_lib! : OSAndArch, Str => Result {} _
-copy_host_lib! = \os_and_arch, rust_target_folder ->
+copy_host_lib! = |os_and_arch, rust_target_folder|
     host_build_path = "${rust_target_folder}libhost.a"
     host_dest_path = "platform/${prebuilt_static_lib_file(os_and_arch)}"
 
@@ -125,7 +126,7 @@ OSAndArch : [
 ]
 
 convert_os_and_arch : _ -> Result OSAndArch _
-convert_os_and_arch = \{ os, arch } ->
+convert_os_and_arch = |{ os, arch }|
     when (os, arch) is
         (MACOS, AARCH64) -> Ok(MacosArm64)
         (MACOS, X64) -> Ok(MacosX64)
@@ -134,14 +135,14 @@ convert_os_and_arch = \{ os, arch } ->
         _ -> Err(UnsupportedNative(os, arch))
 
 stub_file_extension : OSAndArch -> Str
-stub_file_extension = \os_and_arch ->
+stub_file_extension = |os_and_arch|
     when os_and_arch is
         MacosX64 | MacosArm64 -> "dylib"
         LinuxArm64 | LinuxX64 -> "so"
         WindowsX64 | WindowsArm64 -> "dll"
 
 prebuilt_static_lib_file : OSAndArch -> Str
-prebuilt_static_lib_file = \os_and_arch ->
+prebuilt_static_lib_file = |os_and_arch|
     when os_and_arch is
         MacosArm64 -> "macos-arm64.a"
         MacosX64 -> "macos-x64.a"
@@ -151,7 +152,7 @@ prebuilt_static_lib_file = \os_and_arch ->
         WindowsX64 -> "windows-x64.lib"
 
 preprocess_host! : Str, Str, Str => Result {} _
-preprocess_host! = \roc_cmd, stub_lib_path, rust_target_folder ->
+preprocess_host! = |roc_cmd, stub_lib_path, rust_target_folder|
 
     info!("Preprocessing surgical host ...")?
 
@@ -162,5 +163,5 @@ preprocess_host! = \roc_cmd, stub_lib_path, rust_target_folder ->
     |> Result.map_err(ErrPreprocessingSurgicalBinary)
 
 info! : Str => Result {} _
-info! = \msg ->
+info! = |msg|
     Stdout.line!("\u(001b)[34mINFO:\u(001b)[0m ${msg}")

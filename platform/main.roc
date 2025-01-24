@@ -28,7 +28,7 @@ import Stderr
 import InternalHttp
 
 init_for_host! : I32 => Result (Box Model) I32
-init_for_host! = \_ ->
+init_for_host! = |_|
     when init!({}) is
         Ok(model) -> Ok(Box.box(model))
         Err(Exit(code, msg)) ->
@@ -51,7 +51,7 @@ init_for_host! = \_ ->
             Err(1)
 
 respond_for_host! : InternalHttp.RequestToAndFromHost, Box Model => InternalHttp.ResponseToAndFromHost
-respond_for_host! = \request, boxed_model ->
+respond_for_host! = |request, boxed_model|
     when respond!(InternalHttp.from_host_request(request), Box.unbox(boxed_model)) is
         Ok(response) -> InternalHttp.to_host_response(response)
         Err(ServerErr(msg)) ->
@@ -72,8 +72,8 @@ respond_for_host! = \request, boxed_model ->
                 Server error:
                     ${Inspect.to_str(err)}
 
-                Tip: If you do not want to see this error, use `Result.mapErr` to handle the error.
-                Docs for `Result.mapErr`: <https://www.roc-lang.org/builtins/Result#mapErr>
+                Tip: If you do not want to see this error, use `Result.map_err` to handle the error.
+                Docs for `Result.map_err`: <https://www.roc-lang.org/builtins/Result#map_err>
                 """,
             )
 

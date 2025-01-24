@@ -7,7 +7,7 @@ import pf.Env
 Model : [DebugPrintMode, NonDebugMode]
 
 init! : {} => Result Model [Exit I32 Str]_
-init! = \{} ->
+init! = |{}|
 
     # Check if DEBUG environment variable is set
     when Env.var!("DEBUG") is
@@ -15,7 +15,7 @@ init! = \{} ->
         _ -> Ok(NonDebugMode)
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \_, debug ->
+respond! = |_, debug|
     when debug is
         DebugPrintMode ->
             # Respond with all the current environment variables
@@ -26,7 +26,7 @@ respond! = \_, debug ->
             body =
                 vars
                 |> Dict.to_list
-                |> List.map(\(k, v) -> "${k}: ${v}")
+                |> List.map(|(k, v)| "${k}: ${v}")
                 |> Str.join_with("\n")
                 |> Str.concat("\n")
                 |> Str.to_utf8
