@@ -9,7 +9,7 @@ Model : Str
 
 # With `init` you can set up a database connection once at server startup,
 # generate css by running `tailwindcss`,...
-# In this example it is just `Ok "🎁"`.
+# In this example it is just `Ok("🎁")`.
 init! : {} => Result Model []
 init! = |{}| Ok("🎁")
 

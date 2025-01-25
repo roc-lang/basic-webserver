@@ -41,7 +41,7 @@ run! : Result Str err => Result {} _
 run! = |maybe_roc|
 
     # roc_cmd may be a path or just roc
-    roc_cmd = maybe_roc |> Result.with_default("roc")
+    roc_cmd = maybe_roc ?? "roc"
 
     roc_version!(roc_cmd)?
 

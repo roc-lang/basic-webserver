@@ -9,7 +9,7 @@ Model : {}
 
 # With `init` you can set up a database connection once at server startup,
 # generate css by running `tailwindcss`,...
-# In this case we don't have anything to initialize, so it is just `Ok {}`.
+# In this case we don't have anything to initialize, so it is just `Ok({})`.
 init! : {} => Result Model []
 init! = |{}| Ok({})
 
