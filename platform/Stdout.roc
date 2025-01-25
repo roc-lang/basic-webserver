@@ -34,16 +34,16 @@ IOErr : [
 ]
 
 handle_err : InternalIOErr.IOErrFromHost -> [StdoutErr IOErr]
-handle_err = \{ tag, msg } ->
+handle_err = |{ tag, msg }|
     when tag is
-        NotFound -> StdoutErr NotFound
-        PermissionDenied -> StdoutErr PermissionDenied
-        BrokenPipe -> StdoutErr BrokenPipe
-        AlreadyExists -> StdoutErr AlreadyExists
-        Interrupted -> StdoutErr Interrupted
-        Unsupported -> StdoutErr Unsupported
-        OutOfMemory -> StdoutErr OutOfMemory
-        Other | EndOfFile -> StdoutErr (Other msg)
+        NotFound -> StdoutErr(NotFound)
+        PermissionDenied -> StdoutErr(PermissionDenied)
+        BrokenPipe -> StdoutErr(BrokenPipe)
+        AlreadyExists -> StdoutErr(AlreadyExists)
+        Interrupted -> StdoutErr(Interrupted)
+        Unsupported -> StdoutErr(Unsupported)
+        OutOfMemory -> StdoutErr(OutOfMemory)
+        Other | EndOfFile -> StdoutErr(Other(msg))
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)),
 ## followed by a newline.
@@ -51,9 +51,9 @@ handle_err = \{ tag, msg } ->
 ## > To write to `stdout` without the newline, see [Stdout.write!].
 ##
 line! : Str => Result {} [StdoutErr IOErr]
-line! = \str ->
-    Host.stdout_line! str
-    |> Result.mapErr handle_err
+line! = |str|
+    Host.stdout_line!(str)
+    |> Result.map_err(handle_err)
 
 ## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
 ##
@@ -62,6 +62,6 @@ line! = \str ->
 ##
 ## > To write to `stdout` with a newline at the end, see [Stdout.line!].
 write! : Str => Result {} [StdoutErr IOErr]
-write! = \str ->
-    Host.stdout_write! str
-    |> Result.mapErr handle_err
+write! = |str|
+    Host.stdout_write!(str)
+    |> Result.map_err(handle_err)

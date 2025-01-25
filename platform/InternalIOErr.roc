@@ -46,7 +46,7 @@ IOErrFromHost : {
 }
 
 handle_err : IOErrFromHost -> IOErr
-handle_err = \{ tag, msg } ->
+handle_err = |{ tag, msg }|
     when tag is
         NotFound -> NotFound
         PermissionDenied -> PermissionDenied
@@ -55,4 +55,4 @@ handle_err = \{ tag, msg } ->
         Interrupted -> Interrupted
         Unsupported -> Unsupported
         OutOfMemory -> OutOfMemory
-        Other | EndOfFile -> Other msg
+        Other | EndOfFile -> Other(msg)

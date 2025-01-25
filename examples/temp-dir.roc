@@ -12,11 +12,18 @@ import pf.Env
 Model : {}
 
 init! : {} => Result Model []
-init! = \{} -> Ok {}
+init! = |{}|
+    Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \_, _ ->
+respond! = |_, _|
 
-    temp_dir_str = Path.display (Env.temp_dir! {})
+    temp_dir_str = Path.display(Env.temp_dir!({}))
 
-    Ok { status: 200, headers: [], body: Str.toUtf8 "The temp dir path is $(temp_dir_str)" }
+    Ok(
+        {
+            status: 200,
+            headers: [],
+            body: Str.to_utf8("The temp dir path is ${temp_dir_str}"),
+        },
+    )

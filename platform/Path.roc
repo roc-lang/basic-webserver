@@ -57,10 +57,11 @@ IOErr : InternalIOErr.IOErr
 ##
 ## ```
 ## # Writes `{"some":"json stuff"}` to the file `output.json`:
-## Path.write!
-##     { some: "json stuff" }
-##     (Path.from_str "output.json")
-##     Json.toCompactUtf8
+## Path.write!(
+##     { some: "json stuff" },
+##     Path.from_str("output.json"),
+##     Json.toCompactUtf8,
+## )?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -68,45 +69,45 @@ IOErr : InternalIOErr.IOErr
 ##
 ## > To write unformatted bytes to a file, you can use [Path.write_bytes!] instead.
 write! : val, Path, fmt => Result {} [FileWriteErr Path IOErr] where val implements Encoding, fmt implements EncoderFormatting
-write! = \val, path, fmt ->
-    bytes = Encode.toBytes val fmt
+write! = |val, path, fmt|
+    bytes = Encode.to_bytes(val, fmt)
 
     # TODO handle encoding errors here, once they exist
-    write_bytes! bytes path
+    write_bytes!(bytes, path)
 
 ## Writes bytes to a file.
 ##
 ## ```
 ## # Writes the bytes 1, 2, 3 to the file `myfile.dat`.
-## Path.write_bytes! [1, 2, 3] (Path.from_str "myfile.dat")
+## Path.write_bytes!([1, 2, 3], Path.from_str("myfile.dat"))?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
 ##
 ## > To format data before writing it to a file, you can use [Path.write!] instead.
 write_bytes! : List U8, Path => Result {} [FileWriteErr Path IOErr]
-write_bytes! = \bytes, path ->
-    path_bytes = InternalPath.to_bytes path
+write_bytes! = |bytes, path|
+    path_bytes = InternalPath.to_bytes(path)
 
-    Host.file_write_bytes! path_bytes bytes
-    |> Result.mapErr \err -> FileWriteErr path (InternalIOErr.handle_err err)
+    Host.file_write_bytes!(path_bytes, bytes)
+    |> Result.map_err(|err| FileWriteErr(path, InternalIOErr.handle_err(err)))
 
 ## Writes a [Str] to a file, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
 ##
 ## ```
 ## # Writes "Hello!" encoded as UTF-8 to the file `myfile.txt`.
-## Path.write_utf8! "Hello!" (Path.from_str "myfile.txt")
+## Path.write_utf8!("Hello!", Path.from_str("myfile.txt"))?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
 ##
 ## > To write unformatted bytes to a file, you can use [Path.write_bytes!] instead.
 write_utf8! : Str, Path => Result {} [FileWriteErr Path IOErr]
-write_utf8! = \str, path ->
-    path_bytes = InternalPath.to_bytes path
+write_utf8! = |str, path|
+    path_bytes = InternalPath.to_bytes(path)
 
-    Host.file_write_utf8! path_bytes str
-    |> Result.mapErr \err -> FileWriteErr path (InternalIOErr.handle_err err)
+    Host.file_write_utf8!(path_bytes, str)
+    |> Result.map_err(|err| FileWriteErr(path, InternalIOErr.handle_err(err)))
 
 ## Note that the path may not be valid depending on the filesystem where it is used.
 ## For example, paths containing `:` are valid on ext4 and NTFS filesystems, but not
@@ -118,8 +119,8 @@ write_utf8! = \str, path ->
 ## (at the time). Otherwise, error handling can happen for that operation rather than validating
 ## up front for a false sense of security (given symlinks, parts of a path being renamed, etc.).
 from_str : Str -> Path
-from_str = \str ->
-    FromStr str
+from_str = |str|
+    FromStr(str)
     |> InternalPath.wrap
 
 ## Not all filesystems use Unicode paths. This function can be used to create a path which
@@ -128,8 +129,8 @@ from_str = \str ->
 ## Note that if the list contains any `0` bytes, sending this path to any file operations
 ## (e.g. `Path.read_bytes` or `WriteStream.openPath`) will fail.
 from_bytes : List U8 -> Path
-from_bytes = \bytes ->
-    ArbitraryBytes bytes
+from_bytes = |bytes|
+    ArbitraryBytes(bytes)
     |> InternalPath.wrap
 
 ## Unfortunately, operating system paths do not include information about which charset
@@ -162,16 +163,16 @@ from_bytes = \bytes ->
 ## [Here is an example.](https://unix.stackexchange.com/questions/667652/can-a-file-path-be-invalid-utf-8/667863#667863)
 ##
 ## If you happen to know the `Charset` that was used to encode the path, you can use
-## `toStrUsingCharset` instead of [display].
+## `to_str_using_charset` instead of [display].
 display : Path -> Str
-display = \path ->
-    when InternalPath.unwrap path is
-        FromStr str -> str
-        FromOperatingSystem bytes | ArbitraryBytes bytes ->
-            when Str.fromUtf8 bytes is
-                Ok str -> str
+display = |path|
+    when InternalPath.unwrap(path) is
+        FromStr(str) -> str
+        FromOperatingSystem(bytes) | ArbitraryBytes(bytes) ->
+            when Str.from_utf8(bytes) is
+                Ok(str) -> str
                 # TODO: this should use the builtin Str.display to display invalid UTF-8 chars in just the right spots, but that does not exist yet!
-                Err _ -> "�"
+                Err(_) -> "�"
 
 ## Returns true if the path exists on disk and is pointing at a directory.
 ## Returns `Ok false` if the path exists and it is not a directory. If the path does not exist,
@@ -181,9 +182,9 @@ display = \path ->
 ##
 ## > [`File.is_dir`](File#is_dir!) does the same thing, except it takes a [Str] instead of a [Path].
 is_dir! : Path => Result Bool [PathErr IOErr]
-is_dir! = \path ->
-    res = type!? path
-    Ok (res == IsDir)
+is_dir! = |path|
+    res = type!(path)?
+    Ok((res == IsDir))
 
 ## Returns true if the path exists on disk and is pointing at a regular file.
 ## Returns `Ok false` if the path exists and it is not a file. If the path does not exist,
@@ -193,9 +194,9 @@ is_dir! = \path ->
 ##
 ## > [`File.is_file`](File#is_file!) does the same thing, except it takes a [Str] instead of a [Path].
 is_file! : Path => Result Bool [PathErr IOErr]
-is_file! = \path ->
-    res = type!? path
-    Ok (res == IsFile)
+is_file! = |path|
+    res = type!(path)?
+    Ok((res == IsFile))
 
 ## Returns true if the path exists on disk and is pointing at a symbolic link.
 ## Returns `Ok false` if the path exists and it is not a symbolic link. If the path does not exist,
@@ -205,60 +206,62 @@ is_file! = \path ->
 ##
 ## > [`File.is_sym_link`](File#is_sym_link!) does the same thing, except it takes a [Str] instead of a [Path].
 is_sym_link! : Path => Result Bool [PathErr IOErr]
-is_sym_link! = \path ->
-    res = type!? path
-    Ok (res == IsSymLink)
+is_sym_link! = |path|
+    res = type!(path)?
+    Ok((res == IsSymLink))
 
 ## Return the type of the path if the path exists on disk.
 ##
 ## > [`File.type`](File#type!) does the same thing, except it takes a [Str] instead of a [Path].
 type! : Path => Result [IsFile, IsDir, IsSymLink] [PathErr IOErr]
-type! = \path ->
-    Host.path_type! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> PathErr (InternalIOErr.handle_err err)
-    |> Result.map \path_type ->
-        if path_type.is_sym_link then
-            IsSymLink
-        else if path_type.is_dir then
-            IsDir
-        else
-            IsFile
+type! = |path|
+    Host.path_type!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+    |> Result.map_ok(
+        |path_type|
+            if path_type.is_sym_link then
+                IsSymLink
+            else if path_type.is_dir then
+                IsDir
+            else
+                IsFile,
+    )
 
 ## If the last component of this path has no `.`, appends `.` followed by the given string.
 ## Otherwise, replaces everything after the last `.` with the given string.
 ##
 ## ```
 ## # Each of these gives "foo/bar/baz.txt"
-## Path.from_str "foo/bar/baz" |> Path.with_extension "txt"
-## Path.from_str "foo/bar/baz." |> Path.with_extension "txt"
-## Path.from_str "foo/bar/baz.xz" |> Path.with_extension "txt"
+## Path.from_str("foo/bar/baz") |> Path.with_extension("txt")
+## Path.from_str("foo/bar/baz.") |> Path.with_extension("txt")
+## Path.from_str("foo/bar/baz.xz") |> Path.with_extension("txt")
 ## ```
 with_extension : Path, Str -> Path
-with_extension = \path, extension ->
-    when InternalPath.unwrap path is
-        FromOperatingSystem bytes | ArbitraryBytes bytes ->
+with_extension = |path, extension|
+    when InternalPath.unwrap(path) is
+        FromOperatingSystem(bytes) | ArbitraryBytes(bytes) ->
             before_dot =
-                when List.splitLast bytes (Num.toU8 '.') is
-                    Ok { before } -> before
-                    Err NotFound -> bytes
+                when List.split_last(bytes, Num.to_u8('.')) is
+                    Ok({ before }) -> before
+                    Err(NotFound) -> bytes
 
             before_dot
-            |> List.reserve (Str.countUtf8Bytes extension |> Num.intCast |> Num.addSaturated 1)
-            |> List.append (Num.toU8 '.')
-            |> List.concat (Str.toUtf8 extension)
+            |> List.reserve((Str.count_utf8_bytes(extension) |> Num.int_cast |> Num.add_saturated(1)))
+            |> List.append(Num.to_u8('.'))
+            |> List.concat(Str.to_utf8(extension))
             |> ArbitraryBytes
             |> InternalPath.wrap
 
-        FromStr str ->
+        FromStr(str) ->
             before_dot =
-                when Str.splitLast str "." is
-                    Ok { before } -> before
-                    Err NotFound -> str
+                when Str.split_last(str, ".") is
+                    Ok({ before }) -> before
+                    Err(NotFound) -> str
 
             before_dot
-            |> Str.reserve (Str.countUtf8Bytes extension |> Num.addSaturated 1)
-            |> Str.concat "."
-            |> Str.concat extension
+            |> Str.reserve((Str.count_utf8_bytes(extension) |> Num.add_saturated(1)))
+            |> Str.concat(".")
+            |> Str.concat(extension)
             |> FromStr
             |> InternalPath.wrap
 
@@ -272,7 +275,7 @@ with_extension = \path, extension ->
 ##
 ## ```
 ## # Deletes the file named `myfile.dat`
-## Path.delete (Path.from_str "myfile.dat") [1, 2, 3]
+## Path.delete(Path.from_str("myfile.dat"), [1, 2, 3])?
 ## ```
 ##
 ## > This does not securely erase the file's contents from disk; instead, the operating
@@ -283,57 +286,57 @@ with_extension = \path, extension ->
 ##
 ## > [`File.delete`](File#delete!) does the same thing, except it takes a [Str] instead of a [Path].
 delete! : Path => Result {} [FileWriteErr Path IOErr]
-delete! = \path ->
-    Host.file_delete! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> FileWriteErr path (InternalIOErr.handle_err err)
+delete! = |path|
+    Host.file_delete!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| FileWriteErr(path, InternalIOErr.handle_err(err)))
 
 ## Reads a [Str] from a file containing [UTF-8](https://en.wikipedia.org/wiki/UTF-8)-encoded text.
 ##
 ## ```
 ## # Reads UTF-8 encoded text into a Str from the file "myfile.txt"
-## Path.read_utf8 (Path.from_str "myfile.txt")
+## contents_str = Path.read_utf8(Path.from_str("myfile.txt"))?
 ## ```
 ##
-## This opens the file first and closes it after writing to it.
+## This opens the file first and closes it after reading its contents.
 ## The task will fail with `FileReadUtf8Err` if the given file contains invalid UTF-8.
 ##
 ## > To read unformatted bytes from a file, you can use [Path.read_bytes!] instead.
 ## >
 ## > [`File.read_utf8`](File#read_utf8!) does the same thing, except it takes a [Str] instead of a [Path].
 read_utf8! : Path => Result Str [FileReadErr Path IOErr, FileReadUtf8Err Path _]
-read_utf8! = \path ->
+read_utf8! = |path|
     bytes =
-        Host.file_read_bytes! (InternalPath.to_bytes path)
-        |> Result.mapErr? \read_err -> FileReadErr path (InternalIOErr.handle_err read_err)
+        Host.file_read_bytes!(InternalPath.to_bytes(path))
+        |> Result.map_err?(|read_err| FileReadErr(path, InternalIOErr.handle_err(read_err)))
 
-    Str.fromUtf8 bytes
-    |> Result.mapErr \err -> FileReadUtf8Err path err
+    Str.from_utf8(bytes)
+    |> Result.map_err(|err| FileReadUtf8Err(path, err))
 
 ## Reads all the bytes in a file.
 ##
 ## ```
 ## # Read all the bytes in `myfile.txt`.
-## Path.read_bytes! (Path.from_str "myfile.txt")
+## contents_bytes = Path.read_bytes!(Path.from_str("myfile.txt"))?
 ## ```
 ##
 ## This opens the file first and closes it after reading its contents.
 ##
-## > To read and decode data from a file, you can use `Path.read` instead.
+## > To read and decode data from a file into a [Str], you can use [Path.read_utf8!] instead.
 ## >
 ## > [`File.read_bytes`](File#read_bytes!) does the same thing, except it takes a [Str] instead of a [Path].
 read_bytes! : Path => Result (List U8) [FileReadErr Path IOErr]
-read_bytes! = \path ->
-    Host.file_read_bytes! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> FileReadErr path (InternalIOErr.handle_err err)
+read_bytes! = |path|
+    Host.file_read_bytes!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| FileReadErr(path, InternalIOErr.handle_err(err)))
 
 ## Lists the files and directories inside the directory.
 ##
 ## > [`Dir.list`](Dir#list!) does the same thing, except it takes a [Str] instead of a [Path].
 list_dir! : Path => Result (List Path) [DirErr IOErr]
-list_dir! = \path ->
-    when Host.dir_list! (InternalPath.to_bytes path) is
-        Ok entries -> Ok (List.map entries InternalPath.from_os_bytes)
-        Err err -> Err (DirErr (InternalIOErr.handle_err err))
+list_dir! = |path|
+    when Host.dir_list!(InternalPath.to_bytes(path)) is
+        Ok(entries) -> Ok(List.map(entries, InternalPath.from_os_bytes))
+        Err(err) -> Err(DirErr(InternalIOErr.handle_err(err)))
 
 ## Deletes a directory if it's empty
 ##
@@ -345,9 +348,9 @@ list_dir! = \path ->
 ##
 ## > [`Dir.delete_empty`](Dir#delete_empty!) does the same thing, except it takes a [Str] instead of a [Path].
 delete_empty! : Path => Result {} [DirErr IOErr]
-delete_empty! = \path ->
-    Host.dir_delete_empty! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> DirErr (InternalIOErr.handle_err err)
+delete_empty! = |path|
+    Host.dir_delete_empty!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| DirErr(InternalIOErr.handle_err(err)))
 
 ## Recursively deletes a directory as well as all files and directories
 ## inside it.
@@ -360,9 +363,9 @@ delete_empty! = \path ->
 ##
 ## > [`Dir.delete_all`](Dir#delete_all!) does the same thing, except it takes a [Str] instead of a [Path].
 delete_all! : Path => Result {} [DirErr IOErr]
-delete_all! = \path ->
-    Host.dir_delete_all! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> DirErr (InternalIOErr.handle_err err)
+delete_all! = |path|
+    Host.dir_delete_all!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| DirErr(InternalIOErr.handle_err(err)))
 
 ## Creates a directory
 ##
@@ -373,9 +376,9 @@ delete_all! = \path ->
 ##
 ## > [`Dir.create`](Dir#create!) does the same thing, except it takes a [Str] instead of a [Path].
 create_dir! : Path => Result {} [DirErr IOErr]
-create_dir! = \path ->
-    Host.dir_create! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> DirErr (InternalIOErr.handle_err err)
+create_dir! = |path|
+    Host.dir_create!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| DirErr(InternalIOErr.handle_err(err)))
 
 ## Creates a directory recursively adding any missing parent directories.
 ##
@@ -385,9 +388,9 @@ create_dir! = \path ->
 ##
 ## > [`Dir.create_all`](Dir#create_all!) does the same thing, except it takes a [Str] instead of a [Path].
 create_all! : Path => Result {} [DirErr IOErr]
-create_all! = \path ->
-    Host.dir_create_all! (InternalPath.to_bytes path)
-    |> Result.mapErr \err -> DirErr (InternalIOErr.handle_err err)
+create_all! = |path|
+    Host.dir_create_all!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| DirErr(InternalIOErr.handle_err(err)))
 
 ## Creates a new hard link on the filesystem.
 ##
@@ -398,7 +401,7 @@ create_all! = \path ->
 ##
 ## > [File.hard_link!] does the same thing, except it takes a [Str] instead of a [Path].
 hard_link! : Path => Result {} [LinkErr IOErr]
-hard_link! = \path ->
-    Host.hard_link! (InternalPath.to_bytes path)
-    |> Result.mapErr InternalIOErr.handle_err
-    |> Result.mapErr LinkErr
+hard_link! = |path|
+    Host.hard_link!(InternalPath.to_bytes(path))
+    |> Result.map_err(InternalIOErr.handle_err)
+    |> Result.map_err(LinkErr)

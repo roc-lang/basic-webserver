@@ -17,37 +17,37 @@ import Host
 ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## from the environment. File operations on relative [Path]s are relative to this directory.
 cwd! : {} => Result Path [CwdUnavailable]
-cwd! = \{} ->
-    bytes = Host.cwd! {} |> Result.withDefault []
+cwd! = |{}|
+    bytes = Host.cwd!({}) |> Result.with_default([])
 
-    if List.isEmpty bytes then
-        Err CwdUnavailable
+    if List.is_empty(bytes) then
+        Err(CwdUnavailable)
     else
-        Ok (InternalPath.from_arbitrary_bytes bytes)
+        Ok(InternalPath.from_arbitrary_bytes(bytes))
 
 ## Sets the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
 ## in the environment. After changing it, file operations on relative [Path]s will be relative
 ## to this directory.
 set_cwd! : Path => Result {} [InvalidCwd]
-set_cwd! = \path ->
-    Host.set_cwd! (InternalPath.to_bytes path)
-    |> Result.mapErr \{} -> InvalidCwd
+set_cwd! = |path|
+    Host.set_cwd!(InternalPath.to_bytes(path))
+    |> Result.map_err(|{}| InvalidCwd)
 
 ## Gets the path to the currently-running executable.
 exe_path! : {} => Result Path [ExePathUnavailable]
-exe_path! = \{} ->
-    when Host.exe_path! {} is
-        Ok bytes -> Ok (InternalPath.from_os_bytes bytes)
-        Err {} -> Err ExePathUnavailable
+exe_path! = |{}|
+    when Host.exe_path!({}) is
+        Ok(bytes) -> Ok(InternalPath.from_os_bytes(bytes))
+        Err({}) -> Err(ExePathUnavailable)
 
 ## Reads the given environment variable.
 ##
 ## If the value is invalid Unicode, the invalid parts will be replaced with the
 ## [Unicode replacement character](https://unicode.org/glossary/#replacement_character) ('�').
 var! : Str => Result Str [VarNotFound]
-var! = \name ->
-    Host.env_var! name
-    |> Result.mapErr \{} -> VarNotFound
+var! = |name|
+    Host.env_var!(name)
+    |> Result.map_err(|{}| VarNotFound)
 
 ## Reads the given environment variable and attempts to decode it.
 ##
@@ -66,7 +66,7 @@ var! = \name ->
 ## ```
 ## # Reads "NUM_THINGS" and decodes into a U16
 ## get_u16_var! : Str => Result U16 [VarNotFound, DecodeErr DecodeError] [Read [Env]]
-## get_u16_var! = \var -> Env.decode! var
+## get_u16_var! = \var -> Env.decode!(var)
 ## ```
 ##
 ## If `NUM_THINGS=123` then `getU16Var` succeeds with the value of `123u16`.
@@ -75,27 +75,27 @@ var! = \name ->
 ## because `123456789` is too large to fit in a [U16](https://www.roc-lang.org/builtins/Num#U16).
 ##
 decode! : Str => Result val [VarNotFound, DecodeErr DecodeError] where val implements Decoding
-decode! = \name ->
-    when Host.env_var! name is
-        Err {} -> Err VarNotFound
-        Ok var_str ->
-            Str.toUtf8 var_str
-            |> Decode.fromBytes (EnvDecoding.format {})
-            |> Result.mapErr (\_ -> DecodeErr TooShort)
+decode! = |name|
+    when Host.env_var!(name) is
+        Err({}) -> Err(VarNotFound)
+        Ok(var_str) ->
+            Str.to_utf8(var_str)
+            |> Decode.from_bytes(EnvDecoding.format({}))
+            |> Result.map_err(|_| DecodeErr(TooShort))
 
 ## Reads all the process's environment variables into a [Dict].
 ##
 ## If any key or value contains invalid Unicode, the [Unicode replacement character](https://unicode.org/glossary/#replacement_character)
 ## will be used in place of any parts of keys or values that are invalid Unicode.
 dict! : {} => Dict Str Str
-dict! = \{} ->
-    Host.env_dict! {}
-    |> Dict.fromList
+dict! = |{}|
+    Host.env_dict!({})
+    |> Dict.from_list
 
 # ## Walks over the process's environment variables as key-value arguments to the walking function.
 # ##
 # ##     Env.walk "Vars:\n" \state, key, value ->
-# ##         "- $(key): $(value)\n"
+# ##         "- ${key}: ${value}\n"
 # ##     # This might produce a string such as:
 # ##     #
 # ##     #     """
@@ -135,9 +135,9 @@ OS : [LINUX, MACOS, WINDOWS, OTHER Str]
 ## Note these values are constants from when the platform is built.
 ##
 platform! : {} => { arch : ARCH, os : OS }
-platform! = \{} ->
+platform! = |{}|
 
-    from_rust = Host.current_arch_os! {}
+    from_rust = Host.current_arch_os!({})
 
     arch =
         when from_rust.arch is
@@ -145,14 +145,14 @@ platform! = \{} ->
             "x86_64" -> X64
             "arm" -> ARM
             "aarch64" -> AARCH64
-            _ -> OTHER from_rust.arch
+            _ -> OTHER(from_rust.arch)
 
     os =
         when from_rust.os is
             "linux" -> LINUX
             "macos" -> MACOS
             "windows" -> WINDOWS
-            _ -> OTHER from_rust.os
+            _ -> OTHER(from_rust.os)
 
     { arch, os }
 
@@ -166,6 +166,6 @@ platform! = \{} ->
 ## result in “insecure temporary file” security vulnerabilities.
 ##
 temp_dir! : {} => Path
-temp_dir! = \{} ->
-    Host.temp_dir! {}
+temp_dir! = |{}|
+    Host.temp_dir!({})
     |> InternalPath.from_os_bytes
