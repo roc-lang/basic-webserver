@@ -66,7 +66,7 @@ parse_content_f = |{ upper, lower }|
             List.starts_with(bytes, to_search_upper)
             or List.starts_with(bytes, to_search_lower)
         then
-            next_line_start = after_search |> List.find_first_index?(|b| b == '\r')
+            next_line_start = after_search |> List.find_first_index(|b| b == '\r')?
 
             Ok(
                 {
