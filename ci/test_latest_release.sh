@@ -34,7 +34,7 @@ else
     os_arch="linux_x86_64"
 fi
 
-curl -fOL "https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-${os_arch}-latest.tar.gz"
+curl -fOL "https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-${os_arch}-TESTING.tar.gz"
 
 # Rename nightly tar
 TAR_NAME=$(ls | grep "roc_nightly.*tar\.gz")
