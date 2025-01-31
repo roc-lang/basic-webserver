@@ -5,7 +5,7 @@
 
 :book: docs: [main branch](https://roc-lang.github.io/basic-webserver/)
 
-:eyes: examples: [0.11](https://github.com/roc-lang/basic-webserver/tree/0.11.0/examples), [0.10](https://github.com/roc-lang/basic-webserver/tree/0.10.0/examples), [0.9](https://github.com/roc-lang/basic-webserver/tree/0.9.0/examples)
+:eyes: examples: [0.12](https://github.com/roc-lang/basic-webserver/tree/0.12.0/examples), [0.11](https://github.com/roc-lang/basic-webserver/tree/0.11.0/examples), [0.10](https://github.com/roc-lang/basic-webserver/tree/0.10.0/examples) 
 
 :warning: On linux `--linker=legacy` is necessary for this package because of [this Roc issue](https://github.com/roc-lang/roc/issues/3609).
 
