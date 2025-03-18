@@ -16,10 +16,10 @@ jobs:
         os: [macos-13, macos-14, ubuntu-22.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # install nix
-      - uses: cachix/install-nix-action@v23
+      - uses: cachix/install-nix-action@02a151ada4993995686f9ed4f1be7cfbb229e56f # commit for v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
