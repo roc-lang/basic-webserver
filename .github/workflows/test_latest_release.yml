@@ -1,5 +1,5 @@
 on:
-#  pull_request:
+  pull_request:
   workflow_dispatch:
 
 # this cancels workflows currently in progress if you start a new one
@@ -8,9 +8,8 @@ concurrency:
   cancel-in-progress: true
 
 # Do not add permissions here! Configure them at the job level!
-permissions:
-  contents: read
-  
+permissions: {}
+
 jobs:
   test-latest-release:
     strategy:
