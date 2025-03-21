@@ -1,15 +1,15 @@
 name: Generate docs
 
-# Do not add permissions here! Configure them at the job level!
-permissions:
-  contents: read
-
 on:
   # Run when a release is published
   release:
     types:
       - published
 
+# Do not add permissions here! Configure them at the job level!
+permissions:
+  contents: read
+  
 jobs:
   generate-docs:
     name: Generate docs
