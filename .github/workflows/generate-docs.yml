@@ -1,15 +1,11 @@
 name: Generate docs
 
 on:
-  # Run when a release is published
-  release:
-    types:
-      - published
+  push:
   workflow_dispatch:
 
 # Do not add permissions here! Configure them at the job level!
-permissions:
-  contents: read
+permissions: {}
   
 jobs:
   generate-docs:
