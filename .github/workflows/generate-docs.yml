@@ -5,6 +5,7 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
 
 # Do not add permissions here! Configure them at the job level!
 permissions:
