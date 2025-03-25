@@ -492,3 +492,9 @@ pub extern "C" fn roc_fx_sqlite_step(
 pub extern "C" fn roc_fx_sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_sqlite::SqliteError> {
     roc_sqlite::reset(stmt)
 }
+
+#[no_mangle]
+pub extern "C" fn roc_fx_sleep_millis(milliseconds: u64) {
+    let duration = Duration::from_millis(milliseconds);
+    std::thread::sleep(duration);
+}
