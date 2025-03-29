@@ -1,5 +1,6 @@
 use roc_io_error::IOErr;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
+use roc_sqlite;
 use std::cell::RefCell;
 use std::iter::FromIterator;
 use std::mem::size_of_val;
@@ -32,6 +33,12 @@ pub unsafe extern "C" fn roc_realloc(
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
+    let heap = roc_sqlite::heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
+
     libc::free(c_ptr);
 }
 
@@ -488,6 +495,7 @@ pub extern "C" fn roc_fx_sqlite_step(
     roc_sqlite::step(stmt)
 }
 
+/// Resets a prepared statement back to its initial state, ready to be re-executed.
 #[no_mangle]
 pub extern "C" fn roc_fx_sqlite_reset(stmt: RocBox<()>) -> RocResult<(), roc_sqlite::SqliteError> {
     roc_sqlite::reset(stmt)

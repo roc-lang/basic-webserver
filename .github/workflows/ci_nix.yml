@@ -27,7 +27,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Run all tests
-        run: nix develop -c sh -c 'export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'
+        run: nix develop -c sh -c 'export ROC=roc && export EXAMPLES_DIR=./examples/ && export TESTS_DIR=./tests/ && ./ci/all_tests.sh'
 
       - name: Run all tests with debug compiler
         run: |

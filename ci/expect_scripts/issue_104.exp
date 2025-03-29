@@ -1,0 +1,18 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+spawn $env(TESTS_DIR)issue_104
+set env(DB_PATH) "$env(TESTS_DIR)/todos.db"
+
+expect "Program exited with error:\r\n" {
+    exit 0
+}
+
+puts stderr "\nError: output was different from expected value."
+exit 1
