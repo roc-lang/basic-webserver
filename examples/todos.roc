@@ -86,6 +86,7 @@ list_todos! = |{ list_todos_stmt }|
             {
                 stmt: list_todos_stmt,
                 bindings: [],
+                # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
                 rows: { Sqlite.decode_record <-
                     id: Sqlite.i64("id"),
                     task: Sqlite.str("task"),
@@ -123,11 +124,12 @@ create_todo! = |model, params|
                     },
                 )?
 
-                # prepate last created todo statement
+                # prepare last created todo statement
                 Sqlite.query_prepared!(
                     {
                         stmt: model.last_created_todo_stmt,
                         bindings: [],
+                        # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
                         row: { Sqlite.decode_record <-
                             id: Sqlite.i64("id"),
                             task: Sqlite.str("task"),

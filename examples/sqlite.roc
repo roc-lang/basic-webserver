@@ -32,6 +32,7 @@ respond! = |_, { stmt }|
             {
                 stmt,
                 bindings: [{ name: ":status", value: String("completed") }],
+                # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
                 rows: { Sqlite.decode_record <-
                     id: Sqlite.i64("id"),
                     task: Sqlite.str("task"),
