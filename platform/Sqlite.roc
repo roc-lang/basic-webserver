@@ -243,8 +243,6 @@ execute_prepared! = |{ stmt, bindings }|
     res = step!(stmt)
     try(reset!, stmt)
 
-    ##Ok({})
-
     when res is
         Ok(Done) ->
             Ok({})
