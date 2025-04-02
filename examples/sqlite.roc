@@ -16,7 +16,7 @@ init! = |{}|
         Sqlite.prepare!(
             {
                 path: db_path,
-                query: "SELECT id, task FROM todos WHERE status = :status;",
+                query: "SELECT * FROM todos;",
             },
         )
         ? |err| ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}")
@@ -31,14 +31,15 @@ respond! = |_, { stmt }|
         Sqlite.query_many_prepared!(
             {
                 stmt,
-                bindings: [{ name: ":status", value: String("completed") }],
+                bindings: [],
                 rows: { Sqlite.decode_record <-
                     id: Sqlite.i64("id"),
                     task: Sqlite.str("task"),
+                    status: Sqlite.str("status") |> Sqlite.map_value_result(decode_db_status),
                 },
             },
         )?
-        |> List.map(|{ id, task }| "row ${Num.to_str(id)}, task: ${task}")
+        |> List.map(|todo| Inspect.to_str(todo))
         |> Str.join_with("\n")
 
     # Print out the results
@@ -51,3 +52,13 @@ respond! = |_, { stmt }|
             body: Str.to_utf8(strings),
         },
     )
+
+TodoStatus : [Todo, Completed, InProgress]
+
+decode_db_status : Str -> Result TodoStatus _
+decode_db_status = |status_str|
+    when status_str is
+        "todo" -> Ok(Todo)
+        "completed" -> Ok(Completed)
+        "in-progress" -> Ok(InProgress)
+        _ -> Err(ParseError("Unknown status str: ${status_str}"))

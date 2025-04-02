@@ -1,0 +1,25 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+set env(DB_PATH) "$env(EXAMPLES_DIR)todos.db"
+
+spawn $env(EXAMPLES_DIR)sqlite
+
+expect "Listening on <http://127.0.0.1:8000>\r\n" {
+
+    set curlOutputIndex [exec curl -sS localhost:8000]
+    
+    if {[string match "*Completed,*" $curlOutputIndex]} {
+        exit 0
+    } else {
+        puts "Error: curl output was different than expected: $curlOutputIndex"
+        exit 1
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1

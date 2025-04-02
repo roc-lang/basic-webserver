@@ -9,10 +9,6 @@ set env(DB_PATH) "$env(EXAMPLES_DIR)todos.db"
 
 spawn $env(EXAMPLES_DIR)todos
 
-expect "INFO: Checking if sqlite3 is installed...\r\n"
-
-expect "3*" # sqlite3 version
-
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
     set curlOutputIndex [exec curl -sS localhost:8000]
@@ -27,10 +23,10 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
             if {[string match "*Prepare for AoC*" $curlOutputTodos]} {
                  expect "Z GET /todos\r\n" {
 
-                    set curlOutputPost [exec curl -sSX POST "localhost:8000/todos?task=Task%206&status=planned"]
+                    set curlOutputPost [exec curl -sSX POST "localhost:8000/todos?task=Task%206&status=completed"]
 
-                    if {[string match "*planned*" $curlOutputPost]} {
-                        expect "Z POST /todos?task=Task%206&status=planned\r\n" {
+                    if {[string match "*completed*" $curlOutputPost]} {
+                        expect "Z POST /todos?task=Task%206&status=completed\r\n" {
 
                             set curlOutputTodos2 [exec curl -sS localhost:8000/todos]
 
