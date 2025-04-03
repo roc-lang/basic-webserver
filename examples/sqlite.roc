@@ -16,7 +16,7 @@ init! = |{}|
         Sqlite.prepare!(
             {
                 path: db_path,
-                query: "SELECT * FROM todos;",
+                query: "SELECT * FROM todos WHERE status = :status;",
             },
         )
         ? |err| ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}")
@@ -31,7 +31,7 @@ respond! = |_, { stmt }|
         Sqlite.query_many_prepared!(
             {
                 stmt,
-                bindings: [],
+                bindings: [{ name: ":status", value: String("completed") }],
                 # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
                 rows: { Sqlite.decode_record <-
                     id: Sqlite.i64("id"),
