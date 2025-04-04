@@ -112,7 +112,7 @@ pub extern "C" fn roc_fx_send_request(
     })
 }
 
-async fn async_send_request(request: hyper::Request<String>) -> roc_http::ResponseToAndFromHost {
+async fn async_send_request(request: hyper::Request<hyper::Body>) -> roc_http::ResponseToAndFromHost {
     use hyper::Client;
     use hyper_rustls::HttpsConnectorBuilder;
 
@@ -122,7 +122,7 @@ async fn async_send_request(request: hyper::Request<String>) -> roc_http::Respon
         .enable_http1()
         .build();
 
-    let client: Client<_, String> = Client::builder().build(https);
+    let client: Client<_, hyper::Body> = Client::builder().build(https);
     let res = client.request(request).await;
 
     match res {
