@@ -23,6 +23,19 @@ if [ -z "${EXAMPLES_DIR}" ]; then
   exit 1
 fi
 
+if [ -z "${TESTS_DIR}" ]; then
+  echo "ERROR: The TESTS_DIR environment variable is not set." >&2
+
+  exit 1
+fi
+
+# check if TEST_DIR exists
+if [ ! -d "$TESTS_DIR" ]; then
+  echo "ERROR: The TEST_DIR directory $TESTS_DIR does not exist." >&2
+
+  exit 1
+fi
+
 if [ "$NO_BUILD" != "1" ]; then
     if [ "$JUMP_START" == "1" ]; then
     echo "building platform..."
@@ -38,6 +51,9 @@ if [ "$NO_BUILD" != "1" ]; then
 fi
 
 echo "roc check"
+for roc_file in $TESTS_DIR*.roc; do
+    $ROC check $roc_file
+done
 for roc_file in $EXAMPLES_DIR*.roc; do
     $ROC check $roc_file
 done
@@ -45,12 +61,16 @@ done
 # roc build
 architecture=$(uname -m)
 
+for roc_file in $TESTS_DIR*.roc; do
+    # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
+    $ROC build --linker=legacy $roc_file
+done
 for roc_file in $EXAMPLES_DIR*.roc; do
     # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
     $ROC build --linker=legacy $roc_file
 done
 
-# `roc test` every roc file if it contains a test, skip roc_nightly folder
+# `roc test` every roc file if it contains a test, but skip roc_nightly folder
 find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | while read file; do
     if grep -qE '^\s*expect(\s+|$)' "$file"; then
 

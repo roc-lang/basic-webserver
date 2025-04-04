@@ -1,0 +1,24 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+spawn $env(EXAMPLES_DIR)sleep
+
+expect "Listening on <http://127.0.0.1:8000>\r\n" {
+    set curlOutput [exec curl -sS localhost:8000]
+
+    if {$curlOutput eq "Response delayed by 1 second"} {
+        expect "Sleeping for 1 second...\r\n" {
+            exit 0
+        }
+    } else {
+        puts "Error: curl output was different than expected: $curlOutput"
+        exit 1
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1
