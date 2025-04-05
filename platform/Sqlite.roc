@@ -13,6 +13,7 @@ module [
     errcode_to_str,
     decode_record,
     map_value,
+    map_value_result,
     tagged_value,
     str,
     bytes,
@@ -377,6 +378,31 @@ map_value = |@SqlDecode(gen_decode), mapper|
             |stmt|
                 val = try(decode!, stmt)
                 Ok(mapper(val)),
+    )
+
+## Transform the output of a decoder by applying a function (that returns a Result) to the decoded value.
+## The Result is converted to SqlDecode.
+##
+## Example:
+## ```
+## decode_status : Str -> Result OnlineStatus UnknownStatusErr
+## decode_status = |status_str|
+##     when status_str is
+##         "online" -> Ok(Online)
+##         "offline" -> Ok(Offline)
+##         _ -> Err(UnknownStatus("${status_str}"))
+##
+## Sqlite.str("status") |> Sqlite.map_value_result(decode_status)
+## ```
+map_value_result : SqlDecode a err, (a -> Result c (SqlDecodeErr err)) -> SqlDecode c err
+map_value_result = |@SqlDecode(gen_decode), mapper|
+    @SqlDecode(
+        |cols|
+            decode! = gen_decode(cols)
+
+            |stmt|
+                val = try(decode!, stmt)
+                mapper(val),
     )
 
 RowCountErr err : [NoRowsReturned, TooManyRowsReturned]err

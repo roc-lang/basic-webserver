@@ -7,11 +7,18 @@ set timeout 7
 
 source ./ci/expect_scripts/shared-code.exp
 
+set env(DB_PATH) "$env(TESTS_DIR)todos.db"
+
 spawn $env(TESTS_DIR)issue_104
-set env(DB_PATH) "$env(TESTS_DIR)/todos.db"
 
 expect "Program exited with error:\r\n" {
-    exit 0
+    expect -re {.*RowsReturned.*} {
+                exit 0
+    }
+
+    puts stderr "\nError: output was different from expected value."
+    exit 1
+
 }
 
 puts stderr "\nError: output was different from expected value."
