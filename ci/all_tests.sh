@@ -50,12 +50,22 @@ if [ "$NO_BUILD" != "1" ]; then
     fi
 fi
 
-echo "roc check"
+echo "roc check + matching .exp file"
 for roc_file in $TESTS_DIR*.roc; do
     $ROC check $roc_file
 done
 for roc_file in $EXAMPLES_DIR*.roc; do
     $ROC check $roc_file
+
+    ## Check if every example has matching expect script
+
+    # Extract the base filename without extension
+    base_name=$(basename "$roc_file" .roc)
+    
+    if [ ! -f "ci/expect_scripts/${base_name}.exp" ]; then
+        echo "ERROR: No matching expect script found for $base_name" >&2
+        exit 1
+    fi
 done
 
 # roc build
