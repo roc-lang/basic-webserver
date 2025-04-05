@@ -16,7 +16,7 @@ respond! = |req, _| handle_req!(req) |> Result.map_err(map_app_err)
 
 AppError : [
     EnvVarNotSet Str,
-    BadBody Str,
+    FetchErr Str,
     StdoutErr Str,
 ]
 
@@ -24,7 +24,7 @@ map_app_err : AppError -> [ServerErr Str]
 map_app_err = |app_err|
     when app_err is
         EnvVarNotSet(env_var_name) -> ServerErr("Environment variable \"${env_var_name}\" was not set.")
-        BadBody(err) -> ServerErr("Http error fetching content:\n\t${Inspect.to_str(err)}")
+        FetchErr(err) -> ServerErr("Failed to fetch content:\n\t${err}")
         StdoutErr(err) -> ServerErr("Stdout error logging request:\n\t${err}")
 
 # Here we use AppError to ensure all errors must be handled within our application.
@@ -54,9 +54,10 @@ read_env_var! = |env_var_name|
     Env.var!(env_var_name)
     |> Result.map_err(|_| EnvVarNotSet(env_var_name))
 
-fetch_content! : Str => Result Str _
+fetch_content! : Str => Result Str [FetchErr Str]
 fetch_content! = |url|
     Http.get_utf8!(url)
+    |> Result.map_err(|err| FetchErr(Inspect.to_str(err)))
 
 # Respond with the given status code and body
 response_with_code! : U16, Str => Result Response *

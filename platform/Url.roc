@@ -32,7 +32,7 @@ Url := Str implements [Inspect]
 ## |> Url.append_param("café", "du Monde")
 ## |> Url.append_param("email", "hi@example.com")
 ## ```
-## The [Str.count_utf8_bytes](https://www.roc-lang.org/builtins/Str#countUtf8Bytes) function can be helpful in finding out how many bytes to reserve.
+## The [Str.count_utf8_bytes](https://www.roc-lang.org/builtins/Str#count_utf8_bytes) function can be helpful in finding out how many bytes to reserve.
 ##
 ## There is no `Url.with_capacity` because it's better to reserve extra capacity
 ## on a [Str] first, and then pass that string to [Url.from_str]. This function will make use
@@ -155,7 +155,7 @@ append_help = |prefix, suffix|
 
                 Err(NotFound) ->
                     # This should never happen, because we already verified
-                    # that the suffix startsWith "/"
+                    # that the suffix starts_with "/"
                     # TODO `expect Bool.false` here with a comment
                     Str.concat(prefix, suffix)
         else
@@ -182,7 +182,7 @@ append_help = |prefix, suffix|
 ##
 ## ```
 ## Url.from_str("")
-## |> Url.append(myStrToEncode)
+## |> Url.append(my_str_to_encode)
 ## |> Url.to_str
 ## ```
 ##
@@ -470,28 +470,31 @@ query_params = |url|
 ##
 ## ```
 ## # Gives "example.com/"
-## Url.fromStr("https://example.com/?key1=val1&key2=val2&key3=val3#stuff")
+## Url.from_str("https://example.com/?key1=val1&key2=val2&key3=val3#stuff")
 ## |> Url.path
 ## ```
 ##
 ## ```
 ## # Gives "/foo/"
-## Url.fromStr("/foo/?key1=val1&key2=val2&key3=val3#stuff")
+## Url.from_str("/foo/?key1=val1&key2=val2&key3=val3#stuff")
 ## |> Url.path
 ## ```
 path : Url -> Str
 path = |@Url(url_str)|
     without_authority =
-        when Str.split_first(url_str, ":") is
-            Ok({ after }) ->
-                when Str.split_first(after, "//") is
-                    # Only drop the `//` if it's right after the `://` like in `https://`
-                    # (so, `before` is empty) - otherwise, the `//` is part of the path!
-                    Ok({ before, after: after_slashes }) if Str.is_empty(before) -> after_slashes
-                    _ -> after
+        if Str.starts_with(url_str, "/") then
+            url_str
+        else
+            when Str.split_first(url_str, ":") is
+                Ok({ after }) ->
+                    when Str.split_first(after, "//") is
+                        # Only drop the `//` if it's right after the `://` like in `https://`
+                        # (so, `before` is empty) - otherwise, the `//` is part of the path!
+                        Ok({ before, after: after_slashes }) if Str.is_empty(before) -> after_slashes
+                        _ -> after
 
-            # There's no `//` and also no `:` so this must be a path-only URL, e.g. "/foo?bar=baz#blah"
-            Err(NotFound) -> url_str
+                # There's no `//` and also no `:` so this must be a path-only URL, e.g. "/foo?bar=baz#blah"
+                Err(NotFound) -> url_str
 
     # Drop the query and/or fragment
     when Str.split_last(without_authority, "?") is
@@ -500,3 +503,16 @@ path = |@Url(url_str)|
             when Str.split_last(without_authority, "#") is
                 Ok({ before }) -> before
                 Err(NotFound) -> without_authority
+
+# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+expect
+    input = Url.from_str("https://example.com/foo/bar?key1=https://www.baz.com/some-path#stuff")
+    expected = "example.com/foo/bar"
+    path(input) == expected
+
+# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+expect
+    input = Url.from_str("/foo/bar?key1=https://www.baz.com/some-path#stuff")
+    output = Url.path(input)
+    expected = "/foo/bar"
+    output == expected
