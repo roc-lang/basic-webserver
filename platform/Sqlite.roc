@@ -338,7 +338,7 @@ query_many_prepared! = |{ stmt, bindings, rows: decode }|
     try(reset!, stmt)
     res
 
-SqlDecodeErr err : [FieldNotFound Str, SqliteErr ErrCode Str]err
+SqlDecodeErr err : [NoSuchField Str, SqliteErr ErrCode Str]err
 SqlDecode a err := List Str -> (Stmt => Result a (SqlDecodeErr err))
 
 ## Decode a Sqlite row into a record by combining decoders.
@@ -461,7 +461,7 @@ decoder = |fn|
 
                     Err(NotFound) ->
                         |_|
-                            Err(FieldNotFound(name)),
+                            Err(NoSuchField(name)),
         )
 
 ## Decode a [Value] keeping it tagged. This is useful when data could be many possible types.
