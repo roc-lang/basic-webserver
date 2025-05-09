@@ -18,23 +18,15 @@ fi
 
 
 if [ -z "${EXAMPLES_DIR}" ]; then
-  echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
+    echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
 
-  exit 1
+    exit 1
 fi
 
-if [ -z "${TESTS_DIR}" ]; then
-  echo "ERROR: The TESTS_DIR environment variable is not set." >&2
+TESTS_DIR="${EXAMPLES_DIR/\/examples\//\/tests\/}"
+export TESTS_DIR
 
-  exit 1
-fi
 
-# check if TEST_DIR exists
-if [ ! -d "$TESTS_DIR" ]; then
-  echo "ERROR: The TEST_DIR directory $TESTS_DIR does not exist." >&2
-
-  exit 1
-fi
 
 if [ "$NO_BUILD" != "1" ]; then
     if [ "$JUMP_START" == "1" ]; then
