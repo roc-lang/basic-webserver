@@ -2,6 +2,8 @@ name: Generate docs
 
 on:
   push:
+    branches:
+      - main
   workflow_dispatch:
 
 # Do not add permissions here! Configure them at the job level!
