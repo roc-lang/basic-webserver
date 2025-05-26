@@ -165,7 +165,7 @@ async fn run_server() -> i32 {
                     }))
                         .await
                     {
-                        println!("Error serving connection:\n\t{:?}", err);
+                        eprintln!("Error serving connection:\n\t{:?}", err);
                     }
                 });
             },
