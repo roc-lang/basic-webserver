@@ -41,7 +41,7 @@ fn call_roc<'a>(
     url: hyper::Uri,
     headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
     body: Bytes,
-) -> hyper::Response<hyper::Body> {
+) -> hyper::Response<http_body_util::Full<Bytes>> {
     let headers: RocList<roc_http::Header> = headers
         .map(|(key, value)| roc_http::Header {
             // NOTE: we should be able to make this a seamless slice somehow
@@ -81,34 +81,45 @@ fn call_roc<'a>(
     roc_response.into()
 }
 
-async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
+use http_body_util::BodyExt;
+
+async fn handle_req(req: hyper::Request<hyper::body::Incoming>) -> hyper::Response<http_body_util::Full<Bytes>> {
     let (parts, body) = req.into_parts();
 
-    #[allow(deprecated)]
-    match hyper::body::to_bytes(body).await {
-        Ok(body) => {
-            spawn_blocking(move || call_roc(parts.method, parts.uri, parts.headers.iter(), body))
+    let body_bytes_res =
+        body
+        .collect()
+        .await
+        .map(|collected| collected.to_bytes());
+
+     match body_bytes_res {
+        Ok(body_bytes) => {
+            spawn_blocking(move || call_roc(parts.method, parts.uri, parts.headers.iter(), body_bytes))
                 .then(|resp| async {
                     match resp {
                         Ok(resp) => resp,
                         Err(err) => {
-                            eprintln!("Recovered from calling roc: {}", err);
+                            eprintln!("Recovered from calling roc:\n\t{:?}", err);
 
-                            hyper::Response::builder()
-                        .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(
-                            "500 Internal Server Error... something catastrophic went wrong".into(),
-                        )
-                        .unwrap()
+                            return hyper::Response::builder()
+                                .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(
+                                    "500 Internal Server Error".into(),
+                                )
+                                .unwrap(); // TODO don't unwrap here
                         }
                     }
                 })
                 .await
         }
-        Err(_) => {
+        Err(err) => {
+            let err_msg = "Failed to receive HTTP request body";
+
+            eprintln!("{err_msg}:\n\t{:?}", err);
+
             hyper::Response::builder()
                 .status(hyper::StatusCode::BAD_REQUEST)
-                .body("Error receiving HTTP request body".into())
+                .body(err_msg.into())
                 .unwrap() // TODO don't unwrap here
         }
     }
@@ -116,8 +127,8 @@ async fn handle_req(req: hyper::Request<hyper::Body>) -> hyper::Response<hyper::
 
 /// Translate Rust panics in the given Future into 500 errors
 async fn handle_panics(
-    fut: impl Future<Output = hyper::Response<hyper::Body>>,
-) -> Result<hyper::Response<hyper::Body>, Infallible> {
+    fut: impl Future<Output = hyper::Response<http_body_util::Full<Bytes>>>,
+) -> Result<hyper::Response<http_body_util::Full<Bytes>>, Infallible> {
     match AssertUnwindSafe(fut).catch_unwind().await {
         Ok(response) => Ok(response),
         Err(_panic) => {
@@ -136,21 +147,31 @@ async fn run_server() -> i32 {
     let port = env::var(PORT_ENV_NAME).unwrap_or(DEFAULT_PORT.to_string());
     let addr = format!("{}:{}", host, port)
         .parse::<SocketAddr>()
-        .expect("Failed to parse host and port");
-    let server = hyper::Server::bind(&addr).serve(hyper::service::make_service_fn(|_conn| async {
-        Ok::<_, Infallible>(hyper::service::service_fn(|req| {
-            handle_panics(handle_req(req))
-        }))
-    }));
+        .expect("Failed to parse host and port.");
 
-    println!("Listening on <http://{host}:{port}>");
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind TCP listener to {addr}");
 
-    match server.await {
-        Ok(_) => 0,
-        Err(err) => {
-            eprintln!("Error initializing Rust `hyper` server: {}", err); // TODO improve this
+    println!("Listening on <http://{addr}>");
 
-            1
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                let io = hyper_util::rt::TokioIo::new(stream);
+
+                tokio::task::spawn(async move {
+                    if let Err(err) = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(io, hyper::service::service_fn(|req| {
+                            handle_panics(handle_req(req))
+                    }))
+                        .await
+                    {
+                        println!("Error serving connection:\n\t{:?}", err);
+                    }
+                });
+            },
+            Err(err) => {
+                eprintln!("Failed to accept incoming connection: {}", err);
+            }
         }
     }
 }

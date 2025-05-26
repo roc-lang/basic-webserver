@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use roc_io_error::IOErr;
 use roc_std::{RocBox, RocList, RocResult, RocStr};
 use roc_sqlite;
@@ -119,20 +120,36 @@ pub extern "C" fn roc_fx_send_request(
     })
 }
 
-async fn async_send_request(request: hyper::Request<hyper::Body>) -> roc_http::ResponseToAndFromHost {
-    use hyper::Client;
+use http_body_util::BodyExt;
+
+async fn async_send_request(request: hyper::Request<http_body_util::Full<Bytes>>) -> roc_http::ResponseToAndFromHost {
+    use hyper_util::client::legacy::Client;
     use hyper_rustls::HttpsConnectorBuilder;
 
-    let https = HttpsConnectorBuilder::new()
+    let https = match HttpsConnectorBuilder::new()
         .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .build();
+    {
+        Ok(builder) => builder
+            .https_or_http()
+            .enable_http1()
+            .build(),
+        Err(err) => {
+            return roc_http::ResponseToAndFromHost {
+                status: 500,
+                headers: RocList::empty(),
+                body: format!("Failed to initialize HTTPS connector with native roots:\n\t{}", err).as_bytes().into(),
+            };
+        }
+    };
 
-    let client: Client<_, hyper::Body> = Client::builder().build(https);
-    let res = client.request(request).await;
+    let client: Client<_, http_body_util::Full<Bytes>> =
+        Client::builder(
+            hyper_util::rt::TokioExecutor::new()
+        ).build(https);
+        
+    let response_res = client.request(request).await;
 
-    match res {
+    match response_res {
         Ok(response) => {
             let status = response.status();
 
@@ -142,34 +159,38 @@ async fn async_send_request(request: hyper::Request<hyper::Body>) -> roc_http::R
 
             let status = status.as_u16();
 
-            let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-            let body: RocList<u8> = RocList::from_iter(bytes);
+            let bytes_res =
+                response.collect().await.map(|collected| collected.to_bytes());
 
-            roc_http::ResponseToAndFromHost {
-                body,
-                status,
-                headers,
+            match bytes_res {
+                Ok(bytes) => {
+                    let body: RocList<u8> = RocList::from_iter(bytes);
+
+                    roc_http::ResponseToAndFromHost {
+                        body,
+                        status,
+                        headers,
+                    }
+                },
+                Err(err) => {
+                    let error_message = format!("{}\t\n{}", "Bad Body", err);
+                    roc_http::ResponseToAndFromHost {
+                        status: 500,
+                        headers: RocList::empty(),
+                        body: error_message.as_bytes().into(),
+                    }
+                }
             }
         }
         Err(err) => {
-            if err.is_timeout() {
-                roc_http::ResponseToAndFromHost {
-                    status: 408,
-                    headers: RocList::empty(),
-                    body: "Request Timeout".as_bytes().into(),
-                }
-            } else if err.is_connect() || err.is_closed() {
-                roc_http::ResponseToAndFromHost {
-                    status: 500,
-                    headers: RocList::empty(),
-                    body: "Network Error".as_bytes().into(),
-                }
-            } else {
-                roc_http::ResponseToAndFromHost {
-                    status: 500,
-                    headers: RocList::empty(),
-                    body: err.to_string().as_bytes().into(),
-                }
+            // TODO match on the error type to provide more specific responses with appropriate status codes
+            /*use std::error::Error;
+            let err_source_opt = err.source();*/
+
+            roc_http::ResponseToAndFromHost {
+                status: 500,
+                headers: RocList::empty(),
+                body: format!("ERROR:\n{}", err).as_bytes().into(),
             }
         }
     }
