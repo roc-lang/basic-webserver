@@ -29,6 +29,10 @@
         rust =
           pkgs.rust-bin.fromRustupToolchainFile "${toString ./rust-toolchain.toml}";
 
+        aliases = ''
+          alias testcmd='export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'
+        '';
+
         linuxInputs = with pkgs;
           lib.optionals stdenv.isLinux [
             valgrind # for debugging
@@ -55,6 +59,10 @@
           # nix does not store libs in /usr/lib or /lib
           NIX_GLIBC_PATH =
             if pkgs.stdenv.isLinux then "${pkgs.glibc.out}/lib" else "";
+
+          shellHook = ''
+            ${aliases}
+          '';
         };
 
         formatter = pkgs.nixpkgs-fmt;
