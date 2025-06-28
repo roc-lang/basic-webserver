@@ -64,7 +64,6 @@ Basic webserver should have decent performance due to being built on top of Rust
 That said, it has a few known issues that hurt performance:
 1. We do [extra data copying on every request](https://github.com/roc-lang/basic-webserver/issues/23).
 2. Until roc has effect interpreters, basic-webserver can only do blocking io for effects. To work around this, every request is spawned in a blocking thread.
-3. Until [sqlite improvements](https://github.com/roc-lang/basic-webserver/pull/61) land, we never prepare queries.
 
 That said, running benchmarks and debugging performance is still a great idea. It can help improve both Roc and basic-webserver.
 
@@ -76,6 +75,6 @@ If you are benchmarking on a single machine, you can use the `TOKIO_WORKER_THREA
 > Note: When benchmarking, it is best to run the load generator and the webserver on different machines.
 
 When benchmarking on a single 8 core machine with `wrk2`, these commands could be used (simply tune connections `-c` and rate `-R`):
-1. Optimized Build: `roc build --optimize my-webserver.roc`
+1. Optimized Build: `roc build --optimize my-webserver.roc --linker=legacy`
 2. Launch server with 4 cores: `TOKIO_WORKER_THREADS=4 ./my-webserver`
 3. Generate load with 4 cores: `wrk -t4 -c100 -d30s -R2000 http://127.0.0.1:8000`
