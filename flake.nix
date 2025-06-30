@@ -30,6 +30,7 @@
           pkgs.rust-bin.fromRustupToolchainFile "${toString ./rust-toolchain.toml}";
 
         aliases = ''
+          alias buildcmd='bash jump-start.sh && roc ./build.roc -- --roc roc'
           alias testcmd='export ROC=roc && export EXAMPLES_DIR=./examples/ && ./ci/all_tests.sh'
         '';
 
@@ -62,6 +63,10 @@
 
           shellHook = ''
             ${aliases}
+            
+            echo "Some convenient command aliases:"
+            echo "${aliases}" | grep -E "alias [^=]+" -o | sed 's/alias /  /' | sort
+            echo ""
           '';
         };
 
