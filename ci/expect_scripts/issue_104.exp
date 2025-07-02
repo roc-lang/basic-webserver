@@ -11,7 +11,7 @@ set env(DB_PATH) "$env(TESTS_DIR)todos.db"
 
 spawn $env(TESTS_DIR)issue_104
 
-expect "Program exited with error:" {
+expect "Server `init!` failed with error:" {
     expect -re {.*RowsReturned.*} {
                 exit 0
     }

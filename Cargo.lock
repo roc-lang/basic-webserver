@@ -13,9 +13,9 @@ dependencies = [
 
 [[package]]
 name = "adler2"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
+checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "arrayvec"
@@ -28,12 +28,6 @@ name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
-
-[[package]]
-name = "autocfg"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "backtrace"
@@ -64,18 +58,18 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 
 [[package]]
 name = "cc"
-version = "1.2.24"
+version = "1.2.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16595d3be041c03b09d08d0858631facccee9221e579704070e6e9e4915d3bc7"
+checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
 dependencies = [
  "shlex",
 ]
 
 [[package]]
 name = "cfg-if"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
 
 [[package]]
 name = "core-foundation"
@@ -213,9 +207,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "h2"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9421a676d1b147b16b82c9225157dc629087ef8ec4d5e2960f9437a90dac0a5"
+checksum = "17da50a276f1e01e0ba6c029e47b7100754904ee8a278f886546e98575380785"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -232,9 +226,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.15.3"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84b26c544d002229e640969970a2e74021aadf6e2f96372b9c58eff97de08eb3"
+checksum = "5971ac85611da7067dbfcabef3c70ebb5606018acd9e2a3903a0da507521e0d5"
 
 [[package]]
 name = "host"
@@ -349,9 +343,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.9.0"
+version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cea70ddb795996207ad57735b50c5982d8844f38ba9ee5f1aedcfb708a2aa11e"
+checksum = "fe4cd85333e22411419a0bcae1297d25e58c9443848b11dc6a86fefe8c78a661"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -365,9 +359,9 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "libc"
-version = "0.2.172"
+version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
+checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
 
 [[package]]
 name = "libsqlite3-sys"
@@ -397,9 +391,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.8.8"
+version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be647b768db090acb35d5ec5db2b0e1f1de11133ca123b9eacf5137868f892a"
+checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
 ]
@@ -489,7 +483,7 @@ dependencies = [
 [[package]]
 name = "roc_command"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -498,7 +492,7 @@ dependencies = [
 [[package]]
 name = "roc_env"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "roc_file",
  "roc_std",
@@ -508,7 +502,7 @@ dependencies = [
 [[package]]
 name = "roc_file"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "memchr",
  "roc_io_error",
@@ -549,7 +543,7 @@ dependencies = [
 [[package]]
 name = "roc_http"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -566,7 +560,7 @@ dependencies = [
 [[package]]
 name = "roc_io_error"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "roc_std",
  "roc_std_heap",
@@ -575,7 +569,7 @@ dependencies = [
 [[package]]
 name = "roc_sqlite"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "libsqlite3-sys",
  "roc_std",
@@ -586,7 +580,7 @@ dependencies = [
 [[package]]
 name = "roc_std"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#d02adf08a6d81ed0a7191047dcd1ee32070384da"
+source = "git+https://github.com/roc-lang/roc.git#09779cba0f6660f22e86cc2a5a930bcafff176b8"
 dependencies = [
  "arrayvec",
  "static_assertions",
@@ -595,7 +589,7 @@ dependencies = [
 [[package]]
 name = "roc_std_heap"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/roc.git#d02adf08a6d81ed0a7191047dcd1ee32070384da"
+source = "git+https://github.com/roc-lang/roc.git#09779cba0f6660f22e86cc2a5a930bcafff176b8"
 dependencies = [
  "memmap2",
  "roc_std",
@@ -604,7 +598,7 @@ dependencies = [
 [[package]]
 name = "roc_stdio"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#8a08cebbc31fe458816f7b98e1f5c176c43556b5"
+source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -612,15 +606,15 @@ dependencies = [
 
 [[package]]
 name = "rustc-demangle"
-version = "0.1.24"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+checksum = "989e6739f80c4ad5b13e0fd7fe89531180375b18520cc8c82080e4dc4035b84f"
 
 [[package]]
 name = "rustls"
-version = "0.23.27"
+version = "0.23.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "730944ca083c1c233a75c09f199e973ca499344a2b7ba9e755c457e86fb4a321"
+checksum = "7160e3e10bf4535308537f3c4e1641468cd0e485175d6163087c0393c7d46643"
 dependencies = [
  "once_cell",
  "ring",
@@ -702,18 +696,15 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "slab"
-version = "0.4.9"
+version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
-dependencies = [
- "autocfg",
-]
+checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
 
 [[package]]
 name = "smallvec"
-version = "1.15.0"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
+checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "socket2"
@@ -739,9 +730,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.101"
+version = "2.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
+checksum = "17b6f705963418cdb9927482fa304bc562ece2fdd4f616084c50b7023b435a40"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -835,9 +826,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.33"
+version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e672c95779cf947c5311f83787af4fa8fffd12fb27e4993211a84bdfd9610f9c"
+checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
 ]
@@ -877,9 +868,9 @@ dependencies = [
 
 [[package]]
 name = "wasi"
-version = "0.11.0+wasi-snapshot-preview1"
+version = "0.11.1+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
+checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
 name = "windows-sys"

@@ -4,6 +4,8 @@ import pf.Http exposing [Request, Response]
 import pf.Path
 import pf.Env
 
+# To run this example: check the README.md in this folder
+
 ## Returns the default temp dir
 ##
 ## !! requires --linker=legacy

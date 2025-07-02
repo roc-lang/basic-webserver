@@ -1,7 +1,6 @@
 module [
     Path,
     IOErr,
-    DirEntry,
     display,
     from_str,
     from_bytes,
@@ -9,6 +8,7 @@ module [
     is_dir!,
     is_file!,
     is_sym_link!,
+    exists!,
     type!,
     write_utf8!,
     write_bytes!,
@@ -22,24 +22,15 @@ module [
     delete_empty!,
     delete_all!,
     hard_link!,
+    rename!,
 ]
 
 import InternalPath
 import InternalIOErr
-import FileMetadata exposing [FileMetadata]
 import Host
 
 ## Represents a path to a file or directory on the filesystem.
 Path : InternalPath.InternalPath
-
-## Record which represents a directory
-##
-## > This is the same as [`Dir.DirEntry`](Dir#DirEntry).
-DirEntry : {
-    path : Path,
-    type : [File, Dir, Symlink],
-    metadata : FileMetadata,
-}
 
 ## Tag union of possible errors when reading and writing a file or directory.
 ##
@@ -50,7 +41,7 @@ IOErr : InternalIOErr.IOErr
 ##
 ## First encode a `val` using a given `fmt` which implements the ability [Encode.EncoderFormatting](https://www.roc-lang.org/builtins/Encode#EncoderFormatting).
 ##
-## For example, suppose you have a `Json.toCompactUtf8` which implements
+## For example, suppose you have a `Json.utf8` which implements
 ## [Encode.EncoderFormatting](https://www.roc-lang.org/builtins/Encode#EncoderFormatting).
 ## You can use this to write [JSON](https://en.wikipedia.org/wiki/JSON)
 ## data to a file like this:
@@ -60,7 +51,7 @@ IOErr : InternalIOErr.IOErr
 ## Path.write!(
 ##     { some: "json stuff" },
 ##     Path.from_str("output.json"),
-##     Json.toCompactUtf8,
+##     Json.utf8,
 ## )?
 ## ```
 ##
@@ -127,7 +118,7 @@ from_str = |str|
 ## is not valid Unicode (like a [Str] is), but which is valid for a particular filesystem.
 ##
 ## Note that if the list contains any `0` bytes, sending this path to any file operations
-## (e.g. `Path.read_bytes` or `WriteStream.openPath`) will fail.
+## (e.g. `Path.read_bytes` or `WriteStream.open_path`) will fail.
 from_bytes : List U8 -> Path
 from_bytes = |bytes|
     ArbitraryBytes(bytes)
@@ -142,7 +133,7 @@ from_bytes = |bytes|
 ##
 ## For a conversion to [Str] that is lossy but does not return a [Result], see
 ## [display].
-## toInner : Path -> [Str Str, Bytes (List U8)]
+## to_inner : Path -> [Str Str, Bytes (List U8)]
 ## Assumes a path is encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8),
 ## and converts it to a string using `Str.display`.
 ##
@@ -210,6 +201,16 @@ is_sym_link! = |path|
     res = type!(path)?
     Ok((res == IsSymLink))
 
+## Returns true if the path exists on disk.
+##
+## This uses [rust's std::path::try_exists](https://doc.rust-lang.org/std/path/struct.Path.html#method.try_exists).
+##
+## > [`File.exists!`](File#exists!) does the same thing, except it takes a [Str] instead of a [Path].
+exists! : Path => Result Bool [PathErr IOErr]
+exists! = |path|
+    Host.file_exists!(InternalPath.to_bytes(path))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
 ## Return the type of the path if the path exists on disk.
 ##
 ## > [`File.type`](File#type!) does the same thing, except it takes a [Str] instead of a [Path].
@@ -275,7 +276,7 @@ with_extension = |path, extension|
 ##
 ## ```
 ## # Deletes the file named `myfile.dat`
-## Path.delete(Path.from_str("myfile.dat"), [1, 2, 3])?
+## Path.delete!(Path.from_str("myfile.dat"))?
 ## ```
 ##
 ## > This does not securely erase the file's contents from disk; instead, the operating
@@ -284,7 +285,7 @@ with_extension = |path, extension|
 ## the last file handle to it is closed, and on UNIX, it will not remove it until the last
 ## [hard link](https://en.wikipedia.org/wiki/Hard_link) to it has been deleted.
 ##
-## > [`File.delete`](File#delete!) does the same thing, except it takes a [Str] instead of a [Path].
+## > [`File.delete!`](File#delete!) does the same thing, except it takes a [Str] instead of a [Path].
 delete! : Path => Result {} [FileWriteErr Path IOErr]
 delete! = |path|
     Host.file_delete!(InternalPath.to_bytes(path))
@@ -294,7 +295,7 @@ delete! = |path|
 ##
 ## ```
 ## # Reads UTF-8 encoded text into a Str from the file "myfile.txt"
-## contents_str = Path.read_utf8(Path.from_str("myfile.txt"))?
+## contents_str = Path.read_utf8!(Path.from_str("myfile.txt"))?
 ## ```
 ##
 ## This opens the file first and closes it after reading its contents.
@@ -302,7 +303,7 @@ delete! = |path|
 ##
 ## > To read unformatted bytes from a file, you can use [Path.read_bytes!] instead.
 ## >
-## > [`File.read_utf8`](File#read_utf8!) does the same thing, except it takes a [Str] instead of a [Path].
+## > [`File.read_utf8!`](File#read_utf8!) does the same thing, except it takes a [Str] instead of a [Path].
 read_utf8! : Path => Result Str [FileReadErr Path IOErr, FileReadUtf8Err Path _]
 read_utf8! = |path|
     bytes =
@@ -392,7 +393,7 @@ create_all! = |path|
     Host.dir_create_all!(InternalPath.to_bytes(path))
     |> Result.map_err(|err| DirErr(InternalIOErr.handle_err(err)))
 
-## Creates a new hard link on the filesystem.
+## Creates a new [hard link](https://en.wikipedia.org/wiki/Hard_link) on the filesystem.
 ##
 ## The link path will be a link pointing to the original path.
 ## Note that systems often require these two paths to both be located on the same filesystem.
@@ -400,8 +401,18 @@ create_all! = |path|
 ## This uses [rust's std::fs::hard_link](https://doc.rust-lang.org/std/fs/fn.hard_link.html).
 ##
 ## > [File.hard_link!] does the same thing, except it takes a [Str] instead of a [Path].
-hard_link! : Path => Result {} [LinkErr IOErr]
-hard_link! = |path|
-    Host.hard_link!(InternalPath.to_bytes(path))
+hard_link! : Path, Path => Result {} [LinkErr IOErr]
+hard_link! = |path_original, path_link|
+    Host.hard_link!(InternalPath.to_bytes(path_original), InternalPath.to_bytes(path_link))
     |> Result.map_err(InternalIOErr.handle_err)
     |> Result.map_err(LinkErr)
+
+## Renames a file or directory.
+##
+## This uses [rust's std::fs::rename](https://doc.rust-lang.org/std/fs/fn.rename.html).
+rename! : Path, Path => Result {} [PathErr IOErr]
+rename! = |from, to|
+    from_path_bytes = InternalPath.to_bytes(from)
+    to_path_bytes = InternalPath.to_bytes(to)
+    Host.file_rename!(from_path_bytes, to_path_bytes)
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))

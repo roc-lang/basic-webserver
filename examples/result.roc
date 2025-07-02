@@ -2,6 +2,8 @@ app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 
 import pf.Http exposing [Request, Response]
 
+# To run this example: check the README.md in this folder
+
 Model : {}
 
 init! : {} => Result Model []

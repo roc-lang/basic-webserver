@@ -4,6 +4,8 @@ import pf.File
 import pf.Path
 import pf.Http exposing [Request, Response]
 
+# To run this example: check the README.md in this folder
+
 # Model represents the content of the file we read in `init`.
 Model : Str
 

@@ -10,16 +10,27 @@ module [
     is_dir!,
     is_file!,
     is_sym_link!,
+    exists!,
+    is_executable!,
+    is_readable!,
+    is_writable!,
+    time_accessed!,
+    time_modified!,
+    time_created!,
+    rename!,
     type!,
     open_reader!,
     open_reader_with_capacity!,
     read_line!,
     hard_link!,
+    size_in_bytes!,
 ]
 
 import Path exposing [Path]
 import InternalIOErr
 import Host
+import InternalPath
+import Utc exposing [Utc]
 
 ## Tag union of possible errors when reading and writing a file or directory.
 ##
@@ -44,7 +55,7 @@ IOErr : InternalIOErr.IOErr
 ##
 ## First encode a `val` using a given `fmt` which implements the ability [Encode.EncoderFormatting](https://www.roc-lang.org/builtins/Encode#EncoderFormatting).
 ##
-## For example, suppose you have a `Json.to_compact_utf8` which implements
+## For example, suppose you have a `Json.utf8` which implements
 ## [Encode.EncoderFormatting](https://www.roc-lang.org/builtins/Encode#EncoderFormatting).
 ## You can use this to write [JSON](https://en.wikipedia.org/wiki/JSON)
 ## data to a file like this:
@@ -53,9 +64,9 @@ IOErr : InternalIOErr.IOErr
 ## # Writes `{"some":"json stuff"}` to the file `output.json`:
 ## File.write!(
 ##     { some: "json stuff" },
-##     Path.from_str("output.json"),
-##     Json.to_compact_utf8,
-## )
+##     "output.json",
+##     Json.utf8,
+## )?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -65,14 +76,14 @@ IOErr : InternalIOErr.IOErr
 ## >
 ## > [Path.write!] does the same thing, except it takes a [Path] instead of a [Str].
 write! : val, Str, fmt => Result {} [FileWriteErr Path IOErr] where val implements Encoding, fmt implements EncoderFormatting
-write! = |val, path, fmt|
-    Path.write!(val, Path.from_str(path), fmt)
+write! = |val, path_str, fmt|
+    Path.write!(val, Path.from_str(path_str), fmt)
 
 ## Writes bytes to a file.
 ##
 ## ```
 ## # Writes the bytes 1, 2, 3 to the file `myfile.dat`.
-## File.write_bytes!([1, 2, 3], Path.from_str("myfile.dat"))?
+## File.write_bytes!([1, 2, 3], "myfile.dat")?
 ## ```
 ##
 ## This opens the file first and closes it after writing to it.
@@ -81,8 +92,8 @@ write! = |val, path, fmt|
 ## >
 ## > [Path.write_bytes!] does the same thing, except it takes a [Path] instead of a [Str].
 write_bytes! : List U8, Str => Result {} [FileWriteErr Path IOErr]
-write_bytes! = |bytes, path|
-    Path.write_bytes!(bytes, Path.from_str(path))
+write_bytes! = |bytes, path_str|
+    Path.write_bytes!(bytes, Path.from_str(path_str))
 
 ## Writes a [Str] to a file, encoded as [UTF-8](https://en.wikipedia.org/wiki/UTF-8).
 ##
@@ -97,8 +108,8 @@ write_bytes! = |bytes, path|
 ## >
 ## > [Path.write_utf8!] does the same thing, except it takes a [Path] instead of a [Str].
 write_utf8! : Str, Str => Result {} [FileWriteErr Path IOErr]
-write_utf8! = |str, path|
-    Path.write_utf8!(str, Path.from_str(path))
+write_utf8! = |str, path_str|
+    Path.write_utf8!(str, Path.from_str(path_str))
 
 ## Deletes a file from the filesystem.
 ##
@@ -110,7 +121,7 @@ write_utf8! = |str, path|
 ##
 ## ```
 ## # Deletes the file named `myfile.dat`
-## File.delete!(Path.from_str("myfile.dat"), [1, 2, 3])?
+## File.delete!("myfile.dat")?
 ## ```
 ##
 ## > This does not securely erase the file's contents from disk; instead, the operating
@@ -121,8 +132,8 @@ write_utf8! = |str, path|
 ## >
 ## > [Path.delete!] does the same thing, except it takes a [Path] instead of a [Str].
 delete! : Str => Result {} [FileWriteErr Path IOErr]
-delete! = |path|
-    Path.delete!(Path.from_str(path))
+delete! = |path_str|
+    Path.delete!(Path.from_str(path_str))
 
 ## Reads all the bytes in a file.
 ##
@@ -137,8 +148,8 @@ delete! = |path|
 ## >
 ## > [Path.read_bytes!] does the same thing, except it takes a [Path] instead of a [Str].
 read_bytes! : Str => Result (List U8) [FileReadErr Path IOErr]
-read_bytes! = |path|
-    Path.read_bytes!(Path.from_str(path))
+read_bytes! = |path_str|
+    Path.read_bytes!(Path.from_str(path_str))
 
 ## Reads a [Str] from a file containing [UTF-8](https://en.wikipedia.org/wiki/UTF-8)-encoded text.
 ##
@@ -154,14 +165,11 @@ read_bytes! = |path|
 ##
 ## > [Path.read_utf8!] does the same thing, except it takes a [Path] instead of a [Str].
 read_utf8! : Str => Result Str [FileReadErr Path IOErr, FileReadUtf8Err Path _]
-read_utf8! = |path|
-    Path.read_utf8!(Path.from_str(path))
+read_utf8! = |path_str|
+    Path.read_utf8!(Path.from_str(path_str))
 
-# read : Str, fmt => Result contents [FileReadErr Path ReadErr, FileReadDecodingFailed] where contents implements Decoding, fmt implements DecoderFormatting
-# read = \path, fmt ->
-#    Path.read! (Path.from_str path) fmt
 
-## Creates a new hard link on the filesystem.
+## Creates a new [hard link](https://en.wikipedia.org/wiki/Hard_link) on the filesystem.
 ##
 ## The link path will be a link pointing to the original path.
 ## Note that systems often require these two paths to both be located on the same filesystem.
@@ -169,9 +177,9 @@ read_utf8! = |path|
 ## This uses [rust's std::fs::hard_link](https://doc.rust-lang.org/std/fs/fn.hard_link.html).
 ##
 ## > [Path.hard_link!] does the same thing, except it takes a [Path] instead of a [Str].
-hard_link! : Str => Result {} [LinkErr IOErr]
-hard_link! = |path|
-    Path.hard_link!(Path.from_str(path))
+hard_link! : Str, Str => Result {} [LinkErr IOErr]
+hard_link! = |path_str_original, path_str_link|
+    Path.hard_link!(Path.from_str(path_str_original), Path.from_str(path_str_link))
 
 ## Returns True if the path exists on disk and is pointing at a directory.
 ## Returns False if the path exists and it is not a directory. If the path does not exist,
@@ -181,8 +189,8 @@ hard_link! = |path|
 ##
 ## > [Path.is_dir!] does the same thing, except it takes a [Path] instead of a [Str].
 is_dir! : Str => Result Bool [PathErr IOErr]
-is_dir! = |path|
-    Path.is_dir!(Path.from_str(path))
+is_dir! = |path_str|
+    Path.is_dir!(Path.from_str(path_str))
 
 ## Returns True if the path exists on disk and is pointing at a regular file.
 ## Returns False if the path exists and it is not a file. If the path does not exist,
@@ -192,8 +200,8 @@ is_dir! = |path|
 ##
 ## > [Path.is_file!] does the same thing, except it takes a [Path] instead of a [Str].
 is_file! : Str => Result Bool [PathErr IOErr]
-is_file! = |path|
-    Path.is_file!(Path.from_str(path))
+is_file! = |path_str|
+    Path.is_file!(Path.from_str(path_str))
 
 ## Returns True if the path exists on disk and is pointing at a symbolic link.
 ## Returns False if the path exists and it is not a symbolic link. If the path does not exist,
@@ -203,16 +211,95 @@ is_file! = |path|
 ##
 ## > [Path.is_sym_link!] does the same thing, except it takes a [Path] instead of a [Str].
 is_sym_link! : Str => Result Bool [PathErr IOErr]
-is_sym_link! = |path|
-    Path.is_sym_link!(Path.from_str(path))
+is_sym_link! = |path_str|
+    Path.is_sym_link!(Path.from_str(path_str))
+
+## Returns true if the path exists on disk.
+##
+## This uses [rust's std::path::try_exists](https://doc.rust-lang.org/std/path/struct.Path.html#method.try_exists).
+exists! : Str => Result Bool [PathErr IOErr]
+exists! = |path_str|
+    Host.file_exists!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Checks if the file has the execute permission for the current process.
+##
+## This uses rust [std::fs::Metadata](https://doc.rust-lang.org/std/fs/struct.Metadata.html).
+is_executable! : Str => Result Bool [PathErr IOErr]
+is_executable! = |path_str|
+    Host.file_is_executable!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Checks if the file has the readable permission for the current process.
+##
+## This uses rust [std::fs::Metadata](https://doc.rust-lang.org/std/fs/struct.Metadata.html).
+is_readable! : Str => Result Bool [PathErr IOErr]
+is_readable! = |path_str|
+    Host.file_is_readable!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Checks if the file has the writeable permission for the current process.
+##
+## This uses rust [std::fs::Metadata](https://doc.rust-lang.org/std/fs/struct.Metadata.html).
+is_writable! : Str => Result Bool [PathErr IOErr]
+is_writable! = |path_str|
+    Host.file_is_writable!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Returns the time when the file was last accessed.
+##
+## This uses [rust's std::fs::Metadata::accessed](https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.accessed).
+## Note that this is [not guaranteed to be correct in all cases](https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.accessed).
+##
+## NOTE: these functions will not work if basic-cli was built with musl, which is the case for the normal tar.br URL release.
+## See https://github.com/roc-lang/basic-cli?tab=readme-ov-file#running-locally to build basic-cli without musl.
+time_accessed! : Str => Result Utc [PathErr IOErr]
+time_accessed! = |path_str|
+    Host.file_time_accessed!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_ok(|time_u128| Num.to_i128(time_u128) |> Utc.from_nanos_since_epoch)
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Returns the time when the file was last modified.
+##
+## This uses [rust's std::fs::Metadata::modified](https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.modified).
+##
+## NOTE: these functions will not work if basic-cli was built with musl, which is the case for the normal tar.br URL release.
+## See https://github.com/roc-lang/basic-cli?tab=readme-ov-file#running-locally to build basic-cli without musl.
+time_modified! : Str => Result Utc [PathErr IOErr]
+time_modified! = |path_str|
+    Host.file_time_modified!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_ok(|time_u128| Num.to_i128(time_u128) |> Utc.from_nanos_since_epoch)
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Returns the time when the file was created.
+##
+## This uses [rust's std::fs::Metadata::created](https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.created).
+##
+## NOTE: these functions will not work if basic-cli was built with musl, which is the case for the normal tar.br URL release.
+## See https://github.com/roc-lang/basic-cli?tab=readme-ov-file#running-locally to build basic-cli without musl.
+time_created! : Str => Result Utc [PathErr IOErr]
+time_created! = |path_str|
+    Host.file_time_created!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_ok(|time_u128| Num.to_i128(time_u128) |> Utc.from_nanos_since_epoch)
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
+
+## Renames a file or directory.
+##
+## This uses [rust's std::fs::rename](https://doc.rust-lang.org/std/fs/fn.rename.html).
+rename! : Str, Str => Result {} [PathErr IOErr]
+rename! = |from_str, to_str|
+    from_bytes = InternalPath.to_bytes(Path.from_str(from_str))
+    to_bytes = InternalPath.to_bytes(Path.from_str(to_str))
+    Host.file_rename!(from_bytes, to_bytes)
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))
 
 ## Return the type of the path if the path exists on disk.
 ## This uses [rust's std::path::is_symlink](https://doc.rust-lang.org/std/path/struct.Path.html#method.is_symlink).
 ##
 ## > [Path.type!] does the same thing, except it takes a [Path] instead of a [Str].
 type! : Str => Result [IsFile, IsDir, IsSymLink] [PathErr IOErr]
-type! = |path|
-    Path.type!(Path.from_str(path))
+type! = |path_str|
+    Path.type!(Path.from_str(path_str))
 
 Reader := { reader : Host.FileReader, path : Path }
 
@@ -258,3 +345,11 @@ read_line! : Reader => Result (List U8) [FileReadErr Path IOErr]
 read_line! = |@Reader({ reader, path })|
     Host.file_read_line!(reader)
     |> Result.map_err(|err| FileReadErr(path, InternalIOErr.handle_err(err)))
+
+## Returns the size of a file in bytes.
+## 
+## This uses [rust's std::fs::Metadata::len](https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.len).
+size_in_bytes! : Str => Result U64 [PathErr IOErr]
+size_in_bytes! = |path_str|
+    Host.file_size_in_bytes!(InternalPath.to_bytes(Path.from_str(path_str)))
+    |> Result.map_err(|err| PathErr(InternalIOErr.handle_err(err)))

@@ -4,6 +4,8 @@ import pf.Http exposing [Request, Response]
 import pf.Cmd
 import pf.Utc
 
+# To run this example: check the README.md in this folder
+
 Model : {}
 
 init! : {} => Result Model _
