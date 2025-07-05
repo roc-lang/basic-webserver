@@ -6,6 +6,8 @@ import pf.Http exposing [Request, Response]
 import pf.Utc
 import pf.Env
 
+# To run this example: check the README.md in this folder
+
 Model : {}
 
 init! : {} => Result Model []

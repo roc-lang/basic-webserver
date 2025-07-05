@@ -4,6 +4,8 @@ import pf.File
 import pf.Path
 import pf.Http exposing [Request, Response]
 
+# To run this example: check the README.md in this folder
+
 # Model represents the content of the file we read in `init`.
 Model : Str
 
@@ -11,7 +13,7 @@ Model : Str
 init! : {} => Result Model [Exit I32 Str]_
 init! = |{}|
     # Read the contents of examples/file.roc
-    File.read_utf8!("examples/file.roc")
+    File.read_utf8!("examples/file-read.roc")
     |> Result.map_ok(|contents| "Source code of current program:\n\n${contents}")
     |> Result.map_err(
         |err|

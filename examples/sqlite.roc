@@ -5,6 +5,8 @@ import pf.Http exposing [Request, Response]
 import pf.Sqlite
 import pf.Env
 
+# To run this example: check the README.md in this folder
+
 Model : { stmt : Sqlite.Stmt }
 
 init! : {} => Result Model _

@@ -9,6 +9,8 @@ import pf.Url
 import pf.Utc
 import "todos.html" as todo_html : List U8
 
+# To run this example: check the README.md in this folder
+
 Model : {
     list_todos_stmt : Sqlite.Stmt,
     create_todo_stmt : Sqlite.Stmt,

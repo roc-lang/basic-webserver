@@ -34,6 +34,18 @@ pub unsafe extern "C" fn roc_realloc(
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
+    let heap = roc_file::heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
+
+    let heap = roc_http::heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
+
     let heap = roc_sqlite::heap();
     if heap.in_range(c_ptr) {
         heap.dealloc(c_ptr);
@@ -294,6 +306,14 @@ pub extern "C" fn roc_fx_tcp_write(stream: RocBox<()>, msg: &RocList<u8>) -> Roc
     roc_http::tcp_write(stream, msg)
 }
 
+
+#[no_mangle]
+pub extern "C" fn roc_fx_path_type(
+    roc_path: &RocList<u8>,
+) -> RocResult<roc_file::InternalPathType, roc_io_error::IOErr> {
+    roc_file::path_type(roc_path)
+}
+
 #[no_mangle]
 pub extern "C" fn roc_fx_file_write_utf8(
     roc_path: &RocList<u8>,
@@ -308,13 +328,6 @@ pub extern "C" fn roc_fx_file_write_bytes(
     roc_bytes: &RocList<u8>,
 ) -> RocResult<(), roc_io_error::IOErr> {
     roc_file::file_write_bytes(roc_path, roc_bytes)
-}
-
-#[no_mangle]
-pub extern "C" fn roc_fx_path_type(
-    roc_path: &RocList<u8>,
-) -> RocResult<roc_file::InternalPathType, roc_io_error::IOErr> {
-    roc_file::path_type(roc_path)
 }
 
 #[no_mangle]
@@ -345,6 +358,94 @@ pub extern "C" fn roc_fx_file_delete(roc_path: &RocList<u8>) -> RocResult<(), ro
 }
 
 #[no_mangle]
+pub extern "C" fn roc_fx_file_size_in_bytes(
+    roc_path: &RocList<u8>,
+) -> RocResult<u64, roc_io_error::IOErr> {
+    roc_file::file_size_in_bytes(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_is_executable(
+    roc_path: &RocList<u8>,
+) -> RocResult<bool, roc_io_error::IOErr> {
+    roc_file::file_is_executable(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_is_readable(
+    roc_path: &RocList<u8>,
+) -> RocResult<bool, roc_io_error::IOErr> {
+    roc_file::file_is_readable(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_is_writable(
+    roc_path: &RocList<u8>,
+) -> RocResult<bool, roc_io_error::IOErr> {
+    roc_file::file_is_writable(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_time_accessed(
+    roc_path: &RocList<u8>,
+) -> RocResult<roc_std::U128, roc_io_error::IOErr> {
+    roc_file::file_time_accessed(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_time_modified(
+    roc_path: &RocList<u8>,
+) -> RocResult<roc_std::U128, roc_io_error::IOErr> {
+    roc_file::file_time_modified(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_time_created(
+    roc_path: &RocList<u8>,
+) -> RocResult<roc_std::U128, roc_io_error::IOErr> {
+    roc_file::file_time_created(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_exists(roc_path: &RocList<u8>) -> RocResult<bool, roc_io_error::IOErr> {
+    roc_file::file_exists(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_file_rename(
+    from_path: &RocList<u8>,
+    to_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::file_rename(from_path, to_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_create(roc_path: &RocList<u8>) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_create(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_create_all(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_create_all(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_delete_empty(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_delete_empty(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_delete_all(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_delete_all(roc_path)
+}
+
+#[no_mangle]
 pub extern "C" fn roc_fx_dir_list(
     roc_path: &RocList<u8>,
 ) -> RocResult<RocList<RocList<u8>>, roc_io_error::IOErr> {
@@ -354,6 +455,14 @@ pub extern "C" fn roc_fx_dir_list(
 #[no_mangle]
 pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
     roc_env::temp_dir()
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_hard_link(
+    path_original: &RocList<u8>,
+    path_link: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::hard_link(path_original, path_link)
 }
 
 #[derive(Clone, Debug)]

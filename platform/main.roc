@@ -42,7 +42,7 @@ init_for_host! = |_|
             _ = Stderr.line!(
                 """
 
-                Program exited with error:
+                Server `init!` failed with error:
 
                     ❌ ${Inspect.to_str(err)}
 

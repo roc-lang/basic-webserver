@@ -4,6 +4,8 @@ import pf.Stdout
 import pf.Http exposing [Request, Response]
 import pf.Sleep
 
+# To run this example: check the README.md in this folder
+
 Model : {}
 
 init! : {} => Result Model []

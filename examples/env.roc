@@ -3,6 +3,8 @@ app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 import pf.Http exposing [Request, Response]
 import pf.Env
 
+# To run this example: check the README.md in this folder
+
 # We'll set this based on env var at server startup
 Model : [DebugPrintMode, NonDebugMode]
 
