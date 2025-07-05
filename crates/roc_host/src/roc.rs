@@ -34,6 +34,18 @@ pub unsafe extern "C" fn roc_realloc(
 
 #[no_mangle]
 pub unsafe extern "C" fn roc_dealloc(c_ptr: *mut c_void, _alignment: u32) {
+    let heap = roc_file::heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
+
+    let heap = roc_http::heap();
+    if heap.in_range(c_ptr) {
+        heap.dealloc(c_ptr);
+        return;
+    }
+
     let heap = roc_sqlite::heap();
     if heap.in_range(c_ptr) {
         heap.dealloc(c_ptr);
