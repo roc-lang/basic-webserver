@@ -420,10 +420,41 @@ pub extern "C" fn roc_fx_file_rename(
 }
 
 #[no_mangle]
+pub extern "C" fn roc_fx_dir_create(roc_path: &RocList<u8>) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_create(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_create_all(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_create_all(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_delete_empty(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_delete_empty(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_dir_delete_all(
+    roc_path: &RocList<u8>,
+) -> RocResult<(), roc_io_error::IOErr> {
+    roc_file::dir_delete_all(roc_path)
+}
+
+#[no_mangle]
 pub extern "C" fn roc_fx_dir_list(
     roc_path: &RocList<u8>,
 ) -> RocResult<RocList<RocList<u8>>, roc_io_error::IOErr> {
     roc_file::dir_list(roc_path)
+}
+
+#[no_mangle]
+pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
+    roc_env::temp_dir()
 }
 
 #[no_mangle]
@@ -432,11 +463,6 @@ pub extern "C" fn roc_fx_hard_link(
     path_link: &RocList<u8>,
 ) -> RocResult<(), roc_io_error::IOErr> {
     roc_file::hard_link(path_original, path_link)
-}
-
-#[no_mangle]
-pub extern "C" fn roc_fx_temp_dir() -> RocList<u8> {
-    roc_env::temp_dir()
 }
 
 #[derive(Clone, Debug)]

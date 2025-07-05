@@ -5,7 +5,7 @@
 
 set timeout 7
 
-spawn $env(EXAMPLES_DIR)file
+spawn $env(EXAMPLES_DIR)file-read
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set curlOutput [exec curl -sS localhost:8000]
