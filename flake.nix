@@ -65,7 +65,7 @@
             ${aliases}
             
             echo "Some convenient command aliases:"
-            echo "${aliases}" | grep -E "alias [^=]+" -o | sed 's/alias /  /' | sort
+            echo "${aliases}" | grep -E "alias .*" -o | sed 's/alias /  /' | sed 's/=/ = /'
             echo ""
           '';
         };
