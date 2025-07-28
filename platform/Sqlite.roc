@@ -3,6 +3,7 @@ module [
     ErrCode,
     Binding,
     Stmt,
+    SqlDecodeErr,
     query!,
     query_many!,
     execute!,
@@ -158,7 +159,7 @@ Stmt := Box {}
 ##         id: Sqlite.i64("id"),
 ##         task: Sqlite.str("task"),
 ##     },
-## })
+## })?
 ## ```
 prepare! :
     {
@@ -243,7 +244,6 @@ execute_prepared! = |{ stmt, bindings }|
     try(bind!, stmt, bindings)
     res = step!(stmt)
     try(reset!, stmt)
-
     when res is
         Ok(Done) ->
             Ok({})
@@ -600,8 +600,8 @@ f64 = real_decoder(Ok)
 f32 : Str -> SqlDecode F32 [FailedToDecodeReal []]UnexpectedTypeErr
 f32 = real_decoder(|x| Num.to_f32(x) |> Ok)
 
-# TODO: Mising Num.toDec and Num.toDecChecked
-# dec = realSqlDecoder Ok
+# TODO: Mising Num.to_dec and Num.to_dec_checked
+# dec = real_sql_decoder Ok
 
 # These are the same decoders as above but Nullable.
 # If the sqlite field is `Null`, they will return `Null`.
@@ -691,7 +691,7 @@ nullable_f64 = nullable_real_decoder(Ok)
 nullable_f32 : Str -> SqlDecode (Nullable F32) [FailedToDecodeReal []]UnexpectedTypeErr
 nullable_f32 = nullable_real_decoder(|x| Num.to_f32(x) |> Ok)
 
-# TODO: Mising Num.toDec and Num.toDecChecked
+# TODO: Mising Num.to_dec and Num.to_dec_checked
 # nullable_dec = nullable_real_decoder Ok
 
 # internal use only
