@@ -8,7 +8,6 @@ platform "webserver"
         Dir,
         Env,
         File,
-        FileMetadata,
         Http,
         MultipartFormData,
         Path,

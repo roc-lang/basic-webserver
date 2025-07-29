@@ -21,7 +21,7 @@ unexpected_eof_error_message = "UnexpectedEof"
 Stream := Host.TcpStream
 
 ## Represents errors that can occur when connecting to a remote host.
-ConnectErr : [
+ConnectErr a : [
     PermissionDenied,
     AddrInUse,
     AddrNotAvailable,
@@ -30,9 +30,9 @@ ConnectErr : [
     TimedOut,
     Unsupported,
     Unrecognized Str,
-]
+]a
 
-parse_connect_err : Str -> ConnectErr
+parse_connect_err : Str -> ConnectErr _
 parse_connect_err = |err|
     when err is
         "ErrorKind::PermissionDenied" -> PermissionDenied
@@ -83,7 +83,7 @@ parse_stream_err = |err|
 ##  - `localhost`
 ##  - `roc-lang.org`
 ##
-connect! : Str, U16 => Result Stream ConnectErr
+connect! : Str, U16 => Result Stream (ConnectErr _)
 connect! = |host, port|
     Host.tcp_connect!(host, port)
     |> Result.map_ok(@Stream)
@@ -93,7 +93,7 @@ connect! = |host, port|
 ##
 ## ```
 ## # Read up to 64 bytes from the stream
-## received_bytes = File.read_up_to!(stream, 64)?
+## received_bytes = Tcp.read_up_to!(stream, 64)?
 ## ```
 ##
 ## > To read an exact number of bytes or fail, you can use [Tcp.read_exactly!] instead.
@@ -105,7 +105,7 @@ read_up_to! = |@Stream(stream), bytes_to_read|
 ## Read an exact number of bytes or fail.
 ##
 ## ```
-## bytes = File.read_exactly!(stream, 64)?
+## bytes = Tcp.read_exactly!(stream, 64)?
 ## ```
 ##
 ## `TcpUnexpectedEOF` is returned if the stream ends before the specfied number of bytes is reached.
@@ -125,7 +125,7 @@ read_exactly! = |@Stream(stream), bytes_to_read|
 ##
 ## ```
 ## # Read until null terminator
-## bytes = File.read_until!(stream, 0)?
+## bytes = Tcp.read_until!(stream, 0)?
 ## ```
 ##
 ## If found, the delimiter is included as the last byte.
@@ -141,8 +141,8 @@ read_until! = |@Stream(stream), byte|
 ##
 ## ```
 ## # Read a line and then print it to `stdout`
-## line_str = File.read_line!(stream)?
-## Stdout.line(lineStr)?
+## line_str = Tcp.read_line!(stream)?
+## Stdout.line(line_str)?
 ## ```
 ##
 ## If found, the newline is included as the last character in the [Str].
@@ -183,11 +183,11 @@ write_utf8! = |stream, str|
 ##
 ## ```
 ## when err is
-##     TcpPerfomErr(TcpConnectErr(connectErr)) ->
-##         Stderr.line!(Tcp.connect_err_to_str(connectErr))
+##     TcpPerfomErr(TcpConnectErr(connect_err)) ->
+##         Stderr.line!(Tcp.connect_err_to_str(connect_err))
 ## ```
 ##
-connect_err_to_str : ConnectErr -> Str
+connect_err_to_str : (ConnectErr _) -> Str
 connect_err_to_str = |err|
     when err is
         PermissionDenied -> "PermissionDenied"
@@ -204,12 +204,12 @@ connect_err_to_str = |err|
 ## ```
 ## when err is
 ##     TcpPerformErr(TcpReadErr(err)) ->
-##         errStr = Tcp.stream_err_to_str(err)
-##         Stderr.line!("Error while reading: ${errStr}")
+##         err_str = Tcp.stream_err_to_str(err)
+##         Stderr.line!("Error while reading: ${err_str}")
 ##
 ##     TcpPerformErr(TcpWriteErr(err)) ->
-##         errStr = Tcp.stream_err_to_str(err)
-##         Stderr.line!("Error while writing: ${errStr}")
+##         err_str = Tcp.stream_err_to_str(err)
+##         Stderr.line!("Error while writing: ${err_str}")
 ## ```
 ##
 stream_err_to_str : StreamErr -> Str
