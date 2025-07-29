@@ -45,8 +45,8 @@ jobs:
 
       - run: ./roc_nightly/roc version
 
-      - run: sudo apt install -y expect
-      # expect for testing
+      - run: sudo apt install -y expect ncat
+      # expect for testing, ncat as test server for tests/tcp.roc
 
       - name: print expect version
         run: expect -v
