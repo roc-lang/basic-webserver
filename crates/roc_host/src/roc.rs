@@ -636,3 +636,8 @@ pub extern "C" fn roc_fx_sleep_millis(milliseconds: u64) {
     let duration = Duration::from_millis(milliseconds);
     std::thread::sleep(duration);
 }
+
+#[no_mangle]
+pub extern "C" fn roc_fx_current_arch_os() -> roc_env::ReturnArchOS {
+    roc_env::current_arch_os()
+}
