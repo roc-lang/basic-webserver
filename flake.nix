@@ -51,6 +51,7 @@
           expect
           rocPkgs.cli
           sqlite
+          nmap # ncat server for tests
         ]);
       in {
 
