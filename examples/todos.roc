@@ -151,7 +151,7 @@ create_todo! = |model, params|
         Err(err) ->
             err_response(err)
 
-exec_transaction! : Model, ({} => Result ok err) => Result ok [FailedToBeginTransaction, FailedToEndTransaction, FailedToRollbackTransaction, TransactionFailed err]
+exec_transaction! : Model, ({} => Result ok err) => Result ok _
 exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
 
     # TODO: create a nicer transaction wrapper
@@ -161,7 +161,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
             bindings: [],
         },
     )
-    ? |_| FailedToBeginTransaction
+    ? |err| FailedToBeginTransaction(err)
 
     end_transaction! = |res|
         when res is
@@ -172,7 +172,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
                         bindings: [],
                     },
                 )
-                ? |_| FailedToEndTransaction
+                ? |err| FailedToEndTransaction(err)
 
                 Ok(v)
 
@@ -190,8 +190,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
                     bindings: [],
                 },
             )
-            |> Result.map_err(|_| FailedToRollbackTransaction)
-            |> try
+            ? |err| FailedToRollbackTransaction(err)
 
             Err(e)
 

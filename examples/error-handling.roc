@@ -14,7 +14,8 @@ init! : {} => Result Model []
 init! = |{}| Ok({})
 
 respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |req, _| handle_req!(req) |> Result.map_err(map_app_err)
+respond! = |req, _|
+    handle_req!(req) |> Result.map_err(map_app_err)
 
 AppError : [
     EnvVarNotSet Str,
