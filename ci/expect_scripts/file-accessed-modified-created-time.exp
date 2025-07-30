@@ -1,0 +1,23 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+spawn $env(EXAMPLES_DIR)file-accessed-modified-created-time
+
+expect {
+    -re {LICENSE file time metadata:\r\n    Modified: 20.*\r\n    Accessed: 20.*\r\n    Created: 20.*\r\n} {
+        exit 0
+    }
+    timeout {
+        puts stderr "\nExpect script failed: timed out waiting for expected output."
+        exit 1
+    }
+}
+
+puts stderr "\nExpect script failed: output was different from expected value. uncomment `exp_internal 1` to debug."
+exit 1

@@ -1,0 +1,17 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+spawn $env(EXAMPLES_DIR)file-permissions
+
+expect "LICENSE file permissions:\r\n    Executable: Bool.false\r\n    Readable: Bool.true\r\n    Writable: Bool.true\r\n" {
+    exit 0
+}
+
+puts stderr "\nExpect script failed: output was different from expected value. uncomment `exp_internal 1` to debug."
+exit 1

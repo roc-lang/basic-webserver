@@ -6,6 +6,8 @@ import pf.Utc
 
 # To run this example: check the README.md in this folder
 
+## Echo server: replies with the request body.
+
 Model : {}
 
 init! : {} => Result Model []
