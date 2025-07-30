@@ -5,20 +5,35 @@
 
 set timeout 7
 
+source ./ci/expect_scripts/shared-code.exp
+
 spawn $env(EXAMPLES_DIR)command
 
-expect "Listening on <http://127.0.0.1:8000>\r\n" {
-    set curlOutput [exec curl -sS localhost:8000]
+expect "Command output: Hi\r\n" {
+    expect "Command output: BAZ=DUCK\r\n" {
+        expect "FOO=BAR\r\n" {
+            expect "XYZ=ABC\r\n" {
+                expect "Yo\r\n" {
+                    # Then expect the webserver to start listening
+                    expect "Listening on <http://127.0.0.1:8000>\r\n" {
+                        # Make the curl request
+                        set curlOutput [exec curl -sS localhost:8000]
 
-    if {$curlOutput eq "Command succeeded."} {
-        expect "Z GET /\r\n" {
-            exit 0
+                        if {$curlOutput eq "Command succeeded."} {
+                            # Expect the logged request (datetime will vary, so we match the pattern)
+                            expect -re "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z GET /\r\n" {
+                                exit 0
+                            }
+                        } else {
+                            puts "Error: curl output was different than expected: $curlOutput"
+                            exit 1
+                        }
+                    }
+                }
+            }
         }
-    } else {
-        puts "Error: curl output was different than expected: $curlOutput"
-        exit 1
     }
 }
 
-puts stderr "\nError: output was different than expected."
+puts stderr "\nExpected output pattern not found. uncomment `exp_internal 1` to debug."
 exit 1
