@@ -80,7 +80,7 @@ jobs:
           # TODO remove `if` when above TODOs are done
           if [[ "${{ matrix.operating-system }}" != *"-arm" ]]; then
             # no need to build platform anymore
-            NO_BUILD=1 ./ci/all_tests.sh
+            NO_BUILD=1 IS_MUSL=1 ./ci/all_tests.sh
           fi
 
 # TODO clippy, rustfmt, roc fmt check
