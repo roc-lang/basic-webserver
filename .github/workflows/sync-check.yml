@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 9 * * 2'  # Every Tuesday at 9 AM UTC
 
+# Do not add permissions here! Configure them at the job level!
+permissions: {}
+
 jobs:
   sync-check:
     runs-on: ubuntu-latest
