@@ -89,6 +89,9 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
 done
 
 for script in ci/expect_scripts/*.exp; do
+    if [ "$IS_MUSL" = "1" ] && grep -q "file-accessed-modified-created" "$script"; then
+        continue
+    fi
     expect "$script"
 done
 

@@ -12,8 +12,8 @@ init! : {} => Result Model [Exit I32 Str]_
 init! = |{}|
 
     # Check if DEBUG environment variable is set
-    when Env.var!("DEBUG") is
-        Ok(var) if !(Str.is_empty(var)) -> Ok(DebugPrintMode)
+    when Env.decode!("DEBUG") is
+        Ok(1) -> Ok(DebugPrintMode)
         _ -> Ok(NonDebugMode)
 
 respond! : Request, Model => Result Response [ServerErr Str]_

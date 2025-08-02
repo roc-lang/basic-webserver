@@ -51,14 +51,14 @@ delta_as_millis = |utc_a, utc_b|
 ## Calculate nanoseconds between two Utc timestamps
 delta_as_nanos : Utc, Utc -> U128
 delta_as_nanos = |@Utc(nanos_a), @Utc(nanos_b)|
-    # bitwiseXor for best performance
+    # bitwise_xor for best performance
     nanos_a_shifted = Num.bitwise_xor(Num.to_u128(nanos_a), Num.shift_left_by(1, 127))
     nanos_b_shifted = Num.bitwise_xor(Num.to_u128(nanos_b), Num.shift_left_by(1, 127))
 
     Num.abs_diff(nanos_a_shifted, nanos_b_shifted)
 
-## Convert Utc timestamp to ISO 8601 string
-## Example: 2023-11-14T23:39:39Z
+## Convert Utc timestamp to ISO 8601 string.
+## For example: 2023-11-14T23:39:39Z
 to_iso_8601 : Utc -> Str
 to_iso_8601 = |@Utc(nanos)|
     nanos
