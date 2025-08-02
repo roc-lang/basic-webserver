@@ -54,3 +54,5 @@ build
 
 # sqlite database temp file
 *.db-shm
+
+basic-cli/
