@@ -85,17 +85,25 @@ Testing Path.exists!:
 ✓ Path.exists! returns true for a file that exists
 ✓ Path.exists! returns false for a file that does not exist
 
+Testing Path.is_sym_link!:
+Regular file is symlink: Bool.false
+Directory is symlink: Bool.false
+File symlink creation successful: Bool.true
+File symlink is symlink: Bool.true
+Dir symlink creation successful: Bool.true
+Dir symlink is symlink: Bool.true
+Nonexistent path result: Expected error
+
+Testing Path.type!:
+Regular file type: IsFile
+Directory type: IsDir
+Symlink creation successful: Bool.true
+Symlink type: IsSymLink
+Nonexistent path result: Expected error
+
 I ran all Path function tests.
 
 Cleaning up test files...
-Files to clean up:
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_bytes\\.txt
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_hardlink\\.txt
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_json\\.json
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_original\\.txt
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_rename_new\\.txt
--rw-r--r-- \\d+ \\w+ \\w+ \\d+ \\w+ +\\d+ \\d+:\\d+ test_path_utf8\\.txt
-
 Files remaining after cleanup: Bool.false
 Ran all tests.
 "]
