@@ -17,8 +17,10 @@ hosted Host
         exe_path!,
         stdout_line!,
         stdout_write!,
+        stdout_write_bytes!,
         stderr_line!,
         stderr_write!,
+        stderr_write_bytes!,
         tty_mode_canonical!,
         tty_mode_raw!,
         send_request!,
@@ -117,8 +119,10 @@ temp_dir! : {} => List U8
 # STDIO
 stdout_line! : Str => Result {} InternalIOErr.IOErrFromHost
 stdout_write! : Str => Result {} InternalIOErr.IOErrFromHost
+stdout_write_bytes! : List U8 => Result {} InternalIOErr.IOErrFromHost
 stderr_line! : Str => Result {} InternalIOErr.IOErrFromHost
 stderr_write! : Str => Result {} InternalIOErr.IOErrFromHost
+stderr_write_bytes! : List U8 => Result {} InternalIOErr.IOErrFromHost
 
 # TCP
 send_request! : InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
