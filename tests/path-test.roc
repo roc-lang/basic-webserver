@@ -502,30 +502,12 @@ test_path_type! = |{}|
             Ok(_) -> "Unexpected success"
             Err(_) -> "Expected error"
     
-    file_type_str = 
-        when file_type is
-            IsFile -> "IsFile"
-            IsDir -> "IsDir"
-            IsSymLink -> "IsSymLink"
-    
-    dir_type_str = 
-        when dir_type is
-            IsFile -> "IsFile"
-            IsDir -> "IsDir"
-            IsSymLink -> "IsSymLink"
-    
-    symlink_type_str = 
-        when symlink_type is
-            IsFile -> "IsFile"
-            IsDir -> "IsDir"
-            IsSymLink -> "IsSymLink"
-    
     Stdout.line!(
         """
-        Regular file type: ${file_type_str}
-        Directory type: ${dir_type_str}
+        Regular file type: ${Inspect.to_str(file_type)}
+        Directory type: ${Inspect.to_str(dir_type)}
         Symlink creation successful: ${Inspect.to_str(ln_result.status? == 0)}
-        Symlink type: ${symlink_type_str}
+        Symlink type: ${Inspect.to_str(symlink_type)}
         Nonexistent path result: ${nonexistent_result}
         """
     )?
@@ -553,18 +535,12 @@ cleanup_test_files! = |files_requirement|
     ]
 
     # Show files before cleanup
-    ls_before_cleanup = Cmd.new("ls") |> Cmd.args(["-la"] |> List.concat(test_paths)) |> Cmd.output!()
+    ls_before_cleanup =
+        Cmd.new("ls")
+        |> Cmd.args(["-lad"] |> List.concat(test_paths))
+        |> Cmd.output!()
     
     if ls_before_cleanup.status? == 0 then
-        cleanup_stdout = Str.from_utf8(ls_before_cleanup.stdout) ? |_| CleanupInvalidUtf8
-        
-        Stdout.line!(
-            """
-            Paths to clean up:
-            ${cleanup_stdout}
-            """
-        )?
-
         delete_result = List.for_each_try!(test_paths, |path_name| 
             path = Path.from_str(path_name)
             # Try to delete as file first, then as directory if that fails
@@ -580,7 +556,10 @@ cleanup_test_files! = |files_requirement|
                 Ok({})?
         
         # Verify cleanup
-        ls_after_cleanup = Cmd.new("ls") |> Cmd.args(test_paths) |> Cmd.output!()
+        ls_after_cleanup =
+            Cmd.new("ls")
+            |> Cmd.args(test_paths)
+            |> Cmd.output!()
         
         Stdout.line!(
             """
