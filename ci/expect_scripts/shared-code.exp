@@ -14,3 +14,11 @@ proc check_exit_and_segfault {} {
         }
     }
 }
+
+proc normalize_output {output} {
+    # Remove leading newline for cleaner multiline string formatting
+    regsub {^\n} $output "" result
+    # Convert Unix line endings to Windows-style line endings for expect matching
+    regsub -all {\n} $result "\r\n" result
+    return $result
+}
