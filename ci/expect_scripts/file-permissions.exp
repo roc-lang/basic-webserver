@@ -9,9 +9,16 @@ source ./ci/expect_scripts/shared-code.exp
 
 spawn $env(EXAMPLES_DIR)file-permissions
 
-expect "LICENSE file permissions:\r\n    Executable: Bool.false\r\n    Readable: Bool.true\r\n    Writable: Bool.true\r\n" {
+set expected_output [normalize_output {
+LICENSE file permissions:
+    Executable: Bool.false
+    Readable: Bool.true
+    Writable: Bool.true
+}]
+
+expect $expected_output {
     exit 0
 }
 
-puts stderr "\nExpect script failed: output was different from expected value. uncomment `exp_internal 1` to debug."
+puts stderr "\nExpect script failed: output was not as expected. Diff the output with expected_output in this script. Alternatively, uncomment `exp_internal 1` to debug."
 exit 1
