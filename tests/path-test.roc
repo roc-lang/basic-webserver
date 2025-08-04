@@ -50,6 +50,12 @@ run_tests! = |{}|
     # Test path exists
     test_path_exists!({})?
 
+    # Test is_sym_link
+    test_is_sym_link!({})?
+
+    # Test type
+    test_path_type!({})?
+
     Stdout.line!("\nI ran all Path function tests.")
 
 test_path_creation! : {} => Result {} _
@@ -400,44 +406,160 @@ test_path_exists! = |{}|
 
     Ok({})
 
+test_is_sym_link! : {} => Result {} _
+test_is_sym_link! = |{}|
+    Stdout.line!("\nTesting Path.is_sym_link!:")?
+    
+    # Create a regular file
+    regular_file = Path.from_str("test_regular_file.txt")
+    Path.write_utf8!("Regular file content", regular_file)?
+    
+    # Create a directory
+    test_dir = Path.from_str("test_directory")
+    Path.create_dir!(test_dir)?
+    
+    # Create a symbolic link to the file (using ln -s command)
+    link_to_file = Path.from_str("test_symlink_to_file.txt")
+    ln_file_result = Cmd.new("ln") |> Cmd.args(["-s", "test_regular_file.txt", "test_symlink_to_file.txt"]) |> Cmd.output!()
+    
+    # Create a symbolic link to the directory 
+    link_to_dir = Path.from_str("test_symlink_to_dir")
+    ln_dir_result = Cmd.new("ln") |> Cmd.args(["-s", "test_directory", "test_symlink_to_dir"]) |> Cmd.output!()
+    
+    # Test is_sym_link on regular file
+    regular_is_symlink = Path.is_sym_link!(regular_file) ? |err| RegularFileSymlinkCheckFailed(err)
+    
+    # Test is_sym_link on directory
+    dir_is_symlink = Path.is_sym_link!(test_dir) ? |err| DirSymlinkCheckFailed(err)
+    
+    # Test is_sym_link on symbolic links (if creation succeeded)
+    file_link_is_symlink = 
+        if ln_file_result.status? == 0 then
+            Path.is_sym_link!(link_to_file) ? |err| FileLinkSymlinkCheckFailed(err)
+        else
+            Bool.false
+    
+    dir_link_is_symlink = 
+        if ln_dir_result.status? == 0 then
+            Path.is_sym_link!(link_to_dir) ? |err| DirLinkSymlinkCheckFailed(err)
+        else
+            Bool.false
+    
+    # Test is_sym_link on non-existent path
+    nonexistent_path = Path.from_str("test_nonexistent_path.txt")
+    nonexistent_result = 
+        when Path.is_sym_link!(nonexistent_path) is
+            Ok(_) -> "Unexpected success"
+            Err(_) -> "Expected error"
+    
+    Stdout.line!(
+        """
+        Regular file is symlink: ${Inspect.to_str(regular_is_symlink)}
+        Directory is symlink: ${Inspect.to_str(dir_is_symlink)}
+        File symlink creation successful: ${Inspect.to_str(ln_file_result.status? == 0)}
+        File symlink is symlink: ${Inspect.to_str(file_link_is_symlink)}
+        Dir symlink creation successful: ${Inspect.to_str(ln_dir_result.status? == 0)}
+        Dir symlink is symlink: ${Inspect.to_str(dir_link_is_symlink)}
+        Nonexistent path result: ${nonexistent_result}
+        """
+    )?
+    
+    Ok({})
+
+test_path_type! : {} => Result {} _
+test_path_type! = |{}|
+    Stdout.line!("\nTesting Path.type!:")?
+    
+    # Create a regular file
+    regular_file = Path.from_str("test_type_file.txt")
+    Path.write_utf8!("File for type testing", regular_file)?
+    
+    # Create a directory
+    test_dir = Path.from_str("test_type_directory")
+    Path.create_dir!(test_dir)?
+    
+    # Create a symbolic link (using ln -s command)
+    symlink_path = Path.from_str("test_type_symlink.txt")
+    ln_result = Cmd.new("ln") |> Cmd.args(["-s", "test_type_file.txt", "test_type_symlink.txt"]) |> Cmd.output!()
+    
+    # Test type on regular file
+    file_type = Path.type!(regular_file) ? |err| FileTypeCheckFailed(err)
+    
+    # Test type on directory
+    dir_type = Path.type!(test_dir) ? |err| DirTypeCheckFailed(err)
+    
+    # Test type on symbolic link (if creation succeeded)
+    symlink_type = 
+        if ln_result.status? == 0 then
+            Path.type!(symlink_path) ? |err| SymlinkTypeCheckFailed(err)
+        else
+            IsFile
+    
+    # Test type on non-existent path
+    nonexistent_path = Path.from_str("test_nonexistent_type_path.txt")
+    nonexistent_result = 
+        when Path.type!(nonexistent_path) is
+            Ok(_) -> "Unexpected success"
+            Err(_) -> "Expected error"
+    
+    Stdout.line!(
+        """
+        Regular file type: ${Inspect.to_str(file_type)}
+        Directory type: ${Inspect.to_str(dir_type)}
+        Symlink creation successful: ${Inspect.to_str(ln_result.status? == 0)}
+        Symlink type: ${Inspect.to_str(symlink_type)}
+        Nonexistent path result: ${nonexistent_result}
+        """
+    )?
+    
+    Ok({})
+
 cleanup_test_files! : [FilesNeedToExist, FilesMaybeExist] => Result {} _
 cleanup_test_files! = |files_requirement|
     Stdout.line!("\nCleaning up test files...")?
     
-    test_files = [
+    test_paths = [
         "test_path_bytes.txt",
         "test_path_utf8.txt",
         "test_path_json.json",
         "test_path_original.txt",
         "test_path_hardlink.txt",
-        "test_path_rename_new.txt"
+        "test_path_rename_new.txt",
+        "test_regular_file.txt",
+        "test_symlink_to_file.txt",
+        "test_type_file.txt",
+        "test_type_symlink.txt",
+        "test_directory",
+        "test_symlink_to_dir",
+        "test_type_directory"
     ]
 
     # Show files before cleanup
-    ls_before_cleanup = Cmd.new("ls") |> Cmd.args(["-la"] |> List.concat(test_files)) |> Cmd.output!()
+    ls_before_cleanup =
+        Cmd.new("ls")
+        |> Cmd.args(["-lad"] |> List.concat(test_paths))
+        |> Cmd.output!()
     
     if ls_before_cleanup.status? == 0 then
-        cleanup_stdout = Str.from_utf8(ls_before_cleanup.stdout) ? |_| CleanupInvalidUtf8
-        
-        Stdout.line!(
-            """
-            Files to clean up:
-            ${cleanup_stdout}
-            """
-        )?
-
-        delete_result = List.for_each_try!(test_files, |filename| 
-            Path.delete!(Path.from_str(filename))
+        delete_result = List.for_each_try!(test_paths, |path_name| 
+            path = Path.from_str(path_name)
+            # Try to delete as file first, then as directory if that fails
+            when Path.delete!(path) is
+                Ok({}) -> Ok({})
+                Err(_) -> Path.delete_all!(path)
         )
 
         when files_requirement is
             FilesNeedToExist ->
-                delete_result ? |err| FileDeletionFailed(err)
+                delete_result ? |err| PathDeletionFailed(err)
             FilesMaybeExist ->
                 Ok({})?
         
         # Verify cleanup
-        ls_after_cleanup = Cmd.new("ls") |> Cmd.args(test_files) |> Cmd.output!()
+        ls_after_cleanup =
+            Cmd.new("ls")
+            |> Cmd.args(test_paths)
+            |> Cmd.output!()
         
         Stdout.line!(
             """
