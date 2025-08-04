@@ -19,7 +19,7 @@ init! = |{}|
 
 run_tests! : {} => Result {} _
 run_tests! = |{}|
-    db_path = Env.var!("DB_PATH")?
+    db_path = Env.var!("DB_PATH") ? |_| EnvVarNotFound("DB_PATH")
 
     # Test Sqlite.str, Sqlite.bytes, Sqlite.i32...
 
@@ -61,21 +61,33 @@ run_tests! = |{}|
 
     Stdout.line!("Rows: ${rows_texts_str}")?
 
+    # test query!
+
+    count = Sqlite.query!({
+        path: db_path,
+        query: "SELECT COUNT(*) as \"count\" FROM test;",
+        bindings: [],
+        row: Sqlite.u64("count"),
+    }) ? |err| QueryCountFailed(err)
+
+
+    Stdout.line!("Row count: ${Num.to_str(count)}")?
+
     # Test query_prepared! with count
 
-    prepared_count = Sqlite.prepare!({
+    prepared_count_query = Sqlite.prepare!({
         path: db_path,
         query: "SELECT COUNT(*) as \"count\" FROM test;",
     }) ? |err| PrepareFailed(err)
 
-    count = Sqlite.query_prepared!({
-        stmt: prepared_count,
+    count_prepared = Sqlite.query_prepared!({
+        stmt: prepared_count_query,
         bindings: [],
         row: Sqlite.u64("count"),
     }) ? |err| QueryPreparedFailed(err)
 
 
-    Stdout.line!("Row count: ${Num.to_str(count)}")?
+    Stdout.line!("Row count (prepared): ${Num.to_str(count_prepared)}")?
 
     # Test execute_prepared! with different params
 

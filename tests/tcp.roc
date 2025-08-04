@@ -93,7 +93,9 @@ test_tcp_functions! = |stream|
     bytes_until = Tcp.read_until!(stream, '\n') ? |err| FailedReadUntil(err)
     bytes_until_as_str = Str.from_utf8(bytes_until) ? |err| ReadUntilFromUtf8(err)
 
-    Stdout.line!("Tcp.read_until yielded: '${bytes_until_as_str}'")?
+    Stdout.line!("Tcp.read_until yielded: '${bytes_until_as_str}'\n")?
+
+    Stdout.line!("Testing Tcp.stream_err_to_str: ${Tcp.stream_err_to_str(StreamNotFound)}\n")?
 
     Ok({})
 

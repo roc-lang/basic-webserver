@@ -1,0 +1,30 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+spawn $env(TESTS_DIR)stdout-stderr
+
+
+set expected_output [normalize_output "
+stdout
+stderr
+stdout bytes
+stderr bytes
+stdout line
+stderr line
+Ran all tests.
+"]
+
+expect $expected_output {
+    expect eof {
+        check_exit_and_segfault
+    }  
+}
+
+puts stderr "\nExpect script failed: output was not as expected. Diff the output with expected_output in this script. Alternatively, uncomment `exp_internal 1` to debug."
+exit 1
