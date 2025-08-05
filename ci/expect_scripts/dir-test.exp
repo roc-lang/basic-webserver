@@ -42,11 +42,10 @@ Deleting non-existent directory result: Expected error
 
 Testing Dir.delete_all!:
 Files in complex directory structure:
-test_complex_for_delete_all/subdir1/file2.txt
-test_complex_for_delete_all/subdir1/subsubdir/file3.txt
 test_complex_for_delete_all/file1.txt
+test_complex_for_delete_all/subdir1/file2.txt
 test_complex_for_delete_all/subdir2/file4.txt
-
+test_complex_for_delete_all/subdir1/subsubdir/file3.txt
 Number of files: 4
 Complex directory exists after delete_all: Bool.false
 Deleting non-existent directory with delete_all result: Expected error

@@ -279,7 +279,7 @@ test_dir_delete_all! = |{}|
     Stdout.line!(
         """
         Files in complex directory structure:
-        ${tree_stdout}
+        ${file_lines |> Str.join_with("\n")}
         Number of files: ${Num.to_str(file_count)}
         """
     )?
