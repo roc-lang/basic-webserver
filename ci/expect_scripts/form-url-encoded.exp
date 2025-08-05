@@ -1,0 +1,27 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+spawn $env(EXAMPLES_DIR)form-url-encoded
+
+expect "Listening on <http://127.0.0.1:8000>\r\n" {
+
+    set script_dir [file dirname [info script]]
+
+    exec bash $script_dir/form-url-encoded-curl.sh
+
+    set curlOutput [exec cat curl_form_output.txt]
+
+    if { [string match "*Form Data Received*" $curlOutput] && [string match "*Test+User*" $curlOutput] } {
+        exit 0
+    } else {
+        puts "Error: curl output was different than expected: $curlOutput"
+        exit 1
+    }
+}
+
+puts stderr "\nError: output was different than expected."
+exit 1

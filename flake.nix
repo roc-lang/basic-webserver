@@ -52,6 +52,7 @@
           rocPkgs.cli
           sqlite
           nmap # ncat server for tests
+          ripgrep # for ci/check_all_exposed_funs_tested.roc
         ]);
       in {
 

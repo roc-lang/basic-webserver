@@ -4,7 +4,6 @@ module [
     FormData,
     parse_form_url_encoded,
     parse_multipart_form_data,
-    decode_multipart_form_data_boundary,
 ]
 
 import InternalHttp
@@ -29,7 +28,7 @@ FormData : {
     ## Example: `base64` or `binary`
     encoding : List U8,
 
-    ## Acutal data that was entered in the form, in encoded form.
+    ## Actual data that was entered in the form, in encoded form.
     data : List U8,
 }
 
@@ -444,7 +443,7 @@ expect hex_to_dec('F') == 15
 
 ## For HTML forms that include files or large amounts of text.
 ##
-## See usage in examples/file-upload-form.roc
+## See usage in examples/form-file-upload.roc
 parse_multipart_form_data :
     {
         headers : List InternalHttp.Header,
@@ -460,6 +459,8 @@ parse_multipart_form_data = |args|
             |> Result.map_err(|_| InvalidMultipartFormData),
     )
 
+## Extracts the boundary value from the list of HTTP headers.
+## The boundary is a special string used to separate different parts of the form data.
 decode_multipart_form_data_boundary : List { name : Str, value : Str } -> Result (List U8) _
 decode_multipart_form_data_boundary = |headers|
     headers

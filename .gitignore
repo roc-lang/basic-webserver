@@ -39,10 +39,12 @@ examples/command
 examples/sqlite
 examples/sqlite3
 examples/hello-web
-examples/file-upload-form
+examples/form-file-upload
 
-# for file-upload-form test
+# for form-file-upload test
 curl_file_output.txt
+# for form-url-encoded test
+curl_form_output.txt
 
 .DS_Store
 
