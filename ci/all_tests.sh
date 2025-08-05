@@ -60,6 +60,8 @@ for roc_file in $EXAMPLES_DIR*.roc; do
     fi
 done
 
+$ROC ci/check_all_exposed_funs_tested.roc
+
 # roc build
 architecture=$(uname -m)
 

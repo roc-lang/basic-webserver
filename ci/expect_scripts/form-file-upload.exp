@@ -5,7 +5,7 @@
 
 set timeout 7
 
-spawn $env(EXAMPLES_DIR)file-upload-form
+spawn $env(EXAMPLES_DIR)form-file-upload
 
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
