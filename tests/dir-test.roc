@@ -53,7 +53,10 @@ test_dir_create! = |{}|
     Dir.create!(test_dir_name) ? |err| DirCreateFailed(err)
     
     # Verify directory exists using ls
-    ls_output = Cmd.new("ls") |> Cmd.args(["-ld", test_dir_name]) |> Cmd.output!()
+    ls_output =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", test_dir_name])
+        |> Cmd.output!()
     ls_exit_code = ls_output.status ? |err| LsFailedToGetExitCode(err)
     ls_stdout = Str.from_utf8(ls_output.stdout) ? |_| LsInvalidUtf8
     is_dir = Str.starts_with(ls_stdout, "d")
@@ -103,7 +106,10 @@ test_dir_create_all! = |{}|
     Dir.create_all!(nested_path)?
     
     # Verify nested structure with find
-    find_output = Cmd.new("find") |> Cmd.args(["test_parent_all", "-type", "d"]) |> Cmd.output!()
+    find_output =
+        Cmd.new("find")
+        |> Cmd.args(["test_parent_all", "-type", "d"])
+        |> Cmd.output!()
     find_stdout = Str.from_utf8(find_output.stdout) ? |_| FindInvalidUtf8
     
     # Count directories created (including the parent)
@@ -123,7 +129,10 @@ test_dir_create_all! = |{}|
     Dir.create_all!(nested_path)?
     
     # Verify it still exists
-    ls_existing = Cmd.new("ls") |> Cmd.args(["-ld", nested_path]) |> Cmd.output!()
+    ls_existing =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", nested_path])
+        |> Cmd.output!()
     ls_existing_success = ls_existing.status ? |err| LsExistingFailedToGetExitCode(err)
     
     Stdout.line!(
@@ -136,7 +145,10 @@ test_dir_create_all! = |{}|
     single_with_create_all = "test_single_with_create_all"
     Dir.create_all!(single_with_create_all)?
     
-    ls_single = Cmd.new("ls") |> Cmd.args(["-ld", single_with_create_all]) |> Cmd.output!()
+    ls_single =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", single_with_create_all])
+        |> Cmd.output!()
     ls_single_success = ls_single.status ? |err| LsSingleFailedToGetExitCode(err)
     
     Stdout.line!(
@@ -156,14 +168,20 @@ test_dir_delete_empty! = |{}|
     Dir.create!(empty_dir)?
     
     # Verify it exists
-    ls_before = Cmd.new("ls") |> Cmd.args(["-ld", empty_dir]) |> Cmd.output!()
+    ls_before =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", empty_dir])
+        |> Cmd.output!()
     ls_before_success = ls_before.status ? |err| LsBeforeFailedToGetExitCode(err)
     
     # Delete the empty directory
     Dir.delete_empty!(empty_dir)?
     
     # Verify it's gone
-    ls_after = Cmd.new("ls") |> Cmd.args(["-ld", empty_dir]) |> Cmd.output!()
+    ls_after =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", empty_dir])
+        |> Cmd.output!()
     ls_after_success = ls_after.status ? |err| LsAfterFailedToGetExitCode(err)
     
     Stdout.line!(
@@ -193,7 +211,10 @@ test_dir_delete_empty! = |{}|
     )?
 
     # Verify non-empty directory still exists
-    ls_non_empty = Cmd.new("ls") |> Cmd.args(["-ld", non_empty_dir]) |> Cmd.output!()
+    ls_non_empty =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", non_empty_dir])
+        |> Cmd.output!()
     ls_non_empty_success = ls_non_empty.status ? |err| LsNonEmptyFailedToGetExitCode(err)
     
     Stdout.line!(
@@ -232,9 +253,27 @@ test_dir_delete_all! = |{}|
     Path.write_utf8!("file4 content", Path.from_str("${complex_dir}/subdir2/file4.txt"))?
     
     # Show the structure before deletion
-    tree_output = Cmd.new("find") |> Cmd.args([complex_dir, "-type", "f"]) |> Cmd.output!()
+    tree_output =
+        Cmd.new("find")
+        |> Cmd.args([complex_dir, "-type", "f"])
+        |> Cmd.output!()
     tree_stdout = Str.from_utf8(tree_output.stdout) ? |_| TreeInvalidUtf8
-    file_lines = Str.split_on(tree_stdout, "\n") |> List.keep_if(|line| !Str.is_empty(Str.trim(line)))
+    file_lines =
+        Str.split_on(tree_stdout, "\n")
+        |> List.keep_if(|line| !Str.is_empty(Str.trim(line)))
+        |> List.sort_with(
+            |str_a, str_b|
+                # We just want consistent ordering for testing
+                byte_sum_a = Str.to_utf8(str_a) |> List.map(Num.to_u64) |> List.sum
+                byte_sum_b = Str.to_utf8(str_b) |> List.map(Num.to_u64) |> List.sum
+                 
+                if byte_sum_a < byte_sum_b then
+                    LT
+                else if byte_sum_a > byte_sum_b then
+                    GT
+                else
+                    EQ
+        )
     file_count = List.len(file_lines)
     
     Stdout.line!(
@@ -249,7 +288,10 @@ test_dir_delete_all! = |{}|
     Dir.delete_all!(complex_dir)?
     
     # Verify it's gone
-    ls_after_delete_all = Cmd.new("ls") |> Cmd.args(["-ld", complex_dir]) |> Cmd.output!()
+    ls_after_delete_all =
+        Cmd.new("ls")
+        |> Cmd.args(["-ld", complex_dir])
+        |> Cmd.output!()
     ls_after_delete_all_success = ls_after_delete_all.status ? |err| LsAfterDeleteAllFailedToGetExitCode(err)
     
     Stdout.line!(
@@ -289,7 +331,10 @@ cleanup_test_dirs! = |dirs_requirement|
     # Clean up directories that exist, ignoring missing ones
     delete_result = List.for_each_try!(test_dirs, |dir_name| 
         # Check if directory exists first
-        ls_check = Cmd.new("ls") |> Cmd.args(["-ld", dir_name]) |> Cmd.output!()
+        ls_check =
+            Cmd.new("ls")
+            |> Cmd.args(["-ld", dir_name])
+            |> Cmd.output!()
         if ls_check.status? == 0 then
             # Directory exists, try to delete it
             when Dir.delete_empty!(dir_name) is
@@ -308,7 +353,10 @@ cleanup_test_dirs! = |dirs_requirement|
     
     # Verify cleanup by checking remaining directories
     remaining_dirs = List.keep_if_try!(test_dirs, |dir_name|
-        ls_check = Cmd.new("ls") |> Cmd.args(["-ld", dir_name]) |> Cmd.output!()
+        ls_check =
+            Cmd.new("ls")
+            |> Cmd.args(["-ld", dir_name])
+            |> Cmd.output!()
         Ok(ls_check.status? == 0)
     ) ? |err| LsCheckFailed(err)
     
