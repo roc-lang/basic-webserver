@@ -88,6 +88,16 @@ find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | whil
     fi
 done
 
+# Build server to test examples/http.roc later
+if [ -d "basic-cli" ]; then
+    echo "Deleting existing basic-cli folder..."
+    rm -rf basic-cli
+fi
+git clone --depth 1 https://github.com/roc-lang/basic-cli.git
+cd basic-cli/ci/rust_http_server
+cargo build --release
+cd ../../..
+
 for script in ci/expect_scripts/*.exp; do
     if [ "$IS_MUSL" = "1" ] && grep -q "file-accessed-modified-created" "$script"; then
         continue

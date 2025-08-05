@@ -46,6 +46,12 @@ run_tests! = |{}|
     # Test file exists
     test_file_exists!({})?
 
+    # Test file size
+    test_file_size!({})?
+
+    # Test directory checking
+    test_is_dir!({})?
+
     Stdout.line!("\nI ran all file function tests.")
 
 test_basic_file_operations! : {} => Result {} _
@@ -242,6 +248,36 @@ test_file_exists! = |{}|
         Stderr.line!("✗ File.exists! returned true for a file that does not exist")?
     else
         Stdout.line!("✓ File.exists! returns false for a file that does not exist")?
+
+    Ok({})
+
+test_file_size! : {} => Result {} _
+test_file_size! = |{}|
+    Stdout.line!("\nTesting File.size_in_bytes!:")?
+
+    # Test with existing file
+    file_size = File.size_in_bytes!("test_bytes.txt")?
+    Stdout.line!("✓ File.size_in_bytes! returned ${Num.to_str(file_size)} bytes for test_bytes.txt")?
+
+    Ok({})
+
+test_is_dir! : {} => Result {} _
+test_is_dir! = |{}|
+    Stdout.line!("\nTesting File.is_dir!:")?
+
+    # Test current directory
+    current_dir_is_dir = File.is_dir!(".")?
+    if current_dir_is_dir then
+        Stdout.line!("✓ Current directory '.' is recognized as a directory")?
+    else
+        Stderr.line!("✗ Current directory '.' is not recognized as a directory")?
+
+    # Test regular file
+    file_is_dir = File.is_dir!("test_bytes.txt")?
+    if file_is_dir then
+        Stderr.line!("✗ Regular file is incorrectly recognized as a directory")?
+    else
+        Stdout.line!("✓ Regular file is correctly not recognized as a directory")?
 
     Ok({})
 

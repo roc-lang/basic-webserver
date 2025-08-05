@@ -44,6 +44,9 @@ Tcp.read_exactly yielded: 'ABC'
 Testing Tcp.read_until!:
 Tcp.read_until yielded: 'Line1
 '
+
+Testing Tcp.stream_err_to_str: StreamNotFound
+
 Ran all tests.
 "]
 

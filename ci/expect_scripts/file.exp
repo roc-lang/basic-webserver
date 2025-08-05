@@ -56,6 +56,13 @@ Testing File.exists!:
 ✓ File.exists! returns true for a file that exists
 ✓ File.exists! returns false for a file that does not exist
 
+Testing File.size_in_bytes!:
+✓ File.size_in_bytes! returned 13 bytes for test_bytes.txt
+
+Testing File.is_dir!:
+✓ Current directory '.' is recognized as a directory
+✓ Regular file is correctly not recognized as a directory
+
 I ran all file function tests.
 
 Cleaning up test files...
