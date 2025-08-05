@@ -45,8 +45,8 @@ jobs:
 
       - run: ./roc_nightly/roc version
 
-      - run: sudo apt install -y expect ncat
-      # expect for testing, ncat as test server for tests/tcp.roc
+      - run: sudo apt install -y expect ncat ripgrep
+      # expect for testing, ncat as test server for tests/tcp.roc, ripgrep for ci/check_all_exposed_funs_tested.roc
 
       - name: print expect version
         run: expect -v
