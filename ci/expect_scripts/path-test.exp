@@ -24,7 +24,6 @@ Path with replaced extension: test_file.new
 Extension replaced: Bool.true
 
 Testing Path file operations:
-test_path_bytes.txt exists: Bool.true
 Bytes written: \\\[72, 101, 108, 108, 111, 44, 32, 80, 97, 116, 104, 33\\\]
 Bytes read: \\\[72, 101, 108, 108, 111, 44, 32, 80, 97, 116, 104, 33\\\]
 Bytes match: Bool.true
@@ -35,13 +34,9 @@ UTF-8 content matches: Bool.true
 JSON content: {\"message\":\"Path test\",\"numbers\":\\\[1,2,3\\\]}
 JSON contains 'message' field: Bool.true
 JSON contains 'numbers' field: Bool.true
-File exists before delete: Bool.true
-File exists after delete: Bool.false
+File no longer exists: Bool.true
 
-Testing Path directory operations:
-Created directory: drwxr-xr-x \\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ test_single_dir
-Is a directory: Bool.true
-
+Testing Path directory operations...
 Nested directory structure:
 test_parent
 test_parent/test_child
@@ -49,18 +44,14 @@ test_parent/test_child/test_grandchild
 
 Number of directories created: 3
 Directory contents:
-total \\d+
-dr\[-rwx\]+ +\\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ \\.
-dr\[-rwx\]+ +\\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ \\.\\.
--\[-rwx\]+ +\\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ file1\\.txt
--\[-rwx\]+ +\\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ file2\\.txt
-dr\[-rwx\]+ +\\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ subdir
+file1.txt
+file2.txt
+subdir
 
-Empty dir exists before delete: Bool.true
-Empty dir exists after delete: Bool.false
+Empty dir was deleted: Bool.true
 Size before delete_all: \\d+\\w*\\s*test_parent
 
-Parent dir exists after delete_all: Bool.false
+Parent dir no longer exists: Bool.true
 
 Testing Path.hard_link!:
 Hard link count before: 1
@@ -104,7 +95,7 @@ Nonexistent path result: Expected error
 I ran all Path function tests.
 
 Cleaning up test files...
-Files remaining after cleanup: Bool.false
+Files deleted successfully: Bool.true
 Ran all tests.
 "]
 

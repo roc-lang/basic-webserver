@@ -56,17 +56,14 @@ test_dir_create! = |{}|
     ls_output =
         Cmd.new("ls")
         |> Cmd.args(["-ld", test_dir_name])
-        |> Cmd.output!()
-    ls_exit_code = ls_output.status ? |err| LsFailedToGetExitCode(err)
-    ls_stdout = Str.from_utf8(ls_output.stdout) ? |_| LsInvalidUtf8
-    is_dir = Str.starts_with(ls_stdout, "d")
+        |> Cmd.exec_output!()?
+    is_dir = Str.starts_with(ls_output.stdout_utf8, "d")
     
     Stdout.line!(
         """
         Created directory: ${test_dir_name}
-        Directory exists: ${Inspect.to_str(ls_exit_code == 0)}
         Is a directory: ${Inspect.to_str(is_dir)}
-        Directory listing: ${Str.trim_end(ls_stdout)}
+        Directory listing: ${Str.trim_end(ls_output.stdout_utf8)}
         """
     )?
 
@@ -109,17 +106,16 @@ test_dir_create_all! = |{}|
     find_output =
         Cmd.new("find")
         |> Cmd.args(["test_parent_all", "-type", "d"])
-        |> Cmd.output!()
-    find_stdout = Str.from_utf8(find_output.stdout) ? |_| FindInvalidUtf8
+        |> Cmd.exec_output!()?
     
     # Count directories created (including the parent)
-    dir_lines = Str.split_on(find_stdout, "\n") |> List.keep_if(|line| !Str.is_empty(Str.trim(line)))
+    dir_lines = Str.split_on(find_output.stdout_utf8, "\n") |> List.keep_if(|line| !Str.is_empty(Str.trim(line)))
     dir_count = List.len(dir_lines)
     
     Stdout.line!(
         """
         Nested directory structure:
-        ${find_stdout}
+        ${find_output.stdout_utf8}
         Number of directories created: ${Num.to_str(dir_count)}
         Expected 3 directories: ${Inspect.to_str(dir_count == 3)}
         """
@@ -129,33 +125,13 @@ test_dir_create_all! = |{}|
     Dir.create_all!(nested_path)?
     
     # Verify it still exists
-    ls_existing =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", nested_path])
-        |> Cmd.output!()
-    ls_existing_success = ls_existing.status ? |err| LsExistingFailedToGetExitCode(err)
-    
-    Stdout.line!(
-        """
-        Creating existing directory with create_all succeeded: ${Inspect.to_str(ls_existing_success == 0)}
-        """
-    )?
+    _ = Cmd.exec!("test", ["-e", nested_path])?
 
     # Test creating a single directory with create_all
     single_with_create_all = "test_single_with_create_all"
     Dir.create_all!(single_with_create_all)?
     
-    ls_single =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", single_with_create_all])
-        |> Cmd.output!()
-    ls_single_success = ls_single.status ? |err| LsSingleFailedToGetExitCode(err)
-    
-    Stdout.line!(
-        """
-        Single directory with create_all exists: ${Inspect.to_str(ls_single_success == 0)}
-        """
-    )?
+    _ = Cmd.exec!("test", ["-e", single_with_create_all])?
 
     Ok({})
 
@@ -168,26 +144,18 @@ test_dir_delete_empty! = |{}|
     Dir.create!(empty_dir)?
     
     # Verify it exists
-    ls_before =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", empty_dir])
-        |> Cmd.output!()
-    ls_before_success = ls_before.status ? |err| LsBeforeFailedToGetExitCode(err)
+    _ = Cmd.exec!("test", ["-e", empty_dir])?
     
     # Delete the empty directory
     Dir.delete_empty!(empty_dir)?
     
     # Verify it's gone
-    ls_after =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", empty_dir])
-        |> Cmd.output!()
-    ls_after_success = ls_after.status ? |err| LsAfterFailedToGetExitCode(err)
+    exists_res =
+        Cmd.exec!("test", ["-e", empty_dir])
     
     Stdout.line!(
         """
-        Empty directory existed before delete: ${Inspect.to_str(ls_before_success == 0)}
-        Empty directory exists after delete: ${Inspect.to_str(ls_after_success == 0)}
+        Empty directory exists after delete: ${Inspect.to_str(!Result.is_err(exists_res))}
         """
     )?
 
@@ -211,17 +179,7 @@ test_dir_delete_empty! = |{}|
     )?
 
     # Verify non-empty directory still exists
-    ls_non_empty =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", non_empty_dir])
-        |> Cmd.output!()
-    ls_non_empty_success = ls_non_empty.status ? |err| LsNonEmptyFailedToGetExitCode(err)
-    
-    Stdout.line!(
-        """
-        Non-empty directory still exists: ${Inspect.to_str(ls_non_empty_success == 0)}
-        """
-    )?
+    _ = Cmd.exec!("test", ["-e", non_empty_dir])?
 
     # Test deleting non-existent directory (should fail)
     delete_nonexistent_result = 
@@ -256,10 +214,10 @@ test_dir_delete_all! = |{}|
     tree_output =
         Cmd.new("find")
         |> Cmd.args([complex_dir, "-type", "f"])
-        |> Cmd.output!()
-    tree_stdout = Str.from_utf8(tree_output.stdout) ? |_| TreeInvalidUtf8
+        |> Cmd.exec_output!()?
+
     file_lines =
-        Str.split_on(tree_stdout, "\n")
+        Str.split_on(tree_output.stdout_utf8, "\n")
         |> List.keep_if(|line| !Str.is_empty(Str.trim(line)))
         |> List.sort_with(
             |str_a, str_b|
@@ -288,15 +246,11 @@ test_dir_delete_all! = |{}|
     Dir.delete_all!(complex_dir)?
     
     # Verify it's gone
-    ls_after_delete_all =
-        Cmd.new("ls")
-        |> Cmd.args(["-ld", complex_dir])
-        |> Cmd.output!()
-    ls_after_delete_all_success = ls_after_delete_all.status ? |err| LsAfterDeleteAllFailedToGetExitCode(err)
+    exists_res = Cmd.exec!("test", ["-e", complex_dir])
     
     Stdout.line!(
         """
-        Complex directory exists after delete_all: ${Inspect.to_str(ls_after_delete_all_success == 0)}
+        Complex directory is gone after delete_all: ${Inspect.to_str(Result.is_err(exists_res))}
         """
     )?
 
@@ -331,18 +285,18 @@ cleanup_test_dirs! = |dirs_requirement|
     # Clean up directories that exist, ignoring missing ones
     delete_result = List.for_each_try!(test_dirs, |dir_name| 
         # Check if directory exists first
-        ls_check =
-            Cmd.new("ls")
-            |> Cmd.args(["-ld", dir_name])
-            |> Cmd.output!()
-        if ls_check.status? == 0 then
-            # Directory exists, try to delete it
-            when Dir.delete_empty!(dir_name) is
-                Ok({}) -> Ok({})
-                Err(_) -> Dir.delete_all!(dir_name)
-        else
-            # Directory doesn't exist, which is fine for cleanup
-            Ok({})
+        exists_res =
+            Cmd.exec!("test", ["-e", dir_name])
+
+        when exists_res is
+            Ok(_) ->
+                # Directory exists, try to delete it
+                when Dir.delete_empty!(dir_name) is
+                    Ok({}) -> Ok({})
+                    Err(_) -> Dir.delete_all!(dir_name)
+            Err(_) ->
+                # Directory doesn't exist, which is fine for cleanup
+                Ok({})            
     )
 
     when dirs_requirement is
@@ -351,18 +305,9 @@ cleanup_test_dirs! = |dirs_requirement|
         DirsMaybeExist ->
             Ok({})?
     
-    # Verify cleanup by checking remaining directories
-    remaining_dirs = List.keep_if_try!(test_dirs, |dir_name|
-        ls_check =
-            Cmd.new("ls")
-            |> Cmd.args(["-ld", dir_name])
-            |> Cmd.output!()
-        Ok(ls_check.status? == 0)
-    ) ? |err| LsCheckFailed(err)
-    
     Stdout.line!(
         """
-        Cleanup completed. Directories remaining: ${Inspect.to_str(List.len(remaining_dirs))}
+        Cleanup completed.
         """
     )
 

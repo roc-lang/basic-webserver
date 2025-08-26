@@ -47,8 +47,8 @@ hosted Host
         tcp_read_until!,
         tcp_write!,
         sleep_millis!,
-        command_status!,
-        command_output!,
+        command_exec_output!,
+        command_exec_exit_code!,
         current_arch_os!,
         temp_dir!,
         get_locale!,
@@ -84,8 +84,8 @@ InternalIOErr : {
 }
 
 # COMMAND
-command_status! : InternalCmd.Command => Result I32 InternalIOErr.IOErrFromHost
-command_output! : InternalCmd.Command => InternalCmd.OutputFromHost
+command_exec_exit_code! : InternalCmd.Command => Result I32 InternalIOErr.IOErrFromHost
+command_exec_output! : InternalCmd.Command => Result InternalCmd.OutputFromHostSuccess (Result InternalCmd.OutputFromHostFailure InternalIOErr.IOErrFromHost)
 
 # FILE
 file_write_bytes! : List U8, List U8 => Result {} InternalIOErr.IOErrFromHost

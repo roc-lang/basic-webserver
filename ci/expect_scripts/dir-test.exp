@@ -16,7 +16,6 @@ This will create and manipulate test directories in the current directory.
 
 Testing Dir.create!:
 Created directory: test_dir_create
-Directory exists: Bool.true
 Is a directory: Bool.true
 Directory listing: drwxr-xr-x \\d+ \\w+ (\\w+ )? *\\d+ \\w+ +\\d+ \\d+:\\d+ test_dir_create
 Creating existing directory result: Expected error
@@ -30,14 +29,10 @@ test_parent_all/test_child_all/test_grandchild_all
 
 Number of directories created: 3
 Expected 3 directories: Bool.true
-Creating existing directory with create_all succeeded: Bool.true
-Single directory with create_all exists: Bool.true
 
 Testing Dir.delete_empty!:
-Empty directory existed before delete: Bool.true
 Empty directory exists after delete: Bool.false
 Deleting non-empty directory result: Expected error
-Non-empty directory still exists: Bool.true
 Deleting non-existent directory result: Expected error
 
 Testing Dir.delete_all!:
@@ -47,13 +42,13 @@ test_complex_for_delete_all/subdir1/file2.txt
 test_complex_for_delete_all/subdir2/file4.txt
 test_complex_for_delete_all/subdir1/subsubdir/file3.txt
 Number of files: 4
-Complex directory exists after delete_all: Bool.false
+Complex directory is gone after delete_all: Bool.true
 Deleting non-existent directory with delete_all result: Expected error
 
 I ran all Dir function tests.
 
 Cleaning up test directories...
-Cleanup completed. Directories remaining: 0
+Cleanup completed.
 Ran all tests.
 "]
 

@@ -54,9 +54,9 @@ respond! = \req, _ ->
 
 If you'd like to contribute, check out our [group chat](https://roc.zulipchat.com) and let us know what you're thinking, we're friendly!
 
-## Developing / Building Locally
+## Running Locally
 
-If you have cloned this repository and want to run the examples without using a packaged release (...tar.br), you will need to build the platform first by running `roc build.roc`. Run examples with `roc examples/hello.roc` (on linux, add `--linker=legacy`).
+If you have cloned this repository and want to run the examples without using a packaged release (...tar.br), you will need to build the platform first by running `roc build.roc`. Run examples with `roc examples/hello-web.roc` (on linux, add `--linker=legacy`).
 
 ## Benchmarking
 
