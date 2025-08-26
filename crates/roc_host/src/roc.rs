@@ -269,17 +269,17 @@ pub extern "C" fn roc_fx_posix_time() -> roc_std::U128 {
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_command_status(
+pub extern "C" fn roc_fx_command_exec_exit_code(
     roc_cmd: &roc_command::Command,
 ) -> RocResult<i32, roc_io_error::IOErr> {
-    roc_command::command_status(roc_cmd)
+    roc_command::command_exec_exit_code(roc_cmd)
 }
 
 #[no_mangle]
-pub extern "C" fn roc_fx_command_output(
+pub extern "C" fn roc_fx_command_exec_output(
     roc_cmd: &roc_command::Command,
-) -> roc_command::OutputFromHost {
-    roc_command::command_output(roc_cmd)
+) -> RocResult<roc_command::OutputFromHostSuccess, RocResult<roc_command::OutputFromHostFailure, roc_io_error::IOErr>> {
+    roc_command::command_exec_output(roc_cmd)
 }
 
 #[no_mangle]

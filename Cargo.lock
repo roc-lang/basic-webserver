@@ -483,7 +483,7 @@ dependencies = [
 [[package]]
 name = "roc_command"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "roc_io_error",
  "roc_std",
@@ -492,7 +492,7 @@ dependencies = [
 [[package]]
 name = "roc_env"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "roc_file",
  "roc_std",
@@ -502,7 +502,7 @@ dependencies = [
 [[package]]
 name = "roc_file"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "memchr",
  "roc_io_error",
@@ -543,7 +543,7 @@ dependencies = [
 [[package]]
 name = "roc_http"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -560,7 +560,7 @@ dependencies = [
 [[package]]
 name = "roc_io_error"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "roc_std",
  "roc_std_heap",
@@ -569,7 +569,7 @@ dependencies = [
 [[package]]
 name = "roc_sqlite"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "libsqlite3-sys",
  "roc_std",
@@ -598,7 +598,7 @@ dependencies = [
 [[package]]
 name = "roc_stdio"
 version = "0.0.1"
-source = "git+https://github.com/roc-lang/basic-cli.git#bd752372b058e8c42cd4e8cfb74b36db64af01e8"
+source = "git+https://github.com/roc-lang/basic-cli.git#b6d57d9c85df5a9c28007398fb513e6d86130895"
 dependencies = [
  "roc_io_error",
  "roc_std",
