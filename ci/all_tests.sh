@@ -16,14 +16,15 @@ if [ -z "${ROC}" ]; then
   exit 1
 fi
 
-
 if [ -z "${EXAMPLES_DIR}" ]; then
     echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
 
     exit 1
+else
+    EXAMPLES_DIR=$(realpath "${EXAMPLES_DIR}")/
 fi
 
-TESTS_DIR="${EXAMPLES_DIR/\/examples\//\/tests\/}"
+TESTS_DIR="$(dirname "$EXAMPLES_DIR")/tests/"
 export TESTS_DIR
 
 
