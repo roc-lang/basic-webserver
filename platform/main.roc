@@ -43,7 +43,7 @@ init_for_host! = |_|
 
                 Server `init!` failed with error:
 
-                    ❌ ${Inspect.to_str(err)}
+                ❌ ${Inspect.to_str(err)}
 
                 """,
             )
@@ -71,7 +71,7 @@ respond_for_host! = |request, boxed_model|
 
                 Server error:
 
-                    ❌ ${Inspect.to_str(err)}
+                ❌ ${Inspect.to_str(err)}
 
                 """,
             )
