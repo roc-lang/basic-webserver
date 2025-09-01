@@ -17,10 +17,10 @@ env:
 
 jobs:
   build-and-test:
-    runs-on: ${{ matrix.operating-system }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        operating-system: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +28,8 @@ jobs:
         run: |
           if [[ "${{ runner.os }}-${{ runner.arch }}" == "Linux-ARM64" ]]; then
             curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_arm64-latest.tar.gz
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-macos_apple_silicon-latest.tar.gz
           else
             curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-latest.tar.gz
           fi
@@ -45,20 +47,27 @@ jobs:
 
       - run: ./roc_nightly/roc version
 
-      - run: sudo apt install -y expect ncat ripgrep
-      # expect for testing, ncat as test server for tests/tcp.roc, ripgrep for ci/check_all_exposed_funs_tested.roc
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt install -y expect ncat ripgrep
 
-      - name: print expect version
-        run: expect -v
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          brew install expect # expect for testing
+          brew install nmap  # includes ncat, for use as test server for tests/tcp.roc
+          brew install ripgrep # ripgrep for ci/check_all_exposed_funs_tested.roc
 
       # Run all tests
       - run: ./ci/all_tests.sh
 
       - name: Install dependencies for musl build
+        if: startsWith(matrix.os, 'ubuntu-')
         run: |
           sudo apt-get install -y musl-tools
 
-          if [[ "${{ matrix.operating-system }}" == *"-arm" ]]; then
+          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
             # TODO re-enable once TODOs below are gone: rustup target add aarch64-unknown-linux-musl
             echo "no-op"
           else
@@ -66,8 +75,9 @@ jobs:
           fi
 
       - name: Test building with musl target
+        if: startsWith(matrix.os, 'ubuntu-')
         run: |
-          if [[ "${{ matrix.operating-system }}" == *"-arm" ]]; then
+          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
             # TODO debug this: CARGO_BUILD_TARGET=aarch64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
             echo "no-op"
           else
@@ -76,9 +86,10 @@ jobs:
           
 
       - name: Test using musl build
+        if: startsWith(matrix.os, 'ubuntu-')
         run: |
           # TODO remove `if` when above TODOs are done
-          if [[ "${{ matrix.operating-system }}" != *"-arm" ]]; then
+          if [[ "${{ matrix.os }}" != *"-arm" ]]; then
             # no need to build platform anymore
             NO_BUILD=1 IS_MUSL=1 ./ci/all_tests.sh
           fi

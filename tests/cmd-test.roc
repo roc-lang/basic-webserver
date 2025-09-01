@@ -60,9 +60,9 @@ run_tests! = |{}|
     # Test StdoutContainsInvalidUtf8 - using printf to output invalid UTF-8 bytes
     expect_err(
         Cmd.new("printf")
-        |> Cmd.arg("\\xff\\xfe")  # Invalid UTF-8 sequence
+        |> Cmd.arg("\\377\\376")  # Invalid UTF-8 sequence
         |> Cmd.exec_output!,
-        "(Err (StdoutContainsInvalidUtf8 {cmd_str: \"{ cmd: printf, args: \\xff\\xfe }\", err: (BadUtf8 {index: 0, problem: InvalidStartByte})}))"
+        "(Err (StdoutContainsInvalidUtf8 {cmd_str: \"{ cmd: printf, args: \\377\\376 }\", err: (BadUtf8 {index: 0, problem: InvalidStartByte})}))"
     )?
 
     # exec_output_bytes!
