@@ -68,8 +68,7 @@ jobs:
           sudo apt-get install -y musl-tools
 
           if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO re-enable once TODOs below are gone: rustup target add aarch64-unknown-linux-musl
-            echo "no-op"
+            rustup target add aarch64-unknown-linux-musl
           else
             rustup target add x86_64-unknown-linux-musl
           fi
@@ -87,10 +86,7 @@ jobs:
       - name: Test using musl build
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
-          # TODO remove `if` when above TODOs are done
-          if [[ "${{ matrix.os }}" != *"-arm" ]]; then
             # no need to build platform anymore
             NO_BUILD=1 IS_MUSL=1 ./ci/all_tests.sh
-          fi
 
 # TODO clippy, rustfmt, roc fmt check
