@@ -78,8 +78,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
           if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO debug this: CARGO_BUILD_TARGET=aarch64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
-            echo "no-op"
+            CARGO_BUILD_TARGET=aarch64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
           else
             CARGO_BUILD_TARGET=x86_64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
           fi
