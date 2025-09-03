@@ -71,7 +71,7 @@ jobs:
       - name: Install sudo if in container
         if: matrix.os == 'ubuntu-24.04-arm'
         run: |
-          apt update && apt install -y sudo
+          apt update && apt install -y sudo gcc-aarch64-linux-gnu
 
       - name: Install dependencies (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu-')
