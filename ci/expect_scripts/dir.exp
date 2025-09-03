@@ -7,7 +7,7 @@ set timeout 7
 
 spawn $env(EXAMPLES_DIR)dir
 
-expect -re {The current working directory is .*/basic-webserver\r\n} {
+expect -re {The current working directory is .*/basic-webserver[^\r]*\r\n} {
     expect "Set cwd to examples/\r\n" {
         expect "The paths are;\r\n" {
             expect -re {.*dir\.roc.*} {
