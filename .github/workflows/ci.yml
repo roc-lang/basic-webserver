@@ -44,8 +44,11 @@ jobs:
             curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_arm64-latest.tar.gz
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-macos_apple_silicon-latest.tar.gz
-          else
+          elif [[ "${{ runner.os }}-${{ runner.arch }}" == "Linux-X64" ]]; then
             curl -fOL https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-latest.tar.gz
+          else
+            echo "Unrecognized OS/arch combination: ${{ runner.os }}-${{ runner.arch }}"
+            exit 1
           fi
 
       - name: rename nightly tar
