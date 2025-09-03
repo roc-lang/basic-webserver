@@ -68,6 +68,11 @@ jobs:
 
       - run: ./roc_nightly/roc version
 
+      - name: Install sudo if in container
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: |
+          apt update && apt install -y sudo
+
       - name: Install dependencies (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
