@@ -16,11 +16,25 @@ env:
   EXAMPLES_DIR: ./examples/
 
 jobs:
+  get-rust-version:
+    runs-on: ubuntu-latest
+    outputs:
+      rust-version: ${{ steps.get-version.outputs.rust-version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Rust version from toolchain file
+        id: get-version
+        run: |
+          RUST_VERSION=$(grep 'channel = ' rust-toolchain.toml | sed 's/channel = "\(.*\)"/\1/')
+          echo "rust-version=$RUST_VERSION" >> $GITHUB_OUTPUT
+
   build-and-test:
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.os == 'ubuntu-24.04-arm' && format('rust:{0}-bookworm', needs.get-rust-version.outputs.rust-version) || null }}
     strategy:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    needs: get-rust-version
     steps:
       - uses: actions/checkout@v4
 
@@ -65,12 +79,10 @@ jobs:
       - name: Install dependencies for musl build
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
-          sudo apt-get install -y musl-tools
-
           if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
             rustup target add aarch64-unknown-linux-musl
           else
+            sudo apt-get install -y musl-tools
             rustup target add x86_64-unknown-linux-musl
           fi
 
@@ -78,11 +90,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
           if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            export CARGO_BUILD_TARGET=aarch64-unknown-linux-musl
-            export CC_aarch64_unknown_linux_musl=clang-18
-            export AR_aarch64_unknown_linux_musl=llvm-ar-18
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
-            ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
+            CARGO_BUILD_TARGET=aarch64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
           else
             CARGO_BUILD_TARGET=x86_64-unknown-linux-musl ./roc_nightly/roc build.roc -- --roc ./roc_nightly/roc
           fi
