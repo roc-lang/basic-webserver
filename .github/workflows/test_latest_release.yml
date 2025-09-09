@@ -20,8 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: install dependencies
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-')
         run: sudo apt install -y expect ncat ripgrep
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          brew install expect
+          brew install nmap
+          brew install ripgrep
 
       - name: remove everything except some ci scripts
         run: |
