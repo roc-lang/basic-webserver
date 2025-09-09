@@ -1,4 +1,4 @@
-app [main!] { cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.19.0/Hj-J_zxz7V9YurCSTFcFdu6cQJie4guzsPMUi5kBYUk.tar.br" }
+app [main!] { cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.20.0/X73hGh05nNTkDHU06FHC0YfFaQB1pimX7gncRcao5mU.tar.br" }
 
 import cli.Stdout
 import cli.Arg exposing [Arg]
@@ -20,7 +20,7 @@ err_s = |err_msg| Err(StrErr(err_msg))
 main! : List Arg => Result {} _
 main! = |_args|
     # Check if ripgrep is installed
-    _ = Cmd.exec!("rg", ["--version"]) ? |err| RipgrepNotInstalled(err)
+    _ = Cmd.exec!("rg", ["--version"])?
 
     cwd = Env.cwd!({}) ? |err| FailedToGetCwd(err)
     Stdout.line!("Current working directory: ${Path.display(cwd)}")?
@@ -124,12 +124,12 @@ is_function_unused! = |module_name, function_name|
                     |> Cmd.arg(function_pattern)
                     |> Cmd.arg(search_dir)
 
-                status_res = Cmd.status!(cmd)
+                ripgrep_res = Cmd.exec_cmd!(cmd)
 
                 # ripgrep returns status 0 if matches were found, 1 if no matches
-                when status_res is
-                    Ok(0) -> Ok(Bool.false) # Function is used (not unused)
-                    _ -> Ok(Bool.true)
+                when ripgrep_res is
+                    Ok(_) -> Ok(Bool.false) # Function is used (not unused)
+                    Err(_) -> Ok(Bool.true)
         )?
 
     unused_in_dir
