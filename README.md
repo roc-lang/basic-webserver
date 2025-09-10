@@ -3,7 +3,7 @@
 [roc_badge]: https://img.shields.io/endpoint?url=https%3A%2F%2Fpastebin.com%2Fraw%2FcFzuCCd7
 [roc_link]: https://github.com/roc-lang/roc
 
-:book: docs: [main branch](https://roc-lang.github.io/basic-webserver/)
+:book: docs: [0.13](https://roc-lang.github.io/basic-webserver/0.13.0/), [0.12](https://roc-lang.github.io/basic-webserver/0.12.0/), [main branch](https://roc-lang.github.io/basic-webserver/main/)
 
 :eyes: examples: [0.13](https://github.com/roc-lang/basic-webserver/tree/0.12.0/examples), [0.12](https://github.com/roc-lang/basic-webserver/tree/0.12.0/examples), [0.11](https://github.com/roc-lang/basic-webserver/tree/0.11.0/examples)
 
