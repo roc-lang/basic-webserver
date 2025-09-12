@@ -230,7 +230,7 @@ test_file_exists! = |{}|
     filename = "test_exists.txt"
     File.write_utf8!("", filename)?
 
-    test_file_exists = File.exists!(filename) ? |err| FileExistsCheckFailed(err)
+    test_file_exists = File.exists!(filename) ? FileExistsCheckFailed
 
     if test_file_exists then 
         Stdout.line!("✓ File.exists! returns true for a file that exists")?
@@ -240,7 +240,7 @@ test_file_exists! = |{}|
     # Test that a file that does not exist returns false
     File.delete!(filename)?
 
-    test_file_exists_after_delete = File.exists!(filename) ? |err| FileExistsCheckAfterDeleteFailed(err)
+    test_file_exists_after_delete = File.exists!(filename) ? FileExistsCheckAfterDeleteFailed
 
     if test_file_exists_after_delete then
         Stderr.line!("✗ File.exists! returned true for a file that does not exist")?
@@ -300,7 +300,7 @@ cleanup_test_files! = |files_requirement|
     
     when files_requirement is
         FilesNeedToExist ->
-            delete_result ? |err| FileDeletionFailed(err)
+            delete_result ? FileDeletionFailed
         FilesMaybeExist ->
             Ok({})?
 

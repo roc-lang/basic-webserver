@@ -50,7 +50,7 @@ test_dir_create! = |{}|
 
     # Test creating a single directory
     test_dir_name = "test_dir_create"
-    Dir.create!(test_dir_name) ? |err| DirCreateFailed(err)
+    Dir.create!(test_dir_name) ? DirCreateFailed
     
     # Verify directory exists using ls
     ls_output =
@@ -301,7 +301,7 @@ cleanup_test_dirs! = |dirs_requirement|
 
     when dirs_requirement is
         DirsNeedToExist ->
-            delete_result ? |err| DirDeletionFailed(err)
+            delete_result ? DirDeletionFailed
         DirsMaybeExist ->
             Ok({})?
     

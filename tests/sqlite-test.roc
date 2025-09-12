@@ -52,7 +52,7 @@ run_tests! = |{}|
             col_nullable_f64: Sqlite.nullable_f64("col_nullable_f64"),
             col_nullable_f32: Sqlite.nullable_f32("col_nullable_f32"),
         },
-    }) ? |err| QuerManyFailed(err)
+    }) ? QuerManyFailed
 
     rows_texts_str =
         all_rows
@@ -68,7 +68,7 @@ run_tests! = |{}|
         query: "SELECT COUNT(*) as \"count\" FROM test;",
         bindings: [],
         row: Sqlite.u64("count"),
-    }) ? |err| QueryCountFailed(err)
+    }) ? QueryCountFailed
 
 
     Stdout.line!("Row count: ${Num.to_str(count)}")?
@@ -78,13 +78,13 @@ run_tests! = |{}|
     prepared_count_query = Sqlite.prepare!({
         path: db_path,
         query: "SELECT COUNT(*) as \"count\" FROM test;",
-    }) ? |err| PrepareFailed(err)
+    }) ? PrepareFailed
 
     count_prepared = Sqlite.query_prepared!({
         stmt: prepared_count_query,
         bindings: [],
         row: Sqlite.u64("count"),
-    }) ? |err| QueryPreparedFailed(err)
+    }) ? QueryPreparedFailed
 
 
     Stdout.line!("Row count (prepared): ${Num.to_str(count_prepared)}")?
@@ -94,7 +94,7 @@ run_tests! = |{}|
     prepared_update = Sqlite.prepare!({
         path: db_path,
         query: "UPDATE test SET col_text = :col_text WHERE id = :id;",
-    }) ? |err| PreparedUpdateFailed(err)
+    }) ? PreparedUpdateFailed
 
     Sqlite.execute_prepared!({
         stmt: prepared_update,
@@ -102,7 +102,7 @@ run_tests! = |{}|
             { name: ":id", value: Integer(1) },
             { name: ":col_text", value: String("Updated text 1") },
         ],
-    }) ? |err| ExecutePreparedFailed(err)
+    }) ? ExecutePreparedFailed
 
     Sqlite.execute_prepared!({
         stmt: prepared_update,
@@ -110,7 +110,7 @@ run_tests! = |{}|
             { name: ":id", value: Integer(2) },
             { name: ":col_text", value: String("Updated text 2") },
         ],
-    }) ? |err| ExecutePrepared2Failed(err)
+    }) ? ExecutePrepared2Failed
 
     # Check if the updates were successful
     updated_rows = Sqlite.query_many!({
@@ -118,7 +118,7 @@ run_tests! = |{}|
         query: "SELECT COL_TEXT FROM test;",
         bindings: [],
         rows: Sqlite.str("col_text"),
-    }) ? |err| QueryUpdatedRowsFailed(err)
+    }) ? QueryUpdatedRowsFailed
 
     Stdout.line!("Updated rows: ${Inspect.to_str(updated_rows)}")?
 
@@ -129,7 +129,7 @@ run_tests! = |{}|
             { name: ":id", value: Integer(1) },
             { name: ":col_text", value: String("example text") },
         ],
-    }) ? |err| ExecutePrepared3Failed(err)
+    }) ? ExecutePrepared3Failed
 
     Sqlite.execute_prepared!({
         stmt: prepared_update,
@@ -137,7 +137,7 @@ run_tests! = |{}|
             { name: ":id", value: Integer(2) },
             { name: ":col_text", value: String("sample text") },
         ],
-    }) ? |err| ExecutePrepared4Failed(err)
+    }) ? ExecutePrepared4Failed
 
     # Test tagged_value
     tagged_value_test = Sqlite.query_many!({
@@ -146,7 +146,7 @@ run_tests! = |{}|
         bindings: [],
         # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
         rows: Sqlite.tagged_value("col_text"),
-    }) ? |err| QueryMany2Failed(err)
+    }) ? QueryMany2Failed
 
     Stdout.line!("Tagged value test: ${Inspect.to_str(tagged_value_test)}")?
 
