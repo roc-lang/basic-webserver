@@ -160,7 +160,7 @@ test_file_operations! = |{}|
     # Verify file exists before deletion
     _ = Cmd.exec!("test", ["-e", "test_to_delete.txt"])?
 
-    Path.delete!(delete_path) ? |err| DeleteFailed(err)
+    Path.delete!(delete_path) ? DeleteFailed
     
     # Verify file is gone after deletion
     exists_after_res = Cmd.exec!("test", ["-e", "test_to_delete.txt"])
@@ -342,7 +342,7 @@ test_path_rename! = |{}|
     new_path = Path.from_str("test_path_rename_new.txt")
     test_file_content = "Content for rename test."
 
-    Path.write_utf8!(test_file_content, original_path) ? |err| WriteOriginalFailed(err)
+    Path.write_utf8!(test_file_content, original_path) ? WriteOriginalFailed
     
     # Rename the file
     when Path.rename!(original_path, new_path) is
@@ -357,12 +357,12 @@ test_path_rename! = |{}|
             else
                 Stdout.line!("✓ Original file no longer exists")?
             
-            new_file_exists = Path.is_file!(new_path) ? |err| NewIsFileFailed(err)
+            new_file_exists = Path.is_file!(new_path) ? NewIsFileFailed
 
             if new_file_exists then
                 Stdout.line!("✓ Renamed file exists")?
                 
-                content = Path.read_utf8!(new_path) ? |err| NewFileReadFailed(err)
+                content = Path.read_utf8!(new_path) ? NewFileReadFailed
 
                 if content == test_file_content then
                     Stdout.line!("✓ Renamed file has correct content")
@@ -382,7 +382,7 @@ test_path_exists! = |{}|
     filename = Path.from_str("test_path_exists.txt")
     Path.write_utf8!("This file exists", filename)?
 
-    file_exists = Path.exists!(filename) ? |err| PathExistsCheckFailed(err)
+    file_exists = Path.exists!(filename) ? PathExistsCheckFailed
 
     if file_exists then 
         Stdout.line!("✓ Path.exists! returns true for a file that exists")?
@@ -392,7 +392,7 @@ test_path_exists! = |{}|
     # Test that a file that does not exist returns false
     Path.delete!(filename)?
 
-    file_exists_after_delete = Path.exists!(filename) ? |err| PathExistsCheckAfterDeleteFailed(err)
+    file_exists_after_delete = Path.exists!(filename) ? PathExistsCheckAfterDeleteFailed
 
     if file_exists_after_delete then
         Stderr.line!("✗ Path.exists! returned true for a file that does not exist")?
@@ -422,23 +422,23 @@ test_is_sym_link! = |{}|
     ln_dir_result = Cmd.new("ln") |> Cmd.args(["-s", "test_directory", "test_symlink_to_dir"]) |> Cmd.exec_output!()
     
     # Test is_sym_link on regular file
-    regular_is_symlink = Path.is_sym_link!(regular_file) ? |err| RegularFileSymlinkCheckFailed(err)
+    regular_is_symlink = Path.is_sym_link!(regular_file) ? RegularFileSymlinkCheckFailed
     
     # Test is_sym_link on directory
-    dir_is_symlink = Path.is_sym_link!(test_dir) ? |err| DirSymlinkCheckFailed(err)
+    dir_is_symlink = Path.is_sym_link!(test_dir) ? DirSymlinkCheckFailed
     
     # Test is_sym_link on symbolic links (if creation succeeded)
     file_link_is_symlink = 
         when ln_file_result is
             Ok(_) ->
-                Path.is_sym_link!(link_to_file) ? |err| FileLinkSymlinkCheckFailed(err)
+                Path.is_sym_link!(link_to_file) ? FileLinkSymlinkCheckFailed
             Err(_) ->
                 Bool.false
     
     dir_link_is_symlink = 
         when ln_dir_result is
             Ok(_) ->
-                Path.is_sym_link!(link_to_dir) ? |err| DirLinkSymlinkCheckFailed(err)
+                Path.is_sym_link!(link_to_dir) ? DirLinkSymlinkCheckFailed
             Err(_) ->
                 Bool.false
     
@@ -480,16 +480,16 @@ test_path_type! = |{}|
     ln_result = Cmd.new("ln") |> Cmd.args(["-s", "test_type_file.txt", "test_type_symlink.txt"]) |> Cmd.exec_output!()
     
     # Test type on regular file
-    file_type = Path.type!(regular_file) ? |err| FileTypeCheckFailed(err)
+    file_type = Path.type!(regular_file) ? FileTypeCheckFailed
     
     # Test type on directory
-    dir_type = Path.type!(test_dir) ? |err| DirTypeCheckFailed(err)
+    dir_type = Path.type!(test_dir) ? DirTypeCheckFailed
     
     # Test type on symbolic link (if creation succeeded)
     symlink_type = 
         when ln_result is
             Ok(_) ->
-                Path.type!(symlink_path) ? |err| SymlinkTypeCheckFailed(err)
+                Path.type!(symlink_path) ? SymlinkTypeCheckFailed
             Err(_) ->
                 IsFile
     
@@ -542,7 +542,7 @@ cleanup_test_files! = |files_requirement|
 
     when files_requirement is
         FilesNeedToExist ->
-            delete_result ? |err| PathDeletionFailed(err)
+            delete_result ? PathDeletionFailed
         FilesMaybeExist ->
             Ok({})?
     
