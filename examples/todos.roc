@@ -161,7 +161,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
             bindings: [],
         },
     )
-    ? |err| FailedToBeginTransaction(err)
+    ? FailedToBeginTransaction
 
     end_transaction! = |res|
         when res is
@@ -172,7 +172,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
                         bindings: [],
                     },
                 )
-                ? |err| FailedToEndTransaction(err)
+                ? FailedToEndTransaction
 
                 Ok(v)
 
@@ -190,7 +190,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
                     bindings: [],
                 },
             )
-            ? |err| FailedToRollbackTransaction(err)
+            ? FailedToRollbackTransaction
 
             Err(e)
 
