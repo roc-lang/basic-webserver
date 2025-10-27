@@ -375,6 +375,9 @@ parse_form_url_encoded = |bytes|
                                 help(tail, ParsingKey, [], [], Dict.insert(dict, key_str, value_str)),
                         ),
                 )
+            ['+', ..] ->
+                # '+' is a space in application/x-www-form-urlencoded payloads
+                help(tail, state, key, List.append(chomped, ' '), dict)
 
             ['%', second_byte, third_byte, ..] ->
                 hex = Num.to_u8(hex_bytes_to_u32([second_byte, third_byte]))

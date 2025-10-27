@@ -15,7 +15,7 @@ expect "Listening on <http://127.0.0.1:8000>\r\n" {
 
     set curlOutput [exec cat curl_form_output.txt]
 
-    if { [string match "*Form Data Received*" $curlOutput] && [string match "*Test+User*" $curlOutput] } {
+    if { [string match "*Form Data Received*" $curlOutput] && [string match "*Test User*" $curlOutput] } {
         exit 0
     } else {
         puts "Error: curl output was different than expected: $curlOutput"
