@@ -103,7 +103,18 @@ cargo_build_host! = |{}|
 
     info!("Building rust host ...")?
 
-    Cmd.exec!("cargo", ["build", "--release"])
+    platform = Env.platform!({})
+
+    cmd =
+        Cmd.new("cargo")
+        |> Cmd.args(["build", "--release"])
+        |> |c|
+            when (platform.os, platform.arch) is
+                (MACOS, X64) -> Cmd.env(c, "RUSTFLAGS", "-C link-arg=-Wl,-headerpad,0x1000") # Prevents: Not enough free space between end of load commands and start of first section in the host
+                _ -> c
+
+    
+    Cmd.exec_cmd!(cmd)
     |> Result.map_err(ErrBuildingHostBinaries)
 
 copy_host_lib! : OSAndArch, Str => Result {} _
