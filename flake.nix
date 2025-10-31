@@ -75,7 +75,7 @@
 
             ${shellFunctions}
             
-            echo "Some convenient command functions:"
+            echo "Some convenient commands:"
             echo "${shellFunctions}" | grep -E '^\s*[a-zA-Z_][a-zA-Z0-9_]*\(\)' | sed 's/().*//' | sed 's/^[[:space:]]*/  /' | while read func; do
               body=$(echo "${shellFunctions}" | sed -n "/''${func}()/,/^[[:space:]]*}/p" | sed '1d;$d' | tr '\n' ';' | sed 's/;$//' | sed 's/[[:space:]]*$//')
               echo "  $func = $body"
