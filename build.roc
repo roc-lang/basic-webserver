@@ -103,7 +103,10 @@ cargo_build_host! = |{}|
 
     info!("Building rust host ...")?
 
-    Cmd.exec!("cargo", ["build", "--release"])
+    Cmd.new("cargo")
+    |> Cmd.args(["build", "--release"])
+    |> Cmd.env("RUSTFLAGS", "-C link-arg=-Wl,-headerpad,0x1000")
+    |> Cmd.exec_cmd!()
     |> Result.map_err(ErrBuildingHostBinaries)
 
 copy_host_lib! : OSAndArch, Str => Result {} _
