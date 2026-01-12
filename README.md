@@ -11,7 +11,7 @@
 
 # Basic Web Server for [Roc](https://www.roc-lang.org/)
 
-A webserver [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) with a simple interface.
+A webserver [platform](https://www.roc-lang.org/platforms) with a simple interface.
 
 :racing_car: basic-webserver uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
 
