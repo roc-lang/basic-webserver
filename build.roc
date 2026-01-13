@@ -51,7 +51,7 @@ run! = |maybe_roc|
 
     build_stub_app_lib!(roc_cmd, stub_lib_path)?
 
-    cargo_build_host!({})?
+    cargo_build_host!(os_and_arch)?
 
     rust_target_folder = get_rust_target_folder!({})?
 
@@ -98,12 +98,21 @@ get_rust_target_folder! = |{}|
 
             Ok("target/release/")
 
-cargo_build_host! : {} => Result {} _
-cargo_build_host! = |{}|
+cargo_build_host! : OSAndArch => Result {} _
+cargo_build_host! = |os_and_arch|
 
     info!("Building rust host ...")?
 
-    Cmd.exec!("cargo", ["build", "--release"])
+    cmd = Cmd.new("cargo") |> Cmd.args(["build", "--release"])
+
+    # Apply RUSTFLAGS only on macOS x64 to fix "Not enough free space" linker error
+    cmd_with_flags =
+        when os_and_arch is
+            MacosX64 -> cmd |> Cmd.env("RUSTFLAGS", "-C link-arg=-Wl,-headerpad,0x1000")
+            _ -> cmd
+
+    cmd_with_flags
+    |> Cmd.exec_cmd!()
     |> Result.map_err(ErrBuildingHostBinaries)
 
 copy_host_lib! : OSAndArch, Str => Result {} _
