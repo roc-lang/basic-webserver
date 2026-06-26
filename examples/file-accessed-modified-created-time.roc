@@ -1,47 +1,41 @@
-
-app [Model, init!, respond!] { 
-    pf: platform "../platform/main.roc",
-}
+app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Http exposing [Request, Response]
+import pf.Stderr
+import pf.Http
 import pf.File
 import pf.Utc
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
-    file = "LICENSE"
+program = { init!, respond! }
 
-    # NOTE: these functions will not work if basic-webserver was built with musl, which is the case for the normal tar.br URL release.
-    # See https://github.com/roc-lang/basic-webserver?tab=readme-ov-file#developing--building-locally to build basic-webserver without musl.
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}| {
+    result = || {
+        file = "LICENSE"
 
-    time_modified = Utc.to_iso_8601(File.time_modified!(file)?)
+        # NOTE: these functions will not work if basic-webserver was built with musl, which is the case for the normal tar.br URL release.
+        # See https://github.com/roc-lang/basic-webserver?tab=readme-ov-file#developing--building-locally to build basic-webserver without musl.
 
-    time_accessed = Utc.to_iso_8601(File.time_accessed!(file)?)
+        time_modified = Utc.to_millis_since_epoch(File.time_modified!(file)?)
+        time_accessed = Utc.to_millis_since_epoch(File.time_accessed!(file)?)
+        time_created = Utc.to_millis_since_epoch(File.time_created!(file)?)
 
-    time_created = Utc.to_iso_8601(File.time_created!(file)?)
+        Stdout.line!("${file} file time metadata:\n    Modified: ${time_modified.to_str()} ms since epoch\n    Accessed: ${time_accessed.to_str()} ms since epoch\n    Created: ${time_created.to_str()} ms since epoch")?
 
+        Ok({})
+    }
 
-    Stdout.line!(
-        """
-        ${file} file time metadata:
-            Modified: ${time_modified}
-            Accessed: ${time_accessed}
-            Created: ${time_created}
-        """
-    )?
+    match result() {
+        Ok(_) => Ok({})
+        Err(err) => {
+            _ = Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}")
+            Err(Exit(1))
+        }
+    }
+}
 
-    Ok({})
-
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
-
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("See example in init! function."),
-        },
-    )
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model|
+    Ok({ status: 200, headers: [], body: Str.to_utf8("See example in init! function.") })

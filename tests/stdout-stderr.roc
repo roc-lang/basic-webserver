@@ -1,23 +1,28 @@
-app [Model, init!, respond!] { 
-    pf: platform "../platform/main.roc",
-}
+app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
-import pf.Http exposing [Request, Response]
+import pf.Http
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
-    when run_tests!({}) is
-        Ok(_) ->
-            Err(Exit(0, "Ran all tests."))
-        Err(err) ->
-            Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
+program = { init!, respond! }
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}|
+    match run_tests!({}) {
+        Ok(_) => {
+            _ = Stdout.line!("Ran all tests.")
+            Err(Exit(0))
+        }
+        Err(err) => {
+            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Err(Exit(1))
+        }
+    }
+
+run_tests! : {} => Try({}, [StdoutErr(_), StderrErr(_), ..])
+run_tests! = |{}| {
     Stdout.write!("stdout\n")?
     Stderr.write!("stderr\n")?
 
@@ -28,14 +33,8 @@ run_tests! = |{}|
     Stderr.line!("stderr line")?
 
     Ok({})
+}
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
-
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("I am a test."),
-        },
-    )
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model|
+    Ok({ status: 200, headers: [], body: Str.to_utf8("I am a test.") })

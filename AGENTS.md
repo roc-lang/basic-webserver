@@ -9,19 +9,45 @@ Applications only interact with the Roc API portion of a platform, but there is 
 
 basic-webserver is implemented in Rust and Roc.
 
+# Compiler
+
+This platform targets the new Zig-based Roc compiler. Use a `roc` from your PATH
+(build it from a roc source checkout with `zig build roc`). The old Rust-based
+compiler is no longer supported.
+
 # Useful Commands
 
-If you are in a nix dev shell, you can run `buildcmd` to build basic-webserver and `testcmd` to run all tests. Check if you are inside a nix shell with `echo $IN_NIX_SHELL`, enter one with `nix develop`. Or, run a command inside nix with `nix develop -c command`
+Build the host static library for the native target (writes
+`platform/targets/<target>/libhost.a`):
+```
+./build.sh          # native target
+./build.sh --all    # cross-compile all targets
+```
+
+Check + build every active example and test, plus a server smoke test:
+```
+./ci/all_tests.sh
+```
+
+Regenerate the committed Rust glue after changing `platform/main.roc`'s
+`hosted`/`provides` blocks (needs a roc source checkout for `RustGlue.roc`):
+```
+ROC_SRC=/path/to/roc ./ci/regenerate_glue.sh          # write
+ROC_SRC=/path/to/roc ./ci/regenerate_glue.sh --check  # fail if stale
+```
 
 # Tests
 
 Note that if something is tested in ./examples, it may not have another test in ./tests.
 
-Run an individual test with:
+Build an individual example or test (the server binary lands in the repo root):
 ```
-roc build --linker=legacy tests/issue_154.roc
-TESTS_DIR=tests/ expect ci/expect_scripts/issue_154.exp
+roc build examples/hello-web.roc
 ```
+
+Modules and examples that depend on not-yet-migrated features (Sqlite, Tcp, Url,
+MultipartFormData, outbound Http.send!, buffered File reader) carry a `.todoroc`
+extension so they are skipped until ported.
 
 # Style
 

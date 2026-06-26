@@ -1,319 +1,121 @@
-app [Model, init!, respond!] { 
-    pf: platform "../platform/main.roc",
-    json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.13.0/RqendgZw5e1RsQa3kFhgtnMP8efWoqGRsAvubx4-zus.tar.br",
-}
+app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
 import pf.Stderr
 import pf.File
 import pf.Cmd
-import json.Json
-import pf.Http exposing [Request, Response]
+import pf.Http
+
+# NOTE: The migrated File module is a reduced subset. This test covers the
+# functions that are currently available: read_bytes!, write_bytes!,
+# read_utf8!, write_utf8!, delete!, size_in_bytes!, is_executable!,
+# is_readable!, is_writable!. (is_file!, is_dir!, type!, hard_link!, rename!,
+# exists!, and the buffered reader are not yet migrated.)
 
 Model : {}
 
-init! : {} => Result Model _
+program = { init!, respond! }
+
+init! : {} => Try(Model, [Exit(I64), ..])
 init! = |{}|
-    when run_tests!({}) is
-        Ok(_) ->
-            _ = cleanup_test_files!(FilesNeedToExist)?
-            Err(Exit(0, "Ran all tests."))
-        Err(err) ->
-            _ = cleanup_test_files!(FilesMaybeExist)?
-            Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
+    match run_tests!({}) {
+        Ok(_) => {
+            _ = cleanup_test_files!({})
+            _ = Stdout.line!("Ran all tests.")
+            Err(Exit(0))
+        }
+        Err(err) => {
+            _ = cleanup_test_files!({})
+            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Err(Exit(1))
+        }
+    }
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
+run_tests! = |{}| {
     Stdout.line!("Testing some File functions...")?
-    Stdout.line!("This will create and manipulate test files in the current directory.")?
-    Stdout.line!("")?
+    Stdout.line!("This will create and manipulate test files in the current directory.\n")?
 
-    # Test basic file operations
     test_basic_file_operations!({})?
-    
-    # Test file type checking
-    test_file_type_checking!({})?
-    
-    # Test file reader with capacity
-    test_file_reader_with_capacity!({})?
-
-    # Test hard link creation
-    test_hard_link!({})?
-
-    # Test file rename
-    test_file_rename!({})?
-
-    # Test file exists
-    test_file_exists!({})?
-
-    # Test file size
+    test_file_permissions!({})?
     test_file_size!({})?
-
-    # Test directory checking
-    test_is_dir!({})?
+    test_file_delete!({})?
 
     Stdout.line!("\nI ran all file function tests.")
+}
 
-test_basic_file_operations! : {} => Result {} _
-test_basic_file_operations! = |{}|
+test_basic_file_operations! = |{}| {
     Stdout.line!("Testing File.write_bytes! and File.read_bytes!:")?
 
     test_bytes = [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33] # "Hello, World!" in bytes
-    File.write_bytes!(test_bytes, "test_bytes.txt")?
+    File.write_bytes!("test_bytes.txt", test_bytes)?
 
     file_content_bytes = File.read_bytes!("test_bytes.txt")?
-    Stdout.line!("Bytes in test_bytes.txt: ${Inspect.to_str(file_content_bytes)}")?
+    Stdout.line!("Bytes in test_bytes.txt: ${Str.inspect(file_content_bytes)}")?
+    Stdout.line!("Bytes match: ${Str.inspect(file_content_bytes == test_bytes)}")?
 
+    Stdout.line!("\nTesting File.write_utf8! and File.read_utf8!:")?
 
-    Stdout.line!("\nTesting File.write!:")?
-
-    File.write!({ some: "json stuff" }, "test_write.json", Json.utf8)?
-    json_file_content = File.read_utf8!("test_write.json")?
-    Stdout.line!("Content of test_write.json: ${json_file_content}")?
-
-    Ok({})
-
-test_file_type_checking! : {} => Result {} _
-test_file_type_checking! = |{}|
-
-    Stdout.line!("\nTesting File.is_file!:")?
-    is_file_result = File.is_file!("test_bytes.txt")?
-    if is_file_result then
-        Stdout.line!("✓ test_bytes.txt is confirmed to be a file")?
-    else
-        Stderr.line!("✗ test_bytes.txt is not recognized as a file")?
-
-
-    Stdout.line!("\nTesting File.is_sym_link!:")?
-    is_symlink_one = File.is_sym_link!("test_bytes.txt")?
-    if is_symlink_one then
-        Stderr.line!("✗ test_bytes.txt is a symbolic link")?
-    else
-        Stdout.line!("✓ test_bytes.txt is not a symbolic link")?
-
-    Cmd.exec!("ln",["-s", "test_bytes.txt","test_symlink.txt"])?
-
-    is_symlink_two = File.is_sym_link!("test_symlink.txt")?
-    if is_symlink_two then
-        Stdout.line!("✓ test_symlink.txt is a symbolic link")?
-    else
-        Stderr.line!("✗ test_symlink.txt is not a symbolic link")?
-
-
-    Stdout.line!("\nTesting File.type!:")?
-
-    file_type_file = File.type!("test_bytes.txt")?
-    Stdout.line!("test_bytes.txt file type: ${Inspect.to_str(file_type_file)}")?
-
-    file_type_dir = File.type!(".")?
-    Stdout.line!(". file type: ${Inspect.to_str(file_type_dir)}")?
-
-    file_type_symlink = File.type!("test_symlink.txt")?
-    Stdout.line!("test_symlink.txt file type: ${Inspect.to_str(file_type_symlink)}")?
+    File.write_utf8!("test_write.txt", "some text content")?
+    utf8_file_content = File.read_utf8!("test_write.txt")?
+    Stdout.line!("Content of test_write.txt: ${utf8_file_content}")?
 
     Ok({})
+}
 
-test_file_reader_with_capacity! : {} => Result {} _
-test_file_reader_with_capacity! = |{}|
-    Stdout.line!("\nTesting File.open_reader_with_capacity!:")?
-    
-    # First, create a multi-line test file
-    multi_line_content = "First line\nSecond line\nThird line\n"
-    File.write_utf8!(multi_line_content, "test_multiline.txt")?
-    
-    # Open reader with custom capacity
-    reader_buf_size = 3
-    reader = File.open_reader_with_capacity!("test_multiline.txt", reader_buf_size)?
-    Stdout.line!("✓ Successfully opened reader with ${Num.to_str(reader_buf_size)} byte capacity")?
-    
-    # Read lines one by one
-    Stdout.line!("\nReading lines from file:")?
-    line1_bytes = File.read_line!(reader)?
-    line1_str = Str.from_utf8(line1_bytes) ? |_| LineOneInvalidUtf8
-    Stdout.line!("Line 1: ${line1_str}")?
-    
-    line2_bytes = File.read_line!(reader)?
-    line2_str = Str.from_utf8(line2_bytes) ? |_| LineTwoInvalidUtf8
-    Stdout.line!("Line 2: ${line2_str}")?
+test_file_permissions! = |{}| {
+    Stdout.line!("\nTesting File.is_executable!, File.is_readable!, File.is_writable!:")?
+
+    is_executable = File.is_executable!("test_bytes.txt")?
+    is_readable = File.is_readable!("test_bytes.txt")?
+    is_writable = File.is_writable!("test_bytes.txt")?
+
+    Stdout.line!("Executable: ${Str.inspect(is_executable)}\nReadable: ${Str.inspect(is_readable)}\nWritable: ${Str.inspect(is_writable)}")?
 
     Ok({})
+}
 
-test_hard_link! : {} => Result {} _
-test_hard_link! = |{}|
-    Stdout.line!("\nTesting File.hard_link!:")?
-    
-    # Create original file
-    File.write_utf8!("Original file content for hard link test", "test_original_file.txt")?
-    
-    # Create hard link
-    when File.hard_link!("test_original_file.txt", "test_link_to_original.txt") is
-        Ok({}) ->
-            Stdout.line!("✓ Successfully created hard link: test_link_to_original.txt")?
-
-            ls_li_output =
-                Cmd.new("ls")
-                |> Cmd.args(["-li", "test_original_file.txt", "test_link_to_original.txt"])
-                |> Cmd.exec_output!()?
-
-            inodes =
-                Str.split_on(ls_li_output.stdout_utf8, "\n")
-                |> List.map(|line| 
-                                Str.split_on(line, " ")
-                                |> List.take_first(1)
-                            )
-
-            first_inode = List.get(inodes, 0) ? |_| FirstInodeNotFound
-            second_inode = List.get(inodes, 1) ? |_| SecondInodeNotFound
-
-            Stdout.line!("Hard link inodes should be equal: ${Inspect.to_str(first_inode == second_inode)}")?
-            
-            # Verify both files exist and have same content
-            original_content = File.read_utf8!("test_original_file.txt")?
-            link_content = File.read_utf8!("test_link_to_original.txt")?
-            
-            if original_content == link_content then
-                Stdout.line!("✓ Hard link contains same content as original")
-            else
-                Stderr.line!("✗ Hard link content differs from original")
-        
-        Err(err) ->
-            Stderr.line!("✗ Hard link creation failed: ${Inspect.to_str(err)}")
-
-test_file_rename! : {} => Result {} _
-test_file_rename! = |{}|
-    Stdout.line!("\nTesting File.rename!:")?
-    
-    # Create original file
-    original_name = "test_rename_original.txt"
-    new_name = "test_rename_new.txt"
-    File.write_utf8!("Content for rename test", original_name)?
-    
-    # Rename the file
-    when File.rename!(original_name, new_name) is
-        Ok({}) ->
-            Stdout.line!("✓ Successfully renamed ${original_name} to ${new_name}")?
-            
-            # Verify original file no longer exists
-            original_exists_after = 
-                when File.is_file!(original_name) is
-                    Ok(exists) -> exists
-                    Err(_) -> Bool.false
-            
-            if original_exists_after then
-                Stderr.line!("✗ Original file ${original_name} still exists after rename")?
-            else
-                Stdout.line!("✓ Original file ${original_name} no longer exists")?
-            
-            # Verify new file exists and has correct content
-            new_exists = File.is_file!(new_name)?
-            if new_exists then
-                Stdout.line!("✓ Renamed file ${new_name} exists")?
-                
-                content = File.read_utf8!(new_name)?
-                if content == "Content for rename test" then
-                    Stdout.line!("✓ Renamed file has correct content")?
-                else
-                    Stderr.line!("✗ Renamed file has incorrect content")?
-            else
-                Stderr.line!("✗ Renamed file ${new_name} does not exist")?
-        
-        Err(err) ->
-            Stderr.line!("✗ File rename failed: ${Inspect.to_str(err)}")?
-    
-    Ok({})
-
-test_file_exists! : {} => Result {} _
-test_file_exists! = |{}|
-    Stdout.line!("\nTesting File.exists!:")?
-
-    # Test that a file that exists returns true
-    filename = "test_exists.txt"
-    File.write_utf8!("", filename)?
-
-    test_file_exists = File.exists!(filename) ? FileExistsCheckFailed
-
-    if test_file_exists then 
-        Stdout.line!("✓ File.exists! returns true for a file that exists")?
-    else
-        Stderr.line!("✗ File.exists! returned false for a file that exists")?
-
-    # Test that a file that does not exist returns false
-    File.delete!(filename)?
-
-    test_file_exists_after_delete = File.exists!(filename) ? FileExistsCheckAfterDeleteFailed
-
-    if test_file_exists_after_delete then
-        Stderr.line!("✗ File.exists! returned true for a file that does not exist")?
-    else
-        Stdout.line!("✓ File.exists! returns false for a file that does not exist")?
-
-    Ok({})
-
-test_file_size! : {} => Result {} _
-test_file_size! = |{}|
+test_file_size! = |{}| {
     Stdout.line!("\nTesting File.size_in_bytes!:")?
 
-    # Test with existing file
     file_size = File.size_in_bytes!("test_bytes.txt")?
-    Stdout.line!("✓ File.size_in_bytes! returned ${Num.to_str(file_size)} bytes for test_bytes.txt")?
+    Stdout.line!("File.size_in_bytes! returned ${file_size.to_str()} bytes for test_bytes.txt")?
 
     Ok({})
+}
 
-test_is_dir! : {} => Result {} _
-test_is_dir! = |{}|
-    Stdout.line!("\nTesting File.is_dir!:")?
+test_file_delete! = |{}| {
+    Stdout.line!("\nTesting File.delete!:")?
 
-    # Test current directory
-    current_dir_is_dir = File.is_dir!(".")?
-    if current_dir_is_dir then
-        Stdout.line!("✓ Current directory '.' is recognized as a directory")?
-    else
-        Stderr.line!("✗ Current directory '.' is not recognized as a directory")?
+    File.write_utf8!("test_to_delete.txt", "")?
 
-    # Test regular file
-    file_is_dir = File.is_dir!("test_bytes.txt")?
-    if file_is_dir then
-        Stderr.line!("✗ Regular file is incorrectly recognized as a directory")?
-    else
-        Stdout.line!("✓ Regular file is correctly not recognized as a directory")?
+    # Verify it exists before delete
+    _ = Cmd.exec!("test", ["-e", "test_to_delete.txt"])?
+
+    File.delete!("test_to_delete.txt")?
+
+    # Verify it's gone after delete
+    exists_res = Cmd.exec!("test", ["-e", "test_to_delete.txt"])
+    Stdout.line!("File no longer exists after delete: ${Str.inspect(Try.is_err(exists_res))}")?
 
     Ok({})
+}
 
-cleanup_test_files! : [FilesNeedToExist, FilesMaybeExist] => Result {} _
-cleanup_test_files! = |files_requirement|
+cleanup_test_files! = |{}| {
     Stdout.line!("\nCleaning up test files...")?
-    
+
     test_files = [
         "test_bytes.txt",
-        "test_symlink.txt",
-        "test_write.json", 
-        "test_multiline.txt",
-        "test_original_file.txt",
-        "test_link_to_original.txt",
-        "test_rename_new.txt",
+        "test_write.txt",
+        "test_to_delete.txt",
     ]
 
-    delete_result = List.for_each_try!(
-        test_files,
-        |filename| File.delete!(filename)
-    )
-    
-    when files_requirement is
-        FilesNeedToExist ->
-            delete_result ? FileDeletionFailed
-        FilesMaybeExist ->
-            Ok({})?
+    for filename in test_files {
+        _ = File.delete!(filename)
+    }
 
-    Stdout.line!("✓ Deleted all files.")
+    Stdout.line!("Deleted all files.")
+}
 
-
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
-
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("I am a test."),
-        },
-    )
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model|
+    Ok({ status: 200, headers: [], body: Str.to_utf8("I am a test.") })

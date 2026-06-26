@@ -1,3 +1,5 @@
+name: CI
+
 on:
   pull_request:
   workflow_dispatch:
@@ -11,71 +13,42 @@ concurrency:
 permissions: {}
 
 env:
-  JUMP_START: 1
   ROC: roc
-  EXAMPLES_DIR: ./examples/
 
 jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        # x64 musl Linux (native target x64musl) and arm64 macOS (native target
+        # arm64mac). arm64 musl Linux is omitted until its committed link inputs
+        # (platform/targets/arm64musl/) are added.
+        os: [ubuntu-24.04, macos-15]
     steps:
       - uses: actions/checkout@v4
 
-      - uses: roc-lang/setup-roc@39c354a6a838a0089eea9068a0414f49b62c5c08
+      - name: Install the new Zig-based Roc compiler
+        uses: roc-lang/setup-roc@39c354a6a838a0089eea9068a0414f49b62c5c08
         with:
-          # Note: nightly hashes are not verified because they are updated regularly.
-          version: nightly
+          # Nightly build of the new (Zig-based) compiler. Hashes are not verified
+          # because nightlies are updated regularly.
+          version: nightly-new-compiler
 
       - run: roc version
 
-      - name: Install dependencies (Ubuntu)
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install musl target (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
-          sudo apt install -y expect ncat ripgrep
-
-      - name: Install dependencies (macOS)
-        if: startsWith(matrix.os, 'macos-')
-        run: |
-          brew install expect # expect for testing
-          brew install nmap  # includes ncat, for use as test server for tests/tcp.roc
-          brew install ripgrep # ripgrep for ci/check_all_exposed_funs_tested.roc
-
-      # Run all tests
-      - run: ./ci/all_tests.sh
-
-      - name: Install dependencies for musl build
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
+          sudo apt-get update
           sudo apt-get install -y musl-tools
+          rustup target add x86_64-unknown-linux-musl
 
-          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO re-enable once TODOs below are gone: rustup target add aarch64-unknown-linux-musl
-            echo "no-op"
-          else
-            rustup target add x86_64-unknown-linux-musl
-          fi
+      - name: Build host static library
+        run: ./build.sh
 
-      - name: Test building with musl target
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO debug this: CARGO_BUILD_TARGET=aarch64-unknown-linux-musl roc build.roc -- --roc roc
-            echo "no-op"
-          else
-            CARGO_BUILD_TARGET=x86_64-unknown-linux-musl roc build.roc -- --roc roc
-          fi
-          
-
-      - name: Test using musl build
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          # TODO remove `if` when above TODOs are done
-          if [[ "${{ matrix.os }}" != *"-arm" ]]; then
-            # no need to build platform anymore
-            NO_BUILD=1 IS_MUSL=1 ./ci/all_tests.sh
-          fi
-
-# TODO clippy, rustfmt, roc fmt check
+      - name: Build and test examples
+        run: ./ci/all_tests.sh

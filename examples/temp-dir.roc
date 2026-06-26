@@ -1,7 +1,6 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+app [Model, program] { pf: platform "../platform/main.roc" }
 
-import pf.Http exposing [Request, Response]
-import pf.Path
+import pf.Http
 import pf.Env
 
 # To run this example: check the README.md in this folder
@@ -13,19 +12,14 @@ import pf.Env
 
 Model : {}
 
-init! : {} => Result Model []
-init! = |{}|
-    Ok({})
+program = { init!, respond! }
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}| Ok({})
 
-    temp_dir_str = Path.display(Env.temp_dir!({}))
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model| {
+    temp_dir_str = Env.temp_dir!({})
 
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("The temp dir path is ${temp_dir_str}"),
-        },
-    )
+    Ok({ status: 200, headers: [], body: Str.to_utf8("The temp dir path is ${temp_dir_str}") })
+}

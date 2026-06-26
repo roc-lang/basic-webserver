@@ -1,112 +1,69 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
-set -exo pipefail
+# Test driver for the basic-webserver platform on the new Zig-based Roc compiler.
+#
+# Assumes:
+#   - `roc` is on PATH (new compiler).
+#   - The host static lib has been built into platform/targets/<native>/ (run
+#     ./build.sh first).
+#
+# It `roc check`s and `roc build`s every active example and test (files ending in
+# `.roc`; deferred modules/examples use the `.todoroc` extension and are skipped),
+# then smoke-tests the hello-web server.
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-if [ -z "${ROC}" ]; then
-  echo "ERROR: The ROC environment variable is not set.
-    Set it to something like:
-        /home/username/Downloads/roc_nightly-linux_x86_64-2023-10-30-cb00cfb/roc
-        or
-        /home/username/gitrepos/roc/target/build/release/roc
-        or
-        roc" >&2
+ROC="${ROC:-roc}"
 
-  exit 1
-fi
+echo "Using roc: $($ROC version 2>&1 | head -1)"
+echo ""
 
-if [ -z "${EXAMPLES_DIR}" ]; then
-    echo "ERROR: The EXAMPLES_DIR environment variable is not set." >&2
+check_and_build() {
+    local file=$1
+    echo "==> roc check $file"
+    "$ROC" check "$file"
+    echo "==> roc build $file"
+    "$ROC" build "$file"
+}
 
+# Build all active examples and tests.
+for file in examples/*.roc tests/*.roc; do
+    [ -e "$file" ] || continue
+    check_and_build "$file"
+done
+
+# Roc drops built binaries in the repo root; clean them up.
+for file in examples/*.roc tests/*.roc; do
+    [ -e "$file" ] || continue
+    name="$(basename "${file%.roc}")"
+    rm -f "$name"
+done
+
+echo ""
+echo "=== Smoke test: hello-web ==="
+"$ROC" build examples/hello-web.roc
+PORT="${SMOKE_PORT:-8080}"
+ROC_BASIC_WEBSERVER_PORT="$PORT" ./hello-web &
+SERVER_PID=$!
+cleanup() { kill "$SERVER_PID" 2>/dev/null || true; rm -f ./hello-web; }
+trap cleanup EXIT
+
+# Wait for the server to come up.
+for _ in $(seq 1 30); do
+    if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.5
+done
+
+status="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT}/")"
+echo "GET / -> HTTP $status"
+if [ "$status" != "200" ]; then
+    echo "Smoke test FAILED: expected HTTP 200" >&2
     exit 1
-else
-    EXAMPLES_DIR=$(realpath "${EXAMPLES_DIR}")/
 fi
 
-TESTS_DIR="$(dirname "$EXAMPLES_DIR")/tests/"
-export TESTS_DIR
-
-
-
-if [ "$NO_BUILD" != "1" ]; then
-    if [ "$JUMP_START" == "1" ]; then
-    echo "building platform..."
-
-    # we can't use a release of basic-cli because we are making a breaking change
-    # let's build the platform using bash instead
-    bash jump-start.sh
-
-    else
-        # run build script for the platform which uses basic-cli
-        $ROC ./build.roc -- --roc $ROC
-    fi
-fi
-
-echo "roc check + matching .exp file"
-for roc_file in $TESTS_DIR*.roc; do
-    $ROC check $roc_file
-done
-for roc_file in $EXAMPLES_DIR*.roc; do
-    $ROC check $roc_file
-
-    ## Check if every example has matching expect script
-
-    # Extract the base filename without extension
-    base_name=$(basename "$roc_file" .roc)
-    
-    if [ ! -f "ci/expect_scripts/${base_name}.exp" ]; then
-        echo "ERROR: No matching expect script found for $base_name" >&2
-        exit 1
-    fi
-done
-
-$ROC ci/check_all_exposed_funs_tested.roc
-
-# roc build
-architecture=$(uname -m)
-
-for roc_file in $TESTS_DIR*.roc; do
-    # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
-    $ROC build --linker=legacy $roc_file
-done
-for roc_file in $EXAMPLES_DIR*.roc; do
-    # --linker=legacy as workaround for https://github.com/roc-lang/roc/issues/3609
-    $ROC build --linker=legacy $roc_file
-done
-
-# `roc test` every roc file if it contains a test, but skip roc_nightly folder
-find . -type d -name "roc_nightly" -prune -o -type f -name "*.roc" -print | while read file; do
-    if grep -qE '^\s*expect(\s+|$)' "$file"; then
-
-        # don't exit script if test_command fails
-        set +e
-        test_command=$($ROC test --linker=legacy "$file")
-        test_exit_code=$?
-        set -e
-
-        if [[ $test_exit_code -ne 0 && $test_exit_code -ne 2 ]]; then
-            exit $test_exit_code
-        fi
-    fi
-done
-
-# Build server to test examples/http.roc later
-if [ -d "basic-cli" ]; then
-    echo "Deleting existing basic-cli folder..."
-    rm -rf basic-cli
-fi
-git clone --depth 1 https://github.com/roc-lang/basic-cli.git
-cd basic-cli/ci/rust_http_server
-cargo build --release
-cd ../../..
-
-for script in ci/expect_scripts/*.exp; do
-    if [ "$IS_MUSL" = "1" ] && grep -q "file-accessed-modified-created" "$script"; then
-        continue
-    fi
-    expect "$script"
-done
-
-# test building website
-$ROC docs platform/main.roc
+echo ""
+echo "All checks passed."

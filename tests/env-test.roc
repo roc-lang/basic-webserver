@@ -1,98 +1,69 @@
-app [Model, init!, respond!] { 
-    pf: platform "../platform/main.roc",
-}
+app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
-import pf.Http exposing [Request, Response]
+import pf.Stderr
+import pf.Http
 import pf.Env
-import pf.Path
+
+# NOTE: The migrated Env module is a reduced subset. This test covers the
+# functions that are currently available: var!, cwd!, exe_path!, temp_dir!.
+# (platform!, dict!, set_cwd!, and Path.list_dir! are not yet migrated.)
 
 Model : {}
 
-init! : {} => Result Model _
+program = { init!, respond! }
+
+init! : {} => Try(Model, [Exit(I64), ..])
 init! = |{}|
-    when run_tests!({}) is
-        Ok(_) ->
-            Err(Exit(0, "Ran all tests."))
-        Err(err) ->
-            Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
+    match run_tests!({}) {
+        Ok(_) => {
+            _ = Stdout.line!("Ran all tests.")
+            Err(Exit(0))
+        }
+        Err(err) => {
+            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Err(Exit(1))
+        }
+    }
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
-    Stdout.line!(
-        """
-        Testing Env module functions...
-
-        Testing Env.cwd!:
-        """
-    )?
+run_tests! = |{}| {
+    Stdout.line!("Testing Env module functions...\n\nTesting Env.cwd!:")?
     cwd = Env.cwd!({})?
-    Stdout.line!(
-        """
-        cwd: ${Path.display(cwd)}
+    Stdout.line!("cwd: ${cwd}\n\nTesting Env.exe_path!:")?
 
-        Testing Env.exe_path!:
-        """
-    )?
     exe_path = Env.exe_path!({})?
-    Stdout.line!(
-        """
-        exe_path: ${Path.display(exe_path)}
+    Stdout.line!("exe_path: ${exe_path}\n\nTesting Env.temp_dir!:")?
 
-        Testing Env.platform!:
-        """
-    )?
-    platform = Env.platform!({})
-    Stdout.line!(
-        """
-        Current platform:${Inspect.to_str(platform)}
+    temp_dir = Env.temp_dir!({})
+    Stdout.line!("temp_dir: ${temp_dir}\n\nTesting Env.var!:")?
 
-        Testing Env.dict!:
-        """
-    )?
-    env_vars = Env.dict!({})
-    var_count = Dict.len(env_vars)
-    Stdout.line!("Environment variables count: ${Num.to_str(var_count)}")?
-    
-    some_env_vars = Dict.to_list(env_vars) |> List.take_first(3)
-    Stdout.line!(
-        """
-        Sample environment variables:${Inspect.to_str(some_env_vars)}
+    # A variable that should exist in most environments
+    match Env.var!("PATH") {
+        Ok(_) => {
+            _ = Stdout.line!("PATH variable is set (expected)")
+            {}
+        }
+        Err(VarNotFound(name)) => {
+            _ = Stdout.line!("PATH variable not found: ${name}")
+            {}
+        }
+    }
 
-        Testing Env.set_cwd!:
-        """
-    )?
-    
-    # First get the current directory to restore it later
-    original_dir = Env.cwd!({})?
-    ls_list = Path.list_dir!(original_dir)?
+    # A variable that should not exist
+    match Env.var!("DEFINITELY_NOT_A_REAL_ENV_VAR_123456") {
+        Ok(value) => {
+            _ = Stdout.line!("Unexpected value: ${value}")
+            {}
+        }
+        Err(VarNotFound(name)) => {
+            _ = Stdout.line!("var not found (expected): ${name}")
+            {}
+        }
+    }
 
-    dir_list =
-        ls_list
-        |> List.keep_if_try!(|path| Path.is_dir!(path))?
+    Stdout.line!("\nAll tests executed.")
+}
 
-    first_dir =
-        List.first(dir_list)?
-
-    Env.set_cwd!(first_dir)?
-    new_cwd = Env.cwd!({})?
-    Stdout.line!(
-        """
-        Changed current directory to: ${Path.display(new_cwd)}
-
-        All tests executed.
-        """
-    )?
-
-    Ok({})
-
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
-
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("I am a test."),
-        },
-    )
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model|
+    Ok({ status: 200, headers: [], body: Str.to_utf8("I am a test.") })

@@ -1,46 +1,55 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
+import pf.Stderr
 import pf.Dir
-import pf.Env
-import pf.Path
-import pf.Http exposing [Request, Response]
+import pf.Http
 
 # To run this example: check the README.md in this folder
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
+program = { init!, respond! }
 
-    # Get current working directory
-    cwd = Env.cwd!({}) ? |CwdUnavailable| Exit(1, "Unable to read current working directory")
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}| {
+    result = || {
+        # Create a directory
+        Dir.create!("empty-dir")?
 
-    Stdout.line!("The current working directory is ${Path.display(cwd)}")?
+        # Create a directory and its parents
+        Dir.create_all!("nested-dir/a/b/c")?
 
-    # Try to set cwd to examples
-    Env.set_cwd!(Path.from_str("examples/")) ? |InvalidCwd| Exit(1, "Unable to set cwd to examples/")
+        # Create a child directory
+        Dir.create!("nested-dir/child")?
 
-    Stdout.line!("Set cwd to examples/")?
+        # List the contents of a directory
+        paths = Dir.list!("nested-dir")?
 
-    # List contents of examples directory
-    paths = Dir.list!("./") ? |DirErr(err)| Exit(1, "Error reading directory ./:\n\t${Inspect.to_str(err)}")
+        paths_str = Str.join_with(paths, ", ")
 
-    paths_str =
-        paths
-        |> List.map(Path.display)
-        |> Str.join_with(",")
+        _ = Stdout.line!("The paths in nested-dir are: ${paths_str}")
 
-    Stdout.line!("The paths are;\n${paths_str}")?
+        # Delete an empty directory
+        Dir.delete_empty!("empty-dir")?
 
-    Ok({})
+        # Delete all directories recursively
+        Dir.delete_all!("nested-dir")?
 
-respond! : Request, Model => Result Response []
-respond! = |_, _|
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("Logged request"),
-        },
-    )
+        _ = Stdout.line!("Success!")
+
+        Ok({})
+    }
+
+    match result() {
+        Ok(_) => Ok({})
+        Err(err) => {
+            _ = Stderr.line!("Error during directory operations: ${Str.inspect(err)}")
+            Err(Exit(1))
+        }
+    }
+}
+
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |_request, _model|
+    Ok({ status: 200, headers: [], body: Str.to_utf8("See example in init! function.") })

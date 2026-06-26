@@ -1,30 +1,21 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+app [Model, program] { pf: platform "../platform/main.roc" }
 
+import pf.Http
 import pf.Stdout
-import pf.Http exposing [Request, Response]
-import pf.Utc
 
 # To run this example: check the README.md in this folder
 
-## Echo server: replies with the request body.
+## Echo server: logs the request method/uri and replies with the request body.
 
 Model : {}
 
-init! : {} => Result Model []
+program = { init!, respond! }
+
+init! : {} => Try(Model, [Exit(I64), ..])
 init! = |{}| Ok({})
 
-respond! : Request, Model => Result Response [StdoutErr _]
-respond! = |req, _|
-    # Log request datetime, method and url
-    datetime = Utc.to_iso_8601(Utc.now!({}))
-
-    Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")?
-
-    # Respond with request body
-    if List.is_empty(req.body) then
-        success([])
-    else
-        success(req.body)
-
-success = |body|
-    Ok({ status: 200, headers: [], body })
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |req, _model| {
+    _ = Stdout.line!("${Str.inspect(req.method)} ${req.uri}")
+    Ok({ status: 200, headers: [], body: req.body })
+}
