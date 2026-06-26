@@ -1,0 +1,102 @@
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+}
+
+import pf.Http
+import pf.MultipartFormData
+
+# To run this example: check the README.md in this folder
+
+# Demonstrates how to handle URL-encoded form data.
+
+program = { init!, respond! }
+
+form_page : Try(Http.Response, [ServerErr(Str), ..])
+form_page =
+    Ok({
+        status: 200,
+        headers: [
+            { name: "Content-Type", value: "text/html" },
+        ],
+        body: Str.to_utf8(
+            """<!DOCTYPE html>
+            """<html>
+            """<head>
+            """    <title>URL-Encoded Form Example</title>
+            """</head>
+            """<body>
+            """
+            """<h2>Submit Form Data</h2>
+            """
+            """<form action="/" method="post" enctype="application/x-www-form-urlencoded">
+            """    <label for="name">Name:</label><br>
+            """    <input type="text" name="name" id="name" required><br><br>
+            """    <label for="email">Email:</label><br>
+            """    <input type="email" name="email" id="email" required><br><br>
+            """    <label for="message">Message:</label><br>
+            """    <textarea name="message" id="message" rows="4" cols="50" required></textarea><br><br>
+            """    <input type="submit" value="Submit">
+            """</form>
+            """
+            """</body>
+            """</html>
+        ),
+    })
+
+display_form_data! : Http.Request => Try(Http.Response, [ServerErr(Str), ..])
+display_form_data! = |req| {
+    page = |form_data| {
+        entries =
+            Str.join_with(
+                Dict.to_list(form_data).map(|(key, value)| "<li><strong>${key}:</strong> ${value}</li>"),
+                "",
+            )
+
+        Str.to_utf8(
+            """<!DOCTYPE html>
+            """<html lang="en">
+            """    <head>
+            """        <meta charset="UTF-8">
+            """        <title>Form Data Received</title>
+            """        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            """    </head>
+            """    <body>
+            """        <h1>Form Data Received:</h1>
+            """        <ul>
+            """            ${entries}
+            """        </ul>
+            """        <a href="/">Go back</a>
+            """    </body>
+            """</html>
+        )
+    }
+
+    parsed_form = MultipartFormData.parse_form_url_encoded(req.body)
+
+    match parsed_form {
+        Ok(form_data) =>
+            Ok({
+                status: 200,
+                headers: [
+                    { name: "Content-Type", value: "text/html" },
+                ],
+                body: page(form_data),
+            })
+
+        Err(err) => Ok({ status: 500, headers: [], body: Str.to_utf8(Str.inspect(err)) })
+    }
+}
+
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |req, _model|
+    match req.method {
+        GET => form_page
+        POST => display_form_data!(req)
+        _ => Ok({ status: 500, headers: [], body: [] })
+    }
+
+# Model is produced by `init!`.
+Model : {}
+
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}| Ok({})
