@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install the new Zig-based Roc compiler
-        uses: roc-lang/setup-roc@39c354a6a838a0089eea9068a0414f49b62c5c08
+        uses: roc-lang/setup-roc@32db54b6716d13ba653f8b4073670572c980013c
         with:
           # Nightly build of the new (Zig-based) compiler. Hashes are not verified
           # because nightlies are updated regularly.
