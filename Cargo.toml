@@ -13,6 +13,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 libc = "=0.2.172"
+libsqlite3-sys = { version = "=0.33.0", features = ["bundled"] }
 bytes = "=1.10.1"
 futures = "=0.3.31"
 hyper = { version = "=1.6.0", features = ["http1", "http2", "client", "server"] }

@@ -33,7 +33,9 @@ platform "webserver"
         File,
         Http,
         IOErr,
+        InternalSqlite,
         Path,
+        Sqlite,
         Stderr,
         Stdout,
         Utc,
@@ -75,6 +77,14 @@ platform "webserver"
         "hosted_stderr_write": Stderr.write!,
         "hosted_stderr_write_bytes": Stderr.write_bytes!,
         "hosted_utc_now": Utc.now!,
+        # SQLite hosted functions are kept at the end so adding them does not
+        # renumber the generated glue types for the modules declared above.
+        "hosted_sqlite_prepare": Sqlite.host_prepare!,
+        "hosted_sqlite_bind": Sqlite.host_bind!,
+        "hosted_sqlite_columns": Sqlite.host_columns!,
+        "hosted_sqlite_column_value": Sqlite.host_column_value!,
+        "hosted_sqlite_step": Sqlite.host_step!,
+        "hosted_sqlite_reset": Sqlite.host_reset!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -93,6 +103,8 @@ import File
 import Http
 import IOErr
 import Path
+import Sqlite
+import InternalSqlite
 import Stdout
 import Stderr
 import Utc
