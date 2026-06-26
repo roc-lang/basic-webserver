@@ -15,7 +15,8 @@ use core::mem::ManuallyDrop;
 use std::cell::RefCell;
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 mod http_server;
@@ -84,14 +85,14 @@ type PathInfo = PathHostPathTypeOk;
 // (`AnonStructN` / `TryTypeN`) and have NO generated semantic alias, so they are
 // referenced by their numbered names. Update this block if the glue renumbers
 // them (only happens when the platform's hosted/provides/types change).
-pub(crate) type InitForHostResult = TryType120;
-pub(crate) type InitForHostResultTag = TryType120Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct123;
-pub(crate) type ResponseToAndFromHost = AnonStruct125;
-pub(crate) type Header = AnonStruct104;
+pub(crate) type InitForHostResult = TryType139;
+pub(crate) type InitForHostResultTag = TryType139Tag;
+pub(crate) type RequestToAndFromHost = AnonStruct142;
+pub(crate) type ResponseToAndFromHost = AnonStruct144;
+pub(crate) type Header = AnonStruct123;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct125(value, roc_host);
+    decref_anon_struct144(value, roc_host);
 }
 
 // ============================================================================
@@ -1154,8 +1155,8 @@ pub extern "C" fn hosted_utc_now() -> u128 {
 type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
 type SqliteValueTag = BytesOrIntegerOrNullOrRealOrStringTag;
 type SqliteValuePayload = BytesOrIntegerOrNullOrRealOrStringPayload;
-type SqliteError = AnonStruct61;
-type SqliteBindings = AnonStruct69;
+type SqliteError = AnonStruct70;
+type SqliteBindings = AnonStruct78;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
@@ -1530,7 +1531,7 @@ pub extern "C" fn hosted_sqlite_bind(
         sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
     };
     for binding in bindings.as_slice() {
-        decref_anon_struct69(*binding, roc_host);
+        decref_anon_struct78(*binding, roc_host);
     }
     bindings.decref(roc_host);
     release_sqlite_stmt(handle, roc_host);
@@ -1652,6 +1653,461 @@ pub extern "C" fn hosted_sqlite_reset(handle: *mut u64) -> SqliteHostBindResult 
     };
     release_sqlite_stmt(handle, roc_host);
     result
+}
+
+// ============================================================================
+// TCP
+//
+// `Tcp.Stream` (a `Box(U64)`) is represented by the generated glue as `*mut u64`:
+// a boxed u64 holding a raw `*mut BufReader<TcpStream>`. The box is refcounted
+// with `allocate_box`/`decref_box_with`; closing the socket happens in
+// `drop_tcp_stream` when the last reference is released. Each host fn that takes
+// a handle calls `release_tcp_stream` before returning to balance the incref Roc
+// performs when the stream stays live.
+//
+// Errors cross the boundary as a `RocStr` carrying either "ErrorKind::<Variant>"
+// (mapped back to a tag union in Tcp.roc) or "UnexpectedEof"; the Roc side parses
+// them into `ConnectErr`/`StreamErr`.
+// ----------------------------------------------------------------------------
+
+const TCP_STREAM_BOX_ALIGN: usize = core::mem::align_of::<u64>();
+
+fn box_tcp_stream(stream: BufReader<TcpStream>, roc_host: &RocHost) -> *mut u64 {
+    let raw: *mut BufReader<TcpStream> = Box::into_raw(Box::new(stream));
+    let boxed = allocate_box(
+        core::mem::size_of::<u64>(),
+        TCP_STREAM_BOX_ALIGN,
+        false,
+        roc_host,
+    );
+    unsafe {
+        *(boxed as *mut u64) = raw as u64;
+    }
+    boxed as *mut u64
+}
+
+unsafe fn tcp_stream_ref<'a>(handle: *mut u64) -> &'a mut BufReader<TcpStream> {
+    &mut *(*handle as *mut BufReader<TcpStream>)
+}
+
+extern "C" fn drop_tcp_stream(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
+    unsafe {
+        let raw = *(data_ptr as *mut u64) as *mut BufReader<TcpStream>;
+        if !raw.is_null() {
+            drop(Box::from_raw(raw));
+        }
+    }
+}
+
+fn release_tcp_stream(handle: *mut u64, roc_host: &RocHost) {
+    decref_box_with(
+        handle as RocBox,
+        TCP_STREAM_BOX_ALIGN,
+        // The boxed payload is a raw `u64` (a pointer to our BufReader), not a
+        // Roc-refcounted value — must match the `false` passed to `allocate_box`.
+        false,
+        Some(drop_tcp_stream),
+        roc_host,
+    );
+}
+
+fn to_tcp_connect_err(err: io::Error, roc_host: &RocHost) -> RocStr {
+    let message = match err.kind() {
+        io::ErrorKind::PermissionDenied => "ErrorKind::PermissionDenied".to_string(),
+        io::ErrorKind::AddrInUse => "ErrorKind::AddrInUse".to_string(),
+        io::ErrorKind::AddrNotAvailable => "ErrorKind::AddrNotAvailable".to_string(),
+        io::ErrorKind::ConnectionRefused => "ErrorKind::ConnectionRefused".to_string(),
+        io::ErrorKind::Interrupted => "ErrorKind::Interrupted".to_string(),
+        io::ErrorKind::TimedOut => "ErrorKind::TimedOut".to_string(),
+        io::ErrorKind::Unsupported => "ErrorKind::Unsupported".to_string(),
+        other => format!("{:?}", other),
+    };
+    RocStr::from_str(&message, roc_host)
+}
+
+fn to_tcp_stream_err(err: io::Error, roc_host: &RocHost) -> RocStr {
+    let message = match err.kind() {
+        io::ErrorKind::PermissionDenied => "ErrorKind::PermissionDenied".to_string(),
+        io::ErrorKind::ConnectionRefused => "ErrorKind::ConnectionRefused".to_string(),
+        io::ErrorKind::ConnectionReset => "ErrorKind::ConnectionReset".to_string(),
+        io::ErrorKind::Interrupted => "ErrorKind::Interrupted".to_string(),
+        io::ErrorKind::OutOfMemory => "ErrorKind::OutOfMemory".to_string(),
+        io::ErrorKind::BrokenPipe => "ErrorKind::BrokenPipe".to_string(),
+        other => format!("{:?}", other),
+    };
+    RocStr::from_str(&message, roc_host)
+}
+
+// `BufRead::read_until` ported from `roc_file::read_until`, accumulating into a
+// plain Vec (the delimiter is included as the last byte when found).
+fn tcp_read_until_impl(stream: &mut BufReader<TcpStream>, delim: u8) -> io::Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    loop {
+        let (done, used) = {
+            let available = match stream.fill_buf() {
+                Ok(n) => n,
+                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            };
+            match available.iter().position(|&b| b == delim) {
+                Some(i) => {
+                    buffer.extend_from_slice(&available[..=i]);
+                    (true, i + 1)
+                }
+                None => {
+                    buffer.extend_from_slice(available);
+                    (false, available.len())
+                }
+            }
+        };
+        stream.consume(used);
+        if done || used == 0 {
+            return Ok(buffer);
+        }
+    }
+}
+
+fn try_tcp_connect_ok(handle: *mut u64) -> TcpHostConnectResult {
+    TcpHostConnectResult {
+        payload: TcpHostConnectResultPayload {
+            ok: ManuallyDrop::new(handle),
+        },
+        tag: TcpHostConnectResultTag::Ok,
+    }
+}
+
+fn try_tcp_connect_err(error: RocStr) -> TcpHostConnectResult {
+    TcpHostConnectResult {
+        payload: TcpHostConnectResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: TcpHostConnectResultTag::Err,
+    }
+}
+
+// The three read host fns share an identical result layout (`Try(List U8, Str)`).
+fn try_tcp_read_ok(bytes: RocListWith<u8, false>) -> TcpHostReadUpToResult {
+    TcpHostReadUpToResult {
+        payload: TcpHostReadUpToResultPayload {
+            ok: ManuallyDrop::new(bytes),
+        },
+        tag: TcpHostReadUpToResultTag::Ok,
+    }
+}
+
+fn try_tcp_read_err(error: RocStr) -> TcpHostReadUpToResult {
+    TcpHostReadUpToResult {
+        payload: TcpHostReadUpToResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: TcpHostReadUpToResultTag::Err,
+    }
+}
+
+fn try_tcp_write_ok() -> TcpHostWriteResult {
+    TcpHostWriteResult {
+        payload: TcpHostWriteResultPayload {
+            ok: ManuallyDrop::new(()),
+        },
+        tag: TcpHostWriteResultTag::Ok,
+    }
+}
+
+fn try_tcp_write_err(error: RocStr) -> TcpHostWriteResult {
+    TcpHostWriteResult {
+        payload: TcpHostWriteResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: TcpHostWriteResultTag::Err,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tcp_connect(host: RocStr, port: u16) -> TcpHostConnectResult {
+    let roc_host = roc_host();
+    let host_string = host.as_str().to_owned();
+    host.decref(roc_host);
+
+    match TcpStream::connect((host_string.as_str(), port)) {
+        Ok(stream) => {
+            let handle = box_tcp_stream(BufReader::new(stream), roc_host);
+            try_tcp_connect_ok(handle)
+        }
+        Err(err) => try_tcp_connect_err(to_tcp_connect_err(err, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tcp_read_up_to(
+    handle: *mut u64,
+    bytes_to_read: u64,
+) -> TcpHostReadUpToResult {
+    let roc_host = roc_host();
+    let result = {
+        let stream = unsafe { tcp_stream_ref(handle) };
+        let mut chunk = stream.take(bytes_to_read);
+        match chunk.fill_buf() {
+            Ok(received) => {
+                let received = received.to_vec();
+                stream.consume(received.len());
+                try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&received, roc_host))
+            }
+            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+        }
+    };
+    release_tcp_stream(handle, roc_host);
+    result
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tcp_read_exactly(
+    handle: *mut u64,
+    bytes_to_read: u64,
+) -> TcpHostReadExactlyResult {
+    let roc_host = roc_host();
+    let result = {
+        let stream = unsafe { tcp_stream_ref(handle) };
+        let mut buffer = Vec::with_capacity(bytes_to_read as usize);
+        let mut chunk = stream.take(bytes_to_read);
+        match chunk.read_to_end(&mut buffer) {
+            Ok(read) => {
+                if (read as u64) < bytes_to_read {
+                    try_tcp_read_err(RocStr::from_str("UnexpectedEof", roc_host))
+                } else {
+                    try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&buffer, roc_host))
+                }
+            }
+            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+        }
+    };
+    release_tcp_stream(handle, roc_host);
+    result
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tcp_read_until(handle: *mut u64, byte: u8) -> TcpHostReadUntilResult {
+    let roc_host = roc_host();
+    let result = {
+        let stream = unsafe { tcp_stream_ref(handle) };
+        match tcp_read_until_impl(stream, byte) {
+            Ok(buffer) => try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&buffer, roc_host)),
+            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+        }
+    };
+    release_tcp_stream(handle, roc_host);
+    result
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tcp_write(
+    handle: *mut u64,
+    msg: RocListWith<u8, false>,
+) -> TcpHostWriteResult {
+    let roc_host = roc_host();
+    let result = {
+        let stream = unsafe { tcp_stream_ref(handle) };
+        match stream.get_mut().write_all(msg.as_slice()) {
+            Ok(()) => try_tcp_write_ok(),
+            Err(err) => try_tcp_write_err(to_tcp_stream_err(err, roc_host)),
+        }
+    };
+    msg.decref(roc_host);
+    release_tcp_stream(handle, roc_host);
+    result
+}
+
+// ============================================================================
+// HTTP (outbound)
+//
+// A single host effect, `hosted_http_send_request`, takes a fully-marshalled
+// request record and returns a response record. Requests run on a thread-local
+// current-thread tokio runtime driving a hyper client over a rustls (ring)
+// TLS connector seeded with the system's native root certificates.
+//
+// This runs on a `spawn_blocking` thread (the server calls `respond!` there),
+// so building a nested current-thread runtime here does not conflict with the
+// server's multi-thread runtime.
+//
+// Transport failures are surfaced to Roc as reserved status+body sentinels
+// (matching the checks in Http.roc's `send!`):
+//   * 408 + "Timeout"        -> request exceeded its timeout
+//   * 500 + "NetworkError"   -> could not initialise the TLS connector
+//   * 500 + "BadBody"        -> response body could not be collected
+//   * 500 + "OTHER ERROR\n…" -> any other transport/build error (detail follows)
+// ----------------------------------------------------------------------------
+
+// The generated glue names the response/header records by anonymous-struct
+// number; alias them to stable semantic names (the response also has the
+// generator's stable `HttpHostSendRequest` alias).
+type HttpResponse = HttpHostSendRequest;
+type HttpHeader = AnonStruct57;
+
+thread_local! {
+    static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_io()
+        .enable_time()
+        .build()
+        .expect("failed to build tokio runtime");
+}
+
+// Numeric method tags must match `to_host_method` in platform/InternalHttp.roc.
+fn as_hyper_method(method: u64, method_ext: &str) -> Option<hyper::Method> {
+    match method {
+        0 => Some(hyper::Method::CONNECT),
+        1 => Some(hyper::Method::DELETE),
+        2 => hyper::Method::from_bytes(method_ext.as_bytes()).ok(),
+        3 => Some(hyper::Method::GET),
+        4 => Some(hyper::Method::HEAD),
+        5 => Some(hyper::Method::OPTIONS),
+        6 => Some(hyper::Method::PATCH),
+        7 => Some(hyper::Method::POST),
+        8 => Some(hyper::Method::PUT),
+        9 => Some(hyper::Method::TRACE),
+        _ => None,
+    }
+}
+
+fn http_sentinel_response(status: u16, body: &[u8], roc_host: &RocHost) -> HttpResponse {
+    HttpResponse {
+        body: RocListWith::<u8, false>::from_slice(body, roc_host),
+        headers: RocList::empty(),
+        status,
+    }
+}
+
+fn build_hyper_request(
+    args: &HttpHostSendRequestArgs,
+) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, String> {
+    let method = as_hyper_method(args.method, args.method_ext.as_str())
+        .ok_or_else(|| "invalid HTTP method".to_string())?;
+    let mut builder = hyper::Request::builder()
+        .method(method)
+        .uri(args.uri.as_str());
+
+    // Default to text/plain unless the caller already set a Content-Type.
+    let mut has_content_type = false;
+    for header in args.headers.as_slice() {
+        builder = builder.header(header.name.as_str(), header.value.as_str());
+        if header.name.as_str().eq_ignore_ascii_case("Content-Type") {
+            has_content_type = true;
+        }
+    }
+    if !has_content_type {
+        builder = builder.header("Content-Type", "text/plain");
+    }
+
+    let body = http_body_util::Full::new(bytes::Bytes::from(args.body.as_slice().to_vec()));
+    builder.body(body).map_err(|err| err.to_string())
+}
+
+fn build_roc_headers(pairs: &[(String, String)], roc_host: &RocHost) -> RocList<HttpHeader> {
+    let list = RocList::<HttpHeader>::allocate(pairs.len(), roc_host);
+    for (index, (name, value)) in pairs.iter().enumerate() {
+        let header = HttpHeader {
+            name: RocStr::from_str(name, roc_host),
+            value: RocStr::from_str(value, roc_host),
+        };
+        unsafe {
+            list.elements.add(index).write(header);
+        }
+    }
+    list
+}
+
+async fn async_send_request(
+    request: hyper::Request<http_body_util::Full<bytes::Bytes>>,
+    roc_host: &RocHost,
+) -> HttpResponse {
+    use http_body_util::BodyExt;
+    use hyper_rustls::HttpsConnectorBuilder;
+    use hyper_util::client::legacy::Client;
+    use hyper_util::rt::TokioExecutor;
+
+    let https = match HttpsConnectorBuilder::new().with_native_roots() {
+        Ok(builder) => builder.https_or_http().enable_http1().build(),
+        Err(_) => return http_sentinel_response(500, b"NetworkError", roc_host),
+    };
+
+    let client: Client<_, http_body_util::Full<bytes::Bytes>> =
+        Client::builder(TokioExecutor::new()).build(https);
+
+    match client.request(request).await {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let pairs: Vec<(String, String)> = response
+                .headers()
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.as_str().to_string(),
+                        value.to_str().unwrap_or_default().to_string(),
+                    )
+                })
+                .collect();
+
+            match response.into_body().collect().await {
+                Ok(collected) => {
+                    let bytes = collected.to_bytes();
+                    HttpResponse {
+                        body: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
+                        headers: build_roc_headers(&pairs, roc_host),
+                        status,
+                    }
+                }
+                Err(_) => http_sentinel_response(500, b"BadBody", roc_host),
+            }
+        }
+        Err(err) => {
+            let detail = format!("OTHER ERROR\n{}", err);
+            http_sentinel_response(500, detail.as_bytes(), roc_host)
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_http_send_request(args: HttpHostSendRequestArgs) -> HttpResponse {
+    let roc_host = roc_host();
+    let timeout_ms = args.timeout_ms;
+
+    // Build the hyper request from the borrowed args, then release the owned
+    // Roc values (the request has copied everything it needs).
+    let request_result = build_hyper_request(&args);
+    args.body.decref(roc_host);
+    for header in args.headers.as_slice() {
+        decref_anon_struct57(*header, roc_host);
+    }
+    args.headers.decref(roc_host);
+    args.method_ext.decref(roc_host);
+    args.uri.decref(roc_host);
+
+    let request = match request_result {
+        Ok(request) => request,
+        Err(err) => {
+            return http_sentinel_response(
+                500,
+                format!("OTHER ERROR\n{}", err).as_bytes(),
+                roc_host,
+            )
+        }
+    };
+
+    TOKIO_RUNTIME.with(|rt| {
+        if timeout_ms > 0 {
+            rt.block_on(async {
+                match tokio::time::timeout(
+                    std::time::Duration::from_millis(timeout_ms),
+                    async_send_request(request, roc_host),
+                )
+                .await
+                {
+                    Ok(response) => response,
+                    Err(_) => http_sentinel_response(408, b"Timeout", roc_host),
+                }
+            })
+        } else {
+            rt.block_on(async_send_request(request, roc_host))
+        }
+    })
 }
 
 // ============================================================================

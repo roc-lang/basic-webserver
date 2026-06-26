@@ -39,6 +39,7 @@ platform "webserver"
         Sqlite,
         Stderr,
         Stdout,
+        Tcp,
         Url,
         Utc,
     ]
@@ -87,6 +88,15 @@ platform "webserver"
         "hosted_sqlite_column_value": Sqlite.host_column_value!,
         "hosted_sqlite_step": Sqlite.host_step!,
         "hosted_sqlite_reset": Sqlite.host_reset!,
+        # TCP and outbound HTTP are kept after SQLite for the same renumbering
+        # reason: appending them adds new glue types without shifting the ones
+        # above.
+        "hosted_tcp_connect": Tcp.host_connect!,
+        "hosted_tcp_read_up_to": Tcp.host_read_up_to!,
+        "hosted_tcp_read_exactly": Tcp.host_read_exactly!,
+        "hosted_tcp_read_until": Tcp.host_read_until!,
+        "hosted_tcp_write": Tcp.host_write!,
+        "hosted_http_send_request": Http.host_send_request!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -109,6 +119,7 @@ import Sqlite
 import InternalSqlite
 import Stdout
 import Stderr
+import Tcp
 import Url
 import Utc
 import InternalHttp
