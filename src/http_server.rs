@@ -73,9 +73,9 @@ pub fn start() -> i32 {
 
 /// Map a hyper method to the host-ABI method tag used by InternalHttp.roc.
 /// Canonical mapping (must match InternalHttp.from_host_method):
-/// CONNECT=0, DELETE=1, EXTENSION=2, GET=3, HEAD=4, OPTIONS=5, PATCH=6, POST=7,
+/// CONNECT=0, DELETE=1, Unknown=2, GET=3, HEAD=4, OPTIONS=5, PATCH=6, POST=7,
 /// PUT=8, TRACE=9.
-fn method_to_tag(method: &hyper::Method) -> (u64, &'static str) {
+fn method_to_tag(method: &hyper::Method) -> (u8, &'static str) {
     match *method {
         hyper::Method::CONNECT => (0, ""),
         hyper::Method::DELETE => (1, ""),
@@ -107,8 +107,8 @@ fn call_roc<'a>(
 
     let header_vec: Vec<Header> = headers
         .map(|(name, value)| Header {
-            name: RocStr::from_str(name.as_str(), roc_host),
-            value: RocStr::from_str(value.to_str().unwrap_or_default(), roc_host),
+            _0: RocStr::from_str(name.as_str(), roc_host),
+            _1: RocStr::from_str(value.to_str().unwrap_or_default(), roc_host),
         })
         .collect();
     let roc_headers = RocList::<Header>::from_slice(&header_vec, roc_host);
@@ -140,7 +140,7 @@ fn response_to_hyper(
     let mut builder = hyper::Response::builder().status(response.status);
 
     for header in response.headers.as_slice() {
-        builder = builder.header(header.name.as_str(), header.value.as_str());
+        builder = builder.header(header._0.as_str(), header._1.as_str());
     }
 
     let body = Bytes::copy_from_slice(response.body.as_slice());

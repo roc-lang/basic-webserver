@@ -10,27 +10,16 @@ platform "webserver"
     requires {
         [Model : model] for program : {
             init! : {} => Try(model, [Exit(I64), ..]),
-            respond! : {
-                method : [OPTIONS, GET, POST, PUT, DELETE, HEAD, TRACE, CONNECT, PATCH, EXTENSION(Str)],
-                headers : List({ name : Str, value : Str }),
-                uri : Str,
-                body : List(U8),
-                timeout_ms : [TimeoutMilliseconds(U64), NoTimeout],
-            }, model => Try(
-                {
-                    status : U16,
-                    headers : List({ name : Str, value : Str }),
-                    body : List(U8),
-                },
-                [ServerErr(Str), ..],
-            ),
+            respond! : _, model => Try(_, [ServerErr(Str), ..]),
         }
     }
     exposes [
+        Attribute,
         Cmd,
         Dir,
         Env,
         File,
+        Html,
         Http,
         IOErr,
         InternalSqlite,
@@ -43,7 +32,12 @@ platform "webserver"
         Url,
         Utc,
     ]
-    packages {}
+    packages {
+        # HTTP data types (Method, Request, Response) come from the shared
+        # roc-lang/http package so apps and other packages using it see the same
+        # nominal types. The platform supplies the effectful server/client glue.
+        http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    }
     provides {
         "roc_init_for_host": init_for_host!,
         "roc_respond_for_host": respond_for_host!,
@@ -112,6 +106,8 @@ import Cmd
 import Dir
 import Env
 import File
+import Attribute
+import Html
 import Http
 import IOErr
 import Path

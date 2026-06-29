@@ -1,9 +1,11 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
 }
 
 import pf.Http
 import pf.MultipartFormData
+import http.Response
 
 # To run this example: check the README.md in this folder
 
@@ -11,14 +13,12 @@ import pf.MultipartFormData
 
 program = { init!, respond! }
 
-form_page : Try(Http.Response, [ServerErr(Str), ..])
-form_page =
-    Ok({
-        status: 200,
-        headers: [
-            { name: "Content-Type", value: "text/html" },
-        ],
-        body: Str.to_utf8(
+form_page : Http.Response
+form_page = {
+    response = Response.from_status(200).with_headers([("Content-Type", "text/html")])
+
+    response.with_body(
+        Str.to_utf8(
             """<!DOCTYPE html>
             """<html>
             """<head>
@@ -41,7 +41,8 @@ form_page =
             """</body>
             """</html>
         ),
-    })
+    )
+}
 
 display_form_data! : Http.Request => Try(Http.Response, [ServerErr(Str), ..])
 display_form_data! = |req| {
@@ -71,28 +72,27 @@ display_form_data! = |req| {
         )
     }
 
-    parsed_form = MultipartFormData.parse_form_url_encoded(req.body)
+    parsed_form = MultipartFormData.parse_form_url_encoded(req.body())
 
     match parsed_form {
-        Ok(form_data) =>
-            Ok({
-                status: 200,
-                headers: [
-                    { name: "Content-Type", value: "text/html" },
-                ],
-                body: page(form_data),
-            })
+        Ok(form_data) => {
+            response =
+                Response.from_status(200)
+                .with_headers([("Content-Type", "text/html")])
+                .with_body(page(form_data))
+            Ok(response)
+        }
 
-        Err(err) => Ok({ status: 500, headers: [], body: Str.to_utf8(Str.inspect(err)) })
+        Err(err) => Ok(Response.from_status(500).with_body(Str.to_utf8(Str.inspect(err))))
     }
 }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, _model|
-    match req.method {
-        GET => form_page
+    match req.method() {
+        GET => Ok(form_page)
         POST => display_form_data!(req)
-        _ => Ok({ status: 500, headers: [], body: [] })
+        _ => Ok(Response.from_status(500))
     }
 
 # Model is produced by `init!`.

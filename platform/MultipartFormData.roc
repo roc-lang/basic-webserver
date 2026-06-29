@@ -218,14 +218,14 @@ MultipartFormData :: [].{
 
     ## Extracts the boundary value from the list of HTTP headers.
     ## The boundary is a special string used to separate different parts of the form data.
-    decode_multipart_form_data_boundary : List({ name : Str, value : Str }) -> Try(List(U8), _)
+    decode_multipart_form_data_boundary : List((Str, Str)) -> Try(List(U8), _)
     decode_multipart_form_data_boundary = |headers| {
-        content_type = List.keep_if(headers, |header| header.name == "Content-Type" or header.name == "content-type")
+        content_type = List.keep_if(headers, |(name, _)| name == "Content-Type" or name == "content-type")
 
         match List.first(content_type) {
             Err(ListWasEmpty) => Err(ExpectedContentTypeHeader)
-            Ok(header) =>
-                match split_last_str(header.value, "=") {
+            Ok((_, value)) =>
+                match split_last_str(value, "=") {
                     Ok({ before: _, after }) => Ok(Str.to_utf8(after))
                     Err(NotFound) => Err(InvalidContentTypeHeader)
                 }

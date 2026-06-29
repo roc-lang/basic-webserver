@@ -1,9 +1,13 @@
 # This example demonstrates error handling and fetching content from another website.
-app [Model, program] { pf: platform "../platform/main.roc" }
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
 import pf.Stdout
 import pf.Http
 import pf.Env
+import http.Response
 
 Model : {}
 
@@ -51,7 +55,7 @@ handle_req! = |req| {
 
 log_request! : Http.Request => Try({}, [StdoutErr(Str), ..])
 log_request! = |req|
-    Stdout.line!("${Str.inspect(req.method)} ${req.uri}")
+    Stdout.line!("${Str.inspect(req.method())} ${req.uri()}")
         .map_err(|err| StdoutErr(Str.inspect(err)))
 
 read_env_var! : Str => Try(Str, [EnvVarNotSet(Str), ..])
@@ -67,8 +71,4 @@ fetch_content! = |url|
 # Respond with the given status code and body
 response_with_code : U16, Str -> Try(Http.Response, _)
 response_with_code = |code, body|
-    Ok({
-        status: code,
-        headers: [],
-        body: Str.to_utf8(body),
-    })
+    Ok(Response.from_status(code).with_body(Str.to_utf8(body)))

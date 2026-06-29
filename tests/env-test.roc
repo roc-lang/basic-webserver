@@ -1,9 +1,13 @@
-app [Model, program] { pf: platform "../platform/main.roc" }
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
 import pf.Stdout
 import pf.Stderr
 import pf.Http
 import pf.Env
+import http.Response
 
 # NOTE: The migrated Env module is a reduced subset. This test covers the
 # functions that are currently available: var!, cwd!, exe_path!, temp_dir!.
@@ -66,4 +70,4 @@ run_tests! = |{}| {
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model|
-    Ok({ status: 200, headers: [], body: Str.to_utf8("I am a test.") })
+    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))

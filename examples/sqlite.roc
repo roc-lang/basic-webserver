@@ -1,8 +1,12 @@
-app [Model, program] { pf: platform "../platform/main.roc" }
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
 import pf.Http
 import pf.Sqlite
 import pf.Env
+import http.Response
 
 # To run this example: check the README.md in this folder and set
 # `export DB_PATH=./examples/todos.db`
@@ -35,11 +39,11 @@ respond! = |_request, { db_path }| {
         Ok(todos) => {
             lines = List.map(todos, |todo| Str.inspect(todo))
             body = Str.join_with(lines, "\n")
-            Ok({
-                status: 200,
-                headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
-                body: Str.to_utf8(body),
-            })
+            response =
+                Response.from_status(200)
+                .with_headers([("Content-Type", "text/html; charset=utf-8")])
+                .with_body(Str.to_utf8(body))
+            Ok(response)
         }
         Err(err) => Err(ServerErr("Failed to query Sqlite: ${Str.inspect(err)}"))
     }

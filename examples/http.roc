@@ -1,8 +1,13 @@
 # Demo of the basic-webserver outbound HTTP client (Http.send! / Http.get_utf8! / Http.get!).
-app [Model, program] { pf: platform "../platform/main.roc" }
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
 import pf.Stdout
 import pf.Http
+import http.Request
+import http.Response
 
 Model : {}
 
@@ -36,16 +41,15 @@ demo! = |{}| {
         }
     }
 
-    # Use send! with a custom header and inspect the Response record.
-    request = {
-        ..Http.default_request,
-        uri: "http://localhost:9000/utf8test",
-        headers: [Http.header(("Accept", "text/plain"))],
-        timeout_ms: TimeoutMilliseconds(5000),
-    }
+    # Use send! with a custom header and inspect the Response.
+    request =
+        Request.from_method(GET)
+        .with_uri("http://localhost:9000/utf8test")
+        .with_headers([("Accept", "text/plain")])
+        .with_timeout(TimeoutMilliseconds(5000))
     match Http.send!(request) {
         Ok(response) => {
-            _ = Stdout.line!("send! returned status ${Str.inspect(response.status)}.")
+            _ = Stdout.line!("send! returned status ${Str.inspect(response.status())}.")
             Ok({})
         }
         Err(HttpErr(_)) => {

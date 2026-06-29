@@ -1,7 +1,11 @@
-app [Model, program] { pf: platform "../platform/main.roc" }
+app [Model, program] {
+    pf: platform "../platform/main.roc",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
 import pf.Env
 import pf.Http
+import http.Response
 
 # To run this example: check the README.md in this folder
 
@@ -15,6 +19,6 @@ init! = |{}| Ok({})
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model|
     match Env.var!("HOME") {
-        Ok(value) => Ok({ status: 200, headers: [], body: Str.to_utf8("HOME=${value}") })
-        Err(VarNotFound(name)) => Ok({ status: 200, headers: [], body: Str.to_utf8("env var not found: ${name}") })
+        Ok(value) => Ok(Response.from_status(200).with_body(Str.to_utf8("HOME=${value}")))
+        Err(VarNotFound(name)) => Ok(Response.from_status(200).with_body(Str.to_utf8("env var not found: ${name}")))
     }
