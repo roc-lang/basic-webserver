@@ -1,4 +1,4 @@
-# Demo of the basic-webserver outbound HTTP client (Http.send! / Http.get_utf8!).
+# Demo of the basic-webserver outbound HTTP client (Http.send! / Http.get_utf8! / Http.get!).
 app [Model, program] { pf: platform "../platform/main.roc" }
 
 import pf.Stdout
@@ -25,6 +25,17 @@ demo! = |{}| {
         Err(_) => Stdout.line!("GET /utf8test failed (is a server running on :9000?)")
     }
 
+    # GET a JSON body and decode it into a Roc record.
+    _ = {
+        json_result : Try({ foo : Str }, _)
+        json_result = Http.get!("http://localhost:9000")
+
+        match json_result {
+            Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")
+            Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")
+        }
+    }
+
     # Use send! with a custom header and inspect the Response record.
     request = {
         ..Http.default_request,
@@ -45,9 +56,27 @@ demo! = |{}| {
 }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    Ok({
+respond! = |_request, _model| {
+    payload : {
+        message : Str,
+        status : U64,
+        ok : Http.JsonValue,
+        notes : Http.JsonValue,
+        meta : Http.JsonValue,
+    }
+    payload = {
+        message: "See init! for the outbound HTTP example code.",
         status: 200,
-        headers: [],
-        body: Str.to_utf8("See init! for the outbound HTTP example code."),
-    })
+        ok: Http.JsonValue.bool(Bool.True),
+        notes: Http.JsonValue.list([
+            Http.JsonValue.str("plain text"),
+            Http.JsonValue.i64(-7),
+        ]),
+        meta: Http.JsonValue.object([
+            Http.JsonValue.field(("missing", Http.JsonValue.null)),
+            Http.JsonValue.field(("count", Http.JsonValue.u64(2))),
+        ]),
+    }
+
+    Ok(Http.json_response(payload))
+}

@@ -31,6 +31,34 @@ get_lib_name() {
     esac
 }
 
+get_zig_musl_target() {
+    case "$1" in
+        x64musl)   echo "x86_64-linux-musl" ;;
+        arm64musl) echo "aarch64-linux-musl" ;;
+        *) echo "Unknown Zig musl target for: $1" >&2; exit 1 ;;
+    esac
+}
+
+cargo_build_release_lib_for_target() {
+    local target_name=$1
+    local rust_triple=$2
+
+    if [[ "$target_name" == *"musl"* ]] && ! command -v "${rust_triple}-gcc" >/dev/null 2>&1 && command -v zig >/dev/null 2>&1; then
+        local env_key=${rust_triple//-/_}
+        local zig_target=$(get_zig_musl_target "$target_name")
+
+        echo "Using Zig C toolchain for $rust_triple C dependencies..."
+        env \
+            CRATE_CC_NO_DEFAULTS=1 \
+            "CC_${env_key}=zig cc -target ${zig_target}" \
+            "AR_${env_key}=zig ar" \
+            "CFLAGS_${env_key}=-O3 -DNDEBUG -fPIC -ffunction-sections -fdata-sections -fno-sanitize=all" \
+            cargo build --release --lib --target "$rust_triple"
+    else
+        cargo build --release --lib --target "$rust_triple"
+    fi
+}
+
 # All supported targets
 ALL_TARGETS="x64mac arm64mac x64musl arm64musl x64win arm64win"
 
@@ -64,7 +92,7 @@ build_target_cross() {
     local lib_name=$(get_lib_name "$target_name")
 
     echo "Building for $target_name ($rust_triple)..."
-    cargo build --release --lib --target "$rust_triple"
+    cargo_build_release_lib_for_target "$target_name" "$rust_triple"
 
     mkdir -p "platform/targets/$target_name"
     cp "target/$rust_triple/release/$lib_name" "platform/targets/$target_name/"
@@ -84,7 +112,7 @@ build_target_native() {
     if [[ "$target_name" == *"musl"* ]]; then
         # Linux: need explicit musl target (default is glibc)
         rustup target add "$rust_triple" 2>/dev/null || true
-        cargo build --release --lib --target "$rust_triple"
+        cargo_build_release_lib_for_target "$target_name" "$rust_triple"
         mkdir -p "platform/targets/$target_name"
         cp "target/$rust_triple/release/$lib_name" "platform/targets/$target_name/"
     else

@@ -365,21 +365,16 @@ expect MultipartFormData.hex_bytes_to_u32(['2', '0']) == 32
 
 expect {
     bytes = Str.to_utf8("todo=foo&status=bar")
-    parsed = match MultipartFormData.parse_form_url_encoded(bytes) {
-        Ok(d) => d
-        Err(_) => Dict.empty()
-    }
+    expected = Dict.from_list([("todo", "foo"), ("status", "bar")])
 
-    Dict.to_list(parsed) == [("todo", "foo"), ("status", "bar")]
+    MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
 }
 
 expect {
-    parsed = match MultipartFormData.parse_form_url_encoded(Str.to_utf8("task=asdfs%20adf&status=qwerwe")) {
-        Ok(d) => d
-        Err(_) => Dict.empty()
-    }
+    bytes = Str.to_utf8("task=asdfs%20adf&status=qwerwe")
+    expected = Dict.from_list([("task", "asdfs adf"), ("status", "qwerwe")])
 
-    Dict.to_list(parsed) == [("task", "asdfs adf"), ("status", "qwerwe")]
+    MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
 }
 
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '0', '0']) == 0

@@ -87,12 +87,12 @@ type PathInfo = PathHostPathTypeOk;
 // them (only happens when the platform's hosted/provides/types change).
 pub(crate) type InitForHostResult = TryType139;
 pub(crate) type InitForHostResultTag = TryType139Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct142;
-pub(crate) type ResponseToAndFromHost = AnonStruct144;
+pub(crate) type RequestToAndFromHost = AnonStruct143;
+pub(crate) type ResponseToAndFromHost = AnonStruct145;
 pub(crate) type Header = AnonStruct123;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct144(value, roc_host);
+    decref_anon_struct145(value, roc_host);
 }
 
 // ============================================================================

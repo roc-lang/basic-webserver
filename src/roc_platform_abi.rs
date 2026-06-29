@@ -777,11 +777,11 @@ const _: () = assert!(core::mem::align_of::<AnonStruct57>() == 8, "AnonStruct57 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AnonStruct60 {
+    pub method: u64,
+    pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct57>,
-    pub method: u64,
     pub method_ext: RocStr,
-    pub timeout_ms: u64,
     pub uri: RocStr,
 }
 
@@ -815,8 +815,8 @@ const _: () = assert!(core::mem::align_of::<AnonStruct70>() == 8, "AnonStruct70 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AnonStruct78 {
-    pub name: RocStr,
     pub value: BytesOrIntegerOrNullOrRealOrString,
+    pub name: RocStr,
 }
 
 const _: () = assert!(core::mem::size_of::<AnonStruct78>() == 56, "AnonStruct78 size mismatch");
@@ -837,10 +837,10 @@ const _: () = assert!(core::mem::align_of::<AnonStruct117>() == 8, "AnonStruct11
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AnonStruct119 {
+    pub timeout_ms: NoTimeoutOrTimeoutMilliseconds,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct123>,
     pub method: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE,
-    pub timeout_ms: NoTimeoutOrTimeoutMilliseconds,
     pub uri: RocStr,
 }
 
@@ -870,32 +870,32 @@ pub struct AnonStruct131 {
 const _: () = assert!(core::mem::size_of::<AnonStruct131>() == 56, "AnonStruct131 size mismatch");
 const _: () = assert!(core::mem::align_of::<AnonStruct131>() == 8, "AnonStruct131 alignment mismatch");
 
-/// Element type for __AnonStruct142
+/// Element type for __AnonStruct143
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct142 {
+pub struct AnonStruct143 {
+    pub method: u64,
+    pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct123>,
-    pub method: u64,
     pub method_ext: RocStr,
-    pub timeout_ms: u64,
     pub uri: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct142>() == 112, "AnonStruct142 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct142>() == 8, "AnonStruct142 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct143>() == 112, "AnonStruct143 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct143>() == 8, "AnonStruct143 alignment mismatch");
 
-/// Element type for __AnonStruct144
+/// Element type for __AnonStruct145
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct144 {
+pub struct AnonStruct145 {
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct123>,
     pub status: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct144>() == 56, "AnonStruct144 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct144>() == 8, "AnonStruct144 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct145>() == 56, "AnonStruct145 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct145>() == 8, "AnonStruct145 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -2244,11 +2244,11 @@ pub struct FileWriteUtf8Args {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HttpHostSendRequestArgs {
+    pub method: u64,
+    pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct57>,
-    pub method: u64,
     pub method_ext: RocStr,
-    pub timeout_ms: u64,
     pub uri: RocStr,
 }
 
@@ -3376,14 +3376,14 @@ pub fn incref_try_type75(value: TryType75, amount: isize) {
 
 /// Recursively decrement Roc-owned fields in AnonStruct78.
 pub fn decref_anon_struct78(value: AnonStruct78, roc_host: &RocHost) {
-    value.name.decref(roc_host);
     decref_bytes_or_integer_or_null_or_real_or_string(value.value, roc_host);
+    value.name.decref(roc_host);
 }
 
 /// Increment Roc-owned fields in AnonStruct78.
 pub fn incref_anon_struct78(value: AnonStruct78, amount: isize) {
-    value.name.incref(amount);
     incref_bytes_or_integer_or_null_or_real_or_string(value.value, amount);
+    value.name.incref(amount);
 }
 
 /// Recursively decrement Roc-owned payloads in BytesOrIntegerOrNullOrRealOrString.
@@ -3742,6 +3742,7 @@ pub fn incref_anon_struct117(value: AnonStruct117, amount: isize) {
 
 /// Recursively decrement Roc-owned fields in AnonStruct119.
 pub fn decref_anon_struct119(value: AnonStruct119, roc_host: &RocHost) {
+    decref_no_timeout_or_timeout_milliseconds(value.timeout_ms, roc_host);
     value.body.decref(roc_host);
     {
         let list = value.headers;
@@ -3754,16 +3755,15 @@ pub fn decref_anon_struct119(value: AnonStruct119, roc_host: &RocHost) {
         list.decref(roc_host);
     }
     decref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value.method, roc_host);
-    decref_no_timeout_or_timeout_milliseconds(value.timeout_ms, roc_host);
     value.uri.decref(roc_host);
 }
 
 /// Increment Roc-owned fields in AnonStruct119.
 pub fn incref_anon_struct119(value: AnonStruct119, amount: isize) {
+    incref_no_timeout_or_timeout_milliseconds(value.timeout_ms, amount);
     value.body.incref(amount);
     value.headers.incref(amount);
     incref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value.method, amount);
-    incref_no_timeout_or_timeout_milliseconds(value.timeout_ms, amount);
     value.uri.incref(amount);
 }
 
@@ -3930,8 +3930,8 @@ pub fn incref_try_type139(value: TryType139, amount: isize) {
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct142.
-pub fn decref_anon_struct142(value: AnonStruct142, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct143.
+pub fn decref_anon_struct143(value: AnonStruct143, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
@@ -3947,16 +3947,16 @@ pub fn decref_anon_struct142(value: AnonStruct142, roc_host: &RocHost) {
     value.uri.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct142.
-pub fn incref_anon_struct142(value: AnonStruct142, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct143.
+pub fn incref_anon_struct143(value: AnonStruct143, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
     value.method_ext.incref(amount);
     value.uri.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct144.
-pub fn decref_anon_struct144(value: AnonStruct144, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct145.
+pub fn decref_anon_struct145(value: AnonStruct145, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
@@ -3970,8 +3970,8 @@ pub fn decref_anon_struct144(value: AnonStruct144, roc_host: &RocHost) {
     }
 }
 
-/// Increment Roc-owned fields in AnonStruct144.
-pub fn incref_anon_struct144(value: AnonStruct144, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct145.
+pub fn incref_anon_struct145(value: AnonStruct145, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
 }
@@ -4309,6 +4309,6 @@ unsafe extern "C" {
     pub fn roc_init_for_host() -> TryType139;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct142, arg1: RocBox) -> AnonStruct144;
+    pub fn roc_respond_for_host(arg0: AnonStruct143, arg1: RocBox) -> AnonStruct145;
 
 }
