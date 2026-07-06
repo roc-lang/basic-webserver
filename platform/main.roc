@@ -25,6 +25,7 @@ platform "webserver"
         InternalSqlite,
         MultipartFormData,
         Path,
+        Sleep,
         Sqlite,
         Stderr,
         Stdout,
@@ -94,6 +95,9 @@ platform "webserver"
         "hosted_tcp_read_until": Host.tcp_read_until!,
         "hosted_tcp_write": Host.tcp_write!,
         "hosted_http_send_request": Host.http_send_request!,
+        "hosted_file_open_reader": Host.file_open_reader!,
+        "hosted_file_read_line": Host.file_read_line!,
+        "hosted_sleep_millis": Host.sleep_millis!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -115,6 +119,7 @@ import Html
 import Http
 import IOErr
 import Path
+import Sleep
 import Sqlite
 import InternalSqlite
 import Stdout

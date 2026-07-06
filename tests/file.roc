@@ -10,11 +10,9 @@ import pf.Cmd
 import pf.Http
 import http.Response
 
-# NOTE: The migrated File module is a reduced subset. This test covers the
-# functions that are currently available: read_bytes!, write_bytes!,
-# read_utf8!, write_utf8!, delete!, size_in_bytes!, is_executable!,
-# is_readable!, is_writable!. (is_file!, is_dir!, type!, hard_link!, rename!,
-# exists!, and the buffered reader are not yet migrated.)
+# NOTE: Path existence/type checks live in `tests/path-test.roc`; this file keeps
+# coverage focused on file reads/writes, metadata, permissions, deletion, and the
+# buffered reader.
 
 Model : {}
 
@@ -43,6 +41,7 @@ run_tests! = || {
     test_basic_file_operations!()?
     test_file_permissions!()?
     test_file_size!()?
+    test_buffered_reader!()?
     test_file_delete!()?
 
     Stdout.line!("\nI ran all file function tests.")
@@ -109,6 +108,29 @@ test_file_delete! = || {
     Ok({})
 }
 
+test_buffered_reader! : () => Try({}, _)
+test_buffered_reader! = || {
+    Stdout.line!("\nTesting File.open_reader! and File.read_line!:")?
+
+    File.write_utf8!("test_buffered.txt", "one\ntwo\n")?
+    reader = File.open_reader_with_capacity!("test_buffered.txt", 4)?
+
+    first = File.read_line!(reader)?
+    second = File.read_line!(reader)?
+    eof = File.read_line!(reader)?
+
+    expect_true(first == Str.to_utf8("one\n"), "first buffered line should include newline")?
+    expect_true(second == Str.to_utf8("two\n"), "second buffered line should include newline")?
+    expect_true(eof == [], "buffered reader should return an empty list at EOF")
+}
+
+expect_true = |condition, message|
+    if condition {
+        Ok({})
+    } else {
+        Err(FailedExpectation(message))
+    }
+
 cleanup_test_files! : () => Try({}, _)
 cleanup_test_files! = || {
     Stdout.line!("\nCleaning up test files...")?
@@ -116,6 +138,7 @@ cleanup_test_files! = || {
     test_files = [
         "test_bytes.txt",
         "test_write.txt",
+        "test_buffered.txt",
         "test_to_delete.txt",
     ]
 

@@ -27,17 +27,11 @@ Release-readiness backlog for the Zig compiler migration PR.
   - `Http.get!` and `Http.body_json` now decode through built-in `Json.parse`.
   - JSON parser failures are exposed as `JsonErr(_)`.
 
-- [ ] Decide what to do with remaining `.todoroc` files.
-  - Candidates to port, delete as obsolete, or explicitly document as deferred:
-    - `examples/sleep.todoroc`, `platform/Sleep.todoroc`
-    - `examples/file-read-buffered.todoroc`
-    - `examples/form-file-upload.todoroc`
-    - `examples/todos.todoroc`
-    - `tests/cmd-test.todoroc`, `tests/dir-test.todoroc`
-    - `tests/sqlite-test.todoroc`, `tests/utc.todoroc`
-    - `tests/issue_104.todoroc`, `tests/issue_154.todoroc`
-    - `platform/EnvDecoding.todoroc`, `platform/InternalDateTime.todoroc`, `platform/Tcp.todoroc`
-  - Add a CI check so skipped examples/tests are intentional and visible: [#109](https://github.com/roc-lang/basic-webserver/issues/109).
+- [x] Decide what to do with remaining `.todoroc` files.
+  - Ported `sleep`, buffered file reading, multipart upload, todos, Cmd, Dir, Sqlite, UTC, and issue 104 coverage to active `.roc` files.
+  - Moved issue 154 into an active `MultipartFormData` expect.
+  - Deleted obsolete `platform/EnvDecoding.todoroc`, `platform/InternalDateTime.todoroc`, and `platform/Tcp.todoroc`.
+  - `./ci/all_tests.sh` now fails if any `.todoroc` files are present: [#109](https://github.com/roc-lang/basic-webserver/issues/109).
 
 - [ ] Triage the GitHub Dependabot alert before tagging.
   - GitHub reports one moderate vulnerability on the default branch: <https://github.com/roc-lang/basic-webserver/security/dependabot/4>
@@ -52,7 +46,7 @@ Release-readiness backlog for the Zig compiler migration PR.
 - [ ] Review Sqlite safety and API details.
   - Investigate SQL injection protection: [#119](https://github.com/roc-lang/basic-webserver/issues/119)
   - Compare against the more mature sibling implementation in `../basic-cli`.
-  - Consider transaction wrappers and query/decoder ergonomics from the TODOs in `examples/todos.todoroc`.
+  - Consider transaction wrappers and query/decoder ergonomics in the updated `examples/todos.roc`.
 
 ## Out of Scope for This Upgrade PR
 

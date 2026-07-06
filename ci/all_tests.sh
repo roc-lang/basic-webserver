@@ -24,6 +24,16 @@ esac
 echo "Using roc: $($ROC version 2>&1 | head -1)"
 echo ""
 
+check_no_deferred_roc() {
+    local files
+    files="$(find examples tests platform -name '*.todoroc' -print)"
+    if [ -n "$files" ]; then
+        echo "Deferred Roc files found; rename or remove them before release:" >&2
+        echo "$files" >&2
+        exit 1
+    fi
+}
+
 check_test_and_build() {
     local file=$1
     echo "==> roc check $file"
@@ -66,6 +76,8 @@ check_readme_example() {
     "$ROC" build --output="$output" "$file"
     rm -f "$output" "$output.exe"
 }
+
+check_no_deferred_roc
 
 # Build all active examples and tests.
 for file in examples/*.roc tests/*.roc; do

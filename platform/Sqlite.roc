@@ -271,6 +271,9 @@ Sqlite := [].{
     ## Decode a column to an `F64`.
     f64 = |name| real_decoder(name, |r| Ok(r))
 
+    ## Decode a column to an `F32`.
+    f32 = |name| real_decoder(name, |r| bounds_err(F64.to_f32_try(r)))
+
     # Nullable decoders return `NotNull(value)` for a present value, or `Null` when
     # the column holds SQL NULL. Useful for nullable columns.
 
@@ -322,6 +325,9 @@ Sqlite := [].{
 
     ## Decode a nullable column to `[NotNull(F64), Null]`.
     nullable_f64 = |name| nullable_real_decoder(name, |r| Ok(r))
+
+    ## Decode a nullable column to `[NotNull(F32), Null]`.
+    nullable_f32 = |name| nullable_real_decoder(name, |r| bounds_err(F64.to_f32_try(r)))
 
     # internal use only
     nullable_int_decoder = |name, cast|

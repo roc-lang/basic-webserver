@@ -388,6 +388,14 @@ expect {
     MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
 }
 
+## `parse_form_url_encoded` keeps percent-encoded literal plus signs.
+expect {
+    bytes = Str.to_utf8("message=This+%2B+is+a+plus")
+    expected = Dict.from_list([("message", "This + is a plus")])
+
+    MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
+}
+
 ## `hex_bytes_to_u32` decodes zero.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '0', '0']) == 0
 

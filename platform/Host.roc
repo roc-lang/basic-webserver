@@ -35,6 +35,8 @@ Host := [].{
 
     SqliteStmt :: Box(U64)
 
+    FileReader :: Box(U64)
+
     TcpStream :: Box(U64)
 
     cmd_exec_exit_code! : Cmd => Try(I32, IOErr)
@@ -55,6 +57,8 @@ Host := [].{
     file_write_bytes! : Str, List(U8) => Try({}, [FileErr(IOErr)])
     file_read_utf8! : Str => Try(Str, [FileErr(IOErr)])
     file_write_utf8! : Str, Str => Try({}, [FileErr(IOErr)])
+    file_open_reader! : Str, U64 => Try(FileReader, [FileErr(IOErr)])
+    file_read_line! : FileReader => Try(List(U8), [FileErr(IOErr)])
     file_delete! : Str => Try({}, [FileErr(IOErr)])
     file_size_in_bytes! : Str => Try(U64, [FileErr(IOErr)])
     file_is_executable! : Str => Try(Bool, [FileErr(IOErr)])
@@ -88,6 +92,8 @@ Host := [].{
     tcp_read_exactly! : TcpStream, U64 => Try(List(U8), Str)
     tcp_read_until! : TcpStream, U8 => Try(List(U8), Str)
     tcp_write! : TcpStream, List(U8) => Try({}, Str)
+
+    sleep_millis! : U64 => {}
 
     utc_now! : () => U128
 }
