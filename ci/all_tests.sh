@@ -8,9 +8,9 @@ set -euo pipefail
 #   - The host static lib has been built into platform/targets/<native>/ (run
 #     ./build.sh first).
 #
-# It `roc check`s and `roc build`s every active example and test (files ending in
-# `.roc`; deferred modules/examples use the `.todoroc` extension and are skipped),
-# then smoke-tests the hello-web server.
+# It `roc check`s, `roc test`s, and `roc build`s every active example and test
+# (files ending in `.roc`; deferred modules/examples use the `.todoroc`
+# extension and are skipped), then smoke-tests the hello-web server.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -20,10 +20,12 @@ ROC="${ROC:-roc}"
 echo "Using roc: $($ROC version 2>&1 | head -1)"
 echo ""
 
-check_and_build() {
+check_test_and_build() {
     local file=$1
     echo "==> roc check $file"
     "$ROC" check "$file"
+    echo "==> roc test $file"
+    "$ROC" test "$file"
     echo "==> roc build $file"
     "$ROC" build "$file"
 }
@@ -31,7 +33,7 @@ check_and_build() {
 # Build all active examples and tests.
 for file in examples/*.roc tests/*.roc; do
     [ -e "$file" ] || continue
-    check_and_build "$file"
+    check_test_and_build "$file"
 done
 
 # Roc drops built binaries in the repo root; clean them up.

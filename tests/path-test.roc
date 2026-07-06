@@ -36,6 +36,7 @@ init! = |{}|
         }
     }
 
+run_tests! : {} => Try({}, _)
 run_tests! = |{}| {
     Stdout.line!("Testing Path functions...\n")?
 
@@ -82,6 +83,7 @@ run_tests! = |{}| {
     Stdout.line!("\nI ran all Path function tests.")
 }
 
+cleanup! : {} => Try({}, _)
 cleanup! = |{}| {
     _ = File.delete!("test_path_symlink.txt")
     _ = File.delete!("test_path_file.txt")

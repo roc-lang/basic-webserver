@@ -11,8 +11,12 @@ Http :: [].{
     Method : Method.Method
 
     ## Represents an HTTP header e.g. `Content-Type: application/json`.
-    ## Header is a `(Str, Str)` tuple.
-    Header : (Str, Str)
+    Header : { name : Str, value : Str }
+
+    ## Convert named headers to the tuple shape used by the shared `http` package.
+    header_tuples : List(Header) -> List((Str, Str))
+    header_tuples = |headers|
+        headers.map(|{ name, value }| (name, value))
 
     ## Represents an HTTP request.
     Request : Request.Request
@@ -52,8 +56,8 @@ Http :: [].{
         object : List({ name : Str, value : JsonValue }) -> JsonValue
         object = |fields| Object(fields)
 
-        field : (Str, JsonValue) -> { name : Str, value : JsonValue }
-        field = |(name, value)| { name, value }
+        field : Str, JsonValue -> { name : Str, value : JsonValue }
+        field = |name, value| { name, value }
 
         encode_to : JsonValue, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, []))
         encode_to = |value, _format| |state| encode_json_value(value, state)
@@ -152,7 +156,11 @@ Http :: [].{
         ]
     json_response_with_status = |status, value| {
         response = Response.from_status(status)
-        response_with_headers = Response.with_headers(response, [("Content-Type", "application/json; charset=utf-8")])
+        response_with_headers =
+            Response.with_headers(
+                response,
+                header_tuples([{ name: "Content-Type", value: "application/json; charset=utf-8" }]),
+            )
         Response.with_body(response_with_headers, json_bytes(value))
     }
 }
@@ -215,8 +223,9 @@ encode_json_string : value -> Str
     ]
 encode_json_string = |value| {
     encode_value = value.encode_to(InternalJsonFormat.Default)
-    Ok(final) = encode_value({ output: "", field_counts: [] })
-    final.output
+    match encode_value({ output: "", field_counts: [] }) {
+        Ok(final) => final.output
+    }
 }
 
 encode_json_value : Http.JsonValue, InternalJsonOutput -> Try(InternalJsonOutput, [])

@@ -27,7 +27,7 @@ init! : {} => Try(Model, [Exit(I64), ..])
 init! = |{}| {
     db_path =
         match Env.var!("DB_PATH") {
-            Ok(p) => p
+            Ok(path) => path
             Err(_) => "./examples/todos.db"
         }
     Ok({ db_path: db_path })
@@ -41,7 +41,7 @@ respond! = |_request, { db_path }| {
             body = Str.join_with(lines, "\n")
             response =
                 Response.from_status(200)
-                .with_headers([("Content-Type", "text/html; charset=utf-8")])
+                .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html; charset=utf-8" }]))
                 .with_body(Str.to_utf8(body))
             Ok(response)
         }
@@ -51,6 +51,7 @@ respond! = |_request, { db_path }| {
 
 Todo : { id : Str, status : TodoStatus, task : Str }
 
+query_todos_by_status! : Str, Str => Try(List(Todo), _)
 query_todos_by_status! = |db_path, status|
     Sqlite.query_many!(
         {
@@ -63,6 +64,7 @@ query_todos_by_status! = |db_path, status|
 
 # A row decoder is `List(Str) -> (Stmt => Try(a, err))`; the new compiler does not
 # support the record-builder (`<-`) sugar, so we combine the leaf decoders by hand.
+# This stays unannotated because the inferred decoder error union is compiler-heavy.
 decode_todo = |cols|
     |stmt| {
         id = Sqlite.i64("id")(cols)(stmt)?
@@ -74,6 +76,7 @@ decode_todo = |cols|
 
 TodoStatus : [Todo, Completed, InProgress]
 
+# This stays unannotated so `ParseError` can merge with decoder errors above.
 decode_todo_status = |status_str|
     match status_str {
         "todo" => Ok(Todo)

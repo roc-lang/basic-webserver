@@ -15,31 +15,33 @@ program = { init!, respond! }
 
 form_page : Http.Response
 form_page = {
-    response = Response.from_status(200).with_headers([("Content-Type", "text/html")])
+    response =
+        Response.from_status(200)
+        .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html" }]))
 
     response.with_body(
         Str.to_utf8(
-            """<!DOCTYPE html>
-            """<html>
-            """<head>
-            """    <title>URL-Encoded Form Example</title>
-            """</head>
-            """<body>
-            """
-            """<h2>Submit Form Data</h2>
-            """
-            """<form action="/" method="post" enctype="application/x-www-form-urlencoded">
-            """    <label for="name">Name:</label><br>
-            """    <input type="text" name="name" id="name" required><br><br>
-            """    <label for="email">Email:</label><br>
-            """    <input type="email" name="email" id="email" required><br><br>
-            """    <label for="message">Message:</label><br>
-            """    <textarea name="message" id="message" rows="4" cols="50" required></textarea><br><br>
-            """    <input type="submit" value="Submit">
-            """</form>
-            """
-            """</body>
-            """</html>
+            \\<!DOCTYPE html>
+            \\<html>
+            \\<head>
+            \\    <title>URL-Encoded Form Example</title>
+            \\</head>
+            \\<body>
+            \\
+            \\<h2>Submit Form Data</h2>
+            \\
+            \\<form action="/" method="post" enctype="application/x-www-form-urlencoded">
+            \\    <label for="name">Name:</label><br>
+            \\    <input type="text" name="name" id="name" required><br><br>
+            \\    <label for="email">Email:</label><br>
+            \\    <input type="email" name="email" id="email" required><br><br>
+            \\    <label for="message">Message:</label><br>
+            \\    <textarea name="message" id="message" rows="4" cols="50" required></textarea><br><br>
+            \\    <input type="submit" value="Submit">
+            \\</form>
+            \\
+            \\</body>
+            \\</html>
         ),
     )
 }
@@ -54,21 +56,21 @@ display_form_data! = |req| {
             )
 
         Str.to_utf8(
-            """<!DOCTYPE html>
-            """<html lang="en">
-            """    <head>
-            """        <meta charset="UTF-8">
-            """        <title>Form Data Received</title>
-            """        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            """    </head>
-            """    <body>
-            """        <h1>Form Data Received:</h1>
-            """        <ul>
-            """            ${entries}
-            """        </ul>
-            """        <a href="/">Go back</a>
-            """    </body>
-            """</html>
+            \\<!DOCTYPE html>
+            \\<html lang="en">
+            \\    <head>
+            \\        <meta charset="UTF-8">
+            \\        <title>Form Data Received</title>
+            \\        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            \\    </head>
+            \\    <body>
+            \\        <h1>Form Data Received:</h1>
+            \\        <ul>
+            \\            ${entries}
+            \\        </ul>
+            \\        <a href="/">Go back</a>
+            \\    </body>
+            \\</html>
         )
     }
 
@@ -78,7 +80,7 @@ display_form_data! = |req| {
         Ok(form_data) => {
             response =
                 Response.from_status(200)
-                .with_headers([("Content-Type", "text/html")])
+                .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html" }]))
                 .with_body(page(form_data))
             Ok(response)
         }

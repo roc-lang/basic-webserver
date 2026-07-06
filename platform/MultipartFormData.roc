@@ -249,6 +249,7 @@ MultipartFormData :: [].{
     }
 }
 
+## `parse_content_disposition_f` extracts a content-disposition header.
 expect {
     input = Str.to_utf8("\r\nContent-Disposition: form-data; name=\"sometext\"\r\nSome text here...")
     actual = MultipartFormData.parse_content_disposition_f(input)
@@ -260,6 +261,7 @@ expect {
     actual == expected
 }
 
+## `parse_content_type_f` extracts a content-type header.
 expect {
     input = Str.to_utf8("\r\ncontent-type: multipart/mixed; boundary=abcde\r\nSome text here...")
     actual = MultipartFormData.parse_content_type_f(input)
@@ -271,6 +273,7 @@ expect {
     actual == expected
 }
 
+## `parse_content_transfer_encoding_f` extracts a transfer-encoding header.
 expect {
     input = Str.to_utf8("\r\nContent-Transfer-Encoding: binary\r\nSome text here...")
     actual = MultipartFormData.parse_content_transfer_encoding_f(input)
@@ -282,6 +285,7 @@ expect {
     actual == expected
 }
 
+## `parse_all_headers` handles a part with only content-disposition.
 expect {
     header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\n\r\n<FILE CONTENTS>"
     actual = MultipartFormData.parse_all_headers(Str.to_utf8(header))
@@ -295,6 +299,7 @@ expect {
     actual == expected
 }
 
+## `parse_all_headers` handles a part with content-disposition and content-type.
 expect {
     header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\n\r\n<FILE CONTENTS>"
     actual = MultipartFormData.parse_all_headers(Str.to_utf8(header))
@@ -308,6 +313,7 @@ expect {
     actual == expected
 }
 
+## `parse_all_headers` handles a part with all supported multipart headers.
 expect {
     header = "\r\nContent-Disposition: form-data; name=\"sometext\"\r\nContent-Type: multipart/mixed; boundary=abcde\r\nContent-Transfer-Encoding: binary\r\n\r\n<FILE CONTENTS>"
     actual = MultipartFormData.parse_all_headers(Str.to_utf8(header))
@@ -321,6 +327,7 @@ expect {
     actual == expected
 }
 
+## `parse_form_data` parses a single form-data part.
 expect {
     input = Str.to_utf8("--12345\r\nContent-Disposition: form-data; name=\"sometext\"\r\n\r\nsome text sent via post...\r\n--12345--\r\n")
     actual = MultipartFormData.parse_form_data({
@@ -339,6 +346,7 @@ expect {
     actual == expected
 }
 
+## `parse_form_data` preserves nested multipart body content.
 expect {
     body = Str.to_utf8("--AaB03x\r\nContent-Disposition: form-data; name=\"submit-name\"\r\n\r\nLarry\r\n--AaB03x\r\nContent-Disposition: form-data; name=\"files\"\r\nContent-Type: multipart/mixed; boundary=BbC04y\r\n\r\n--BbC04y\r\nContent-Disposition: file; filename=\"file1.txt\"\r\nContent-Type: text/plain\r\n\r\n... contents of file1.txt ...\r\n--BbC04y\r\nContent-Disposition: file; filename=\"file2.gif\"\r\nContent-Type: image/gif\r\nContent-Transfer-Encoding: binary\r\n\r\n...contents of file2.gif...\r\n--BbC04y--\r\n--AaB03x--\r\n")
     boundary = Str.to_utf8("AaB03x")
@@ -361,8 +369,10 @@ expect {
     actual == expected
 }
 
+## `hex_bytes_to_u32` decodes a two-digit hexadecimal byte.
 expect MultipartFormData.hex_bytes_to_u32(['2', '0']) == 32
 
+## `parse_form_url_encoded` decodes simple key-value pairs.
 expect {
     bytes = Str.to_utf8("todo=foo&status=bar")
     expected = Dict.from_list([("todo", "foo"), ("status", "bar")])
@@ -370,6 +380,7 @@ expect {
     MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
 }
 
+## `parse_form_url_encoded` decodes percent-encoded spaces.
 expect {
     bytes = Str.to_utf8("task=asdfs%20adf&status=qwerwe")
     expected = Dict.from_list([("task", "asdfs adf"), ("status", "qwerwe")])
@@ -377,15 +388,35 @@ expect {
     MultipartFormData.parse_form_url_encoded(bytes) == Ok(expected)
 }
 
+## `hex_bytes_to_u32` decodes zero.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '0', '0']) == 0
+
+## `hex_bytes_to_u32` decodes one.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '0', '1']) == 1
+
+## `hex_bytes_to_u32` decodes fifteen.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '0', 'F']) == 15
+
+## `hex_bytes_to_u32` decodes sixteen.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', '1', '0']) == 16
+
+## `hex_bytes_to_u32` decodes 255.
 expect MultipartFormData.hex_bytes_to_u32(['0', '0', 'F', 'F']) == 255
+
+## `hex_bytes_to_u32` decodes 256.
 expect MultipartFormData.hex_bytes_to_u32(['0', '1', '0', '0']) == 256
+
+## `hex_bytes_to_u32` decodes 4095.
 expect MultipartFormData.hex_bytes_to_u32(['0', 'F', 'F', 'F']) == 4095
+
+## `hex_bytes_to_u32` decodes 4096.
 expect MultipartFormData.hex_bytes_to_u32(['1', '0', '0', '0']) == 4096
+
+## `hex_bytes_to_u32` decodes a five-digit hexadecimal value.
 expect MultipartFormData.hex_bytes_to_u32(['1', '6', 'F', 'F', '1']) == 94193
 
+## `hex_to_dec` decodes zero.
 expect MultipartFormData.hex_to_dec('0') == 0
+
+## `hex_to_dec` decodes uppercase hexadecimal F.
 expect MultipartFormData.hex_to_dec('F') == 15

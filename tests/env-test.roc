@@ -30,6 +30,7 @@ init! = |{}|
         }
     }
 
+run_tests! : {} => Try({}, _)
 run_tests! = |{}| {
     Stdout.line!("Testing Env module functions...\n\nTesting Env.cwd!:")?
     cwd = Env.cwd!({})?

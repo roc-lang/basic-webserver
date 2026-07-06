@@ -50,25 +50,22 @@ handle_req! = |req| {
     content = fetch_content!(url)?
 
     # Respond with the website content
-    response_with_code(200, content)
+    Ok(response_with_code(200, content))
 }
 
 log_request! : Http.Request => Try({}, [StdoutErr(Str), ..])
 log_request! = |req|
-    Stdout.line!("${Str.inspect(req.method())} ${req.uri()}")
-        .map_err(|err| StdoutErr(Str.inspect(err)))
+    Ok(Stdout.line!("${Str.inspect(req.method())} ${req.uri()}") ? |err| StdoutErr(Str.inspect(err)))
 
 read_env_var! : Str => Try(Str, [EnvVarNotSet(Str), ..])
 read_env_var! = |env_var_name|
-    Env.var!(env_var_name)
-        .map_err(|_| EnvVarNotSet(env_var_name))
+    Ok(Env.var!(env_var_name) ? |_| EnvVarNotSet(env_var_name))
 
 fetch_content! : Str => Try(Str, [FetchErr(Str), ..])
 fetch_content! = |url|
-    Http.get_utf8!(url)
-        .map_err(|err| FetchErr(Str.inspect(err)))
+    Ok(Http.get_utf8!(url) ? |err| FetchErr(Str.inspect(err)))
 
 # Respond with the given status code and body
-response_with_code : U16, Str -> Try(Http.Response, _)
+response_with_code : U16, Str -> Http.Response
 response_with_code = |code, body|
-    Ok(Response.from_status(code).with_body(Str.to_utf8(body)))
+    Response.from_status(code).with_body(Str.to_utf8(body))

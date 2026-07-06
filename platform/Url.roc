@@ -392,14 +392,14 @@ Url := [Url(Str)].{
     }
 }
 
-# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+## `Url.path` supports absolute URIs inside query parameters.
 expect {
     input = Url.from_str("https://example.com/foo/bar?key1=https://www.baz.com/some-path#stuff")
     expected = "example.com/foo/bar"
     Url.path(input) == expected
 }
 
-# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+## `Url.path` supports absolute URIs inside relative query parameters.
 expect {
     input = Url.from_str("/foo/bar?key1=https://www.baz.com/some-path#stuff")
     output = Url.path(input)

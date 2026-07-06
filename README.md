@@ -17,36 +17,41 @@ A webserver [platform](https://www.roc-lang.org/platforms) with a simple interfa
 
 ## Example
 
-Run this example server with `$ roc hello-web.roc` (on linux, add `--linker=legacy`) and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
+Run this example server with `$ roc examples/hello-web.roc` and go to `http://localhost:8000` in your browser. You can change the port (8000) and the host (localhost) by setting the environment variables ROC_BASIC_WEBSERVER_PORT and ROC_BASIC_WEBSERVER_HOST.
 
 ```roc
-app [Model, init!, respond!] { pf: platform "<latest release URL from https://github.com/roc-lang/basic-webserver/releases/latest>" }
+app [Model, program] {
+    pf: platform "<latest release URL from https://github.com/roc-lang/basic-webserver/releases/latest>",
+    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+}
 
-import pf.Stdout
-import pf.Http exposing [Request, Response]
+import pf.Http
 import pf.Utc
+import pf.Stdout
+import http.Response
 
-# Model is produced by `init`.
 Model : {}
 
-# With `init` you can set up a database connection once at server startup,
-# generate css by running `tailwindcss`,...
-# In this case we don't have anything to initialize, so it is just `Ok {}`.
-init! : {} => Result Model []
-init! = \{} -> Ok {}
+program = { init!, respond! }
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = \req, _ ->
-    # Log request datetime, method and url
-    datetime = Utc.to_iso_8601 (Utc.now! {})
+init! : {} => Try(Model, [Exit(I64), ..])
+init! = |{}| Ok({})
 
-    try Stdout.line! "$(datetime) $(Inspect.toStr req.method) $(req.uri)"
+respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
+respond! = |req, _model| {
+    millis = Utc.to_millis_since_epoch(Utc.now!({}))
 
-    Ok {
-        status: 200,
-        headers: [],
-        body: Str.toUtf8 "<b>Hello from server</b></br>",
-    }
+    _ =
+        Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}")
+        ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
+
+    response =
+        Response.from_status(200)
+        .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html; charset=utf-8" }]))
+        .with_body(Str.to_utf8("<b>Hello from server</b></br>"))
+
+    Ok(response)
+}
 ```
 
 
@@ -56,7 +61,7 @@ If you'd like to contribute, check out our [group chat](https://roc.zulipchat.co
 
 ## Running Locally
 
-If you have cloned this repository and want to run the examples without using a packaged release (...tar.br), you will need to build the platform first by running `roc build.roc`. Run examples with `roc examples/hello-web.roc` (on linux, add `--linker=legacy`).
+If you have cloned this repository and want to run the examples without using a packaged release (...tar.br), build the platform first by running `./build.sh`. Run examples with `roc examples/hello-web.roc`.
 
 ## Benchmarking
 

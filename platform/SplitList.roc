@@ -58,7 +58,7 @@ SplitList :: [].{
     }
 }
 
-# empty input
+## `walk_help_find_starts` returns no markers for empty input.
 expect {
     input = []
     separator = [1, 2, 3]
@@ -68,7 +68,7 @@ expect {
     actual == expected
 }
 
-# empty separator
+## `walk_help_find_starts` returns no markers for an empty separator.
 expect {
     input = [1, 2, 3]
     separator = []
@@ -78,7 +78,7 @@ expect {
     actual == expected
 }
 
-# separator at start
+## `walk_help_find_starts` records a separator at the start.
 expect {
     input = [3, 4, 5, 6, 7, 8]
     separator = [3, 4, 5]
@@ -88,7 +88,7 @@ expect {
     actual == expected
 }
 
-# multiple separators in the middle
+## `walk_help_find_starts` records multiple separators in the middle.
 expect {
     input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
     separator = [3, 4, 5]
@@ -98,7 +98,7 @@ expect {
     actual == expected
 }
 
-# separator at end
+## `walk_help_find_starts` records a separator at the end.
 expect {
     input = [6, 7, 8, 3, 4, 5]
     separator = [3, 4, 5]
@@ -108,12 +108,14 @@ expect {
     actual == expected
 }
 
+## `walk_split_help` keeps input before a single stop marker.
 expect {
     actual = SplitList.walk_split_help([1, 2, 3, 5, 6, 7, 8, 9, 10], [Stop(2)])
     expected = [[1, 2]]
     actual == expected
 }
 
+## `walk_split_help` extracts segments between multiple marker pairs.
 expect {
     input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
     actual = SplitList.walk_split_help(input, [Stop(2), Start(5), Stop(10), Start(13)])
@@ -121,6 +123,7 @@ expect {
     actual == expected
 }
 
+## `split_on_list` splits a list around a repeated two-item separator.
 expect {
     input = [1, 2, 3, 4, 5, 6, 7, 3, 4, 0, 0]
     actual = SplitList.split_on_list(input, [3, 4])
@@ -128,6 +131,7 @@ expect {
     actual == expected
 }
 
+## `split_on_list` splits around a repeated three-item separator.
 expect {
     input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 3, 4, 5, 6, 7, 8, 9, 10]
     actual = SplitList.split_on_list(input, [3, 4, 5])
@@ -135,6 +139,7 @@ expect {
     actual == expected
 }
 
+## `split_on_list` works with tag values as list elements.
 expect {
     input = [One, Two, Three, Four, Five, Six, Seven, Eight, One, Two, Nine, Ten, Three, Four, Five, Six, Seven, One, Two, Eight, Nine, Ten]
     actual = SplitList.split_on_list(input, [One, Two])
@@ -142,6 +147,7 @@ expect {
     actual == expected
 }
 
+## `split_on_list` drops a separator at the end.
 expect {
     input = [6, 7, 8, 3, 4, 5]
     actual = SplitList.split_on_list(input, [3, 4, 5])
@@ -149,6 +155,7 @@ expect {
     actual == expected
 }
 
+## `split_on_list` drops a separator at the start.
 expect {
     input = [3, 4, 5, 6, 7, 8]
     actual = SplitList.split_on_list(input, [3, 4, 5])

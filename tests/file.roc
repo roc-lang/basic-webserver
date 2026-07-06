@@ -35,6 +35,7 @@ init! = |{}|
         }
     }
 
+run_tests! : {} => Try({}, _)
 run_tests! = |{}| {
     Stdout.line!("Testing some File functions...")?
     Stdout.line!("This will create and manipulate test files in the current directory.\n")?
@@ -47,6 +48,7 @@ run_tests! = |{}| {
     Stdout.line!("\nI ran all file function tests.")
 }
 
+test_basic_file_operations! : {} => Try({}, _)
 test_basic_file_operations! = |{}| {
     Stdout.line!("Testing File.write_bytes! and File.read_bytes!:")?
 
@@ -66,6 +68,7 @@ test_basic_file_operations! = |{}| {
     Ok({})
 }
 
+test_file_permissions! : {} => Try({}, _)
 test_file_permissions! = |{}| {
     Stdout.line!("\nTesting File.is_executable!, File.is_readable!, File.is_writable!:")?
 
@@ -78,6 +81,7 @@ test_file_permissions! = |{}| {
     Ok({})
 }
 
+test_file_size! : {} => Try({}, _)
 test_file_size! = |{}| {
     Stdout.line!("\nTesting File.size_in_bytes!:")?
 
@@ -87,6 +91,7 @@ test_file_size! = |{}| {
     Ok({})
 }
 
+test_file_delete! : {} => Try({}, _)
 test_file_delete! = |{}| {
     Stdout.line!("\nTesting File.delete!:")?
 
@@ -104,6 +109,7 @@ test_file_delete! = |{}| {
     Ok({})
 }
 
+cleanup_test_files! : {} => Try({}, _)
 cleanup_test_files! = |{}| {
     Stdout.line!("\nCleaning up test files...")?
 
