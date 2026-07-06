@@ -22,7 +22,7 @@ SplitList :: [].{
             |_, _, _| []
         } else {
             |all_markers, _, idx| {
-                len = List.len(separator_list)
+                len = separator_list.len()
 
                 if List.sublist(input_list, { start: idx, len: len }) == separator_list {
                     all_markers
@@ -45,9 +45,9 @@ SplitList :: [].{
                 [Start(start), Stop(stop), .. as rest] =>
                     go(rest, state.append(List.sublist(input, { start: start, len: stop - start })))
 
-                [Start(start)] if start >= List.len(input) => state
+                [Start(start)] if start >= input.len() => state
                 [Start(start)] =>
-                    state.append(List.sublist(input, { start: start, len: List.len(input) - start }))
+                    state.append(List.sublist(input, { start: start, len: input.len() - start }))
 
                 _ => {
                     crash "Unreachable:\n\tThis list should have matched earlier when branches: ${Str.inspect(remaining_markers)}"

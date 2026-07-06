@@ -34,5 +34,5 @@ Dir := [].{
     ##
     ## Returns the paths of all files and directories within the specified directory.
     list! : Str => Try(List(Path.Path), [DirErr(IOErr), ..])
-    list! = |path| Ok(List.map(Host.dir_list!(path)?, InternalPath.from_host_raw))
+    list! = |path| Ok(Host.dir_list!(path)?.map(InternalPath.from_host_raw))
 }

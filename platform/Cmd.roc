@@ -4,7 +4,7 @@ import Host
 Cmd :: {
     args : List(Str),
     clear_envs : Bool,
-    envs : List(Str), # TODO change this to List((Str, Str))
+    envs : List(Str),
     program : Str,
 }.{
     ## Simplest way to execute a command by name with arguments.
@@ -215,11 +215,11 @@ Cmd :: {
     ## Add multiple environment variables to the command.
     ##
     ## ```roc
-    ## cmd = Cmd.new("env").envs([("FOO", "bar"), ("BAZ", "qux")])
+    ## cmd = Cmd.new("env").envs([{ name: "FOO", value: "bar" }, { name: "BAZ", value: "qux" }])
     ## ```
-    envs : Cmd, List((Str, Str)) -> Cmd
-    envs = |cmd, pairs| {
-        new_envs = flatten_str_pairs(pairs, cmd.envs, 0)
+    envs : Cmd, List({ name : Str, value : Str }) -> Cmd
+    envs = |cmd, vars| {
+        new_envs = flatten_env_vars(vars, cmd.envs, 0)
         { args: cmd.args, clear_envs: cmd.clear_envs, envs: new_envs, program: cmd.program }
     }
 
@@ -242,14 +242,14 @@ Cmd :: {
     }
 }
 
-flatten_str_pairs : List((Str, Str)), List(Str), U64 -> List(Str)
-flatten_str_pairs = |pairs, acc, idx| {
-    if idx >= pairs.len() {
+flatten_env_vars : List({ name : Str, value : Str }), List(Str), U64 -> List(Str)
+flatten_env_vars = |vars, acc, idx| {
+    if idx >= vars.len() {
         acc
     } else {
-        match pairs.get(idx) {
-            Ok(pair) =>
-                flatten_str_pairs(pairs, acc.append(pair.0).append(pair.1), idx + 1)
+        match vars.get(idx) {
+            Ok({ name, value }) =>
+                flatten_env_vars(vars, acc.append(name).append(value), idx + 1)
             Err(_) =>
                 acc
         }
@@ -266,7 +266,6 @@ to_str = |cmd| {
         }
 
     envs_str =
-        # TODO once we're using List of tuples: .map(|(key, value)| "${key}=${value}")
         my_trim(Str.trim(Str.join_with(cmd.envs, " ")))
 
     clear_envs_str = if cmd.clear_envs { ", clear_envs: true" } else { "" }

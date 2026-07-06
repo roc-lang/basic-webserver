@@ -55,8 +55,7 @@ run_tests! = ||
     }) ? QuerManyFailed
 
     rows_texts_str =
-        all_rows
-        |> List.map(|row| Inspect.to_str(row))
+        all_rows.map(|row| Inspect.to_str(row))
         |> Str.join_with("\n")
 
     Stdout.line!("Rows: ${rows_texts_str}")?

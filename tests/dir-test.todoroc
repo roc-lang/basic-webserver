@@ -14,13 +14,13 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = cleanup_test_dirs!(DirsNeedToExist)
-            _ = Stdout.line!("Ran all tests.")
+            cleanup_test_dirs!(DirsNeedToExist) ?? {}
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = cleanup_test_dirs!(DirsMaybeExist)
-            _ = Stdout.line!("Test run failed:\n\t${Str.inspect(err)}")
+            cleanup_test_dirs!(DirsMaybeExist) ?? {}
+            Stdout.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
@@ -95,8 +95,8 @@ test_dir_create_all! = || {
         .exec_output!()?
 
     # Count directories created (including the parent)
-    dir_lines = List.keep_if(Str.split_on(find_output.stdout_utf8, "\n"), |line| !Str.is_empty(Str.trim(line)))
-    dir_count = List.len(dir_lines)
+    dir_lines = Str.split_on(find_output.stdout_utf8, "\n").keep_if(|line| !Str.is_empty(Str.trim(line)))
+    dir_count = dir_lines.len()
 
     Stdout.line!("Nested directory structure:\n${find_output.stdout_utf8}\nNumber of directories created: ${dir_count.to_str()}\nExpected 3 directories: ${Str.inspect(dir_count == 3)}")?
 
@@ -104,13 +104,13 @@ test_dir_create_all! = || {
     Dir.create_all!(nested_path)?
 
     # Verify it still exists
-    _ = Cmd.exec!("test", ["-e", nested_path])?
+    Cmd.exec!("test", ["-e", nested_path])?
 
     # Test creating a single directory with create_all
     single_with_create_all = "test_single_with_create_all"
     Dir.create_all!(single_with_create_all)?
 
-    _ = Cmd.exec!("test", ["-e", single_with_create_all])?
+    Cmd.exec!("test", ["-e", single_with_create_all])?
 
     Ok({})
 }
@@ -123,7 +123,7 @@ test_dir_delete_empty! = || {
     Dir.create!(empty_dir)?
 
     # Verify it exists
-    _ = Cmd.exec!("test", ["-e", empty_dir])?
+    Cmd.exec!("test", ["-e", empty_dir])?
 
     # Delete the empty directory
     Dir.delete_empty!(empty_dir)?
@@ -150,7 +150,7 @@ test_dir_delete_empty! = || {
     Stdout.line!("Deleting non-empty directory result: ${delete_non_empty_result}")?
 
     # Verify non-empty directory still exists
-    _ = Cmd.exec!("test", ["-e", non_empty_dir])?
+    Cmd.exec!("test", ["-e", non_empty_dir])?
 
     # Test deleting non-existent directory (should fail)
     delete_nonexistent_result =
@@ -184,16 +184,16 @@ test_dir_delete_all! = || {
         .args([complex_dir, "-type", "f"])
         .exec_output!()?
 
-    non_empty_lines = List.keep_if(Str.split_on(tree_output.stdout_utf8, "\n"), |line| !Str.is_empty(Str.trim(line)))
+    non_empty_lines = Str.split_on(tree_output.stdout_utf8, "\n").keep_if(|line| !Str.is_empty(Str.trim(line)))
     file_lines =
         List.sort_with(
             non_empty_lines,
             |str_a, str_b| {
                 # We just want consistent ordering for testing
                 byte_sum_a : U64
-                byte_sum_a = List.sum(List.map(Str.to_utf8(str_a), |b| b.to_u64()))
+                byte_sum_a = List.sum(Str.to_utf8(str_a).map(|b| b.to_u64()))
                 byte_sum_b : U64
-                byte_sum_b = List.sum(List.map(Str.to_utf8(str_b), |b| b.to_u64()))
+                byte_sum_b = List.sum(Str.to_utf8(str_b).map(|b| b.to_u64()))
 
                 if byte_sum_a < byte_sum_b {
                     LT
@@ -204,7 +204,7 @@ test_dir_delete_all! = || {
                 }
             },
         )
-    file_count = List.len(file_lines)
+    file_count = file_lines.len()
     file_lines_str = Str.join_with(file_lines, "\n")
 
     Stdout.line!("Files in complex directory structure:\n${file_lines_str}\nNumber of files: ${file_count.to_str()}")?

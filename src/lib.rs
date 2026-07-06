@@ -2096,6 +2096,7 @@ fn as_hyper_method(method: u8, method_ext: &str) -> Option<hyper::Method> {
         7 => Some(hyper::Method::POST),
         8 => Some(hyper::Method::PUT),
         9 => Some(hyper::Method::TRACE),
+        10 => hyper::Method::from_bytes(b"QUERY").ok(),
         _ => None,
     }
 }
@@ -2120,8 +2121,8 @@ fn build_hyper_request(
     // Default to text/plain unless the caller already set a Content-Type.
     let mut has_content_type = false;
     for header in args.headers.as_slice() {
-        builder = builder.header(header._0.as_str(), header._1.as_str());
-        if header._0.as_str().eq_ignore_ascii_case("Content-Type") {
+        builder = builder.header(header.name.as_str(), header.value.as_str());
+        if header.name.as_str().eq_ignore_ascii_case("Content-Type") {
             has_content_type = true;
         }
     }
@@ -2137,8 +2138,8 @@ fn build_roc_headers(pairs: &[(String, String)], roc_host: &RocHost) -> RocList<
     let list = RocList::<HttpHeader>::allocate(pairs.len(), roc_host);
     for (index, (name, value)) in pairs.iter().enumerate() {
         let header = HttpHeader {
-            _0: RocStr::from_str(name, roc_host),
-            _1: RocStr::from_str(value, roc_host),
+            name: RocStr::from_str(name, roc_host),
+            value: RocStr::from_str(value, roc_host),
         };
         unsafe {
             list.elements.add(index).write(header);

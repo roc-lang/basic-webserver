@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -20,11 +20,11 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = Stdout.line!("Ran all tests.")
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
@@ -44,11 +44,11 @@ run_tests! = || {
     # A variable that should exist in most environments
     match Env.var!("PATH") {
         Ok(_) => {
-            _ = Stdout.line!("PATH variable is set (expected)")
+            Stdout.line!("PATH variable is set (expected)")?
             {}
         }
         Err(VarNotFound(name)) => {
-            _ = Stdout.line!("PATH variable not found: ${name}")
+            Stdout.line!("PATH variable not found: ${name}")?
             {}
         }
     }
@@ -56,11 +56,11 @@ run_tests! = || {
     # A variable that should not exist
     match Env.var!("DEFINITELY_NOT_A_REAL_ENV_VAR_123456") {
         Ok(value) => {
-            _ = Stdout.line!("Unexpected value: ${value}")
+            Stdout.line!("Unexpected value: ${value}")?
             {}
         }
         Err(VarNotFound(name)) => {
-            _ = Stdout.line!("var not found (expected): ${name}")
+            Stdout.line!("var not found (expected): ${name}")?
             {}
         }
     }

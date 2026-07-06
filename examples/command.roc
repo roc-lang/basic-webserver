@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Http
@@ -28,13 +28,13 @@ init! = || {
             .args(["Hi"])
             .exec_output!()?
 
-        _ = Stdout.line!("${Str.inspect(cmd_output)}")
+        Stdout.line!("${Str.inspect(cmd_output)}")?
 
         # To run a command with environment variables.
         Cmd.new("env")
         .clear_envs() # You probably don't need to clear all other environment variables, this is just an example.
         .env("FOO", "BAR")
-        .envs([("BAZ", "DUCK"), ("XYZ", "ABC")]) # Set multiple environment variables at once with `envs`
+        .envs([{ name: "BAZ", value: "DUCK" }, { name: "XYZ", value: "ABC" }]) # Set multiple environment variables at once with `envs`
         .args(["-v"])
         .exec_cmd!()?
 
@@ -45,7 +45,7 @@ init! = || {
             .args(["non_existent.txt"])
             .exec_exit_code!()?
 
-        _ = Stdout.line!("Exit code: ${exit_code.to_str()}")
+        Stdout.line!("Exit code: ${exit_code.to_str()}")?
 
         # To execute and capture the output (stdout and stderr) in the original form as bytes without inheriting your terminal.
         # Prefer using `exec_output!`.
@@ -54,7 +54,7 @@ init! = || {
             .args(["Hi"])
             .exec_output_bytes!()?
 
-        _ = Stdout.line!("${Str.inspect(cmd_output_bytes)}")
+        Stdout.line!("${Str.inspect(cmd_output_bytes)}")?
 
         Ok({})
     }
@@ -62,7 +62,7 @@ init! = || {
     match result() {
         Ok(_) => Ok({})
         Err(err) => {
-            _ = Stderr.line!("Error running commands: ${Str.inspect(err)}")
+            Stderr.line!("Error running commands: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }

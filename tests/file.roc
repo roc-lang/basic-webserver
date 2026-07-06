@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -24,13 +24,13 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = cleanup_test_files!()
-            _ = Stdout.line!("Ran all tests.")
+            cleanup_test_files!() ?? {}
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = cleanup_test_files!()
-            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            cleanup_test_files!() ?? {}
+            Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
@@ -98,7 +98,7 @@ test_file_delete! = || {
     File.write_utf8!("test_to_delete.txt", "")?
 
     # Verify it exists before delete
-    _ = Cmd.exec!("test", ["-e", "test_to_delete.txt"])?
+    Cmd.exec!("test", ["-e", "test_to_delete.txt"])?
 
     File.delete!("test_to_delete.txt")?
 
@@ -120,7 +120,7 @@ cleanup_test_files! = || {
     ]
 
     for filename in test_files {
-        _ = File.delete!(filename)
+        File.delete!(filename) ?? {}
     }
 
     Stdout.line!("Deleted all files.")

@@ -1,5 +1,6 @@
 import InternalHttp
 import Host
+import http.Header
 import http.Method
 import http.Request
 import http.Response
@@ -7,16 +8,11 @@ import http.Response
 ## A module for working with both inbound HTTP requests/responses in a webserver
 ## and outbound HTTP requests (`send!`/`get_utf8!`/`get!`).
 Http :: [].{
-    ## Represents an HTTP method: `[OPTIONS, GET, POST, PUT, DELETE, HEAD, TRACE, CONNECT, PATCH, Unknown(Str)]`.
+    ## Represents an HTTP method: `[OPTIONS, GET, POST, PUT, DELETE, HEAD, TRACE, CONNECT, PATCH, QUERY, Unknown(Str)]`.
     Method : Method.Method
 
     ## Represents an HTTP header e.g. `Content-Type: application/json`.
-    Header : { name : Str, value : Str }
-
-    ## Convert named headers to the tuple shape used by the shared `http` package.
-    header_tuples : List(Header) -> List((Str, Str))
-    header_tuples = |headers|
-        headers.map(|{ name, value }| (name, value))
+    Header : Header.Header
 
     ## Represents an HTTP request.
     Request : Request.Request
@@ -86,7 +82,7 @@ Http :: [].{
         } else if host_response.status == 500 and host_response.body == Str.to_utf8("BadBody") {
             Err(HttpErr(BadBody))
         } else if host_response.status == 500 and List.starts_with(host_response.body, other_error_prefix) {
-            Err(HttpErr(Other(List.drop_first(host_response.body, List.len(other_error_prefix)))))
+            Err(HttpErr(Other(List.drop_first(host_response.body, other_error_prefix.len()))))
         } else {
             Ok(InternalHttp.from_host_response(host_response))
         }
@@ -159,7 +155,7 @@ Http :: [].{
         response_with_headers =
             Response.with_headers(
                 response,
-                header_tuples([{ name: "Content-Type", value: "application/json; charset=utf-8" }]),
+                [{ name: "Content-Type", value: "application/json; charset=utf-8" }],
             )
         Response.with_body(response_with_headers, json_bytes(value))
     }
@@ -249,7 +245,7 @@ encode_json_array = |values, state| {
 
 encode_json_array_items : List(Http.JsonValue), InternalJsonOutput, U64 -> Try(InternalJsonOutput, [])
 encode_json_array_items = |values, state, index| {
-    if index >= List.len(values) {
+    if index >= values.len() {
         Ok(state)
     } else {
         match List.get(values, index) {
@@ -272,7 +268,7 @@ encode_json_object = |fields, state| {
 
 encode_json_object_fields : List({ name : Str, value : Http.JsonValue }), InternalJsonOutput, U64 -> Try(InternalJsonOutput, [])
 encode_json_object_fields = |fields, state, index| {
-    if index >= List.len(fields) {
+    if index >= fields.len() {
         Ok(state)
     } else {
         match List.get(fields, index) {

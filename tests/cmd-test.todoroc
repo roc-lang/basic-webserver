@@ -13,11 +13,11 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = Stdout.line!("Done.")
+            Stdout.line!("Done.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }

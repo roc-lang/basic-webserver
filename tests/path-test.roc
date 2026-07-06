@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -23,13 +23,13 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = cleanup!()
-            _ = Stdout.line!("Ran all tests.")
+            cleanup!() ?? {}
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = cleanup!()
-            _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
+            cleanup!() ?? {}
+            Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
@@ -115,9 +115,9 @@ run_tests! = || {
 
 cleanup! : () => Try({}, _)
 cleanup! = || {
-    _ = File.delete!("test_path_symlink.txt")
-    _ = File.delete!("test_path_file.txt")
-    _ = Dir.delete_all!("test_path_dir")
+    File.delete!("test_path_symlink.txt") ?? {}
+    File.delete!("test_path_file.txt") ?? {}
+    Dir.delete_all!("test_path_dir") ?? {}
     Stdout.line!("Cleaned up test files.")
 }
 

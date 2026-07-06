@@ -1,19 +1,20 @@
 # Host-ABI types and conversions shared between the host and the Http module.
 # The `*ToAndFromHost` records map 1:1 to the generated Rust glue types in
 # src/roc_platform_abi.rs.
+import http.Header
 import http.Method
 import http.Request
 import http.Response
 
 InternalHttp :: [].{
-    Header : (Str, Str)
+    HostHeader : { name : Str, value : Str }
 
     # FOR HOST
 
     RequestToAndFromHost : {
         method : U8,
         method_ext : Str,
-        headers : List(Header),
+        headers : List(HostHeader),
         uri : Str,
         body : List(U8),
         timeout_ms : U64,
@@ -21,14 +22,14 @@ InternalHttp :: [].{
 
     ResponseToAndFromHost : {
         status : U16,
-        headers : List(Header),
+        headers : List(HostHeader),
         body : List(U8),
     }
 
     to_host_response : Response.Response -> ResponseToAndFromHost
     to_host_response = |response| {
         status: Response.status(response),
-        headers: Response.headers(response),
+        headers: Response.headers(response).map(to_host_header),
         body: Response.body(response),
     }
 
@@ -39,7 +40,7 @@ InternalHttp :: [].{
         {
             method: to_host_method(method),
             method_ext: to_host_method_ext(method),
-            headers: Request.headers(request),
+            headers: Request.headers(request).map(to_host_header),
             uri: Request.uri(request),
             body: Request.body(request),
             timeout_ms: to_host_timeout(Request.timeout(request)),
@@ -58,6 +59,7 @@ InternalHttp :: [].{
             TRACE => 9
             CONNECT => 0
             PATCH => 6
+            QUERY => 10
             Unknown(_) => 2
         }
 
@@ -76,13 +78,12 @@ InternalHttp :: [].{
         }
 
     from_host_request : RequestToAndFromHost -> Request.Request
-    from_host_request = |{ method, method_ext, headers, uri, body, timeout_ms }| {
-        request = Request.from_method(from_host_method(method, method_ext))
-        request_with_headers = Request.with_headers(request, headers)
-        request_with_uri = Request.with_uri(request_with_headers, uri)
-        request_with_body = Request.with_body(request_with_uri, body)
-        Request.with_timeout(request_with_body, from_host_timeout(timeout_ms))
-    }
+    from_host_request = |{ method, method_ext, headers, uri, body, timeout_ms }|
+        Request.from_method(from_host_method(method, method_ext))
+            .with_headers(headers.map(from_host_header))
+            .with_uri(uri)
+            .with_body(body)
+            .with_timeout(from_host_timeout(timeout_ms))
 
     from_host_method : U8, Str -> Method.Method
     from_host_method = |tag, ext|
@@ -96,6 +97,7 @@ InternalHttp :: [].{
             9 => TRACE
             0 => CONNECT
             6 => PATCH
+            10 => QUERY
             2 => Unknown(ext)
             _ => {
                 crash "invalid method tag from host"
@@ -110,9 +112,14 @@ InternalHttp :: [].{
         }
 
     from_host_response : ResponseToAndFromHost -> Response.Response
-    from_host_response = |{ status, headers, body }| {
-        response = Response.from_status(status)
-        response_with_headers = Response.with_headers(response, headers)
-        Response.with_body(response_with_headers, body)
-    }
+    from_host_response = |{ status, headers, body }|
+        Response.from_status(status)
+            .with_headers(headers.map(from_host_header))
+            .with_body(body)
+
+    to_host_header : Header.Header -> HostHeader
+    to_host_header = |header| { name: header.name, value: header.value }
+
+    from_host_header : HostHeader -> Header.Header
+    from_host_header = |{ name, value }| { name, value }
 }

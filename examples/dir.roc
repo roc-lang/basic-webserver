@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -31,9 +31,9 @@ init! = || {
         # List the contents of a directory
         paths = Dir.list!("nested-dir")?
 
-        paths_str = Str.join_with(List.map(paths, Path.display), ", ")
+        paths_str = Str.join_with(paths.map(Path.display), ", ")
 
-        _ = Stdout.line!("The paths in nested-dir are: ${paths_str}")
+        Stdout.line!("The paths in nested-dir are: ${paths_str}")?
 
         # Delete an empty directory
         Dir.delete_empty!("empty-dir")?
@@ -41,7 +41,7 @@ init! = || {
         # Delete all directories recursively
         Dir.delete_all!("nested-dir")?
 
-        _ = Stdout.line!("Success!")
+        Stdout.line!("Success!")?
 
         Ok({})
     }
@@ -49,7 +49,7 @@ init! = || {
     match result() {
         Ok(_) => Ok({})
         Err(err) => {
-            _ = Stderr.line!("Error during directory operations: ${Str.inspect(err)}")
+            Stderr.line!("Error during directory operations: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }

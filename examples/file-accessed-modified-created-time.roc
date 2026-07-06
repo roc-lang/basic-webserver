@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -34,7 +34,7 @@ init! = || {
     match result() {
         Ok(_) => Ok({})
         Err(err) => {
-            _ = Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}")
+            Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }

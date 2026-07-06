@@ -99,8 +99,7 @@ list_todos! = |{ list_todos_stmt }|
 
     when result is
         Ok(task) ->
-            task
-            |> List.map(encode_task)
+            task.map(encode_task)
             |> Str.join_with(",")
             |> |list| "[${list}]"
             |> Str.to_utf8

@@ -35,15 +35,15 @@ MultipartFormData :: [].{
         |bytes| {
             to_search_upper = List.concat(newline, upper)
             to_search_lower = List.concat(newline, lower)
-            search_length = List.len(to_search_upper)
-            after_search = List.sublist(bytes, { start: search_length, len: List.len(bytes) })
+            search_length = to_search_upper.len()
+            after_search = List.sublist(bytes, { start: search_length, len: bytes.len() })
 
             if List.starts_with(bytes, to_search_upper) or List.starts_with(bytes, to_search_lower) {
                 match List.find_first_index(after_search, |b| b == '\r') {
                     Ok(next_line_start) =>
                         Ok({
                             value: List.sublist(after_search, { start: 0, len: next_line_start }),
-                            rest: List.sublist(after_search, { start: next_line_start, len: List.len(after_search) }),
+                            rest: List.sublist(after_search, { start: next_line_start, len: after_search.len() }),
                         })
 
                     Err(_) => Err(ExpectedContent)
@@ -120,7 +120,7 @@ MultipartFormData :: [].{
 
         if is_enclosed_by_boundary {
             parts =
-                SplitList.split_on_list(List.drop_first(body, List.len(start_marker)), boundary_with_prefix)
+                SplitList.split_on_list(List.drop_first(body, start_marker.len()), boundary_with_prefix)
                     .drop_if(|part| part == doubledash)
 
             Ok(keep_oks(parts, parse_all_headers))
@@ -210,7 +210,7 @@ MultipartFormData :: [].{
     ## For HTML forms that include files or large amounts of text.
     ##
     ## See usage in examples/form-file-upload.roc
-    parse_multipart_form_data : { headers : List(InternalHttp.Header), body : List(U8) } -> Try(List(FormData), [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader])
+    parse_multipart_form_data : { headers : List(InternalHttp.HostHeader), body : List(U8) } -> Try(List(FormData), [InvalidMultipartFormData, ExpectedContentTypeHeader, InvalidContentTypeHeader])
     parse_multipart_form_data = |args| {
         boundary = decode_multipart_form_data_boundary(args.headers)?
         parse_form_data({ body: args.body, boundary: boundary }).map_err(|_| InvalidMultipartFormData)
@@ -218,13 +218,13 @@ MultipartFormData :: [].{
 
     ## Extracts the boundary value from the list of HTTP headers.
     ## The boundary is a special string used to separate different parts of the form data.
-    decode_multipart_form_data_boundary : List((Str, Str)) -> Try(List(U8), _)
+    decode_multipart_form_data_boundary : List(InternalHttp.HostHeader) -> Try(List(U8), _)
     decode_multipart_form_data_boundary = |headers| {
-        content_type = List.keep_if(headers, |(name, _)| name == "Content-Type" or name == "content-type")
+        content_type = headers.keep_if(|{ name, value: _ }| name == "Content-Type" or name == "content-type")
 
         match List.first(content_type) {
             Err(ListWasEmpty) => Err(ExpectedContentTypeHeader)
-            Ok((_, value)) =>
+            Ok({ name: _, value }) =>
                 match split_last_str(value, "=") {
                     Ok({ before: _, after }) => Ok(Str.to_utf8(after))
                     Err(NotFound) => Err(InvalidContentTypeHeader)
@@ -236,7 +236,7 @@ MultipartFormData :: [].{
     split_last_str : Str, Str -> Try({ before : Str, after : Str }, [NotFound])
     split_last_str = |s, delim| {
         parts = Str.split_on(s, delim)
-        n = List.len(parts)
+        n = parts.len()
         if n <= 1 {
             Err(NotFound)
         } else {

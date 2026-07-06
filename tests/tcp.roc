@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -18,25 +18,25 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            _ = Stdout.line!("Ran all tests.")
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            _ = Stdout.line!("Test run failed:\n\t${Str.inspect(err)}")
+            Stdout.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
 
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    _ = Stdout.line!("Testing Tcp module functions...")
-    _ = Stdout.line!("Note: These tests require a TCP server running on localhost:8085")
-    _ = Stdout.line!("You can start one with: ncat -e $(which cat) -l 8085\n")
+    Stdout.line!("Testing Tcp module functions...")?
+    Stdout.line!("Note: These tests require a TCP server running on localhost:8085")?
+    Stdout.line!("You can start one with: ncat -e $(which cat) -l 8085\n")?
 
-    _ = Stdout.line!("Testing Tcp.connect!:")
+    Stdout.line!("Testing Tcp.connect!:")?
     match Tcp.connect!("127.0.0.1", 8085) {
         Ok(stream) => {
-            _ = Stdout.line!("✓ Successfully connected to localhost:8085")
+            Stdout.line!("✓ Successfully connected to localhost:8085")?
             test_tcp_functions!(stream)
         }
         Err(connect_err) => {
@@ -48,20 +48,20 @@ run_tests! = || {
 
 test_tcp_functions! : Tcp.Stream => Try({}, _)
 test_tcp_functions! = |stream| {
-    _ = Stdout.line!("\nTesting Tcp.write!:")
+    Stdout.line!("\nTesting Tcp.write!:")?
     hello_bytes = [72, 101, 108, 108, 111, 10] # "Hello\n" in bytes
     Tcp.write!(stream, hello_bytes)?
 
     reply_msg = Tcp.read_line!(stream)?
-    _ = Stdout.line!("Echo server reply: ${reply_msg}")
-    _ = Stdout.line!("\nTesting Tcp.write_utf8!:")
+    Stdout.line!("Echo server reply: ${reply_msg}")?
+    Stdout.line!("\nTesting Tcp.write_utf8!:")?
 
     test_message = "Test message from Roc!\n"
     Tcp.write_utf8!(stream, test_message)?
 
     reply_msg_utf8 = Tcp.read_line!(stream)?
-    _ = Stdout.line!("Echo server reply: ${reply_msg_utf8}")
-    _ = Stdout.line!("\nTesting Tcp.read_up_to!:")
+    Stdout.line!("Echo server reply: ${reply_msg_utf8}")?
+    Stdout.line!("\nTesting Tcp.read_up_to!:")?
 
     # "do not read past meA" in bytes
     do_not_read_bytes = [100, 111, 32, 110, 111, 116, 32, 114, 101, 97, 100, 32, 112, 97, 115, 116, 32, 109, 101, 65]
@@ -69,19 +69,19 @@ test_tcp_functions! = |stream| {
 
     nineteen_bytes = Tcp.read_up_to!(stream, 19)?
     nineteen_bytes_as_str = Str.from_utf8(nineteen_bytes)?
-    _ = Stdout.line!("Tcp.read_up_to yielded: '${nineteen_bytes_as_str}'")
-    _ = Stdout.line!("\nTesting Tcp.read_exactly!:")
+    Stdout.line!("Tcp.read_up_to yielded: '${nineteen_bytes_as_str}'")?
+    Stdout.line!("\nTesting Tcp.read_exactly!:")?
 
     Tcp.write_utf8!(stream, "BC")?
     three_bytes = Tcp.read_exactly!(stream, 3)?
     three_bytes_as_str = Str.from_utf8(three_bytes)?
-    _ = Stdout.line!("Tcp.read_exactly yielded: '${three_bytes_as_str}'")
-    _ = Stdout.line!("\nTesting Tcp.read_until!:")
+    Stdout.line!("Tcp.read_exactly yielded: '${three_bytes_as_str}'")?
+    Stdout.line!("\nTesting Tcp.read_until!:")?
 
     Tcp.write_utf8!(stream, "Line1\nLine2\n")?
     bytes_until = Tcp.read_until!(stream, '\n')?
     bytes_until_as_str = Str.from_utf8(bytes_until)?
-    _ = Stdout.line!("Tcp.read_until yielded: '${bytes_until_as_str}'\n")
+    Stdout.line!("Tcp.read_until yielded: '${bytes_until_as_str}'\n")?
 
     Ok({})
 }

@@ -778,8 +778,8 @@ const _: () = assert!(core::mem::align_of::<AnonStruct34>() == 8, "AnonStruct34 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AnonStruct36 {
-    pub _0: RocStr,
-    pub _1: RocStr,
+    pub name: RocStr,
+    pub value: RocStr,
 }
 
 const _: () = assert!(core::mem::size_of::<AnonStruct36>() == 48, "AnonStruct36 size mismatch");
@@ -851,7 +851,7 @@ const _: () = assert!(core::mem::align_of::<AnonStruct59>() == 8, "AnonStruct59 
 pub struct Request {
     pub timeout_ms: NoTimeoutOrTimeoutMilliseconds,
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct65>,
+    pub headers: RocList<Header>,
     pub method: Method,
     pub uri: RocStr,
 }
@@ -859,23 +859,23 @@ pub struct Request {
 const _: () = assert!(core::mem::size_of::<Request>() == 120, "Request size mismatch");
 const _: () = assert!(core::mem::align_of::<Request>() == 8, "Request alignment mismatch");
 
-/// Element type for __AnonStruct65
+/// Element type for Header
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct65 {
-    pub _0: RocStr,
-    pub _1: RocStr,
+pub struct Header {
+    pub name: RocStr,
+    pub value: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct65>() == 48, "AnonStruct65 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct65>() == 8, "AnonStruct65 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<Header>() == 48, "Header size mismatch");
+const _: () = assert!(core::mem::align_of::<Header>() == 8, "Header alignment mismatch");
 
 /// Element type for Response
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Response {
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct65>,
+    pub headers: RocList<Header>,
     pub status: u16,
 }
 
@@ -901,8 +901,8 @@ const _: () = assert!(core::mem::align_of::<AnonStruct84>() == 8, "AnonStruct84 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AnonStruct86 {
-    pub _0: RocStr,
-    pub _1: RocStr,
+    pub name: RocStr,
+    pub value: RocStr,
 }
 
 const _: () = assert!(core::mem::size_of::<AnonStruct86>() == 48, "AnonStruct86 size mismatch");
@@ -1600,8 +1600,9 @@ pub enum MethodTag {
     PATCH = 5,
     POST = 6,
     PUT = 7,
-    TRACE = 8,
-    Unknown = 9,
+    QUERY = 8,
+    TRACE = 9,
+    Unknown = 10,
 }
 
 /// Tag union: Method
@@ -1623,6 +1624,7 @@ pub union MethodPayload {
     pub patch: [u8; 0],
     pub post: [u8; 0],
     pub put: [u8; 0],
+    pub query: [u8; 0],
     pub trace: [u8; 0],
     pub unknown: core::mem::ManuallyDrop<RocStr>,
 }
@@ -1969,7 +1971,7 @@ pub struct HostFileWriteUtf8Args {
 }
 
 /// Arguments for Host.http_send_request!
-/// Roc signature: { body : List(U8), headers : List((Str, Str)), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List((Str, Str)), status : U16 }
+/// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -2792,14 +2794,14 @@ pub fn incref_anon_struct34(value: AnonStruct34, amount: isize) {
 
 /// Recursively decrement Roc-owned fields in AnonStruct36.
 pub fn decref_anon_struct36(value: AnonStruct36, roc_host: &RocHost) {
-    value._0.decref(roc_host);
-    value._1.decref(roc_host);
+    value.name.decref(roc_host);
+    value.value.decref(roc_host);
 }
 
 /// Increment Roc-owned fields in AnonStruct36.
 pub fn incref_anon_struct36(value: AnonStruct36, amount: isize) {
-    value._0.incref(amount);
-    value._1.incref(amount);
+    value.name.incref(amount);
+    value.value.incref(amount);
 }
 
 /// Recursively decrement Roc-owned fields in AnonStruct37.
@@ -3188,7 +3190,7 @@ pub fn decref_request(value: Request, roc_host: &RocHost) {
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct65(item, roc_host);
+                    decref_header(item, roc_host);
             }
         }
         list.decref(roc_host);
@@ -3206,16 +3208,16 @@ pub fn incref_request(value: Request, amount: isize) {
     value.uri.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct65.
-pub fn decref_anon_struct65(value: AnonStruct65, roc_host: &RocHost) {
-    value._0.decref(roc_host);
-    value._1.decref(roc_host);
+/// Recursively decrement Roc-owned fields in Header.
+pub fn decref_header(value: Header, roc_host: &RocHost) {
+    value.name.decref(roc_host);
+    value.value.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct65.
-pub fn incref_anon_struct65(value: AnonStruct65, amount: isize) {
-    value._0.incref(amount);
-    value._1.incref(amount);
+/// Increment Roc-owned fields in Header.
+pub fn incref_header(value: Header, amount: isize) {
+    value.name.incref(amount);
+    value.value.incref(amount);
 }
 
 /// Recursively decrement Roc-owned payloads in Method.
@@ -3230,6 +3232,7 @@ pub fn decref_method(value: Method, roc_host: &RocHost) {
         MethodTag::PATCH => {},
         MethodTag::POST => {},
         MethodTag::PUT => {},
+        MethodTag::QUERY => {},
         MethodTag::TRACE => {},
         MethodTag::Unknown => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.unknown);
@@ -3250,6 +3253,7 @@ pub fn incref_method(value: Method, amount: isize) {
         MethodTag::PATCH => {},
         MethodTag::POST => {},
         MethodTag::PUT => {},
+        MethodTag::QUERY => {},
         MethodTag::TRACE => {},
         MethodTag::Unknown => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.unknown);
@@ -3314,7 +3318,7 @@ pub fn decref_response(value: Response, roc_host: &RocHost) {
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct65(item, roc_host);
+                    decref_header(item, roc_host);
             }
         }
         list.decref(roc_host);
@@ -3396,14 +3400,14 @@ pub fn incref_anon_struct84(value: AnonStruct84, amount: isize) {
 
 /// Recursively decrement Roc-owned fields in AnonStruct86.
 pub fn decref_anon_struct86(value: AnonStruct86, roc_host: &RocHost) {
-    value._0.decref(roc_host);
-    value._1.decref(roc_host);
+    value.name.decref(roc_host);
+    value.value.decref(roc_host);
 }
 
 /// Increment Roc-owned fields in AnonStruct86.
 pub fn incref_anon_struct86(value: AnonStruct86, amount: isize) {
-    value._0.incref(amount);
-    value._1.incref(amount);
+    value.name.incref(amount);
+    value.value.incref(amount);
 }
 
 /// Recursively decrement Roc-owned fields in AnonStruct88.
@@ -3546,7 +3550,7 @@ unsafe extern "C" {
     pub fn hosted_file_write_utf8(arg0: RocStr, arg1: RocStr) -> TryType27;
 
     /// Hosted symbol for Host.http_send_request!
-    /// Roc signature: { body : List(U8), headers : List((Str, Str)), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List((Str, Str)), status : U16 }
+    /// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }
     pub fn hosted_http_send_request(arg0: HostHttpSendRequestArgs) -> AnonStruct34;
 
     /// Hosted symbol for Host.path_type!

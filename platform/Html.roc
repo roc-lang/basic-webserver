@@ -75,14 +75,14 @@ Html := [].{
 }
 
 render_children : List(HtmlNode) -> Str
-render_children = |children| Str.join_with(List.map(children, Html.render_without_doc_type), "")
+render_children = |children| Str.join_with(children.map(Html.render_without_doc_type), "")
 
 render_attributes : List(Attribute) -> Str
 render_attributes = |attrs|
     if List.is_empty(attrs) {
         ""
     } else {
-        " ${Str.join_with(List.map(attrs, render_attribute), " ")}"
+        " ${Str.join_with(attrs.map(render_attribute), " ")}"
     }
 
 render_attribute : Attribute -> Str

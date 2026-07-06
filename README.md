@@ -22,7 +22,7 @@ Run this example server with `$ roc examples/hello-web.roc` and go to `http://lo
 ```roc
 app [Model, program] {
     pf: platform "<latest release URL from https://github.com/roc-lang/basic-webserver/releases/latest>",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Http
@@ -34,20 +34,19 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| Ok({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || Ok({})
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, _model| {
-    millis = Utc.to_millis_since_epoch(Utc.now!({}))
+    millis = Utc.to_millis_since_epoch(Utc.now!())
 
-    _ =
-        Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}")
+    Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}")
         ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
     response =
         Response.from_status(200)
-        .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html; charset=utf-8" }]))
+        .with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
         .with_body(Str.to_utf8("<b>Hello from server</b></br>"))
 
     Ok(response)

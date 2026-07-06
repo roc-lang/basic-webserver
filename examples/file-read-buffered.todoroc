@@ -40,7 +40,7 @@ respond! = |_, model|
 process_line! : File.Reader, ReadSummary => Result ReadSummary _
 process_line! = |reader, { lines_read, bytes_read }|
     when File.read_line!(reader) is
-        Ok(bytes) if List.len(bytes) == 0 ->
+        Ok(bytes) if bytes.len() == 0 ->
             Ok({ lines_read, bytes_read })
 
         Ok(bytes) ->
@@ -48,7 +48,7 @@ process_line! = |reader, { lines_read, bytes_read }|
                 reader,
                 {
                     lines_read: lines_read + 1,
-                    bytes_read: bytes_read + (List.len(bytes) |> Num.int_cast),
+                    bytes_read: bytes_read + (bytes.len() |> Num.int_cast),
                 },
             )
 

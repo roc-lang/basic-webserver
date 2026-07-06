@@ -367,7 +367,7 @@ Url := [Url(Str)].{
     str_split_first = |s, delim| {
         parts = Str.split_on(s, delim)
         match parts {
-            [before, .. as rest] if List.len(rest) > 0 =>
+            [before, .. as rest] if rest.len() > 0 =>
                 Ok({ before: before, after: Str.join_with(rest, delim) })
 
             _ => Err(NotFound)
@@ -379,7 +379,7 @@ Url := [Url(Str)].{
     str_split_last : Str, Str -> Try({ before : Str, after : Str }, [NotFound])
     str_split_last = |s, delim| {
         parts = Str.split_on(s, delim)
-        n = List.len(parts)
+        n = parts.len()
         if n <= 1 {
             Err(NotFound)
         } else {

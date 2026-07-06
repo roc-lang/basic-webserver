@@ -1,6 +1,6 @@
 app [Model, program] {
     pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Http
@@ -17,7 +17,7 @@ form_page : Http.Response
 form_page = {
     response =
         Response.from_status(200)
-        .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html" }]))
+        .with_headers([{ name: "Content-Type", value: "text/html" }])
 
     response.with_body(
         Str.to_utf8(
@@ -80,7 +80,7 @@ display_form_data! = |req| {
         Ok(form_data) => {
             response =
                 Response.from_status(200)
-                .with_headers(Http.header_tuples([{ name: "Content-Type", value: "text/html" }]))
+                .with_headers([{ name: "Content-Type", value: "text/html" }])
                 .with_body(page(form_data))
             Ok(response)
         }

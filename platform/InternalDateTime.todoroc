@@ -63,8 +63,8 @@ expect is_leap_year(2000)
 expect is_leap_year(2012)
 expect !(is_leap_year(1900))
 expect !(is_leap_year(2015))
-expect List.map([2023, 1988, 1992, 1996], is_leap_year) == [Bool.false, Bool.true, Bool.true, Bool.true]
-expect List.map([1700, 1800, 1900, 2100, 2200, 2300, 2500, 2600], is_leap_year) == [Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false]
+expect [2023, 1988, 1992, 1996].map(is_leap_year) == [Bool.false, Bool.true, Bool.true, Bool.true]
+expect [1700, 1800, 1900, 2100, 2200, 2300, 2500, 2600].map(is_leap_year) == [Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false, Bool.false]
 
 days_in_month : I128, I128 -> I128
 days_in_month = |year, month|

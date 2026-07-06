@@ -36,7 +36,7 @@ platform "webserver"
         # HTTP data types (Method, Request, Response) come from the shared
         # roc-lang/http package so apps and other packages using it see the same
         # nominal types. The platform supplies the effectful server/client glue.
-        http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+        http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
         # Pure filesystem path operations come from roc-lang/path; this
         # platform layers effectful filesystem queries on top in Path.roc.
         path: "https://github.com/roc-lang/path/releases/download/1.0.0/8p8iryUUorAFTUDeqYcwc9bFYSwpbVqhYpuHvRAS5Cq4.tar.zst",
@@ -132,7 +132,7 @@ init_for_host! = ||
         Ok(model) => Ok(Box.box(model))
         Err(Exit(code)) => Err(code)
         Err(other) => {
-            _ = Stderr.line!("Server init! failed with error:\n\n❌ ${Str.inspect(other)}\n")
+            Stderr.line!("Server init! failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
             Err(1)
         }
     }
@@ -142,11 +142,11 @@ respond_for_host! = |request, boxed_model|
     match (program.respond!)(InternalHttp.from_host_request(request), Box.unbox(boxed_model)) {
         Ok(response) => InternalHttp.to_host_response(response)
         Err(ServerErr(msg)) => {
-            _ = Stderr.line!("ServerErr: ${msg}")
+            Stderr.line!("ServerErr: ${msg}") ?? {}
             { status: 500, headers: [], body: [] }
         }
         Err(other) => {
-            _ = Stderr.line!("Server error:\n\n❌ ${Str.inspect(other)}\n")
+            Stderr.line!("Server error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
             { status: 500, headers: [], body: [] }
         }
     }
