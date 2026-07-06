@@ -20,7 +20,7 @@ Tcp := [].{
         Unrecognized(Str),
     ]
 
-    ## Represents errors that can occur when performing an effect with a [Stream].
+    ## Represents errors that can occur when performing an effect with a `Stream`.
     StreamErr : [
         StreamNotFound,
         PermissionDenied,
@@ -82,13 +82,13 @@ Tcp := [].{
     read_until! = |stream, byte|
         Ok(Host.tcp_read_until!(stream, byte).map_err(|err| TcpReadErr(parse_stream_err(err)))?)
 
-    ## Read until a newline (`\n`, byte 10) or EOF is reached, decoded as a [Str].
+    ## Read until a newline (`\n`, byte 10) or EOF is reached, decoded as a `Str`.
     ##
     ## ```roc
     ## line_str = Tcp.read_line!(stream)?
     ## ```
     ##
-    ## If found, the newline is included as the last character in the [Str].
+    ## If found, the newline is included as the last character in the `Str`.
     read_line! : Stream => Try(Str, [TcpReadErr(StreamErr), TcpReadBadUtf8(_), ..])
     read_line! = |stream|
         # NB: use `match` rather than `?` here — `read_until!` yields a single-
@@ -105,12 +105,12 @@ Tcp := [].{
     ## Tcp.write!(stream, [1, 2, 3])?
     ## ```
     ##
-    ## > To write a [Str], use [Tcp.write_utf8!] instead.
+    ## > To write a `Str`, use [Tcp.write_utf8!] instead.
     write! : Stream, List(U8) => Try({}, [TcpWriteErr(StreamErr), ..])
     write! = |stream, bytes|
         Ok(Host.tcp_write!(stream, bytes).map_err(|err| TcpWriteErr(parse_stream_err(err)))?)
 
-    ## Writes a [Str] to a TCP stream, encoded as UTF-8.
+    ## Writes a `Str` to a TCP stream, encoded as UTF-8.
     ##
     ## ```roc
     ## Tcp.write_utf8!(stream, "Hi from Roc!")?
@@ -118,7 +118,7 @@ Tcp := [].{
     write_utf8! : Stream, Str => Try({}, [TcpWriteErr(StreamErr), ..])
     write_utf8! = |stream, str| Ok(write!(stream, Str.to_utf8(str))?)
 
-    ## Convert a [ConnectErr] to a [Str] you can print.
+    ## Convert a `ConnectErr` to a `Str` you can print.
     connect_err_to_str = |err|
         match err {
             PermissionDenied => "PermissionDenied"
@@ -131,7 +131,7 @@ Tcp := [].{
             Unrecognized(message) => "Unrecognized Error: ${message}"
         }
 
-    ## Convert a [StreamErr] to a [Str] you can print.
+    ## Convert a `StreamErr` to a `Str` you can print.
     stream_err_to_str = |err|
         match err {
             StreamNotFound => "StreamNotFound"

@@ -88,7 +88,7 @@ Http :: [].{
         }
     }
 
-    ## Perform an HTTP GET and decode the response body as a UTF-8 [Str].
+    ## Perform an HTTP GET and decode the response body as a UTF-8 `Str`.
     ##
     ## ```roc
     ## hello_str = Http.get_utf8!("http://localhost:8000")?
@@ -115,7 +115,7 @@ Http :: [].{
     get! = |_uri|
         Err(JsonDecodeNotMigrated("Http.get!: JSON decoding is not migrated to the current Roc compiler yet"))
 
-    ## Decode a request body as a UTF-8 [Str].
+    ## Decode a request body as a UTF-8 `Str`.
     body_utf8 : Request -> Try(Str, [BadBody(Str), ..])
     body_utf8 = |request|
         match Str.from_utf8(Request.body(request)) {
@@ -130,7 +130,7 @@ Http :: [].{
     ## Encode a Roc value as UTF-8 JSON bytes.
     ##
     ## The current compiler-derived `encode_to` support covers records, empty
-    ## records, [Str], [U64], aliases around those shapes, and custom nominal
+    ## records, `Str`, `U64`, aliases around those shapes, and custom nominal
     ## types that define `encode_to`.
     json_bytes : value -> List(U8)
         where [

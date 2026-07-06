@@ -16,11 +16,12 @@ Release-readiness backlog for the Zig compiler migration PR.
   - CI validates the `arm64win` Rust host library, but skips Roc app tests because `roc-lang/setup-roc` does not publish a Windows arm64 compiler binary yet.
   - Host libraries are intentionally ignored and must be rebuilt before packaging with `./build.sh --target <target>` or `./build.sh --all` on the appropriate host OS.
 
-- [ ] Run a docs pass before tagging.
-  - Update README release URLs, package extension wording (`tar.zst`, not `tar.br`), and version links.
-  - Remove or update the Linux `--linker=legacy` warning now that [roc#3609](https://github.com/roc-lang/roc/issues/3609) is closed.
-  - Update `AGENTS.md`; it still says Sqlite, Tcp, Url, MultipartFormData, and outbound HTTP are skipped `.todoroc` work.
-  - Add or update CI coverage for the README example: [#43](https://github.com/roc-lang/basic-webserver/issues/43).
+- [x] Run a docs pass before tagging.
+  - README version links now point at `0.13.1`, `0.13.0`, and `main`.
+  - Packaged-release wording now uses `.tar.zst`.
+  - Removed stale Linux `--linker=legacy` guidance now that [roc#3609](https://github.com/roc-lang/roc/issues/3609) is closed.
+  - Updated `AGENTS.md` so migrated modules are no longer described as skipped `.todoroc` work.
+  - `./ci/all_tests.sh` now checks, tests, and builds the README example: [#43](https://github.com/roc-lang/basic-webserver/issues/43).
 
 - [ ] Decide what to do with public JSON decode stubs.
   - `Http.get!` and `Http.body_json` currently return `JsonDecodeNotMigrated`.

@@ -13,9 +13,7 @@ AGENTS.md is the place to find common commands and useful info. Handy for humans
 You can generate the documentation locally and then start a web server to host your files.
 
 ```bash
-roc docs src/main.roc
-cd generated-docs
-simple-http-server --nocache --index # comes pre-installed if you use `nix develop`, otherwise use `cargo install simple-http-server`.
+roc docs examples/hello-web.roc --serve
 ```
 
-Open http://0.0.0.0:8000 in your browser
+Open the printed local URL in your browser.

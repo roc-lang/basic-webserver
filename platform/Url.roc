@@ -17,7 +17,7 @@ Url := [Url(Str)].{
     ## The [Str.count_utf8_bytes](https://www.roc-lang.org/builtins/Str#count_utf8_bytes) function can be helpful in finding out how many bytes to reserve.
     ##
     ## There is no `Url.with_capacity` because it's better to reserve extra capacity
-    ## on a [Str] first, and then pass that string to [Url.from_str]. This function will make use
+    ## on a `Str` first, and then pass that string to [Url.from_str]. This function will make use
     ## of the extra capacity.
     reserve : Url, U64 -> Url
     reserve = |Url(str), cap|
@@ -47,7 +47,7 @@ Url := [Url(Str)].{
     from_str : Str -> Url
     from_str = |str| Url(str)
 
-    ## Return a [Str] representation of this URL.
+    ## Return a `Str` representation of this URL.
     ## ```
     ## # Gives "https://example.com/two%20words"
     ## Url.from_str("https://example.com")
@@ -170,7 +170,7 @@ Url := [Url(Str)].{
         }
     }
 
-    ## Adds a [Str] query parameter to the end of the [Url].
+    ## Adds a `Str` query parameter to the end of the [Url].
     ##
     ## The key and value both get [percent-encoded](https://en.wikipedia.org/wiki/Percent-encoding).
     ##
@@ -262,7 +262,7 @@ Url := [Url(Str)].{
         }
     }
 
-    ## Returns [Bool.True] if the URL has a `?` in it.
+    ## Returns `Bool.True` if the URL has a `?` in it.
     has_query : Url -> Bool
     has_query = |Url(url_str)|
         Str.contains(url_str, "?")
@@ -303,7 +303,7 @@ Url := [Url(Str)].{
                 }
         }
 
-    ## Returns [Bool.True] if the URL has a `#` in it.
+    ## Returns `Bool.True` if the URL has a `#` in it.
     has_fragment : Url -> Bool
     has_fragment = |Url(url_str)|
         Str.contains(url_str, "#")

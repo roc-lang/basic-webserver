@@ -34,11 +34,46 @@ check_test_and_build() {
     "$ROC" build "$file"
 }
 
+check_readme_example() {
+    local dir="target/readme-example"
+    local file="$dir/readme.roc"
+    local output="$dir/readme-example${EXE_SUFFIX}"
+
+    mkdir -p "$dir"
+    awk '
+        BEGIN { in_block = 0; seen = 0 }
+        /^```roc$/ && seen == 0 { in_block = 1; seen = 1; next }
+        /^```$/ && in_block == 1 { in_block = 0; exit }
+        in_block == 1 {
+            if ($0 ~ /^[[:space:]]*pf: platform "https:\/\/github.com\/roc-lang\/basic-webserver\/releases\/download\//) {
+                print "    pf: platform \"../../platform/main.roc\","
+            } else {
+                print
+            }
+        }
+    ' README.md > "$file"
+
+    if [ ! -s "$file" ]; then
+        echo "README example check FAILED: no roc code block found" >&2
+        exit 1
+    fi
+
+    echo "==> roc check README example"
+    "$ROC" check "$file"
+    echo "==> roc test README example"
+    "$ROC" test "$file"
+    echo "==> roc build README example"
+    "$ROC" build --output="$output" "$file"
+    rm -f "$output" "$output.exe"
+}
+
 # Build all active examples and tests.
 for file in examples/*.roc tests/*.roc; do
     [ -e "$file" ] || continue
     check_test_and_build "$file"
 done
+
+check_readme_example
 
 # Roc drops built binaries in the repo root; clean them up.
 for file in examples/*.roc tests/*.roc; do

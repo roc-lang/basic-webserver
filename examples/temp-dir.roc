@@ -10,9 +10,6 @@ import http.Response
 # To run this example: check the root README.md
 
 ## Returns the default temp dir
-##
-## !! requires --linker=legacy
-## for example: `roc build examples/temp-dir.roc --linker=legacy`
 
 Model : {}
 

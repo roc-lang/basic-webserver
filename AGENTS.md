@@ -17,11 +17,12 @@ compiler is no longer supported.
 
 # Useful Commands
 
-Build the host static library for the native target (writes
-`platform/targets/<target>/libhost.a`):
+Build the host static library for the native target (writes `libhost.a` or
+`host.lib` under `platform/targets/<target>/`):
 ```
-./build.sh          # native target
-./build.sh --all    # cross-compile all targets
+./build.sh                  # native target
+./build.sh --target TARGET  # one specific target
+./build.sh --all            # targets buildable from this host OS
 ```
 
 Check + build every active example and test, plus a server smoke test:
@@ -45,9 +46,8 @@ Build an individual example or test (the server binary lands in the repo root):
 roc build examples/hello-web.roc
 ```
 
-Modules and examples that depend on not-yet-migrated features (Sqlite, Tcp, Url,
-MultipartFormData, outbound Http.send!, buffered File reader) carry a `.todoroc`
-extension so they are skipped until ported.
+Files with a `.todoroc` extension are intentionally skipped migration backlog.
+Active `.roc` examples and tests should pass `./ci/all_tests.sh`.
 
 # Style
 

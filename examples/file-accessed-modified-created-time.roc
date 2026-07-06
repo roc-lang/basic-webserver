@@ -19,8 +19,8 @@ init! = || {
     result = || {
         file = "LICENSE"
 
-        # NOTE: these functions will not work if basic-webserver was built with musl, which is the case for the normal tar.br URL release.
-        # See https://github.com/roc-lang/basic-webserver?tab=readme-ov-file#developing--building-locally to build basic-webserver without musl.
+        # NOTE: some timestamp metadata may be unavailable on some filesystems
+        # or targets; this example reports an error if the host cannot provide it.
 
         time_modified = Utc.to_millis_since_epoch(File.time_modified!(file)?)
         time_accessed = Utc.to_millis_since_epoch(File.time_accessed!(file)?)

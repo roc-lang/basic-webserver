@@ -67,7 +67,7 @@ Sqlite := [].{
 
     # ---- Statement lifecycle ---------------------------------------------------
 
-    ## Prepare a [Stmt] for execution at a later time.
+    ## Prepare a `Stmt` for execution at a later time.
     prepare! : { path : Str, query : Str } => Try(Stmt, [SqliteErr(ErrCode, Str), ..])
     prepare! = |{ path, query: q }|
         Ok(Host.sqlite_prepare!(path, q).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
@@ -219,12 +219,12 @@ Sqlite := [].{
 
     # ---- Leaf decoders ---------------------------------------------------------
 
-    ## Decode a [Value] keeping it tagged.
+    ## Decode a `Value` keeping it tagged.
     tagged_value = |name|
         |cols|
             |stmt| lookup_value!(cols, stmt, name)
 
-    ## Decode a column to a [Str].
+    ## Decode a column to a `Str`.
     str = |name|
         |cols|
             |stmt|
@@ -244,31 +244,31 @@ Sqlite := [].{
                     Err(e) => Err(e)
                 }
 
-    ## Decode a column to a [I64].
+    ## Decode a column to an `I64`.
     i64 = |name| int_decoder(name, |n| Ok(n))
 
-    ## Decode a column to a [I32].
+    ## Decode a column to an `I32`.
     i32 = |name| int_decoder(name, |n| bounds_err(I64.to_i32_try(n)))
 
-    ## Decode a column to a [I16].
+    ## Decode a column to an `I16`.
     i16 = |name| int_decoder(name, |n| bounds_err(I64.to_i16_try(n)))
 
-    ## Decode a column to a [I8].
+    ## Decode a column to an `I8`.
     i8 = |name| int_decoder(name, |n| bounds_err(I64.to_i8_try(n)))
 
-    ## Decode a column to a [U64].
+    ## Decode a column to a `U64`.
     u64 = |name| int_decoder(name, |n| bounds_err(I64.to_u64_try(n)))
 
-    ## Decode a column to a [U32].
+    ## Decode a column to a `U32`.
     u32 = |name| int_decoder(name, |n| bounds_err(I64.to_u32_try(n)))
 
-    ## Decode a column to a [U16].
+    ## Decode a column to a `U16`.
     u16 = |name| int_decoder(name, |n| bounds_err(I64.to_u16_try(n)))
 
-    ## Decode a column to a [U8].
+    ## Decode a column to a `U8`.
     u8 = |name| int_decoder(name, |n| bounds_err(I64.to_u8_try(n)))
 
-    ## Decode a column to a [F64].
+    ## Decode a column to an `F64`.
     f64 = |name| real_decoder(name, |r| Ok(r))
 
     # Nullable decoders return `NotNull(value)` for a present value, or `Null` when
@@ -373,7 +373,7 @@ Sqlite := [].{
                     Err(e) => Err(e)
                 }
 
-    ## Convert a [ErrCode] to a pretty string for display purposes.
+    ## Convert an `ErrCode` to a pretty string for display purposes.
     errcode_to_str = |code|
         match code {
             Error => "Error: Sql error or missing database"
