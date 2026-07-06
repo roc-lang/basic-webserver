@@ -16,9 +16,9 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
@@ -29,16 +29,16 @@ init! = |{}|
         }
     }
 
-run_tests! : {} => Try({}, _)
-run_tests! = |{}| {
+run_tests! : () => Try({}, _)
+run_tests! = || {
     Stdout.line!("Testing Env module functions...\n\nTesting Env.cwd!:")?
-    cwd = Env.cwd!({})?
+    cwd = Env.cwd!()?
     Stdout.line!("cwd: ${cwd}\n\nTesting Env.exe_path!:")?
 
-    exe_path = Env.exe_path!({})?
+    exe_path = Env.exe_path!()?
     Stdout.line!("exe_path: ${exe_path}\n\nTesting Env.temp_dir!:")?
 
-    temp_dir = Env.temp_dir!({})
+    temp_dir = Env.temp_dir!()
     Stdout.line!("temp_dir: ${temp_dir}\n\nTesting Env.var!:")?
 
     # A variable that should exist in most environments

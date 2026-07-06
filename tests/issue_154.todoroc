@@ -8,17 +8,17 @@ import pf.MultipartFormData
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
-    when run_tests!({}) is
+init! : () => Result Model _
+init! = ||
+    when run_tests!() is
         Ok(_) ->
             Err(Exit(0, "Ran all tests."))
 
         Err(err) ->
             Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
+run_tests! : () => Result {} _
+run_tests! = ||
     Stdout.line!("Testing parse_form_url_encoded preserves literal plus signs.")?
 
     encoded = "message=This+%2B+is+a+plus"

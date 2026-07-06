@@ -14,9 +14,9 @@ program = { init!, respond! }
 
 # This test exercises the Tcp module. It requires an echo server listening on
 # localhost:8085, e.g. `ncat -e $(which cat) -l 8085`.
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
@@ -27,8 +27,8 @@ init! = |{}|
         }
     }
 
-run_tests! : {} => Try({}, _)
-run_tests! = |{}| {
+run_tests! : () => Try({}, _)
+run_tests! = || {
     _ = Stdout.line!("Testing Tcp module functions...")
     _ = Stdout.line!("Note: These tests require a TCP server running on localhost:8085")
     _ = Stdout.line!("You can start one with: ncat -e $(which cat) -l 8085\n")

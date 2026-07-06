@@ -9,7 +9,7 @@
 platform "webserver"
     requires {
         [Model : model] for program : {
-            init! : {} => Try(model, [Exit(I64), ..]),
+            init! : () => Try(model, [Exit(I64), ..]),
             respond! : _, model => Try(_, [ServerErr(Str), ..]),
         }
     }
@@ -126,9 +126,9 @@ import InternalHttp
 import MultipartFormData
 import SplitList
 
-init_for_host! : {} => Try(Box(Model), I64)
-init_for_host! = |{}|
-    match (program.init!)({}) {
+init_for_host! : () => Try(Box(Model), I64)
+init_for_host! = ||
+    match (program.init!)() {
         Ok(model) => Ok(Box.box(model))
         Err(Exit(code)) => Err(code)
         Err(other) => {

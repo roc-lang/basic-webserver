@@ -20,36 +20,36 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
-            _ = cleanup_test_files!({})
+            _ = cleanup_test_files!()
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
         }
         Err(err) => {
-            _ = cleanup_test_files!({})
+            _ = cleanup_test_files!()
             _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
             Err(Exit(1))
         }
     }
 
-run_tests! : {} => Try({}, _)
-run_tests! = |{}| {
+run_tests! : () => Try({}, _)
+run_tests! = || {
     Stdout.line!("Testing some File functions...")?
     Stdout.line!("This will create and manipulate test files in the current directory.\n")?
 
-    test_basic_file_operations!({})?
-    test_file_permissions!({})?
-    test_file_size!({})?
-    test_file_delete!({})?
+    test_basic_file_operations!()?
+    test_file_permissions!()?
+    test_file_size!()?
+    test_file_delete!()?
 
     Stdout.line!("\nI ran all file function tests.")
 }
 
-test_basic_file_operations! : {} => Try({}, _)
-test_basic_file_operations! = |{}| {
+test_basic_file_operations! : () => Try({}, _)
+test_basic_file_operations! = || {
     Stdout.line!("Testing File.write_bytes! and File.read_bytes!:")?
 
     test_bytes = [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33] # "Hello, World!" in bytes
@@ -68,8 +68,8 @@ test_basic_file_operations! = |{}| {
     Ok({})
 }
 
-test_file_permissions! : {} => Try({}, _)
-test_file_permissions! = |{}| {
+test_file_permissions! : () => Try({}, _)
+test_file_permissions! = || {
     Stdout.line!("\nTesting File.is_executable!, File.is_readable!, File.is_writable!:")?
 
     is_executable = File.is_executable!("test_bytes.txt")?
@@ -81,8 +81,8 @@ test_file_permissions! = |{}| {
     Ok({})
 }
 
-test_file_size! : {} => Try({}, _)
-test_file_size! = |{}| {
+test_file_size! : () => Try({}, _)
+test_file_size! = || {
     Stdout.line!("\nTesting File.size_in_bytes!:")?
 
     file_size = File.size_in_bytes!("test_bytes.txt")?
@@ -91,8 +91,8 @@ test_file_size! = |{}| {
     Ok({})
 }
 
-test_file_delete! : {} => Try({}, _)
-test_file_delete! = |{}| {
+test_file_delete! : () => Try({}, _)
+test_file_delete! = || {
     Stdout.line!("\nTesting File.delete!:")?
 
     File.write_utf8!("test_to_delete.txt", "")?
@@ -109,8 +109,8 @@ test_file_delete! = |{}| {
     Ok({})
 }
 
-cleanup_test_files! : {} => Try({}, _)
-cleanup_test_files! = |{}| {
+cleanup_test_files! : () => Try({}, _)
+cleanup_test_files! = || {
     Stdout.line!("\nCleaning up test files...")?
 
     test_files = [

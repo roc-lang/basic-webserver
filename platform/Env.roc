@@ -17,8 +17,8 @@ Env := [].{
     ## changed safely without triggering the current runtime crash.
     ##
     ## Returns `Err(CwdUnavailable)` if the cwd cannot be determined.
-    cwd! : {} => Try(Str, [CwdUnavailable, ..])
-    cwd! = |{}|
+    cwd! : () => Try(Str, [CwdUnavailable, ..])
+    cwd! = ||
         match Host.env_cwd!("") {
             Ok(path) => Ok(path)
             Err(_) => Err(CwdUnavailable)
@@ -30,8 +30,8 @@ Env := [].{
     ## changed safely without triggering the current runtime crash.
     ##
     ## Returns `Err(ExePathUnavailable)` if the path cannot be determined.
-    exe_path! : {} => Try(Str, [ExePathUnavailable, ..])
-    exe_path! = |{}|
+    exe_path! : () => Try(Str, [ExePathUnavailable, ..])
+    exe_path! = ||
         match Host.env_exe_path!("") {
             Ok(path) => Ok(path)
             Err(_) => Err(ExePathUnavailable)
@@ -41,6 +41,6 @@ Env := [].{
     ##
     ## TODO: Return Path.Path with cwd! and exe_path! once the compiler/runtime
     ## issue is resolved.
-    temp_dir! : {} => Str
-    temp_dir! = |{}| Host.env_temp_dir!("")
+    temp_dir! : () => Str
+    temp_dir! = || Host.env_temp_dir!("")
 }

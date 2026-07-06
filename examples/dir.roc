@@ -10,14 +10,14 @@ import pf.Http
 import pf.Path
 import http.Response
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || {
     result = || {
         # Create a directory
         Dir.create!("empty-dir")?

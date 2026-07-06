@@ -156,14 +156,14 @@ type PathIOErrTag = HostIOErrTag;
 // (`AnonStructN` / `TryTypeN`) and have NO generated semantic alias, so they are
 // referenced by their numbered names. Update this block if the glue renumbers
 // them (only happens when the platform's hosted/provides/types change).
-pub(crate) type InitForHostResult = TryType81;
-pub(crate) type InitForHostResultTag = TryType81Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct85;
-pub(crate) type ResponseToAndFromHost = AnonStruct89;
-pub(crate) type Header = AnonStruct87;
+pub(crate) type InitForHostResult = TryType80;
+pub(crate) type InitForHostResultTag = TryType80Tag;
+pub(crate) type RequestToAndFromHost = AnonStruct84;
+pub(crate) type ResponseToAndFromHost = AnonStruct88;
+pub(crate) type Header = AnonStruct86;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct89(value, roc_host);
+    decref_anon_struct88(value, roc_host);
 }
 
 // ============================================================================

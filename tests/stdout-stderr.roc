@@ -12,9 +12,9 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
@@ -25,8 +25,8 @@ init! = |{}|
         }
     }
 
-run_tests! : {} => Try({}, [StdoutErr(_), StderrErr(_), ..])
-run_tests! = |{}| {
+run_tests! : () => Try({}, [StdoutErr(_), StderrErr(_), ..])
+run_tests! = || {
     Stdout.write!("stdout\n")?
     Stderr.write!("stderr\n")?
 

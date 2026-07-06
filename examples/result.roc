@@ -6,14 +6,14 @@ app [Model, program] {
 import pf.Http
 import http.Response
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| Ok({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || Ok({})
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model|

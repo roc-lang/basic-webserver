@@ -12,9 +12,9 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
@@ -25,8 +25,8 @@ init! = |{}|
         }
     }
 
-run_tests! : {} => Try({}, _)
-run_tests! = |{}| {
+run_tests! : () => Try({}, _)
+run_tests! = || {
     # Test Url.from_str and Url.to_str
     url = Url.from_str("https://example.com")
     Stdout.line!("Created URL: ${Url.to_str(url)}")?

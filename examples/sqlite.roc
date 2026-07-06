@@ -8,7 +8,7 @@ import pf.Sqlite
 import pf.Env
 import http.Response
 
-# To run this example: check the README.md in this folder and set
+# To run this example: check the root README.md and set
 # `export DB_PATH=./examples/todos.db`
 
 # Sql to create the table:
@@ -23,8 +23,8 @@ Model : { db_path : Str }
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || {
     db_path =
         match Env.var!("DB_PATH") {
             Ok(path) => path

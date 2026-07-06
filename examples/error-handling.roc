@@ -13,8 +13,8 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| Ok({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || Ok({})
 
 AppError : [
     EnvVarNotSet(Str),

@@ -89,5 +89,5 @@ Host := [].{
     tcp_read_until! : TcpStream, U8 => Try(List(U8), Str)
     tcp_write! : TcpStream, List(U8) => Try({}, Str)
 
-    utc_now! : {} => U128
+    utc_now! : () => U128
 }

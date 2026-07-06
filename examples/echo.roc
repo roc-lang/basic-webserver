@@ -7,7 +7,7 @@ import pf.Http
 import pf.Stdout
 import http.Response
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 ## Echo server: logs the request method/uri and replies with the request body.
 
@@ -15,8 +15,8 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| Ok({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || Ok({})
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, _model| {

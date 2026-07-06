@@ -10,14 +10,14 @@ import pf.Stdout
 import pf.Stderr
 import http.Response
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || {
     result = || {
         # Simplest way to execute a command (prints to your terminal).
         Cmd.exec!("echo", ["Hello"])?
@@ -70,7 +70,7 @@ init! = |{}| {
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, _model| {
-    millis = Utc.to_millis_since_epoch(Utc.now!({}))
+    millis = Utc.to_millis_since_epoch(Utc.now!())
 
     # Log request time, method and url using echo
     match Cmd.exec!("echo", ["${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}"]) {

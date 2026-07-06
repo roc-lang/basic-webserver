@@ -7,7 +7,7 @@ import pf.Http
 import pf.MultipartFormData
 import http.Response
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 # Demonstrates how to handle URL-encoded form data.
 
@@ -100,5 +100,5 @@ respond! = |req, _model|
 # Model is produced by `init!`.
 Model : {}
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| Ok({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || Ok({})

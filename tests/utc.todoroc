@@ -9,25 +9,25 @@ import pf.Sleep
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
-    when run_tests!({}) is
+init! : () => Result Model _
+init! = ||
+    when run_tests!() is
         Ok(_) ->
             Err(Exit(0, "Ran all tests."))
         Err(err) ->
             Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
-    test_time_conversion!({})?
+run_tests! : () => Result {} _
+run_tests! = ||
+    test_time_conversion!()?
     
-    test_time_delta!({})
+    test_time_delta!()
 
 
-test_time_conversion! : {} => Result {} _
-test_time_conversion! = |{}|
+test_time_conversion! : () => Result {} _
+test_time_conversion! = ||
     # Get current time
-    now = Utc.now!({})
+    now = Utc.now!()
 
     millis_since_epoch = Utc.to_millis_since_epoch(now)
     Stdout.line!("Current time in milliseconds since epoch: ${Num.to_str(millis_since_epoch)}")?
@@ -56,16 +56,16 @@ test_time_conversion! = |{}|
 
     Ok({})
 
-test_time_delta! : {} => Result {} _
-test_time_delta! = |{}|
+test_time_delta! : () => Result {} _
+test_time_delta! = ||
     Stdout.line!("\nTime delta demonstration:")?
 
-    start = Utc.now!({})
+    start = Utc.now!()
     Stdout.line!("Starting time: ${Utc.to_iso_8601(start)}")?
 
     Sleep.millis!(1500)
 
-    finish = Utc.now!({})
+    finish = Utc.now!()
     Stdout.line!("Ending time: ${Utc.to_iso_8601(finish)}")?
 
     # start should be before finish

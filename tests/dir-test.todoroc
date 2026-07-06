@@ -10,9 +10,9 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = cleanup_test_dirs!(DirsNeedToExist)
             _ = Stdout.line!("Ran all tests.")
@@ -25,25 +25,25 @@ init! = |{}|
         }
     }
 
-run_tests! = |{}| {
+run_tests! = || {
     Stdout.line!("Testing Dir functions...\nThis will create and manipulate test directories in the current directory.\n")?
 
     # Test Dir.create!
-    test_dir_create!({})?
+    test_dir_create!()?
 
     # Test Dir.create_all!
-    test_dir_create_all!({})?
+    test_dir_create_all!()?
 
     # Test Dir.delete_empty!
-    test_dir_delete_empty!({})?
+    test_dir_delete_empty!()?
 
     # Test Dir.delete_all!
-    test_dir_delete_all!({})?
+    test_dir_delete_all!()?
 
     Stdout.line!("\nI ran all Dir function tests.")
 }
 
-test_dir_create! = |{}| {
+test_dir_create! = || {
     Stdout.line!("Testing Dir.create!:")?
 
     # Test creating a single directory
@@ -81,7 +81,7 @@ test_dir_create! = |{}| {
     Ok({})
 }
 
-test_dir_create_all! = |{}| {
+test_dir_create_all! = || {
     Stdout.line!("\nTesting Dir.create_all!:")?
 
     # Test creating nested directories
@@ -115,7 +115,7 @@ test_dir_create_all! = |{}| {
     Ok({})
 }
 
-test_dir_delete_empty! = |{}| {
+test_dir_delete_empty! = || {
     Stdout.line!("\nTesting Dir.delete_empty!:")?
 
     # Create an empty directory
@@ -164,7 +164,7 @@ test_dir_delete_empty! = |{}| {
     Ok({})
 }
 
-test_dir_delete_all! = |{}| {
+test_dir_delete_all! = || {
     Stdout.line!("\nTesting Dir.delete_all!:")?
 
     # Create directory with nested structure and files

@@ -9,9 +9,9 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
             _ = Stdout.line!("Done.")
             Err(Exit(0))
@@ -22,7 +22,7 @@ init! = |{}|
         }
     }
 
-run_tests! = |{}| {
+run_tests! = || {
 
     # exec!
     expect_str_eq(

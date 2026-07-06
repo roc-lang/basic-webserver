@@ -3,7 +3,7 @@ app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
 import pf.File
 import pf.Http exposing [Request, Response]
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 # # Buffered File Reading
 #
@@ -26,8 +26,8 @@ ReadSummary : {
 }
 
 # We only read the file once in `init`.
-init! : {} => Result Model [Exit I32 Str]_
-init! = |{}|
+init! : () => Result Model [Exit I32 Str]_
+init! = ||
     reader = File.open_reader!("LICENSE")?
 
     process_line!(reader, { lines_read: 0, bytes_read: 0 })

@@ -9,7 +9,7 @@ import pf.Url
 import pf.Utc
 import "todos.html" as todo_html : List U8
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 Model : {
     list_todos_stmt : Sqlite.Stmt,
@@ -20,8 +20,8 @@ Model : {
     end_stmt : Sqlite.Stmt,
 }
 
-init! : {} => Result Model [Exit I32 Str]_
-init! = |{}|
+init! : () => Result Model [Exit I32 Str]_
+init! = ||
     db_path = read_env_var!("DB_PATH")?
 
     list_todos_stmt = prepare_stmt!(db_path, "SELECT id, task, status FROM todos")?
@@ -114,7 +114,7 @@ create_todo! = |model, params|
     result =
         exec_transaction!(
             model,
-            |{}|
+            ||
                 # prepare create todo statement
                 Sqlite.execute_prepared!(
                     {
@@ -151,7 +151,7 @@ create_todo! = |model, params|
         Err(err) ->
             err_response(err)
 
-exec_transaction! : Model, ({} => Result ok err) => Result ok _
+exec_transaction! : Model, (() => Result ok err) => Result ok _
 exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
 
     # TODO: create a nicer transaction wrapper
@@ -179,7 +179,7 @@ exec_transaction! = |{ begin_stmt, rollback_stmt, end_stmt }, transaction!|
             Err(e) ->
                 Err(TransactionFailed(e))
 
-    when transaction!({}) |> end_transaction! is
+    when transaction!() |> end_transaction! is
         Ok(v) ->
             Ok(v)
 
@@ -259,7 +259,7 @@ byte_response = |status, bytes|
 
 log_request! : Request => Result {} [StdoutErr Str]
 log_request! = |req|
-    datetime = Utc.to_iso_8601(Utc.now!({}))
+    datetime = Utc.to_iso_8601(Utc.now!())
 
     Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")
     |> Result.map_err(|err| StdoutErr(Inspect.to_str(err)))

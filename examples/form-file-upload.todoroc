@@ -7,7 +7,7 @@ import utils.Base64
 import pf.Http exposing [Request, Response]
 import pf.MultipartFormData
 
-# To run this example: check the README.md in this folder
+# To run this example: check the root README.md
 
 # Demonstrates how to upload a (image) file.
 
@@ -105,5 +105,5 @@ respond! = |req, _|
 # Model is produced by `init`.
 Model : {}
 
-init! : {} => Result Model []
-init! = |{}| Ok({})
+init! : () => Result Model []
+init! = || Ok({})

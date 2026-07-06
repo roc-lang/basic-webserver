@@ -17,8 +17,8 @@ read_env_var! = |name|
     Env.var!(name)
     |> Result.map_err(|_| ServerErr("${name} not set on environment"))
 
-init! : {} => Result Model _
-init! = |{}|
+init! : () => Result Model _
+init! = ||
     db_path = read_env_var!("DB_PATH")?
     list_todos_stmt = prepare_stmt!(db_path, "SELECT id, task, status FROM todos")?
     create_todo_stmt = prepare_stmt!(db_path, "INSERT INTO todos (task, status) VALUES (:task, :status)")?

@@ -19,22 +19,22 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}|
-    match run_tests!({}) {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = ||
+    match run_tests!() {
         Ok(_) => {
-            _ = cleanup!({})
+            _ = cleanup!()
             _ = Stdout.line!("Ran all tests.")
             Err(Exit(0))
         }
         Err(err) => {
-            _ = cleanup!({})
+            _ = cleanup!()
             _ = Stderr.line!("Test run failed:\n\t${Str.inspect(err)}")
             Err(Exit(1))
         }
     }
 
-run_tests! : {} => Try(
+run_tests! : () => Try(
     {},
     [
         InvalidStr(U64),
@@ -49,7 +49,7 @@ run_tests! : {} => Try(
         ..
     ],
 )
-run_tests! = |{}| {
+run_tests! = || {
     Stdout.line!("Testing Path functions...\n")?
 
     # Test pure path operations from roc-lang/path.
@@ -113,8 +113,8 @@ run_tests! = |{}| {
     Ok({})
 }
 
-cleanup! : {} => Try({}, _)
-cleanup! = |{}| {
+cleanup! : () => Try({}, _)
+cleanup! = || {
     _ = File.delete!("test_path_symlink.txt")
     _ = File.delete!("test_path_file.txt")
     _ = Dir.delete_all!("test_path_dir")

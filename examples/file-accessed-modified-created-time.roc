@@ -14,8 +14,8 @@ Model : {}
 
 program = { init!, respond! }
 
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| {
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || {
     result = || {
         file = "LICENSE"
 

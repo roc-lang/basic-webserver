@@ -14,16 +14,16 @@ Model : {}
 program = { init!, respond! }
 
 # Fetch some content at startup to demonstrate the outbound HTTP client. To
-# exercise it, run a server on localhost:9000 (see the README); otherwise the
+# exercise it, run a server on localhost:9000 (see the root README); otherwise the
 # requests simply report a failure and the webserver still starts.
-init! : {} => Try(Model, [Exit(I64), ..])
-init! = |{}| {
-	_ = demo!({})
+init! : () => Try(Model, [Exit(I64), ..])
+init! = || {
+	_ = demo!()
 	Ok({})
 }
 
-demo! : {} => Try({}, _)
-demo! = |{}| {
+demo! : () => Try({}, _)
+demo! = || {
 	# GET a plain-text body and decode it as UTF-8.
 	_ = match Http.get_utf8!("http://localhost:9000/utf8test") {
 		Ok(utf8) => Stdout.line!("I received '${utf8}' from the server.")

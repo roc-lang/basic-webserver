@@ -9,16 +9,16 @@ import pf.Env
 
 Model : {}
 
-init! : {} => Result Model _
-init! = |{}|
-    when run_tests!({}) is
+init! : () => Result Model _
+init! = ||
+    when run_tests!() is
         Ok(_) ->
             Err(Exit(0, "Ran all tests."))
         Err(err) ->
             Err(Exit(1, "Test run failed:\n\t${Inspect.to_str(err)}"))
 
-run_tests! : {} => Result {} _
-run_tests! = |{}|
+run_tests! : () => Result {} _
+run_tests! = ||
     db_path = Env.var!("DB_PATH") ? |_| EnvVarNotFound("DB_PATH")
 
     # Test Sqlite.str, Sqlite.bytes, Sqlite.i32...
