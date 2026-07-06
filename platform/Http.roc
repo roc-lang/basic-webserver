@@ -106,14 +106,19 @@ Http :: [].{
 
     ## Perform an HTTP GET and decode the response body as JSON.
     ##
-    ## JSON parser failures are returned as `JsonErr(Json)`.
+    ## JSON parser failures are returned as `JsonErr(_)`.
     ##
     ## ```roc
     ## payload : Try({ foo : Str }, _)
     ## payload = Http.get!("http://localhost:8000")
     ## ```
-    get! = |_uri|
-        Err(JsonDecodeNotMigrated("Http.get!: JSON decoding is not migrated to the current Roc compiler yet"))
+    get! : Str => Try(_, [BadBody(Str), HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), JsonErr(_), ..])
+    get! = |uri| {
+        body = get_utf8!(uri)?
+        decoded = Json.parse(body) ? JsonErr
+
+        Ok(decoded)
+    }
 
     ## Decode a request body as a UTF-8 `Str`.
     body_utf8 : Request -> Try(Str, [BadBody(Str), ..])
@@ -124,8 +129,13 @@ Http :: [].{
         }
 
     ## Decode a request body as JSON.
-    body_json = |_request|
-        Err(JsonDecodeNotMigrated("Http.body_json: JSON decoding is not migrated to the current Roc compiler yet"))
+    body_json : Request -> Try(_, [BadBody(Str), JsonErr(_), ..])
+    body_json = |request| {
+        body = body_utf8(request)?
+        decoded = Json.parse(body) ? JsonErr
+
+        Ok(decoded)
+    }
 
     ## Encode a Roc value as UTF-8 JSON bytes.
     ##
@@ -158,6 +168,33 @@ Http :: [].{
                 [{ name: "Content-Type", value: "application/json; charset=utf-8" }],
             )
         Response.with_body(response_with_headers, json_bytes(value))
+    }
+}
+
+## `body_json` decodes a typed JSON request body.
+expect {
+    request =
+        Request.from_method(POST)
+            .with_body(Str.to_utf8("{\"foo\":\"bar\",\"count\":7}"))
+
+    decoded : { foo : Str, count : U64 }
+    decoded = Http.body_json(request)?
+
+    decoded == { foo: "bar", count: 7 }
+}
+
+## `body_json` reports JSON parser failures.
+expect {
+    request =
+        Request.from_method(POST)
+            .with_body(Str.to_utf8("{"))
+
+    result : Try({ foo : Str }, _)
+    result = Http.body_json(request)
+
+    match result {
+        Err(JsonErr(_)) => Bool.True
+        _ => Bool.False
     }
 }
 

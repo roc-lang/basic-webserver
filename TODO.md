@@ -23,9 +23,9 @@ Release-readiness backlog for the Zig compiler migration PR.
   - Updated `AGENTS.md` so migrated modules are no longer described as skipped `.todoroc` work.
   - `./ci/all_tests.sh` now checks, tests, and builds the README example: [#43](https://github.com/roc-lang/basic-webserver/issues/43).
 
-- [ ] Decide what to do with public JSON decode stubs.
-  - `Http.get!` and `Http.body_json` currently return `JsonDecodeNotMigrated`.
-  - Implement these using the built-in `Json` support.
+- [x] Decide what to do with public JSON decode stubs.
+  - `Http.get!` and `Http.body_json` now decode through built-in `Json.parse`.
+  - JSON parser failures are exposed as `JsonErr(_)`.
 
 - [ ] Decide what to do with remaining `.todoroc` files.
   - Candidates to port, delete as obsolete, or explicitly document as deferred:
