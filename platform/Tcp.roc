@@ -1,19 +1,12 @@
+import Host
+
 Tcp := [].{
     ## Represents a TCP stream.
     ##
     ## The connection is automatically closed when the last reference to the
     ## stream is dropped. This is an opaque `Box(U64)` handle into a host-side
     ## `BufReader<TcpStream>`.
-    Stream :: Box(U64)
-
-    # ---- Host functions (the FFI boundary) -------------------------------------
-    # Errors are carried across as raw `Str` and parsed into tag unions below.
-
-    host_connect! : Str, U16 => Try(Stream, Str)
-    host_read_up_to! : Stream, U64 => Try(List(U8), Str)
-    host_read_exactly! : Stream, U64 => Try(List(U8), Str)
-    host_read_until! : Stream, U8 => Try(List(U8), Str)
-    host_write! : Stream, List(U8) => Try({}, Str)
+    Stream : Host.TcpStream
 
     ## Represents errors that can occur when connecting to a remote host.
     ConnectErr : [
@@ -47,8 +40,8 @@ Tcp := [].{
     ## ```
     ##
     ## Valid hostnames look like `127.0.0.1`, `::1`, `localhost`, or `roc-lang.org`.
-    connect! = |host, port|
-        Tcp.host_connect!(host, port).map_err(parse_connect_err)
+    connect! : Str, U16 => Try(Stream, [PermissionDenied, AddrInUse, AddrNotAvailable, ConnectionRefused, Interrupted, TimedOut, Unsupported, Unrecognized(Str), ..])
+    connect! = |host, port| Ok(Host.tcp_connect!(host, port).map_err(parse_connect_err)?)
 
     ## Read up to a number of bytes from the TCP stream.
     ##
@@ -57,9 +50,9 @@ Tcp := [].{
     ## ```
     ##
     ## > To read an exact number of bytes or fail, use [Tcp.read_exactly!] instead.
+    read_up_to! : Stream, U64 => Try(List(U8), [TcpReadErr(StreamErr), ..])
     read_up_to! = |stream, bytes_to_read|
-        Tcp.host_read_up_to!(stream, bytes_to_read)
-            .map_err(|err| TcpReadErr(parse_stream_err(err)))
+        Ok(Host.tcp_read_up_to!(stream, bytes_to_read).map_err(|err| TcpReadErr(parse_stream_err(err)))?)
 
     ## Read an exact number of bytes or fail.
     ##
@@ -69,8 +62,9 @@ Tcp := [].{
     ##
     ## `TcpUnexpectedEOF` is returned if the stream ends before the specified
     ## number of bytes is reached.
+    read_exactly! : Stream, U64 => Try(List(U8), [TcpUnexpectedEOF, TcpReadErr(StreamErr), ..])
     read_exactly! = |stream, bytes_to_read|
-        match Tcp.host_read_exactly!(stream, bytes_to_read) {
+        match Host.tcp_read_exactly!(stream, bytes_to_read) {
             Ok(bytes) => Ok(bytes)
             Err("UnexpectedEof") => Err(TcpUnexpectedEOF)
             Err(err) => Err(TcpReadErr(parse_stream_err(err)))
@@ -84,9 +78,9 @@ Tcp := [].{
     ## ```
     ##
     ## If found, the delimiter is included as the last byte.
+    read_until! : Stream, U8 => Try(List(U8), [TcpReadErr(StreamErr), ..])
     read_until! = |stream, byte|
-        Tcp.host_read_until!(stream, byte)
-            .map_err(|err| TcpReadErr(parse_stream_err(err)))
+        Ok(Host.tcp_read_until!(stream, byte).map_err(|err| TcpReadErr(parse_stream_err(err)))?)
 
     ## Read until a newline (`\n`, byte 10) or EOF is reached, decoded as a [Str].
     ##
@@ -95,6 +89,7 @@ Tcp := [].{
     ## ```
     ##
     ## If found, the newline is included as the last character in the [Str].
+    read_line! : Stream => Try(Str, [TcpReadErr(StreamErr), TcpReadBadUtf8(_), ..])
     read_line! = |stream|
         # NB: use `match` rather than `?` here — `read_until!` yields a single-
         # variant error union and `?` on that currently miscompiles (roc#9826).
@@ -111,17 +106,17 @@ Tcp := [].{
     ## ```
     ##
     ## > To write a [Str], use [Tcp.write_utf8!] instead.
+    write! : Stream, List(U8) => Try({}, [TcpWriteErr(StreamErr), ..])
     write! = |stream, bytes|
-        Tcp.host_write!(stream, bytes)
-            .map_err(|err| TcpWriteErr(parse_stream_err(err)))
+        Ok(Host.tcp_write!(stream, bytes).map_err(|err| TcpWriteErr(parse_stream_err(err)))?)
 
     ## Writes a [Str] to a TCP stream, encoded as UTF-8.
     ##
     ## ```roc
     ## Tcp.write_utf8!(stream, "Hi from Roc!")?
     ## ```
-    write_utf8! = |stream, str|
-        write!(stream, Str.to_utf8(str))
+    write_utf8! : Stream, Str => Try({}, [TcpWriteErr(StreamErr), ..])
+    write_utf8! = |stream, str| Ok(write!(stream, Str.to_utf8(str))?)
 
     ## Convert a [ConnectErr] to a [Str] you can print.
     connect_err_to_str = |err|

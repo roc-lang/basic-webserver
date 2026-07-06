@@ -714,18 +714,18 @@ impl<T: core::fmt::Debug, const ELEMENTS_REFCOUNTED: bool> core::fmt::Debug for 
     }
 }
 
-/// Element type for Cmd
+/// Element type for __AnonStruct4
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Cmd {
+pub struct AnonStruct4 {
     pub args: RocList<RocStr>,
     pub envs: RocList<RocStr>,
     pub program: RocStr,
     pub clear_envs: bool,
 }
 
-const _: () = assert!(core::mem::size_of::<Cmd>() == 80, "Cmd size mismatch");
-const _: () = assert!(core::mem::align_of::<Cmd>() == 8, "Cmd alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct4>() == 80, "AnonStruct4 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct4>() == 8, "AnonStruct4 alignment mismatch");
 
 /// Element type for __AnonStruct9
 #[repr(C)]
@@ -750,152 +750,163 @@ pub struct AnonStruct12 {
 const _: () = assert!(core::mem::size_of::<AnonStruct12>() == 48, "AnonStruct12 size mismatch");
 const _: () = assert!(core::mem::align_of::<AnonStruct12>() == 8, "AnonStruct12 alignment mismatch");
 
-/// Element type for __AnonStruct53
+/// Element type for __AnonStruct32
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct53 {
+pub struct AnonStruct32 {
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct57>,
+    pub headers: RocList<AnonStruct34>,
     pub status: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct53>() == 56, "AnonStruct53 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct53>() == 8, "AnonStruct53 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct32>() == 56, "AnonStruct32 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct32>() == 8, "AnonStruct32 alignment mismatch");
 
-/// Element type for __AnonStruct57
+/// Element type for __AnonStruct34
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct57 {
+pub struct AnonStruct34 {
     pub _0: RocStr,
     pub _1: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct57>() == 48, "AnonStruct57 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct57>() == 8, "AnonStruct57 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct34>() == 48, "AnonStruct34 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct34>() == 8, "AnonStruct34 alignment mismatch");
 
-/// Element type for __AnonStruct60
+/// Element type for __AnonStruct36
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct60 {
+pub struct AnonStruct36 {
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct57>,
+    pub headers: RocList<AnonStruct34>,
     pub method_ext: RocStr,
     pub uri: RocStr,
     pub method: u8,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct60>() == 112, "AnonStruct60 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct60>() == 8, "AnonStruct60 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct36>() == 112, "AnonStruct36 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct36>() == 8, "AnonStruct36 alignment mismatch");
 
-/// Element type for __AnonStruct65
+/// Element type for __AnonStruct38
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct65 {
+pub struct AnonStruct38 {
     pub is_dir: bool,
     pub is_file: bool,
     pub is_sym_link: bool,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct65>() == 3, "AnonStruct65 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct65>() == 1, "AnonStruct65 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct38>() == 3, "AnonStruct38 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct38>() == 1, "AnonStruct38 alignment mismatch");
 
-/// Element type for __AnonStruct70
+/// Element type for __AnonStruct40
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct70 {
+pub struct AnonStruct40 {
     pub code: i64,
     pub message: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct70>() == 32, "AnonStruct70 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct70>() == 8, "AnonStruct70 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct40>() == 32, "AnonStruct40 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct40>() == 8, "AnonStruct40 alignment mismatch");
 
-/// Element type for __AnonStruct78
+/// Element type for __AnonStruct45
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct78 {
+pub struct AnonStruct45 {
     pub value: BytesOrIntegerOrNullOrRealOrString,
     pub name: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct78>() == 56, "AnonStruct78 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct78>() == 8, "AnonStruct78 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct45>() == 56, "AnonStruct45 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct45>() == 8, "AnonStruct45 alignment mismatch");
 
-/// Element type for __AnonStruct117
+/// Element type for __AnonStruct58
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct117 {
+pub struct AnonStruct58 {
     pub init_bang: *mut c_void,
     pub respond_bang: *mut c_void,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct117>() == 16, "AnonStruct117 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct117>() == 8, "AnonStruct117 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct58>() == 16, "AnonStruct58 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct58>() == 8, "AnonStruct58 alignment mismatch");
 
-/// Element type for __AnonStruct119
+/// Element type for Request
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct119 {
+pub struct Request {
     pub timeout_ms: NoTimeoutOrTimeoutMilliseconds,
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct123>,
-    pub method: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE,
+    pub headers: RocList<AnonStruct64>,
+    pub method: Method,
     pub uri: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct119>() == 120, "AnonStruct119 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct119>() == 8, "AnonStruct119 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<Request>() == 120, "Request size mismatch");
+const _: () = assert!(core::mem::align_of::<Request>() == 8, "Request alignment mismatch");
 
-/// Element type for __AnonStruct123
+/// Element type for __AnonStruct64
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct123 {
+pub struct AnonStruct64 {
     pub _0: RocStr,
     pub _1: RocStr,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct123>() == 48, "AnonStruct123 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct123>() == 8, "AnonStruct123 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct64>() == 48, "AnonStruct64 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct64>() == 8, "AnonStruct64 alignment mismatch");
 
-/// Element type for __AnonStruct131
+/// Element type for Response
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct131 {
+pub struct Response {
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct123>,
+    pub headers: RocList<AnonStruct64>,
     pub status: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct131>() == 56, "AnonStruct131 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct131>() == 8, "AnonStruct131 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<Response>() == 56, "Response size mismatch");
+const _: () = assert!(core::mem::align_of::<Response>() == 8, "Response alignment mismatch");
 
-/// Element type for __AnonStruct143
+/// Element type for __AnonStruct84
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct143 {
+pub struct AnonStruct84 {
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct123>,
+    pub headers: RocList<AnonStruct86>,
     pub method_ext: RocStr,
     pub uri: RocStr,
     pub method: u8,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct143>() == 112, "AnonStruct143 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct143>() == 8, "AnonStruct143 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct84>() == 112, "AnonStruct84 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct84>() == 8, "AnonStruct84 alignment mismatch");
 
-/// Element type for __AnonStruct145
+/// Element type for __AnonStruct86
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct145 {
+pub struct AnonStruct86 {
+    pub _0: RocStr,
+    pub _1: RocStr,
+}
+
+const _: () = assert!(core::mem::size_of::<AnonStruct86>() == 48, "AnonStruct86 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct86>() == 8, "AnonStruct86 alignment mismatch");
+
+/// Element type for __AnonStruct88
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct88 {
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct123>,
+    pub headers: RocList<AnonStruct86>,
     pub status: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<AnonStruct145>() == 56, "AnonStruct145 size mismatch");
-const _: () = assert!(core::mem::align_of::<AnonStruct145>() == 8, "AnonStruct145 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct88>() == 56, "AnonStruct88 size mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct88>() == 8, "AnonStruct88 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -916,7 +927,7 @@ pub struct TryType0 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType0Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType1>,
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<i32>,
 }
 
@@ -926,7 +937,7 @@ const _: () = assert!(core::mem::align_of::<TryType0>() == 8, "TryType0 alignmen
 /// Tag discriminant for IOErr.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType1Tag {
+pub enum IOErrTag {
     AlreadyExists = 0,
     BrokenPipe = 1,
     Interrupted = 2,
@@ -940,14 +951,14 @@ pub enum IOErrType1Tag {
 /// Tag union: IOErr
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct IOErrType1 {
-    pub payload: IOErrType1Payload,
-    pub tag: IOErrType1Tag,
+pub struct IOErr {
+    pub payload: IOErrPayload,
+    pub tag: IOErrTag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union IOErrType1Payload {
+pub union IOErrPayload {
     pub already_exists: [u8; 0],
     pub broken_pipe: [u8; 0],
     pub interrupted: [u8; 0],
@@ -958,8 +969,8 @@ pub union IOErrType1Payload {
     pub unsupported: [u8; 0],
 }
 
-const _: () = assert!(core::mem::size_of::<IOErrType1>() == 32, "IOErrType1 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType1>() == 8, "IOErrType1 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<IOErr>() == 32, "IOErr size mismatch");
+const _: () = assert!(core::mem::align_of::<IOErr>() == 8, "IOErr alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -1006,7 +1017,7 @@ pub struct TryType8 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType8Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType1>,
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<AnonStruct9>,
 }
 
@@ -1032,55 +1043,17 @@ pub struct TryType13 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType13Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType15>,
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<()>,
 }
 
 const _: () = assert!(core::mem::size_of::<TryType13>() == 40, "TryType13 size mismatch");
 const _: () = assert!(core::mem::align_of::<TryType13>() == 8, "TryType13 alignment mismatch");
 
-/// Tag discriminant for IOErr.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType15Tag {
-    AlreadyExists = 0,
-    BrokenPipe = 1,
-    Interrupted = 2,
-    NotFound = 3,
-    Other = 4,
-    OutOfMemory = 5,
-    PermissionDenied = 6,
-    Unsupported = 7,
-}
-
-/// Tag union: IOErr
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct IOErrType15 {
-    pub payload: IOErrType15Payload,
-    pub tag: IOErrType15Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union IOErrType15Payload {
-    pub already_exists: [u8; 0],
-    pub broken_pipe: [u8; 0],
-    pub interrupted: [u8; 0],
-    pub not_found: [u8; 0],
-    pub other: core::mem::ManuallyDrop<RocStr>,
-    pub out_of_memory: [u8; 0],
-    pub permission_denied: [u8; 0],
-    pub unsupported: [u8; 0],
-}
-
-const _: () = assert!(core::mem::size_of::<IOErrType15>() == 32, "IOErrType15 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType15>() == 8, "IOErrType15 alignment mismatch");
-
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType18Tag {
+pub enum TryType16Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1088,20 +1061,72 @@ pub enum TryType18Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType18 {
-    pub payload: TryType18Payload,
-    pub tag: TryType18Tag,
+pub struct TryType16 {
+    pub payload: TryType16Payload,
+    pub tag: TryType16Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType18Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType15>,
+pub union TryType16Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<RocList<RocStr>>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType18>() == 40, "TryType18 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType18>() == 8, "TryType18 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType16>() == 40, "TryType16 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType16>() == 8, "TryType16 alignment mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TryType17Tag {
+    Err = 0,
+    Ok = 1,
+}
+
+/// Tag union: Try
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TryType17 {
+    pub payload: TryType17Payload,
+    pub tag: TryType17Tag,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union TryType17Payload {
+    pub err: core::mem::ManuallyDrop<RocStr>,
+    pub ok: core::mem::ManuallyDrop<RocStr>,
+}
+
+const _: () = assert!(core::mem::size_of::<TryType17>() == 32, "TryType17 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType17>() == 8, "TryType17 alignment mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TryType19Tag {
+    Err = 0,
+    Ok = 1,
+}
+
+/// Tag union: Try
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TryType19 {
+    pub payload: TryType19Payload,
+    pub tag: TryType19Tag,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union TryType19Payload {
+    pub err: core::mem::ManuallyDrop<*mut c_void>,
+    pub ok: core::mem::ManuallyDrop<RocStr>,
+}
+
+const _: () = assert!(core::mem::size_of::<TryType19>() == 32, "TryType19 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType19>() == 8, "TryType19 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -1122,7 +1147,7 @@ pub struct TryType21 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType21Payload {
-    pub err: core::mem::ManuallyDrop<RocStr>,
+    pub err: core::mem::ManuallyDrop<*mut c_void>,
     pub ok: core::mem::ManuallyDrop<RocStr>,
 }
 
@@ -1132,7 +1157,7 @@ const _: () = assert!(core::mem::align_of::<TryType21>() == 8, "TryType21 alignm
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType24Tag {
+pub enum TryType23Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1140,20 +1165,72 @@ pub enum TryType24Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType24 {
-    pub payload: TryType24Payload,
-    pub tag: TryType24Tag,
+pub struct TryType23 {
+    pub payload: TryType23Payload,
+    pub tag: TryType23Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType24Payload {
-    pub err: core::mem::ManuallyDrop<*mut c_void>,
+pub union TryType23Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
+}
+
+const _: () = assert!(core::mem::size_of::<TryType23>() == 40, "TryType23 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType23>() == 8, "TryType23 alignment mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TryType25Tag {
+    Err = 0,
+    Ok = 1,
+}
+
+/// Tag union: Try
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TryType25 {
+    pub payload: TryType25Payload,
+    pub tag: TryType25Tag,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union TryType25Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<()>,
+}
+
+const _: () = assert!(core::mem::size_of::<TryType25>() == 40, "TryType25 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType25>() == 8, "TryType25 alignment mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TryType26Tag {
+    Err = 0,
+    Ok = 1,
+}
+
+/// Tag union: Try
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TryType26 {
+    pub payload: TryType26Payload,
+    pub tag: TryType26Tag,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union TryType26Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<RocStr>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType24>() == 32, "TryType24 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType24>() == 8, "TryType24 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType26>() == 40, "TryType26 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType26>() == 8, "TryType26 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -1174,11 +1251,11 @@ pub struct TryType27 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType27Payload {
-    pub err: core::mem::ManuallyDrop<*mut c_void>,
-    pub ok: core::mem::ManuallyDrop<RocStr>,
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<u64>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType27>() == 32, "TryType27 size mismatch");
+const _: () = assert!(core::mem::size_of::<TryType27>() == 40, "TryType27 size mismatch");
 const _: () = assert!(core::mem::align_of::<TryType27>() == 8, "TryType27 alignment mismatch");
 
 /// Tag discriminant for Try.
@@ -1200,55 +1277,17 @@ pub struct TryType29 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TryType29Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<bool>,
 }
 
 const _: () = assert!(core::mem::size_of::<TryType29>() == 40, "TryType29 size mismatch");
 const _: () = assert!(core::mem::align_of::<TryType29>() == 8, "TryType29 alignment mismatch");
 
-/// Tag discriminant for IOErr.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType31Tag {
-    AlreadyExists = 0,
-    BrokenPipe = 1,
-    Interrupted = 2,
-    NotFound = 3,
-    Other = 4,
-    OutOfMemory = 5,
-    PermissionDenied = 6,
-    Unsupported = 7,
-}
-
-/// Tag union: IOErr
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct IOErrType31 {
-    pub payload: IOErrType31Payload,
-    pub tag: IOErrType31Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union IOErrType31Payload {
-    pub already_exists: [u8; 0],
-    pub broken_pipe: [u8; 0],
-    pub interrupted: [u8; 0],
-    pub not_found: [u8; 0],
-    pub other: core::mem::ManuallyDrop<RocStr>,
-    pub out_of_memory: [u8; 0],
-    pub permission_denied: [u8; 0],
-    pub unsupported: [u8; 0],
-}
-
-const _: () = assert!(core::mem::size_of::<IOErrType31>() == 32, "IOErrType31 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType31>() == 8, "IOErrType31 alignment mismatch");
-
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType35Tag {
+pub enum TryType30Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1256,181 +1295,25 @@ pub enum TryType35Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType35 {
-    pub payload: TryType35Payload,
-    pub tag: TryType35Tag,
+pub struct TryType30 {
+    pub payload: TryType30Payload,
+    pub tag: TryType30Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType35Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<()>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType35>() == 40, "TryType35 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType35>() == 8, "TryType35 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType38Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType38 {
-    pub payload: TryType38Payload,
-    pub tag: TryType38Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType38Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<RocStr>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType38>() == 40, "TryType38 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType38>() == 8, "TryType38 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType40Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType40 {
-    pub payload: TryType40Payload,
-    pub tag: TryType40Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType40Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<()>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType40>() == 40, "TryType40 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType40>() == 8, "TryType40 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType42Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType42 {
-    pub payload: TryType42Payload,
-    pub tag: TryType42Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType42Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<()>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType42>() == 40, "TryType42 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType42>() == 8, "TryType42 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType44Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType44 {
-    pub payload: TryType44Payload,
-    pub tag: TryType44Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType44Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<u64>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType44>() == 40, "TryType44 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType44>() == 8, "TryType44 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType47Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType47 {
-    pub payload: TryType47Payload,
-    pub tag: TryType47Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType47Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
-    pub ok: core::mem::ManuallyDrop<bool>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType47>() == 40, "TryType47 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType47>() == 8, "TryType47 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType50Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType50 {
-    pub payload: TryType50Payload,
-    pub tag: TryType50Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType50Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType31>,
+pub union TryType30Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<u128>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType50>() == 48, "TryType50 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType50>() == 16, "TryType50 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType30>() == 48, "TryType30 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType30>() == 16, "TryType30 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType62Tag {
+pub enum TryType37Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1438,63 +1321,25 @@ pub enum TryType62Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType62 {
-    pub payload: TryType62Payload,
-    pub tag: TryType62Tag,
+pub struct TryType37 {
+    pub payload: TryType37Payload,
+    pub tag: TryType37Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType62Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType63>,
-    pub ok: core::mem::ManuallyDrop<AnonStruct65>,
+pub union TryType37Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct38>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType62>() == 40, "TryType62 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType62>() == 8, "TryType62 alignment mismatch");
-
-/// Tag discriminant for IOErr.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType63Tag {
-    AlreadyExists = 0,
-    BrokenPipe = 1,
-    Interrupted = 2,
-    NotFound = 3,
-    Other = 4,
-    OutOfMemory = 5,
-    PermissionDenied = 6,
-    Unsupported = 7,
-}
-
-/// Tag union: IOErr
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct IOErrType63 {
-    pub payload: IOErrType63Payload,
-    pub tag: IOErrType63Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union IOErrType63Payload {
-    pub already_exists: [u8; 0],
-    pub broken_pipe: [u8; 0],
-    pub interrupted: [u8; 0],
-    pub not_found: [u8; 0],
-    pub other: core::mem::ManuallyDrop<RocStr>,
-    pub out_of_memory: [u8; 0],
-    pub permission_denied: [u8; 0],
-    pub unsupported: [u8; 0],
-}
-
-const _: () = assert!(core::mem::size_of::<IOErrType63>() == 32, "IOErrType63 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType63>() == 8, "IOErrType63 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType37>() == 40, "TryType37 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType37>() == 8, "TryType37 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType69Tag {
+pub enum TryType39Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1502,25 +1347,25 @@ pub enum TryType69Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType69 {
-    pub payload: TryType69Payload,
-    pub tag: TryType69Tag,
+pub struct TryType39 {
+    pub payload: TryType39Payload,
+    pub tag: TryType39Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType69Payload {
-    pub err: core::mem::ManuallyDrop<AnonStruct70>,
+pub union TryType39Payload {
+    pub err: core::mem::ManuallyDrop<AnonStruct40>,
     pub ok: core::mem::ManuallyDrop<*mut u64>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType69>() == 40, "TryType69 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType69>() == 8, "TryType69 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType39>() == 40, "TryType39 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType39>() == 8, "TryType39 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType75Tag {
+pub enum TryType43Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1528,20 +1373,20 @@ pub enum TryType75Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType75 {
-    pub payload: TryType75Payload,
-    pub tag: TryType75Tag,
+pub struct TryType43 {
+    pub payload: TryType43Payload,
+    pub tag: TryType43Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType75Payload {
-    pub err: core::mem::ManuallyDrop<AnonStruct70>,
+pub union TryType43Payload {
+    pub err: core::mem::ManuallyDrop<AnonStruct40>,
     pub ok: core::mem::ManuallyDrop<()>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType75>() == 40, "TryType75 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType75>() == 8, "TryType75 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType43>() == 40, "TryType43 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType43>() == 8, "TryType43 alignment mismatch");
 
 /// Tag discriminant for BytesOrIntegerOrNullOrRealOrString.
 #[repr(u8)]
@@ -1578,7 +1423,7 @@ const _: () = assert!(core::mem::align_of::<BytesOrIntegerOrNullOrRealOrString>(
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType84Tag {
+pub enum TryType48Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1586,25 +1431,25 @@ pub enum TryType84Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType84 {
-    pub payload: TryType84Payload,
-    pub tag: TryType84Tag,
+pub struct TryType48 {
+    pub payload: TryType48Payload,
+    pub tag: TryType48Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType84Payload {
-    pub err: core::mem::ManuallyDrop<AnonStruct70>,
+pub union TryType48Payload {
+    pub err: core::mem::ManuallyDrop<AnonStruct40>,
     pub ok: core::mem::ManuallyDrop<BytesOrIntegerOrNullOrRealOrString>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType84>() == 40, "TryType84 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType84>() == 8, "TryType84 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType48>() == 40, "TryType48 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType48>() == 8, "TryType48 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType85Tag {
+pub enum TryType49Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1612,25 +1457,25 @@ pub enum TryType85Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType85 {
-    pub payload: TryType85Payload,
-    pub tag: TryType85Tag,
+pub struct TryType49 {
+    pub payload: TryType49Payload,
+    pub tag: TryType49Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType85Payload {
-    pub err: core::mem::ManuallyDrop<AnonStruct70>,
+pub union TryType49Payload {
+    pub err: core::mem::ManuallyDrop<AnonStruct40>,
     pub ok: core::mem::ManuallyDrop<bool>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType85>() == 40, "TryType85 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType85>() == 8, "TryType85 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType49>() == 40, "TryType49 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType49>() == 8, "TryType49 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType87Tag {
+pub enum TryType50Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1638,63 +1483,25 @@ pub enum TryType87Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType87 {
-    pub payload: TryType87Payload,
-    pub tag: TryType87Tag,
+pub struct TryType50 {
+    pub payload: TryType50Payload,
+    pub tag: TryType50Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType87Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType89>,
+pub union TryType50Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<()>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType87>() == 40, "TryType87 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType87>() == 8, "TryType87 alignment mismatch");
-
-/// Tag discriminant for IOErr.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType89Tag {
-    AlreadyExists = 0,
-    BrokenPipe = 1,
-    Interrupted = 2,
-    NotFound = 3,
-    Other = 4,
-    OutOfMemory = 5,
-    PermissionDenied = 6,
-    Unsupported = 7,
-}
-
-/// Tag union: IOErr
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct IOErrType89 {
-    pub payload: IOErrType89Payload,
-    pub tag: IOErrType89Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union IOErrType89Payload {
-    pub already_exists: [u8; 0],
-    pub broken_pipe: [u8; 0],
-    pub interrupted: [u8; 0],
-    pub not_found: [u8; 0],
-    pub other: core::mem::ManuallyDrop<RocStr>,
-    pub out_of_memory: [u8; 0],
-    pub permission_denied: [u8; 0],
-    pub unsupported: [u8; 0],
-}
-
-const _: () = assert!(core::mem::size_of::<IOErrType89>() == 32, "IOErrType89 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType89>() == 8, "IOErrType89 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType50>() == 40, "TryType50 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType50>() == 8, "TryType50 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType92Tag {
+pub enum TryType52Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1702,25 +1509,25 @@ pub enum TryType92Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType92 {
-    pub payload: TryType92Payload,
-    pub tag: TryType92Tag,
+pub struct TryType52 {
+    pub payload: TryType52Payload,
+    pub tag: TryType52Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType92Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType89>,
+pub union TryType52Payload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
     pub ok: core::mem::ManuallyDrop<()>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType92>() == 40, "TryType92 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType92>() == 8, "TryType92 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType52>() == 40, "TryType52 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType52>() == 8, "TryType52 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType96Tag {
+pub enum TryType54Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1728,115 +1535,25 @@ pub enum TryType96Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType96 {
-    pub payload: TryType96Payload,
-    pub tag: TryType96Tag,
+pub struct TryType54 {
+    pub payload: TryType54Payload,
+    pub tag: TryType54Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType96Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType98>,
-    pub ok: core::mem::ManuallyDrop<()>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType96>() == 40, "TryType96 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType96>() == 8, "TryType96 alignment mismatch");
-
-/// Tag discriminant for IOErr.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IOErrType98Tag {
-    AlreadyExists = 0,
-    BrokenPipe = 1,
-    Interrupted = 2,
-    NotFound = 3,
-    Other = 4,
-    OutOfMemory = 5,
-    PermissionDenied = 6,
-    Unsupported = 7,
-}
-
-/// Tag union: IOErr
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct IOErrType98 {
-    pub payload: IOErrType98Payload,
-    pub tag: IOErrType98Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union IOErrType98Payload {
-    pub already_exists: [u8; 0],
-    pub broken_pipe: [u8; 0],
-    pub interrupted: [u8; 0],
-    pub not_found: [u8; 0],
-    pub other: core::mem::ManuallyDrop<RocStr>,
-    pub out_of_memory: [u8; 0],
-    pub permission_denied: [u8; 0],
-    pub unsupported: [u8; 0],
-}
-
-const _: () = assert!(core::mem::size_of::<IOErrType98>() == 32, "IOErrType98 size mismatch");
-const _: () = assert!(core::mem::align_of::<IOErrType98>() == 8, "IOErrType98 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType101Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType101 {
-    pub payload: TryType101Payload,
-    pub tag: TryType101Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType101Payload {
-    pub err: core::mem::ManuallyDrop<IOErrType98>,
-    pub ok: core::mem::ManuallyDrop<()>,
-}
-
-const _: () = assert!(core::mem::size_of::<TryType101>() == 40, "TryType101 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType101>() == 8, "TryType101 alignment mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType105Tag {
-    Err = 0,
-    Ok = 1,
-}
-
-/// Tag union: Try
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryType105 {
-    pub payload: TryType105Payload,
-    pub tag: TryType105Tag,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union TryType105Payload {
+pub union TryType54Payload {
     pub err: core::mem::ManuallyDrop<RocStr>,
     pub ok: core::mem::ManuallyDrop<*mut u64>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType105>() == 32, "TryType105 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType105>() == 8, "TryType105 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType54>() == 32, "TryType54 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType54>() == 8, "TryType54 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType110Tag {
+pub enum TryType56Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1844,25 +1561,25 @@ pub enum TryType110Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType110 {
-    pub payload: TryType110Payload,
-    pub tag: TryType110Tag,
+pub struct TryType56 {
+    pub payload: TryType56Payload,
+    pub tag: TryType56Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType110Payload {
+pub union TryType56Payload {
     pub err: core::mem::ManuallyDrop<RocStr>,
     pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType110>() == 32, "TryType110 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType110>() == 8, "TryType110 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType56>() == 32, "TryType56 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType56>() == 8, "TryType56 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType113Tag {
+pub enum TryType57Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1870,51 +1587,50 @@ pub enum TryType113Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType113 {
-    pub payload: TryType113Payload,
-    pub tag: TryType113Tag,
+pub struct TryType57 {
+    pub payload: TryType57Payload,
+    pub tag: TryType57Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType113Payload {
+pub union TryType57Payload {
     pub err: core::mem::ManuallyDrop<RocStr>,
     pub ok: core::mem::ManuallyDrop<()>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType113>() == 32, "TryType113 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType113>() == 8, "TryType113 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType57>() == 32, "TryType57 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType57>() == 8, "TryType57 alignment mismatch");
 
-/// Tag discriminant for CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE.
+/// Tag discriminant for Method.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag {
+pub enum MethodTag {
     CONNECT = 0,
     DELETE = 1,
-    EXTENSION = 2,
-    GET = 3,
-    HEAD = 4,
-    OPTIONS = 5,
-    PATCH = 6,
-    POST = 7,
-    PUT = 8,
-    TRACE = 9,
+    GET = 2,
+    HEAD = 3,
+    OPTIONS = 4,
+    PATCH = 5,
+    POST = 6,
+    PUT = 7,
+    TRACE = 8,
+    Unknown = 9,
 }
 
-/// Tag union: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE
+/// Tag union: Method
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE {
-    pub payload: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACEPayload,
-    pub tag: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag,
+pub struct Method {
+    pub payload: MethodPayload,
+    pub tag: MethodTag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACEPayload {
+pub union MethodPayload {
     pub connect: [u8; 0],
     pub delete: [u8; 0],
-    pub extension: core::mem::ManuallyDrop<RocStr>,
     pub get: [u8; 0],
     pub head: [u8; 0],
     pub options: [u8; 0],
@@ -1922,10 +1638,11 @@ pub union CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRAC
     pub post: [u8; 0],
     pub put: [u8; 0],
     pub trace: [u8; 0],
+    pub unknown: core::mem::ManuallyDrop<RocStr>,
 }
 
-const _: () = assert!(core::mem::size_of::<CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE>() == 32, "CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE size mismatch");
-const _: () = assert!(core::mem::align_of::<CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE>() == 8, "CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE alignment mismatch");
+const _: () = assert!(core::mem::size_of::<Method>() == 32, "Method size mismatch");
+const _: () = assert!(core::mem::align_of::<Method>() == 8, "Method alignment mismatch");
 
 /// Tag discriminant for NoTimeoutOrTimeoutMilliseconds.
 #[repr(u8)]
@@ -1956,7 +1673,7 @@ const _: () = assert!(core::mem::align_of::<NoTimeoutOrTimeoutMilliseconds>() ==
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType129Tag {
+pub enum TryType70Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1964,25 +1681,25 @@ pub enum TryType129Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType129 {
-    pub payload: TryType129Payload,
-    pub tag: TryType129Tag,
+pub struct TryType70 {
+    pub payload: TryType70Payload,
+    pub tag: TryType70Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType129Payload {
+pub union TryType70Payload {
     pub err: core::mem::ManuallyDrop<RocStr>,
-    pub ok: core::mem::ManuallyDrop<AnonStruct131>,
+    pub ok: core::mem::ManuallyDrop<Response>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType129>() == 64, "TryType129 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType129>() == 8, "TryType129 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType70>() == 64, "TryType70 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType70>() == 8, "TryType70 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType135Tag {
+pub enum TryType76Tag {
     Err = 0,
     Ok = 1,
 }
@@ -1990,25 +1707,25 @@ pub enum TryType135Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType135 {
-    pub payload: TryType135Payload,
-    pub tag: TryType135Tag,
+pub struct TryType76 {
+    pub payload: TryType76Payload,
+    pub tag: TryType76Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType135Payload {
+pub union TryType76Payload {
     pub err: core::mem::ManuallyDrop<i64>,
     pub ok: core::mem::ManuallyDrop<*mut c_void>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType135>() == 16, "TryType135 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType135>() == 8, "TryType135 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType76>() == 16, "TryType76 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType76>() == 8, "TryType76 alignment mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType139Tag {
+pub enum TryType80Tag {
     Err = 0,
     Ok = 1,
 }
@@ -2016,411 +1733,411 @@ pub enum TryType139Tag {
 /// Tag union: Try
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType139 {
-    pub payload: TryType139Payload,
-    pub tag: TryType139Tag,
+pub struct TryType80 {
+    pub payload: TryType80Payload,
+    pub tag: TryType80Tag,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType139Payload {
+pub union TryType80Payload {
     pub err: core::mem::ManuallyDrop<i64>,
     pub ok: core::mem::ManuallyDrop<RocBox>,
 }
 
-const _: () = assert!(core::mem::size_of::<TryType139>() == 16, "TryType139 size mismatch");
-const _: () = assert!(core::mem::align_of::<TryType139>() == 8, "TryType139 alignment mismatch");
+const _: () = assert!(core::mem::size_of::<TryType80>() == 16, "TryType80 size mismatch");
+const _: () = assert!(core::mem::align_of::<TryType80>() == 8, "TryType80 alignment mismatch");
 
-/// Return type record for Http.host_send_request!
+/// Return type record for Host.http_send_request!
 /// Fields ordered by alignment descending (Roc ABI)
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HttpHostSendRequestRetRecord {
+pub struct HostHttpSendRequestRetRecord {
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct57>,
+    pub headers: RocList<AnonStruct34>,
     pub status: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<HttpHostSendRequestRetRecord>() == 56, "HttpHostSendRequestRetRecord size mismatch");
-const _: () = assert!(core::mem::align_of::<HttpHostSendRequestRetRecord>() == 8, "HttpHostSendRequestRetRecord alignment mismatch");
+const _: () = assert!(core::mem::size_of::<HostHttpSendRequestRetRecord>() == 56, "HostHttpSendRequestRetRecord size mismatch");
+const _: () = assert!(core::mem::align_of::<HostHttpSendRequestRetRecord>() == 8, "HostHttpSendRequestRetRecord alignment mismatch");
 
-/// Arguments for Cmd.host_exec_exit_code!
-/// Roc signature: Cmd => Try(I32, IOErr)
+/// Arguments for Host.cmd_exec_exit_code!
+/// Roc signature: { args : List(Str), clear_envs : Bool, envs : List(Str), program : Str } => Try(I32, IOErr)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CmdHostExecExitCodeArgs {
+pub struct HostCmdExecExitCodeArgs {
     pub args: RocList<RocStr>,
     pub envs: RocList<RocStr>,
     pub program: RocStr,
     pub clear_envs: bool,
 }
 
-const _: () = assert!(core::mem::size_of::<CmdHostExecExitCodeArgs>() == 80, "CmdHostExecExitCodeArgs size mismatch");
-const _: () = assert!(core::mem::align_of::<CmdHostExecExitCodeArgs>() == 8, "CmdHostExecExitCodeArgs alignment mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 80, "HostCmdExecExitCodeArgs size mismatch");
+const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 8, "HostCmdExecExitCodeArgs alignment mismatch");
 
-/// Arguments for Cmd.host_exec_output!
-/// Roc signature: Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, Try({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }, IOErr))
+/// Arguments for Host.cmd_exec_output!
+/// Roc signature: { args : List(Str), clear_envs : Bool, envs : List(Str), program : Str } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, Try({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }, IOErr))
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CmdHostExecOutputArgs {
+pub struct HostCmdExecOutputArgs {
     pub args: RocList<RocStr>,
     pub envs: RocList<RocStr>,
     pub program: RocStr,
     pub clear_envs: bool,
 }
 
-const _: () = assert!(core::mem::size_of::<CmdHostExecOutputArgs>() == 80, "CmdHostExecOutputArgs size mismatch");
-const _: () = assert!(core::mem::align_of::<CmdHostExecOutputArgs>() == 8, "CmdHostExecOutputArgs alignment mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 80, "HostCmdExecOutputArgs size mismatch");
+const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 8, "HostCmdExecOutputArgs alignment mismatch");
 
-/// Arguments for Dir.create!
+/// Arguments for Host.dir_create!
 /// Roc signature: Str => Try({}, [DirErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DirCreateArgs {
+pub struct HostDirCreateArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Dir.create_all!
+/// Arguments for Host.dir_create_all!
 /// Roc signature: Str => Try({}, [DirErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DirCreateAllArgs {
+pub struct HostDirCreateAllArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Dir.delete_all!
+/// Arguments for Host.dir_delete_all!
 /// Roc signature: Str => Try({}, [DirErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DirDeleteAllArgs {
+pub struct HostDirDeleteAllArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Dir.delete_empty!
+/// Arguments for Host.dir_delete_empty!
 /// Roc signature: Str => Try({}, [DirErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DirDeleteEmptyArgs {
+pub struct HostDirDeleteEmptyArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Dir.list!
+/// Arguments for Host.dir_list!
 /// Roc signature: Str => Try(List(Str), [DirErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DirListArgs {
+pub struct HostDirListArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Env.var!
+/// Arguments for Host.env_var!
 /// Roc signature: Str => Try(Str, [VarNotFound(Str)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct EnvVarArgs {
+pub struct HostEnvVarArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.delete!
+/// Arguments for Host.file_delete!
 /// Roc signature: Str => Try({}, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileDeleteArgs {
+pub struct HostFileDeleteArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.is_executable!
+/// Arguments for Host.file_is_executable!
 /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileIsExecutableArgs {
+pub struct HostFileIsExecutableArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.is_readable!
+/// Arguments for Host.file_is_readable!
 /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileIsReadableArgs {
+pub struct HostFileIsReadableArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.is_writable!
+/// Arguments for Host.file_is_writable!
 /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileIsWritableArgs {
+pub struct HostFileIsWritableArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.read_bytes!
+/// Arguments for Host.file_read_bytes!
 /// Roc signature: Str => Try(List(U8), [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileReadBytesArgs {
+pub struct HostFileReadBytesArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.read_utf8!
+/// Arguments for Host.file_read_utf8!
 /// Roc signature: Str => Try(Str, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileReadUtf8Args {
+pub struct HostFileReadUtf8Args {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.size_in_bytes!
+/// Arguments for Host.file_size_in_bytes!
 /// Roc signature: Str => Try(U64, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileSizeInBytesArgs {
+pub struct HostFileSizeInBytesArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.time_accessed!
+/// Arguments for Host.file_time_accessed!
 /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileTimeAccessedArgs {
+pub struct HostFileTimeAccessedArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.time_created!
+/// Arguments for Host.file_time_created!
 /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileTimeCreatedArgs {
+pub struct HostFileTimeCreatedArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.time_modified!
+/// Arguments for Host.file_time_modified!
 /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileTimeModifiedArgs {
+pub struct HostFileTimeModifiedArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for File.write_bytes!
+/// Arguments for Host.file_write_bytes!
 /// Roc signature: Str, List(U8) => Try({}, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileWriteBytesArgs {
+pub struct HostFileWriteBytesArgs {
     pub arg0: RocStr,
     pub arg1: RocListWith<u8, false>,
 }
 
-/// Arguments for File.write_utf8!
+/// Arguments for Host.file_write_utf8!
 /// Roc signature: Str, Str => Try({}, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FileWriteUtf8Args {
+pub struct HostFileWriteUtf8Args {
     pub arg0: RocStr,
     pub arg1: RocStr,
 }
 
-/// Arguments for Http.host_send_request!
+/// Arguments for Host.http_send_request!
 /// Roc signature: { body : List(U8), headers : List((Str, Str)), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List((Str, Str)), status : U16 }
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HttpHostSendRequestArgs {
+pub struct HostHttpSendRequestArgs {
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
-    pub headers: RocList<AnonStruct57>,
+    pub headers: RocList<AnonStruct34>,
     pub method_ext: RocStr,
     pub uri: RocStr,
     pub method: u8,
 }
 
-const _: () = assert!(core::mem::size_of::<HttpHostSendRequestArgs>() == 112, "HttpHostSendRequestArgs size mismatch");
-const _: () = assert!(core::mem::align_of::<HttpHostSendRequestArgs>() == 8, "HttpHostSendRequestArgs alignment mismatch");
+const _: () = assert!(core::mem::size_of::<HostHttpSendRequestArgs>() == 112, "HostHttpSendRequestArgs size mismatch");
+const _: () = assert!(core::mem::align_of::<HostHttpSendRequestArgs>() == 8, "HostHttpSendRequestArgs alignment mismatch");
 
-/// Arguments for Path.host_path_type!
+/// Arguments for Host.path_type!
 /// Roc signature: List(U8) => Try({ is_dir : Bool, is_file : Bool, is_sym_link : Bool }, IOErr)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct PathHostPathTypeArgs {
+pub struct HostPathTypeArgs {
     pub arg0: RocListWith<u8, false>,
 }
 
-/// Arguments for Sqlite.host_bind!
-/// Roc signature: Sqlite.Stmt, List({ name : Str, value : [Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)] }) => Try({}, { code : I64, message : Str })
+/// Arguments for Host.sqlite_bind!
+/// Roc signature: Host.SqliteStmt, List({ name : Str, value : [Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)] }) => Try({}, { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostBindArgs {
+pub struct HostSqliteBindArgs {
     pub arg0: *mut u64,
-    pub arg1: RocList<AnonStruct78>,
+    pub arg1: RocList<AnonStruct45>,
 }
 
-/// Arguments for Sqlite.host_column_value!
-/// Roc signature: Sqlite.Stmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
+/// Arguments for Host.sqlite_column_value!
+/// Roc signature: Host.SqliteStmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostColumnValueArgs {
+pub struct HostSqliteColumnValueArgs {
     pub arg0: *mut u64,
     pub arg1: u64,
 }
 
-/// Arguments for Sqlite.host_columns!
-/// Roc signature: Sqlite.Stmt => List(Str)
+/// Arguments for Host.sqlite_columns!
+/// Roc signature: Host.SqliteStmt => List(Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostColumnsArgs {
+pub struct HostSqliteColumnsArgs {
     pub arg0: *mut u64,
 }
 
-/// Arguments for Sqlite.host_prepare!
-/// Roc signature: Str, Str => Try(Sqlite.Stmt, { code : I64, message : Str })
+/// Arguments for Host.sqlite_prepare!
+/// Roc signature: Str, Str => Try(Host.SqliteStmt, { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostPrepareArgs {
+pub struct HostSqlitePrepareArgs {
     pub arg0: RocStr,
     pub arg1: RocStr,
 }
 
-/// Arguments for Sqlite.host_reset!
-/// Roc signature: Sqlite.Stmt => Try({}, { code : I64, message : Str })
+/// Arguments for Host.sqlite_reset!
+/// Roc signature: Host.SqliteStmt => Try({}, { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostResetArgs {
+pub struct HostSqliteResetArgs {
     pub arg0: *mut u64,
 }
 
-/// Arguments for Sqlite.host_step!
-/// Roc signature: Sqlite.Stmt => Try(Bool, { code : I64, message : Str })
+/// Arguments for Host.sqlite_step!
+/// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SqliteHostStepArgs {
+pub struct HostSqliteStepArgs {
     pub arg0: *mut u64,
 }
 
-/// Arguments for Stderr.line!
+/// Arguments for Host.stderr_line!
 /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StderrLineArgs {
+pub struct HostStderrLineArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Stderr.write!
+/// Arguments for Host.stderr_write!
 /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StderrWriteArgs {
+pub struct HostStderrWriteArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Stderr.write_bytes!
+/// Arguments for Host.stderr_write_bytes!
 /// Roc signature: List(U8) => Try({}, [StderrErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StderrWriteBytesArgs {
+pub struct HostStderrWriteBytesArgs {
     pub arg0: RocListWith<u8, false>,
 }
 
-/// Arguments for Stdout.line!
+/// Arguments for Host.stdout_line!
 /// Roc signature: Str => Try({}, [StdoutErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StdoutLineArgs {
+pub struct HostStdoutLineArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Stdout.write!
+/// Arguments for Host.stdout_write!
 /// Roc signature: Str => Try({}, [StdoutErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StdoutWriteArgs {
+pub struct HostStdoutWriteArgs {
     pub arg0: RocStr,
 }
 
-/// Arguments for Stdout.write_bytes!
+/// Arguments for Host.stdout_write_bytes!
 /// Roc signature: List(U8) => Try({}, [StdoutErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StdoutWriteBytesArgs {
+pub struct HostStdoutWriteBytesArgs {
     pub arg0: RocListWith<u8, false>,
 }
 
-/// Arguments for Tcp.host_connect!
-/// Roc signature: Str, U16 => Try(Tcp.Stream, Str)
+/// Arguments for Host.tcp_connect!
+/// Roc signature: Str, U16 => Try(Host.TcpStream, Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TcpHostConnectArgs {
+pub struct HostTcpConnectArgs {
     pub arg0: RocStr,
     pub arg1: u16,
 }
 
-/// Arguments for Tcp.host_read_exactly!
-/// Roc signature: Tcp.Stream, U64 => Try(List(U8), Str)
+/// Arguments for Host.tcp_read_exactly!
+/// Roc signature: Host.TcpStream, U64 => Try(List(U8), Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TcpHostReadExactlyArgs {
+pub struct HostTcpReadExactlyArgs {
     pub arg0: *mut u64,
     pub arg1: u64,
 }
 
-/// Arguments for Tcp.host_read_until!
-/// Roc signature: Tcp.Stream, U8 => Try(List(U8), Str)
+/// Arguments for Host.tcp_read_until!
+/// Roc signature: Host.TcpStream, U8 => Try(List(U8), Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TcpHostReadUntilArgs {
+pub struct HostTcpReadUntilArgs {
     pub arg0: *mut u64,
     pub arg1: u8,
 }
 
-/// Arguments for Tcp.host_read_up_to!
-/// Roc signature: Tcp.Stream, U64 => Try(List(U8), Str)
+/// Arguments for Host.tcp_read_up_to!
+/// Roc signature: Host.TcpStream, U64 => Try(List(U8), Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TcpHostReadUpToArgs {
+pub struct HostTcpReadUpToArgs {
     pub arg0: *mut u64,
     pub arg1: u64,
 }
 
-/// Arguments for Tcp.host_write!
-/// Roc signature: Tcp.Stream, List(U8) => Try({}, Str)
+/// Arguments for Host.tcp_write!
+/// Roc signature: Host.TcpStream, List(U8) => Try({}, Str)
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TcpHostWriteArgs {
+pub struct HostTcpWriteArgs {
     pub arg0: *mut u64,
     pub arg1: RocListWith<u8, false>,
 }
@@ -2429,153 +2146,138 @@ pub struct TcpHostWriteArgs {
 // Semantic Type Aliases
 // =============================================================================
 
-pub type CmdHostExecExitCodeResult = TryType0;
-pub type CmdHostExecExitCodeResultPayload = TryType0Payload;
-pub type CmdHostExecExitCodeResultTag = TryType0Tag;
-pub type CmdIOErr = IOErrType1;
-pub type CmdIOErrPayload = IOErrType1Payload;
-pub type CmdIOErrTag = IOErrType1Tag;
-pub type CmdHostExecOutputResult = TryType7;
-pub type CmdHostExecOutputResultPayload = TryType7Payload;
-pub type CmdHostExecOutputResultTag = TryType7Tag;
-pub type CmdHostExecOutputErrResult = TryType8;
-pub type CmdHostExecOutputErrResultPayload = TryType8Payload;
-pub type CmdHostExecOutputErrResultTag = TryType8Tag;
-pub type CmdHostExecOutputErrOk = AnonStruct9;
-pub type CmdHostExecOutputOk = AnonStruct12;
-pub type DirCreateResult = TryType13;
-pub type DirCreateResultPayload = TryType13Payload;
-pub type DirCreateResultTag = TryType13Tag;
-pub type DirIOErr = IOErrType15;
-pub type DirIOErrPayload = IOErrType15Payload;
-pub type DirIOErrTag = IOErrType15Tag;
-pub type DirCreateAllResult = TryType13;
-pub type DirCreateAllResultPayload = TryType13Payload;
-pub type DirCreateAllResultTag = TryType13Tag;
-pub type DirDeleteAllResult = TryType13;
-pub type DirDeleteAllResultPayload = TryType13Payload;
-pub type DirDeleteAllResultTag = TryType13Tag;
-pub type DirDeleteEmptyResult = TryType13;
-pub type DirDeleteEmptyResultPayload = TryType13Payload;
-pub type DirDeleteEmptyResultTag = TryType13Tag;
-pub type DirListResult = TryType18;
-pub type DirListResultPayload = TryType18Payload;
-pub type DirListResultTag = TryType18Tag;
-pub type EnvCwdResult = TryType24;
-pub type EnvCwdResultPayload = TryType24Payload;
-pub type EnvCwdResultTag = TryType24Tag;
-pub type EnvExePathResult = TryType27;
-pub type EnvExePathResultPayload = TryType27Payload;
-pub type EnvExePathResultTag = TryType27Tag;
-pub type EnvVarResult = TryType21;
-pub type EnvVarResultPayload = TryType21Payload;
-pub type EnvVarResultTag = TryType21Tag;
-pub type FileDeleteResult = TryType42;
-pub type FileDeleteResultPayload = TryType42Payload;
-pub type FileDeleteResultTag = TryType42Tag;
-pub type FileIOErr = IOErrType31;
-pub type FileIOErrPayload = IOErrType31Payload;
-pub type FileIOErrTag = IOErrType31Tag;
-pub type FileIsExecutableResult = TryType47;
-pub type FileIsExecutableResultPayload = TryType47Payload;
-pub type FileIsExecutableResultTag = TryType47Tag;
-pub type FileIsReadableResult = TryType47;
-pub type FileIsReadableResultPayload = TryType47Payload;
-pub type FileIsReadableResultTag = TryType47Tag;
-pub type FileIsWritableResult = TryType47;
-pub type FileIsWritableResultPayload = TryType47Payload;
-pub type FileIsWritableResultTag = TryType47Tag;
-pub type FileReadBytesResult = TryType29;
-pub type FileReadBytesResultPayload = TryType29Payload;
-pub type FileReadBytesResultTag = TryType29Tag;
-pub type FileReadUtf8Result = TryType38;
-pub type FileReadUtf8ResultPayload = TryType38Payload;
-pub type FileReadUtf8ResultTag = TryType38Tag;
-pub type FileSizeInBytesResult = TryType44;
-pub type FileSizeInBytesResultPayload = TryType44Payload;
-pub type FileSizeInBytesResultTag = TryType44Tag;
-pub type FileTimeAccessedResult = TryType50;
-pub type FileTimeAccessedResultPayload = TryType50Payload;
-pub type FileTimeAccessedResultTag = TryType50Tag;
-pub type FileTimeCreatedResult = TryType50;
-pub type FileTimeCreatedResultPayload = TryType50Payload;
-pub type FileTimeCreatedResultTag = TryType50Tag;
-pub type FileTimeModifiedResult = TryType50;
-pub type FileTimeModifiedResultPayload = TryType50Payload;
-pub type FileTimeModifiedResultTag = TryType50Tag;
-pub type FileWriteBytesResult = TryType35;
-pub type FileWriteBytesResultPayload = TryType35Payload;
-pub type FileWriteBytesResultTag = TryType35Tag;
-pub type FileWriteUtf8Result = TryType40;
-pub type FileWriteUtf8ResultPayload = TryType40Payload;
-pub type FileWriteUtf8ResultTag = TryType40Tag;
-pub type HttpHostSendRequest = AnonStruct53;
-pub type PathHostPathTypeResult = TryType62;
-pub type PathHostPathTypeResultPayload = TryType62Payload;
-pub type PathHostPathTypeResultTag = TryType62Tag;
-pub type PathIOErr = IOErrType63;
-pub type PathIOErrPayload = IOErrType63Payload;
-pub type PathIOErrTag = IOErrType63Tag;
-pub type PathHostPathTypeOk = AnonStruct65;
-pub type SqliteHostBindResult = TryType75;
-pub type SqliteHostBindResultPayload = TryType75Payload;
-pub type SqliteHostBindResultTag = TryType75Tag;
-pub type SqliteHostBindErr = AnonStruct70;
-pub type SqliteHostColumnValueResult = TryType84;
-pub type SqliteHostColumnValueResultPayload = TryType84Payload;
-pub type SqliteHostColumnValueResultTag = TryType84Tag;
-pub type SqliteHostColumnValueErr = AnonStruct70;
-pub type SqliteHostPrepareResult = TryType69;
-pub type SqliteHostPrepareResultPayload = TryType69Payload;
-pub type SqliteHostPrepareResultTag = TryType69Tag;
-pub type SqliteHostPrepareErr = AnonStruct70;
-pub type SqliteHostResetResult = TryType75;
-pub type SqliteHostResetResultPayload = TryType75Payload;
-pub type SqliteHostResetResultTag = TryType75Tag;
-pub type SqliteHostResetErr = AnonStruct70;
-pub type SqliteHostStepResult = TryType85;
-pub type SqliteHostStepResultPayload = TryType85Payload;
-pub type SqliteHostStepResultTag = TryType85Tag;
-pub type SqliteHostStepErr = AnonStruct70;
-pub type StderrLineResult = TryType87;
-pub type StderrLineResultPayload = TryType87Payload;
-pub type StderrLineResultTag = TryType87Tag;
-pub type StderrIOErr = IOErrType89;
-pub type StderrIOErrPayload = IOErrType89Payload;
-pub type StderrIOErrTag = IOErrType89Tag;
-pub type StderrWriteResult = TryType87;
-pub type StderrWriteResultPayload = TryType87Payload;
-pub type StderrWriteResultTag = TryType87Tag;
-pub type StderrWriteBytesResult = TryType92;
-pub type StderrWriteBytesResultPayload = TryType92Payload;
-pub type StderrWriteBytesResultTag = TryType92Tag;
-pub type StdoutLineResult = TryType96;
-pub type StdoutLineResultPayload = TryType96Payload;
-pub type StdoutLineResultTag = TryType96Tag;
-pub type StdoutIOErr = IOErrType98;
-pub type StdoutIOErrPayload = IOErrType98Payload;
-pub type StdoutIOErrTag = IOErrType98Tag;
-pub type StdoutWriteResult = TryType96;
-pub type StdoutWriteResultPayload = TryType96Payload;
-pub type StdoutWriteResultTag = TryType96Tag;
-pub type StdoutWriteBytesResult = TryType101;
-pub type StdoutWriteBytesResultPayload = TryType101Payload;
-pub type StdoutWriteBytesResultTag = TryType101Tag;
-pub type TcpHostConnectResult = TryType105;
-pub type TcpHostConnectResultPayload = TryType105Payload;
-pub type TcpHostConnectResultTag = TryType105Tag;
-pub type TcpHostReadExactlyResult = TryType110;
-pub type TcpHostReadExactlyResultPayload = TryType110Payload;
-pub type TcpHostReadExactlyResultTag = TryType110Tag;
-pub type TcpHostReadUntilResult = TryType110;
-pub type TcpHostReadUntilResultPayload = TryType110Payload;
-pub type TcpHostReadUntilResultTag = TryType110Tag;
-pub type TcpHostReadUpToResult = TryType110;
-pub type TcpHostReadUpToResultPayload = TryType110Payload;
-pub type TcpHostReadUpToResultTag = TryType110Tag;
-pub type TcpHostWriteResult = TryType113;
-pub type TcpHostWriteResultPayload = TryType113Payload;
-pub type TcpHostWriteResultTag = TryType113Tag;
+pub type HostCmdExecExitCodeResult = TryType0;
+pub type HostCmdExecExitCodeResultPayload = TryType0Payload;
+pub type HostCmdExecExitCodeResultTag = TryType0Tag;
+pub type HostIOErr = IOErr;
+pub type HostIOErrPayload = IOErrPayload;
+pub type HostIOErrTag = IOErrTag;
+pub type HostCmdExecOutputResult = TryType7;
+pub type HostCmdExecOutputResultPayload = TryType7Payload;
+pub type HostCmdExecOutputResultTag = TryType7Tag;
+pub type HostCmdExecOutputErrResult = TryType8;
+pub type HostCmdExecOutputErrResultPayload = TryType8Payload;
+pub type HostCmdExecOutputErrResultTag = TryType8Tag;
+pub type HostCmdExecOutputErrOk = AnonStruct9;
+pub type HostCmdExecOutputOk = AnonStruct12;
+pub type HostDirCreateResult = TryType13;
+pub type HostDirCreateResultPayload = TryType13Payload;
+pub type HostDirCreateResultTag = TryType13Tag;
+pub type HostDirCreateAllResult = TryType13;
+pub type HostDirCreateAllResultPayload = TryType13Payload;
+pub type HostDirCreateAllResultTag = TryType13Tag;
+pub type HostDirDeleteAllResult = TryType13;
+pub type HostDirDeleteAllResultPayload = TryType13Payload;
+pub type HostDirDeleteAllResultTag = TryType13Tag;
+pub type HostDirDeleteEmptyResult = TryType13;
+pub type HostDirDeleteEmptyResultPayload = TryType13Payload;
+pub type HostDirDeleteEmptyResultTag = TryType13Tag;
+pub type HostDirListResult = TryType16;
+pub type HostDirListResultPayload = TryType16Payload;
+pub type HostDirListResultTag = TryType16Tag;
+pub type HostEnvCwdResult = TryType19;
+pub type HostEnvCwdResultPayload = TryType19Payload;
+pub type HostEnvCwdResultTag = TryType19Tag;
+pub type HostEnvExePathResult = TryType21;
+pub type HostEnvExePathResultPayload = TryType21Payload;
+pub type HostEnvExePathResultTag = TryType21Tag;
+pub type HostEnvVarResult = TryType17;
+pub type HostEnvVarResultPayload = TryType17Payload;
+pub type HostEnvVarResultTag = TryType17Tag;
+pub type HostFileDeleteResult = TryType25;
+pub type HostFileDeleteResultPayload = TryType25Payload;
+pub type HostFileDeleteResultTag = TryType25Tag;
+pub type HostFileIsExecutableResult = TryType29;
+pub type HostFileIsExecutableResultPayload = TryType29Payload;
+pub type HostFileIsExecutableResultTag = TryType29Tag;
+pub type HostFileIsReadableResult = TryType29;
+pub type HostFileIsReadableResultPayload = TryType29Payload;
+pub type HostFileIsReadableResultTag = TryType29Tag;
+pub type HostFileIsWritableResult = TryType29;
+pub type HostFileIsWritableResultPayload = TryType29Payload;
+pub type HostFileIsWritableResultTag = TryType29Tag;
+pub type HostFileReadBytesResult = TryType23;
+pub type HostFileReadBytesResultPayload = TryType23Payload;
+pub type HostFileReadBytesResultTag = TryType23Tag;
+pub type HostFileReadUtf8Result = TryType26;
+pub type HostFileReadUtf8ResultPayload = TryType26Payload;
+pub type HostFileReadUtf8ResultTag = TryType26Tag;
+pub type HostFileSizeInBytesResult = TryType27;
+pub type HostFileSizeInBytesResultPayload = TryType27Payload;
+pub type HostFileSizeInBytesResultTag = TryType27Tag;
+pub type HostFileTimeAccessedResult = TryType30;
+pub type HostFileTimeAccessedResultPayload = TryType30Payload;
+pub type HostFileTimeAccessedResultTag = TryType30Tag;
+pub type HostFileTimeCreatedResult = TryType30;
+pub type HostFileTimeCreatedResultPayload = TryType30Payload;
+pub type HostFileTimeCreatedResultTag = TryType30Tag;
+pub type HostFileTimeModifiedResult = TryType30;
+pub type HostFileTimeModifiedResultPayload = TryType30Payload;
+pub type HostFileTimeModifiedResultTag = TryType30Tag;
+pub type HostFileWriteBytesResult = TryType25;
+pub type HostFileWriteBytesResultPayload = TryType25Payload;
+pub type HostFileWriteBytesResultTag = TryType25Tag;
+pub type HostFileWriteUtf8Result = TryType25;
+pub type HostFileWriteUtf8ResultPayload = TryType25Payload;
+pub type HostFileWriteUtf8ResultTag = TryType25Tag;
+pub type HostHttpSendRequest = AnonStruct32;
+pub type HostPathTypeResult = TryType37;
+pub type HostPathTypeResultPayload = TryType37Payload;
+pub type HostPathTypeResultTag = TryType37Tag;
+pub type HostPathTypeOk = AnonStruct38;
+pub type HostSqliteBindResult = TryType43;
+pub type HostSqliteBindResultPayload = TryType43Payload;
+pub type HostSqliteBindResultTag = TryType43Tag;
+pub type HostSqliteBindErr = AnonStruct40;
+pub type HostSqliteColumnValueResult = TryType48;
+pub type HostSqliteColumnValueResultPayload = TryType48Payload;
+pub type HostSqliteColumnValueResultTag = TryType48Tag;
+pub type HostSqliteColumnValueErr = AnonStruct40;
+pub type HostSqlitePrepareResult = TryType39;
+pub type HostSqlitePrepareResultPayload = TryType39Payload;
+pub type HostSqlitePrepareResultTag = TryType39Tag;
+pub type HostSqlitePrepareErr = AnonStruct40;
+pub type HostSqliteResetResult = TryType43;
+pub type HostSqliteResetResultPayload = TryType43Payload;
+pub type HostSqliteResetResultTag = TryType43Tag;
+pub type HostSqliteResetErr = AnonStruct40;
+pub type HostSqliteStepResult = TryType49;
+pub type HostSqliteStepResultPayload = TryType49Payload;
+pub type HostSqliteStepResultTag = TryType49Tag;
+pub type HostSqliteStepErr = AnonStruct40;
+pub type HostStderrLineResult = TryType52;
+pub type HostStderrLineResultPayload = TryType52Payload;
+pub type HostStderrLineResultTag = TryType52Tag;
+pub type HostStderrWriteResult = TryType52;
+pub type HostStderrWriteResultPayload = TryType52Payload;
+pub type HostStderrWriteResultTag = TryType52Tag;
+pub type HostStderrWriteBytesResult = TryType52;
+pub type HostStderrWriteBytesResultPayload = TryType52Payload;
+pub type HostStderrWriteBytesResultTag = TryType52Tag;
+pub type HostStdoutLineResult = TryType50;
+pub type HostStdoutLineResultPayload = TryType50Payload;
+pub type HostStdoutLineResultTag = TryType50Tag;
+pub type HostStdoutWriteResult = TryType50;
+pub type HostStdoutWriteResultPayload = TryType50Payload;
+pub type HostStdoutWriteResultTag = TryType50Tag;
+pub type HostStdoutWriteBytesResult = TryType50;
+pub type HostStdoutWriteBytesResultPayload = TryType50Payload;
+pub type HostStdoutWriteBytesResultTag = TryType50Tag;
+pub type HostTcpConnectResult = TryType54;
+pub type HostTcpConnectResultPayload = TryType54Payload;
+pub type HostTcpConnectResultTag = TryType54Tag;
+pub type HostTcpReadExactlyResult = TryType56;
+pub type HostTcpReadExactlyResultPayload = TryType56Payload;
+pub type HostTcpReadExactlyResultTag = TryType56Tag;
+pub type HostTcpReadUntilResult = TryType56;
+pub type HostTcpReadUntilResultPayload = TryType56Payload;
+pub type HostTcpReadUntilResultTag = TryType56Tag;
+pub type HostTcpReadUpToResult = TryType56;
+pub type HostTcpReadUpToResultPayload = TryType56Payload;
+pub type HostTcpReadUpToResultTag = TryType56Tag;
+pub type HostTcpWriteResult = TryType57;
+pub type HostTcpWriteResultPayload = TryType57Payload;
+pub type HostTcpWriteResultTag = TryType57Tag;
 
 // =============================================================================
 // Generated Refcount Helpers
@@ -2587,7 +2289,7 @@ pub fn decref_try_type0(value: TryType0, roc_host: &RocHost) {
     match value.tag {
         TryType0Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type1(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
         TryType0Tag::Ok => {},
     }
@@ -2599,50 +2301,50 @@ pub fn incref_try_type0(value: TryType0, amount: isize) {
     match value.tag {
         TryType0Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type1(payload, amount);
+            incref_ioerr(payload, amount);
         },
         TryType0Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in IOErrType1.
-pub fn decref_ioerr_type1(value: IOErrType1, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in IOErr.
+pub fn decref_ioerr(value: IOErr, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        IOErrType1Tag::AlreadyExists => {},
-        IOErrType1Tag::BrokenPipe => {},
-        IOErrType1Tag::Interrupted => {},
-        IOErrType1Tag::NotFound => {},
-        IOErrType1Tag::Other => unsafe {
+        IOErrTag::AlreadyExists => {},
+        IOErrTag::BrokenPipe => {},
+        IOErrTag::Interrupted => {},
+        IOErrTag::NotFound => {},
+        IOErrTag::Other => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
             payload.decref(roc_host);
         },
-        IOErrType1Tag::OutOfMemory => {},
-        IOErrType1Tag::PermissionDenied => {},
-        IOErrType1Tag::Unsupported => {},
+        IOErrTag::OutOfMemory => {},
+        IOErrTag::PermissionDenied => {},
+        IOErrTag::Unsupported => {},
     }
 }
 
-/// Increment Roc-owned payloads in IOErrType1.
-pub fn incref_ioerr_type1(value: IOErrType1, amount: isize) {
+/// Increment Roc-owned payloads in IOErr.
+pub fn incref_ioerr(value: IOErr, amount: isize) {
     let _ = amount;
     match value.tag {
-        IOErrType1Tag::AlreadyExists => {},
-        IOErrType1Tag::BrokenPipe => {},
-        IOErrType1Tag::Interrupted => {},
-        IOErrType1Tag::NotFound => {},
-        IOErrType1Tag::Other => unsafe {
+        IOErrTag::AlreadyExists => {},
+        IOErrTag::BrokenPipe => {},
+        IOErrTag::Interrupted => {},
+        IOErrTag::NotFound => {},
+        IOErrTag::Other => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
             payload.incref(amount);
         },
-        IOErrType1Tag::OutOfMemory => {},
-        IOErrType1Tag::PermissionDenied => {},
-        IOErrType1Tag::Unsupported => {},
+        IOErrTag::OutOfMemory => {},
+        IOErrTag::PermissionDenied => {},
+        IOErrTag::Unsupported => {},
     }
 }
 
-/// Recursively decrement Roc-owned fields in Cmd.
-pub fn decref_cmd(value: Cmd, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct4.
+pub fn decref_anon_struct4(value: AnonStruct4, roc_host: &RocHost) {
     {
         let list = value.args;
         if list.has_one_ref() {
@@ -2666,8 +2368,8 @@ pub fn decref_cmd(value: Cmd, roc_host: &RocHost) {
     value.program.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in Cmd.
-pub fn incref_cmd(value: Cmd, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct4.
+pub fn incref_anon_struct4(value: AnonStruct4, amount: isize) {
     value.args.incref(amount);
     value.envs.incref(amount);
     value.program.incref(amount);
@@ -2709,7 +2411,7 @@ pub fn decref_try_type8(value: TryType8, roc_host: &RocHost) {
     match value.tag {
         TryType8Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type1(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
         TryType8Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
@@ -2724,7 +2426,7 @@ pub fn incref_try_type8(value: TryType8, amount: isize) {
     match value.tag {
         TryType8Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type1(payload, amount);
+            incref_ioerr(payload, amount);
         },
         TryType8Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
@@ -2763,7 +2465,7 @@ pub fn decref_try_type13(value: TryType13, roc_host: &RocHost) {
     match value.tag {
         TryType13Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type15(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
         TryType13Tag::Ok => {},
     }
@@ -2775,57 +2477,21 @@ pub fn incref_try_type13(value: TryType13, amount: isize) {
     match value.tag {
         TryType13Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type15(payload, amount);
+            incref_ioerr(payload, amount);
         },
         TryType13Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in IOErrType15.
-pub fn decref_ioerr_type15(value: IOErrType15, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType16.
+pub fn decref_try_type16(value: TryType16, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        IOErrType15Tag::AlreadyExists => {},
-        IOErrType15Tag::BrokenPipe => {},
-        IOErrType15Tag::Interrupted => {},
-        IOErrType15Tag::NotFound => {},
-        IOErrType15Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.decref(roc_host);
-        },
-        IOErrType15Tag::OutOfMemory => {},
-        IOErrType15Tag::PermissionDenied => {},
-        IOErrType15Tag::Unsupported => {},
-    }
-}
-
-/// Increment Roc-owned payloads in IOErrType15.
-pub fn incref_ioerr_type15(value: IOErrType15, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        IOErrType15Tag::AlreadyExists => {},
-        IOErrType15Tag::BrokenPipe => {},
-        IOErrType15Tag::Interrupted => {},
-        IOErrType15Tag::NotFound => {},
-        IOErrType15Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.incref(amount);
-        },
-        IOErrType15Tag::OutOfMemory => {},
-        IOErrType15Tag::PermissionDenied => {},
-        IOErrType15Tag::Unsupported => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType18.
-pub fn decref_try_type18(value: TryType18, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType18Tag::Err => unsafe {
+        TryType16Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type15(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
-        TryType18Tag::Ok => unsafe {
+        TryType16Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             {
                 let list = payload;
@@ -2841,15 +2507,69 @@ pub fn decref_try_type18(value: TryType18, roc_host: &RocHost) {
     }
 }
 
-/// Increment Roc-owned payloads in TryType18.
-pub fn incref_try_type18(value: TryType18, amount: isize) {
+/// Increment Roc-owned payloads in TryType16.
+pub fn incref_try_type16(value: TryType16, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType18Tag::Err => unsafe {
+        TryType16Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type15(payload, amount);
+            incref_ioerr(payload, amount);
         },
-        TryType18Tag::Ok => unsafe {
+        TryType16Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.incref(amount);
+        },
+    }
+}
+
+/// Recursively decrement Roc-owned payloads in TryType17.
+pub fn decref_try_type17(value: TryType17, roc_host: &RocHost) {
+    let _ = roc_host;
+    match value.tag {
+        TryType17Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            payload.decref(roc_host);
+        },
+        TryType17Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.decref(roc_host);
+        },
+    }
+}
+
+/// Increment Roc-owned payloads in TryType17.
+pub fn incref_try_type17(value: TryType17, amount: isize) {
+    let _ = amount;
+    match value.tag {
+        TryType17Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            payload.incref(amount);
+        },
+        TryType17Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.incref(amount);
+        },
+    }
+}
+
+/// Recursively decrement Roc-owned payloads in TryType19.
+pub fn decref_try_type19(value: TryType19, roc_host: &RocHost) {
+    let _ = roc_host;
+    match value.tag {
+        TryType19Tag::Err => {},
+        TryType19Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.decref(roc_host);
+        },
+    }
+}
+
+/// Increment Roc-owned payloads in TryType19.
+pub fn incref_try_type19(value: TryType19, amount: isize) {
+    let _ = amount;
+    match value.tag {
+        TryType19Tag::Err => {},
+        TryType19Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.incref(amount);
         },
@@ -2860,10 +2580,7 @@ pub fn incref_try_type18(value: TryType18, amount: isize) {
 pub fn decref_try_type21(value: TryType21, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType21Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            payload.decref(roc_host);
-        },
+        TryType21Tag::Err => {},
         TryType21Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.decref(roc_host);
@@ -2875,10 +2592,7 @@ pub fn decref_try_type21(value: TryType21, roc_host: &RocHost) {
 pub fn incref_try_type21(value: TryType21, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType21Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            payload.incref(amount);
-        },
+        TryType21Tag::Err => {},
         TryType21Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.incref(amount);
@@ -2886,24 +2600,84 @@ pub fn incref_try_type21(value: TryType21, amount: isize) {
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType24.
-pub fn decref_try_type24(value: TryType24, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType23.
+pub fn decref_try_type23(value: TryType23, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType24Tag::Err => {},
-        TryType24Tag::Ok => unsafe {
+        TryType23Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
+        },
+        TryType23Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.decref(roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType24.
-pub fn incref_try_type24(value: TryType24, amount: isize) {
+/// Increment Roc-owned payloads in TryType23.
+pub fn incref_try_type23(value: TryType23, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType24Tag::Err => {},
-        TryType24Tag::Ok => unsafe {
+        TryType23Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            incref_ioerr(payload, amount);
+        },
+        TryType23Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.incref(amount);
+        },
+    }
+}
+
+/// Recursively decrement Roc-owned payloads in TryType25.
+pub fn decref_try_type25(value: TryType25, roc_host: &RocHost) {
+    let _ = roc_host;
+    match value.tag {
+        TryType25Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
+        },
+        TryType25Tag::Ok => {},
+    }
+}
+
+/// Increment Roc-owned payloads in TryType25.
+pub fn incref_try_type25(value: TryType25, amount: isize) {
+    let _ = amount;
+    match value.tag {
+        TryType25Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            incref_ioerr(payload, amount);
+        },
+        TryType25Tag::Ok => {},
+    }
+}
+
+/// Recursively decrement Roc-owned payloads in TryType26.
+pub fn decref_try_type26(value: TryType26, roc_host: &RocHost) {
+    let _ = roc_host;
+    match value.tag {
+        TryType26Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
+        },
+        TryType26Tag::Ok => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
+            payload.decref(roc_host);
+        },
+    }
+}
+
+/// Increment Roc-owned payloads in TryType26.
+pub fn incref_try_type26(value: TryType26, amount: isize) {
+    let _ = amount;
+    match value.tag {
+        TryType26Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            incref_ioerr(payload, amount);
+        },
+        TryType26Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.incref(amount);
         },
@@ -2914,11 +2688,11 @@ pub fn incref_try_type24(value: TryType24, amount: isize) {
 pub fn decref_try_type27(value: TryType27, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType27Tag::Err => {},
-        TryType27Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.decref(roc_host);
+        TryType27Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
         },
+        TryType27Tag::Ok => {},
     }
 }
 
@@ -2926,11 +2700,11 @@ pub fn decref_try_type27(value: TryType27, roc_host: &RocHost) {
 pub fn incref_try_type27(value: TryType27, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType27Tag::Err => {},
-        TryType27Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.incref(amount);
+        TryType27Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            incref_ioerr(payload, amount);
         },
+        TryType27Tag::Ok => {},
     }
 }
 
@@ -2940,12 +2714,9 @@ pub fn decref_try_type29(value: TryType29, roc_host: &RocHost) {
     match value.tag {
         TryType29Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
-        TryType29Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.decref(roc_host);
-        },
+        TryType29Tag::Ok => {},
     }
 }
 
@@ -2955,267 +2726,78 @@ pub fn incref_try_type29(value: TryType29, amount: isize) {
     match value.tag {
         TryType29Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
+            incref_ioerr(payload, amount);
         },
-        TryType29Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.incref(amount);
-        },
+        TryType29Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in IOErrType31.
-pub fn decref_ioerr_type31(value: IOErrType31, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType30.
+pub fn decref_try_type30(value: TryType30, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        IOErrType31Tag::AlreadyExists => {},
-        IOErrType31Tag::BrokenPipe => {},
-        IOErrType31Tag::Interrupted => {},
-        IOErrType31Tag::NotFound => {},
-        IOErrType31Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.decref(roc_host);
+        TryType30Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
         },
-        IOErrType31Tag::OutOfMemory => {},
-        IOErrType31Tag::PermissionDenied => {},
-        IOErrType31Tag::Unsupported => {},
+        TryType30Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in IOErrType31.
-pub fn incref_ioerr_type31(value: IOErrType31, amount: isize) {
+/// Increment Roc-owned payloads in TryType30.
+pub fn incref_try_type30(value: TryType30, amount: isize) {
     let _ = amount;
     match value.tag {
-        IOErrType31Tag::AlreadyExists => {},
-        IOErrType31Tag::BrokenPipe => {},
-        IOErrType31Tag::Interrupted => {},
-        IOErrType31Tag::NotFound => {},
-        IOErrType31Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.incref(amount);
-        },
-        IOErrType31Tag::OutOfMemory => {},
-        IOErrType31Tag::PermissionDenied => {},
-        IOErrType31Tag::Unsupported => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType35.
-pub fn decref_try_type35(value: TryType35, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType35Tag::Err => unsafe {
+        TryType30Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
+            incref_ioerr(payload, amount);
         },
-        TryType35Tag::Ok => {},
+        TryType30Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType35.
-pub fn incref_try_type35(value: TryType35, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType35Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType35Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType38.
-pub fn decref_try_type38(value: TryType38, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType38Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType38Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.decref(roc_host);
-        },
-    }
-}
-
-/// Increment Roc-owned payloads in TryType38.
-pub fn incref_try_type38(value: TryType38, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType38Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType38Tag::Ok => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            payload.incref(amount);
-        },
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType40.
-pub fn decref_try_type40(value: TryType40, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType40Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType40Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType40.
-pub fn incref_try_type40(value: TryType40, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType40Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType40Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType42.
-pub fn decref_try_type42(value: TryType42, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType42Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType42Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType42.
-pub fn incref_try_type42(value: TryType42, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType42Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType42Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType44.
-pub fn decref_try_type44(value: TryType44, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType44Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType44Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType44.
-pub fn incref_try_type44(value: TryType44, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType44Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType44Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType47.
-pub fn decref_try_type47(value: TryType47, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType47Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType47Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType47.
-pub fn incref_try_type47(value: TryType47, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType47Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType47Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType50.
-pub fn decref_try_type50(value: TryType50, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType50Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type31(payload, roc_host);
-        },
-        TryType50Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType50.
-pub fn incref_try_type50(value: TryType50, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType50Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type31(payload, amount);
-        },
-        TryType50Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned fields in AnonStruct53.
-pub fn decref_anon_struct53(value: AnonStruct53, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct32.
+pub fn decref_anon_struct32(value: AnonStruct32, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct57(item, roc_host);
+                    decref_anon_struct34(item, roc_host);
             }
         }
         list.decref(roc_host);
     }
 }
 
-/// Increment Roc-owned fields in AnonStruct53.
-pub fn incref_anon_struct53(value: AnonStruct53, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct32.
+pub fn incref_anon_struct32(value: AnonStruct32, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct57.
-pub fn decref_anon_struct57(value: AnonStruct57, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct34.
+pub fn decref_anon_struct34(value: AnonStruct34, roc_host: &RocHost) {
     value._0.decref(roc_host);
     value._1.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct57.
-pub fn incref_anon_struct57(value: AnonStruct57, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct34.
+pub fn incref_anon_struct34(value: AnonStruct34, amount: isize) {
     value._0.incref(amount);
     value._1.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct60.
-pub fn decref_anon_struct60(value: AnonStruct60, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct36.
+pub fn decref_anon_struct36(value: AnonStruct36, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct57(item, roc_host);
+                    decref_anon_struct34(item, roc_host);
             }
         }
         list.decref(roc_host);
@@ -3224,164 +2806,128 @@ pub fn decref_anon_struct60(value: AnonStruct60, roc_host: &RocHost) {
     value.uri.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct60.
-pub fn incref_anon_struct60(value: AnonStruct60, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct36.
+pub fn incref_anon_struct36(value: AnonStruct36, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
     value.method_ext.incref(amount);
     value.uri.incref(amount);
 }
 
-/// Recursively decrement Roc-owned payloads in TryType62.
-pub fn decref_try_type62(value: TryType62, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType37.
+pub fn decref_try_type37(value: TryType37, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType62Tag::Err => unsafe {
+        TryType37Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type63(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
-        TryType62Tag::Ok => unsafe {
+        TryType37Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            decref_anon_struct65(payload, roc_host);
+            decref_anon_struct38(payload, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType62.
-pub fn incref_try_type62(value: TryType62, amount: isize) {
+/// Increment Roc-owned payloads in TryType37.
+pub fn incref_try_type37(value: TryType37, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType62Tag::Err => unsafe {
+        TryType37Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type63(payload, amount);
+            incref_ioerr(payload, amount);
         },
-        TryType62Tag::Ok => unsafe {
+        TryType37Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            incref_anon_struct65(payload, amount);
+            incref_anon_struct38(payload, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned payloads in IOErrType63.
-pub fn decref_ioerr_type63(value: IOErrType63, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        IOErrType63Tag::AlreadyExists => {},
-        IOErrType63Tag::BrokenPipe => {},
-        IOErrType63Tag::Interrupted => {},
-        IOErrType63Tag::NotFound => {},
-        IOErrType63Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.decref(roc_host);
-        },
-        IOErrType63Tag::OutOfMemory => {},
-        IOErrType63Tag::PermissionDenied => {},
-        IOErrType63Tag::Unsupported => {},
-    }
-}
-
-/// Increment Roc-owned payloads in IOErrType63.
-pub fn incref_ioerr_type63(value: IOErrType63, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        IOErrType63Tag::AlreadyExists => {},
-        IOErrType63Tag::BrokenPipe => {},
-        IOErrType63Tag::Interrupted => {},
-        IOErrType63Tag::NotFound => {},
-        IOErrType63Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.incref(amount);
-        },
-        IOErrType63Tag::OutOfMemory => {},
-        IOErrType63Tag::PermissionDenied => {},
-        IOErrType63Tag::Unsupported => {},
-    }
-}
-
-/// Recursively decrement Roc-owned fields in AnonStruct65.
-pub fn decref_anon_struct65(value: AnonStruct65, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct38.
+pub fn decref_anon_struct38(value: AnonStruct38, roc_host: &RocHost) {
     let _ = value;
     let _ = roc_host;
 }
 
-/// Increment Roc-owned fields in AnonStruct65.
-pub fn incref_anon_struct65(value: AnonStruct65, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct38.
+pub fn incref_anon_struct38(value: AnonStruct38, amount: isize) {
     let _ = value;
     let _ = amount;
 }
 
-/// Recursively decrement Roc-owned payloads in TryType69.
-pub fn decref_try_type69(value: TryType69, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType39.
+pub fn decref_try_type39(value: TryType39, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType69Tag::Err => unsafe {
+        TryType39Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_anon_struct70(payload, roc_host);
+            decref_anon_struct40(payload, roc_host);
         },
-        TryType69Tag::Ok => unsafe {
+        TryType39Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType69.
-pub fn incref_try_type69(value: TryType69, amount: isize) {
+/// Increment Roc-owned payloads in TryType39.
+pub fn incref_try_type39(value: TryType39, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType69Tag::Err => unsafe {
+        TryType39Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_anon_struct70(payload, amount);
+            incref_anon_struct40(payload, amount);
         },
-        TryType69Tag::Ok => unsafe {
+        TryType39Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             incref_box(payload as RocBox, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct70.
-pub fn decref_anon_struct70(value: AnonStruct70, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct40.
+pub fn decref_anon_struct40(value: AnonStruct40, roc_host: &RocHost) {
     value.message.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct70.
-pub fn incref_anon_struct70(value: AnonStruct70, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct40.
+pub fn incref_anon_struct40(value: AnonStruct40, amount: isize) {
     value.message.incref(amount);
 }
 
-/// Recursively decrement Roc-owned payloads in TryType75.
-pub fn decref_try_type75(value: TryType75, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType43.
+pub fn decref_try_type43(value: TryType43, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType75Tag::Err => unsafe {
+        TryType43Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_anon_struct70(payload, roc_host);
+            decref_anon_struct40(payload, roc_host);
         },
-        TryType75Tag::Ok => {},
+        TryType43Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType75.
-pub fn incref_try_type75(value: TryType75, amount: isize) {
+/// Increment Roc-owned payloads in TryType43.
+pub fn incref_try_type43(value: TryType43, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType75Tag::Err => unsafe {
+        TryType43Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_anon_struct70(payload, amount);
+            incref_anon_struct40(payload, amount);
         },
-        TryType75Tag::Ok => {},
+        TryType43Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct78.
-pub fn decref_anon_struct78(value: AnonStruct78, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct45.
+pub fn decref_anon_struct45(value: AnonStruct45, roc_host: &RocHost) {
     decref_bytes_or_integer_or_null_or_real_or_string(value.value, roc_host);
     value.name.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct78.
-pub fn incref_anon_struct78(value: AnonStruct78, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct45.
+pub fn incref_anon_struct45(value: AnonStruct45, amount: isize) {
     incref_bytes_or_integer_or_null_or_real_or_string(value.value, amount);
     value.name.incref(amount);
 }
@@ -3422,326 +2968,206 @@ pub fn incref_bytes_or_integer_or_null_or_real_or_string(value: BytesOrIntegerOr
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType84.
-pub fn decref_try_type84(value: TryType84, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType48.
+pub fn decref_try_type48(value: TryType48, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType84Tag::Err => unsafe {
+        TryType48Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_anon_struct70(payload, roc_host);
+            decref_anon_struct40(payload, roc_host);
         },
-        TryType84Tag::Ok => unsafe {
+        TryType48Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             decref_bytes_or_integer_or_null_or_real_or_string(payload, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType84.
-pub fn incref_try_type84(value: TryType84, amount: isize) {
+/// Increment Roc-owned payloads in TryType48.
+pub fn incref_try_type48(value: TryType48, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType84Tag::Err => unsafe {
+        TryType48Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_anon_struct70(payload, amount);
+            incref_anon_struct40(payload, amount);
         },
-        TryType84Tag::Ok => unsafe {
+        TryType48Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             incref_bytes_or_integer_or_null_or_real_or_string(payload, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType85.
-pub fn decref_try_type85(value: TryType85, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType49.
+pub fn decref_try_type49(value: TryType49, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType85Tag::Err => unsafe {
+        TryType49Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_anon_struct70(payload, roc_host);
+            decref_anon_struct40(payload, roc_host);
         },
-        TryType85Tag::Ok => {},
+        TryType49Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType85.
-pub fn incref_try_type85(value: TryType85, amount: isize) {
+/// Increment Roc-owned payloads in TryType49.
+pub fn incref_try_type49(value: TryType49, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType85Tag::Err => unsafe {
+        TryType49Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_anon_struct70(payload, amount);
+            incref_anon_struct40(payload, amount);
         },
-        TryType85Tag::Ok => {},
+        TryType49Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType87.
-pub fn decref_try_type87(value: TryType87, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType50.
+pub fn decref_try_type50(value: TryType50, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType87Tag::Err => unsafe {
+        TryType50Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type89(payload, roc_host);
+            decref_ioerr(payload, roc_host);
         },
-        TryType87Tag::Ok => {},
+        TryType50Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType87.
-pub fn incref_try_type87(value: TryType87, amount: isize) {
+/// Increment Roc-owned payloads in TryType50.
+pub fn incref_try_type50(value: TryType50, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType87Tag::Err => unsafe {
+        TryType50Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type89(payload, amount);
+            incref_ioerr(payload, amount);
         },
-        TryType87Tag::Ok => {},
+        TryType50Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in IOErrType89.
-pub fn decref_ioerr_type89(value: IOErrType89, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType52.
+pub fn decref_try_type52(value: TryType52, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        IOErrType89Tag::AlreadyExists => {},
-        IOErrType89Tag::BrokenPipe => {},
-        IOErrType89Tag::Interrupted => {},
-        IOErrType89Tag::NotFound => {},
-        IOErrType89Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.decref(roc_host);
+        TryType52Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            decref_ioerr(payload, roc_host);
         },
-        IOErrType89Tag::OutOfMemory => {},
-        IOErrType89Tag::PermissionDenied => {},
-        IOErrType89Tag::Unsupported => {},
+        TryType52Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in IOErrType89.
-pub fn incref_ioerr_type89(value: IOErrType89, amount: isize) {
+/// Increment Roc-owned payloads in TryType52.
+pub fn incref_try_type52(value: TryType52, amount: isize) {
     let _ = amount;
     match value.tag {
-        IOErrType89Tag::AlreadyExists => {},
-        IOErrType89Tag::BrokenPipe => {},
-        IOErrType89Tag::Interrupted => {},
-        IOErrType89Tag::NotFound => {},
-        IOErrType89Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.incref(amount);
+        TryType52Tag::Err => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
+            incref_ioerr(payload, amount);
         },
-        IOErrType89Tag::OutOfMemory => {},
-        IOErrType89Tag::PermissionDenied => {},
-        IOErrType89Tag::Unsupported => {},
+        TryType52Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType92.
-pub fn decref_try_type92(value: TryType92, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType54.
+pub fn decref_try_type54(value: TryType54, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType92Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type89(payload, roc_host);
-        },
-        TryType92Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType92.
-pub fn incref_try_type92(value: TryType92, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType92Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type89(payload, amount);
-        },
-        TryType92Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType96.
-pub fn decref_try_type96(value: TryType96, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType96Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type98(payload, roc_host);
-        },
-        TryType96Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType96.
-pub fn incref_try_type96(value: TryType96, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType96Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type98(payload, amount);
-        },
-        TryType96Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in IOErrType98.
-pub fn decref_ioerr_type98(value: IOErrType98, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        IOErrType98Tag::AlreadyExists => {},
-        IOErrType98Tag::BrokenPipe => {},
-        IOErrType98Tag::Interrupted => {},
-        IOErrType98Tag::NotFound => {},
-        IOErrType98Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.decref(roc_host);
-        },
-        IOErrType98Tag::OutOfMemory => {},
-        IOErrType98Tag::PermissionDenied => {},
-        IOErrType98Tag::Unsupported => {},
-    }
-}
-
-/// Increment Roc-owned payloads in IOErrType98.
-pub fn incref_ioerr_type98(value: IOErrType98, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        IOErrType98Tag::AlreadyExists => {},
-        IOErrType98Tag::BrokenPipe => {},
-        IOErrType98Tag::Interrupted => {},
-        IOErrType98Tag::NotFound => {},
-        IOErrType98Tag::Other => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.other);
-            payload.incref(amount);
-        },
-        IOErrType98Tag::OutOfMemory => {},
-        IOErrType98Tag::PermissionDenied => {},
-        IOErrType98Tag::Unsupported => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType101.
-pub fn decref_try_type101(value: TryType101, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType101Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            decref_ioerr_type98(payload, roc_host);
-        },
-        TryType101Tag::Ok => {},
-    }
-}
-
-/// Increment Roc-owned payloads in TryType101.
-pub fn incref_try_type101(value: TryType101, amount: isize) {
-    let _ = amount;
-    match value.tag {
-        TryType101Tag::Err => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
-            incref_ioerr_type98(payload, amount);
-        },
-        TryType101Tag::Ok => {},
-    }
-}
-
-/// Recursively decrement Roc-owned payloads in TryType105.
-pub fn decref_try_type105(value: TryType105, roc_host: &RocHost) {
-    let _ = roc_host;
-    match value.tag {
-        TryType105Tag::Err => unsafe {
+        TryType54Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.decref(roc_host);
         },
-        TryType105Tag::Ok => unsafe {
+        TryType54Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType105.
-pub fn incref_try_type105(value: TryType105, amount: isize) {
+/// Increment Roc-owned payloads in TryType54.
+pub fn incref_try_type54(value: TryType54, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType105Tag::Err => unsafe {
+        TryType54Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.incref(amount);
         },
-        TryType105Tag::Ok => unsafe {
+        TryType54Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             incref_box(payload as RocBox, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType110.
-pub fn decref_try_type110(value: TryType110, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType56.
+pub fn decref_try_type56(value: TryType56, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType110Tag::Err => unsafe {
+        TryType56Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.decref(roc_host);
         },
-        TryType110Tag::Ok => unsafe {
+        TryType56Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.decref(roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType110.
-pub fn incref_try_type110(value: TryType110, amount: isize) {
+/// Increment Roc-owned payloads in TryType56.
+pub fn incref_try_type56(value: TryType56, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType110Tag::Err => unsafe {
+        TryType56Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.incref(amount);
         },
-        TryType110Tag::Ok => unsafe {
+        TryType56Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             payload.incref(amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType113.
-pub fn decref_try_type113(value: TryType113, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType57.
+pub fn decref_try_type57(value: TryType57, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType113Tag::Err => unsafe {
+        TryType57Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.decref(roc_host);
         },
-        TryType113Tag::Ok => {},
+        TryType57Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType113.
-pub fn incref_try_type113(value: TryType113, amount: isize) {
+/// Increment Roc-owned payloads in TryType57.
+pub fn incref_try_type57(value: TryType57, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType113Tag::Err => unsafe {
+        TryType57Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.incref(amount);
         },
-        TryType113Tag::Ok => {},
+        TryType57Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct117.
-pub fn decref_anon_struct117(value: AnonStruct117, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct58.
+pub fn decref_anon_struct58(value: AnonStruct58, roc_host: &RocHost) {
     let _ = value;
     let _ = roc_host;
 }
 
-/// Increment Roc-owned fields in AnonStruct117.
-pub fn incref_anon_struct117(value: AnonStruct117, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct58.
+pub fn incref_anon_struct58(value: AnonStruct58, amount: isize) {
     let _ = value;
     let _ = amount;
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct119.
-pub fn decref_anon_struct119(value: AnonStruct119, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in Request.
+pub fn decref_request(value: Request, roc_host: &RocHost) {
     decref_no_timeout_or_timeout_milliseconds(value.timeout_ms, roc_host);
     value.body.decref(roc_host);
     {
@@ -3749,73 +3175,73 @@ pub fn decref_anon_struct119(value: AnonStruct119, roc_host: &RocHost) {
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct123(item, roc_host);
+                    decref_anon_struct64(item, roc_host);
             }
         }
         list.decref(roc_host);
     }
-    decref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value.method, roc_host);
+    decref_method(value.method, roc_host);
     value.uri.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct119.
-pub fn incref_anon_struct119(value: AnonStruct119, amount: isize) {
+/// Increment Roc-owned fields in Request.
+pub fn incref_request(value: Request, amount: isize) {
     incref_no_timeout_or_timeout_milliseconds(value.timeout_ms, amount);
     value.body.incref(amount);
     value.headers.incref(amount);
-    incref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value.method, amount);
+    incref_method(value.method, amount);
     value.uri.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct123.
-pub fn decref_anon_struct123(value: AnonStruct123, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct64.
+pub fn decref_anon_struct64(value: AnonStruct64, roc_host: &RocHost) {
     value._0.decref(roc_host);
     value._1.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct123.
-pub fn incref_anon_struct123(value: AnonStruct123, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct64.
+pub fn incref_anon_struct64(value: AnonStruct64, amount: isize) {
     value._0.incref(amount);
     value._1.incref(amount);
 }
 
-/// Recursively decrement Roc-owned payloads in CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE.
-pub fn decref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in Method.
+pub fn decref_method(value: Method, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::CONNECT => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::DELETE => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::EXTENSION => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.extension);
+        MethodTag::CONNECT => {},
+        MethodTag::DELETE => {},
+        MethodTag::GET => {},
+        MethodTag::HEAD => {},
+        MethodTag::OPTIONS => {},
+        MethodTag::PATCH => {},
+        MethodTag::POST => {},
+        MethodTag::PUT => {},
+        MethodTag::TRACE => {},
+        MethodTag::Unknown => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.unknown);
             payload.decref(roc_host);
         },
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::GET => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::HEAD => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::OPTIONS => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::PATCH => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::POST => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::PUT => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::TRACE => {},
     }
 }
 
-/// Increment Roc-owned payloads in CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE.
-pub fn incref_connector_deleteor_extensionor_getor_heador_optionsor_patchor_postor_putor_trace(value: CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACE, amount: isize) {
+/// Increment Roc-owned payloads in Method.
+pub fn incref_method(value: Method, amount: isize) {
     let _ = amount;
     match value.tag {
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::CONNECT => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::DELETE => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::EXTENSION => unsafe {
-            let payload = core::mem::ManuallyDrop::into_inner(value.payload.extension);
+        MethodTag::CONNECT => {},
+        MethodTag::DELETE => {},
+        MethodTag::GET => {},
+        MethodTag::HEAD => {},
+        MethodTag::OPTIONS => {},
+        MethodTag::PATCH => {},
+        MethodTag::POST => {},
+        MethodTag::PUT => {},
+        MethodTag::TRACE => {},
+        MethodTag::Unknown => unsafe {
+            let payload = core::mem::ManuallyDrop::into_inner(value.payload.unknown);
             payload.incref(amount);
         },
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::GET => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::HEAD => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::OPTIONS => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::PATCH => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::POST => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::PUT => {},
-        CONNECTOrDELETEOrEXTENSIONOrGETOrHEADOrOPTIONSOrPATCHOrPOSTOrPUTOrTRACETag::TRACE => {},
     }
 }
 
@@ -3837,108 +3263,108 @@ pub fn incref_no_timeout_or_timeout_milliseconds(value: NoTimeoutOrTimeoutMillis
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType129.
-pub fn decref_try_type129(value: TryType129, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType70.
+pub fn decref_try_type70(value: TryType70, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType129Tag::Err => unsafe {
+        TryType70Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.decref(roc_host);
         },
-        TryType129Tag::Ok => unsafe {
+        TryType70Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            decref_anon_struct131(payload, roc_host);
+            decref_response(payload, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType129.
-pub fn incref_try_type129(value: TryType129, amount: isize) {
+/// Increment Roc-owned payloads in TryType70.
+pub fn incref_try_type70(value: TryType70, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType129Tag::Err => unsafe {
+        TryType70Tag::Err => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.err);
             payload.incref(amount);
         },
-        TryType129Tag::Ok => unsafe {
+        TryType70Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
-            incref_anon_struct131(payload, amount);
+            incref_response(payload, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct131.
-pub fn decref_anon_struct131(value: AnonStruct131, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in Response.
+pub fn decref_response(value: Response, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct123(item, roc_host);
+                    decref_anon_struct64(item, roc_host);
             }
         }
         list.decref(roc_host);
     }
 }
 
-/// Increment Roc-owned fields in AnonStruct131.
-pub fn incref_anon_struct131(value: AnonStruct131, amount: isize) {
+/// Increment Roc-owned fields in Response.
+pub fn incref_response(value: Response, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
 }
 
-/// Recursively decrement Roc-owned payloads in TryType135.
-pub fn decref_try_type135(value: TryType135, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType76.
+pub fn decref_try_type76(value: TryType76, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType135Tag::Err => {},
-        TryType135Tag::Ok => {},
+        TryType76Tag::Err => {},
+        TryType76Tag::Ok => {},
     }
 }
 
-/// Increment Roc-owned payloads in TryType135.
-pub fn incref_try_type135(value: TryType135, amount: isize) {
+/// Increment Roc-owned payloads in TryType76.
+pub fn incref_try_type76(value: TryType76, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType135Tag::Err => {},
-        TryType135Tag::Ok => {},
+        TryType76Tag::Err => {},
+        TryType76Tag::Ok => {},
     }
 }
 
-/// Recursively decrement Roc-owned payloads in TryType139.
-pub fn decref_try_type139(value: TryType139, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned payloads in TryType80.
+pub fn decref_try_type80(value: TryType80, roc_host: &RocHost) {
     let _ = roc_host;
     match value.tag {
-        TryType139Tag::Err => {},
-        TryType139Tag::Ok => unsafe {
+        TryType80Tag::Err => {},
+        TryType80Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             decref_box(payload as RocBox, roc_host);
         },
     }
 }
 
-/// Increment Roc-owned payloads in TryType139.
-pub fn incref_try_type139(value: TryType139, amount: isize) {
+/// Increment Roc-owned payloads in TryType80.
+pub fn incref_try_type80(value: TryType80, amount: isize) {
     let _ = amount;
     match value.tag {
-        TryType139Tag::Err => {},
-        TryType139Tag::Ok => unsafe {
+        TryType80Tag::Err => {},
+        TryType80Tag::Ok => unsafe {
             let payload = core::mem::ManuallyDrop::into_inner(value.payload.ok);
             incref_box(payload as RocBox, amount);
         },
     }
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct143.
-pub fn decref_anon_struct143(value: AnonStruct143, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct84.
+pub fn decref_anon_struct84(value: AnonStruct84, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct123(item, roc_host);
+                    decref_anon_struct86(item, roc_host);
             }
         }
         list.decref(roc_host);
@@ -3947,31 +3373,43 @@ pub fn decref_anon_struct143(value: AnonStruct143, roc_host: &RocHost) {
     value.uri.decref(roc_host);
 }
 
-/// Increment Roc-owned fields in AnonStruct143.
-pub fn incref_anon_struct143(value: AnonStruct143, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct84.
+pub fn incref_anon_struct84(value: AnonStruct84, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
     value.method_ext.incref(amount);
     value.uri.incref(amount);
 }
 
-/// Recursively decrement Roc-owned fields in AnonStruct145.
-pub fn decref_anon_struct145(value: AnonStruct145, roc_host: &RocHost) {
+/// Recursively decrement Roc-owned fields in AnonStruct86.
+pub fn decref_anon_struct86(value: AnonStruct86, roc_host: &RocHost) {
+    value._0.decref(roc_host);
+    value._1.decref(roc_host);
+}
+
+/// Increment Roc-owned fields in AnonStruct86.
+pub fn incref_anon_struct86(value: AnonStruct86, amount: isize) {
+    value._0.incref(amount);
+    value._1.incref(amount);
+}
+
+/// Recursively decrement Roc-owned fields in AnonStruct88.
+pub fn decref_anon_struct88(value: AnonStruct88, roc_host: &RocHost) {
     value.body.decref(roc_host);
     {
         let list = value.headers;
         if list.has_one_ref() {
             for item_ref in list.allocation_items() {
                 let item = *item_ref;
-                    decref_anon_struct123(item, roc_host);
+                    decref_anon_struct86(item, roc_host);
             }
         }
         list.decref(roc_host);
     }
 }
 
-/// Increment Roc-owned fields in AnonStruct145.
-pub fn incref_anon_struct145(value: AnonStruct145, amount: isize) {
+/// Increment Roc-owned fields in AnonStruct88.
+pub fn incref_anon_struct88(value: AnonStruct88, amount: isize) {
     value.body.incref(amount);
     value.headers.incref(amount);
 }
@@ -4002,175 +3440,175 @@ unsafe extern "C" {
 
 #[allow(improper_ctypes)]
 unsafe extern "C" {
-    /// Hosted symbol for Cmd.host_exec_exit_code!
-    /// Roc signature: Cmd => Try(I32, IOErr)
-    pub fn hosted_cmd_host_exec_exit_code(arg0: Cmd) -> TryType0;
+    /// Hosted symbol for Host.cmd_exec_exit_code!
+    /// Roc signature: { args : List(Str), clear_envs : Bool, envs : List(Str), program : Str } => Try(I32, IOErr)
+    pub fn hosted_cmd_host_exec_exit_code(arg0: HostCmdExecExitCodeArgs) -> TryType0;
 
-    /// Hosted symbol for Cmd.host_exec_output!
-    /// Roc signature: Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, Try({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }, IOErr))
-    pub fn hosted_cmd_host_exec_output(arg0: Cmd) -> TryType7;
+    /// Hosted symbol for Host.cmd_exec_output!
+    /// Roc signature: { args : List(Str), clear_envs : Bool, envs : List(Str), program : Str } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, Try({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }, IOErr))
+    pub fn hosted_cmd_host_exec_output(arg0: HostCmdExecOutputArgs) -> TryType7;
 
-    /// Hosted symbol for Dir.create!
+    /// Hosted symbol for Host.dir_create!
     /// Roc signature: Str => Try({}, [DirErr(IOErr)])
     pub fn hosted_dir_create(arg0: RocStr) -> TryType13;
 
-    /// Hosted symbol for Dir.create_all!
+    /// Hosted symbol for Host.dir_create_all!
     /// Roc signature: Str => Try({}, [DirErr(IOErr)])
     pub fn hosted_dir_create_all(arg0: RocStr) -> TryType13;
 
-    /// Hosted symbol for Dir.delete_all!
+    /// Hosted symbol for Host.dir_delete_all!
     /// Roc signature: Str => Try({}, [DirErr(IOErr)])
     pub fn hosted_dir_delete_all(arg0: RocStr) -> TryType13;
 
-    /// Hosted symbol for Dir.delete_empty!
+    /// Hosted symbol for Host.dir_delete_empty!
     /// Roc signature: Str => Try({}, [DirErr(IOErr)])
     pub fn hosted_dir_delete_empty(arg0: RocStr) -> TryType13;
 
-    /// Hosted symbol for Dir.list!
+    /// Hosted symbol for Host.dir_list!
     /// Roc signature: Str => Try(List(Str), [DirErr(IOErr)])
-    pub fn hosted_dir_list(arg0: RocStr) -> TryType18;
+    pub fn hosted_dir_list(arg0: RocStr) -> TryType16;
 
-    /// Hosted symbol for Env.cwd!
+    /// Hosted symbol for Host.env_cwd!
     /// Roc signature: {} => Try(Str, [CwdUnavailable])
-    pub fn hosted_env_cwd() -> TryType24;
+    pub fn hosted_env_cwd() -> TryType19;
 
-    /// Hosted symbol for Env.exe_path!
+    /// Hosted symbol for Host.env_exe_path!
     /// Roc signature: {} => Try(Str, [ExePathUnavailable])
-    pub fn hosted_env_exe_path() -> TryType27;
+    pub fn hosted_env_exe_path() -> TryType21;
 
-    /// Hosted symbol for Env.temp_dir!
+    /// Hosted symbol for Host.env_temp_dir!
     /// Roc signature: {} => Str
     pub fn hosted_env_temp_dir() -> RocStr;
 
-    /// Hosted symbol for Env.var!
+    /// Hosted symbol for Host.env_var!
     /// Roc signature: Str => Try(Str, [VarNotFound(Str)])
-    pub fn hosted_env_var(arg0: RocStr) -> TryType21;
+    pub fn hosted_env_var(arg0: RocStr) -> TryType17;
 
-    /// Hosted symbol for File.delete!
+    /// Hosted symbol for Host.file_delete!
     /// Roc signature: Str => Try({}, [FileErr(IOErr)])
-    pub fn hosted_file_delete(arg0: RocStr) -> TryType42;
+    pub fn hosted_file_delete(arg0: RocStr) -> TryType25;
 
-    /// Hosted symbol for File.is_executable!
+    /// Hosted symbol for Host.file_is_executable!
     /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
-    pub fn hosted_file_is_executable(arg0: RocStr) -> TryType47;
+    pub fn hosted_file_is_executable(arg0: RocStr) -> TryType29;
 
-    /// Hosted symbol for File.is_readable!
+    /// Hosted symbol for Host.file_is_readable!
     /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
-    pub fn hosted_file_is_readable(arg0: RocStr) -> TryType47;
+    pub fn hosted_file_is_readable(arg0: RocStr) -> TryType29;
 
-    /// Hosted symbol for File.is_writable!
+    /// Hosted symbol for Host.file_is_writable!
     /// Roc signature: Str => Try(Bool, [FileErr(IOErr)])
-    pub fn hosted_file_is_writable(arg0: RocStr) -> TryType47;
+    pub fn hosted_file_is_writable(arg0: RocStr) -> TryType29;
 
-    /// Hosted symbol for File.read_bytes!
+    /// Hosted symbol for Host.file_read_bytes!
     /// Roc signature: Str => Try(List(U8), [FileErr(IOErr)])
-    pub fn hosted_file_read_bytes(arg0: RocStr) -> TryType29;
+    pub fn hosted_file_read_bytes(arg0: RocStr) -> TryType23;
 
-    /// Hosted symbol for File.read_utf8!
+    /// Hosted symbol for Host.file_read_utf8!
     /// Roc signature: Str => Try(Str, [FileErr(IOErr)])
-    pub fn hosted_file_read_utf8(arg0: RocStr) -> TryType38;
+    pub fn hosted_file_read_utf8(arg0: RocStr) -> TryType26;
 
-    /// Hosted symbol for File.size_in_bytes!
+    /// Hosted symbol for Host.file_size_in_bytes!
     /// Roc signature: Str => Try(U64, [FileErr(IOErr)])
-    pub fn hosted_file_size_in_bytes(arg0: RocStr) -> TryType44;
+    pub fn hosted_file_size_in_bytes(arg0: RocStr) -> TryType27;
 
-    /// Hosted symbol for File.time_accessed!
+    /// Hosted symbol for Host.file_time_accessed!
     /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
-    pub fn hosted_file_time_accessed(arg0: RocStr) -> TryType50;
+    pub fn hosted_file_time_accessed(arg0: RocStr) -> TryType30;
 
-    /// Hosted symbol for File.time_created!
+    /// Hosted symbol for Host.file_time_created!
     /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
-    pub fn hosted_file_time_created(arg0: RocStr) -> TryType50;
+    pub fn hosted_file_time_created(arg0: RocStr) -> TryType30;
 
-    /// Hosted symbol for File.time_modified!
+    /// Hosted symbol for Host.file_time_modified!
     /// Roc signature: Str => Try(U128, [FileErr(IOErr)])
-    pub fn hosted_file_time_modified(arg0: RocStr) -> TryType50;
+    pub fn hosted_file_time_modified(arg0: RocStr) -> TryType30;
 
-    /// Hosted symbol for File.write_bytes!
+    /// Hosted symbol for Host.file_write_bytes!
     /// Roc signature: Str, List(U8) => Try({}, [FileErr(IOErr)])
-    pub fn hosted_file_write_bytes(arg0: RocStr, arg1: RocListWith<u8, false>) -> TryType35;
+    pub fn hosted_file_write_bytes(arg0: RocStr, arg1: RocListWith<u8, false>) -> TryType25;
 
-    /// Hosted symbol for File.write_utf8!
+    /// Hosted symbol for Host.file_write_utf8!
     /// Roc signature: Str, Str => Try({}, [FileErr(IOErr)])
-    pub fn hosted_file_write_utf8(arg0: RocStr, arg1: RocStr) -> TryType40;
+    pub fn hosted_file_write_utf8(arg0: RocStr, arg1: RocStr) -> TryType25;
 
-    /// Hosted symbol for Http.host_send_request!
+    /// Hosted symbol for Host.http_send_request!
     /// Roc signature: { body : List(U8), headers : List((Str, Str)), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => { body : List(U8), headers : List((Str, Str)), status : U16 }
-    pub fn hosted_http_send_request(arg0: HttpHostSendRequestArgs) -> AnonStruct53;
+    pub fn hosted_http_send_request(arg0: HostHttpSendRequestArgs) -> AnonStruct32;
 
-    /// Hosted symbol for Path.host_path_type!
+    /// Hosted symbol for Host.path_type!
     /// Roc signature: List(U8) => Try({ is_dir : Bool, is_file : Bool, is_sym_link : Bool }, IOErr)
-    pub fn hosted_path_type(arg0: RocListWith<u8, false>) -> TryType62;
+    pub fn hosted_path_type(arg0: RocListWith<u8, false>) -> TryType37;
 
-    /// Hosted symbol for Sqlite.host_bind!
-    /// Roc signature: Sqlite.Stmt, List({ name : Str, value : [Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)] }) => Try({}, { code : I64, message : Str })
-    pub fn hosted_sqlite_bind(arg0: *mut u64, arg1: RocList<AnonStruct78>) -> TryType75;
+    /// Hosted symbol for Host.sqlite_bind!
+    /// Roc signature: Host.SqliteStmt, List({ name : Str, value : [Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)] }) => Try({}, { code : I64, message : Str })
+    pub fn hosted_sqlite_bind(arg0: *mut u64, arg1: RocList<AnonStruct45>) -> TryType43;
 
-    /// Hosted symbol for Sqlite.host_column_value!
-    /// Roc signature: Sqlite.Stmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
-    pub fn hosted_sqlite_column_value(arg0: *mut u64, arg1: u64) -> TryType84;
+    /// Hosted symbol for Host.sqlite_column_value!
+    /// Roc signature: Host.SqliteStmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
+    pub fn hosted_sqlite_column_value(arg0: *mut u64, arg1: u64) -> TryType48;
 
-    /// Hosted symbol for Sqlite.host_columns!
-    /// Roc signature: Sqlite.Stmt => List(Str)
+    /// Hosted symbol for Host.sqlite_columns!
+    /// Roc signature: Host.SqliteStmt => List(Str)
     pub fn hosted_sqlite_columns(arg0: *mut u64) -> RocList<RocStr>;
 
-    /// Hosted symbol for Sqlite.host_prepare!
-    /// Roc signature: Str, Str => Try(Sqlite.Stmt, { code : I64, message : Str })
-    pub fn hosted_sqlite_prepare(arg0: RocStr, arg1: RocStr) -> TryType69;
+    /// Hosted symbol for Host.sqlite_prepare!
+    /// Roc signature: Str, Str => Try(Host.SqliteStmt, { code : I64, message : Str })
+    pub fn hosted_sqlite_prepare(arg0: RocStr, arg1: RocStr) -> TryType39;
 
-    /// Hosted symbol for Sqlite.host_reset!
-    /// Roc signature: Sqlite.Stmt => Try({}, { code : I64, message : Str })
-    pub fn hosted_sqlite_reset(arg0: *mut u64) -> TryType75;
+    /// Hosted symbol for Host.sqlite_reset!
+    /// Roc signature: Host.SqliteStmt => Try({}, { code : I64, message : Str })
+    pub fn hosted_sqlite_reset(arg0: *mut u64) -> TryType43;
 
-    /// Hosted symbol for Sqlite.host_step!
-    /// Roc signature: Sqlite.Stmt => Try(Bool, { code : I64, message : Str })
-    pub fn hosted_sqlite_step(arg0: *mut u64) -> TryType85;
+    /// Hosted symbol for Host.sqlite_step!
+    /// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
+    pub fn hosted_sqlite_step(arg0: *mut u64) -> TryType49;
 
-    /// Hosted symbol for Stderr.line!
+    /// Hosted symbol for Host.stderr_line!
     /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
-    pub fn hosted_stderr_line(arg0: RocStr) -> TryType87;
+    pub fn hosted_stderr_line(arg0: RocStr) -> TryType52;
 
-    /// Hosted symbol for Stderr.write!
+    /// Hosted symbol for Host.stderr_write!
     /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
-    pub fn hosted_stderr_write(arg0: RocStr) -> TryType87;
+    pub fn hosted_stderr_write(arg0: RocStr) -> TryType52;
 
-    /// Hosted symbol for Stderr.write_bytes!
+    /// Hosted symbol for Host.stderr_write_bytes!
     /// Roc signature: List(U8) => Try({}, [StderrErr(IOErr)])
-    pub fn hosted_stderr_write_bytes(arg0: RocListWith<u8, false>) -> TryType92;
+    pub fn hosted_stderr_write_bytes(arg0: RocListWith<u8, false>) -> TryType52;
 
-    /// Hosted symbol for Stdout.line!
+    /// Hosted symbol for Host.stdout_line!
     /// Roc signature: Str => Try({}, [StdoutErr(IOErr)])
-    pub fn hosted_stdout_line(arg0: RocStr) -> TryType96;
+    pub fn hosted_stdout_line(arg0: RocStr) -> TryType50;
 
-    /// Hosted symbol for Stdout.write!
+    /// Hosted symbol for Host.stdout_write!
     /// Roc signature: Str => Try({}, [StdoutErr(IOErr)])
-    pub fn hosted_stdout_write(arg0: RocStr) -> TryType96;
+    pub fn hosted_stdout_write(arg0: RocStr) -> TryType50;
 
-    /// Hosted symbol for Stdout.write_bytes!
+    /// Hosted symbol for Host.stdout_write_bytes!
     /// Roc signature: List(U8) => Try({}, [StdoutErr(IOErr)])
-    pub fn hosted_stdout_write_bytes(arg0: RocListWith<u8, false>) -> TryType101;
+    pub fn hosted_stdout_write_bytes(arg0: RocListWith<u8, false>) -> TryType50;
 
-    /// Hosted symbol for Tcp.host_connect!
-    /// Roc signature: Str, U16 => Try(Tcp.Stream, Str)
-    pub fn hosted_tcp_connect(arg0: RocStr, arg1: u16) -> TryType105;
+    /// Hosted symbol for Host.tcp_connect!
+    /// Roc signature: Str, U16 => Try(Host.TcpStream, Str)
+    pub fn hosted_tcp_connect(arg0: RocStr, arg1: u16) -> TryType54;
 
-    /// Hosted symbol for Tcp.host_read_exactly!
-    /// Roc signature: Tcp.Stream, U64 => Try(List(U8), Str)
-    pub fn hosted_tcp_read_exactly(arg0: *mut u64, arg1: u64) -> TryType110;
+    /// Hosted symbol for Host.tcp_read_exactly!
+    /// Roc signature: Host.TcpStream, U64 => Try(List(U8), Str)
+    pub fn hosted_tcp_read_exactly(arg0: *mut u64, arg1: u64) -> TryType56;
 
-    /// Hosted symbol for Tcp.host_read_until!
-    /// Roc signature: Tcp.Stream, U8 => Try(List(U8), Str)
-    pub fn hosted_tcp_read_until(arg0: *mut u64, arg1: u8) -> TryType110;
+    /// Hosted symbol for Host.tcp_read_until!
+    /// Roc signature: Host.TcpStream, U8 => Try(List(U8), Str)
+    pub fn hosted_tcp_read_until(arg0: *mut u64, arg1: u8) -> TryType56;
 
-    /// Hosted symbol for Tcp.host_read_up_to!
-    /// Roc signature: Tcp.Stream, U64 => Try(List(U8), Str)
-    pub fn hosted_tcp_read_up_to(arg0: *mut u64, arg1: u64) -> TryType110;
+    /// Hosted symbol for Host.tcp_read_up_to!
+    /// Roc signature: Host.TcpStream, U64 => Try(List(U8), Str)
+    pub fn hosted_tcp_read_up_to(arg0: *mut u64, arg1: u64) -> TryType56;
 
-    /// Hosted symbol for Tcp.host_write!
-    /// Roc signature: Tcp.Stream, List(U8) => Try({}, Str)
-    pub fn hosted_tcp_write(arg0: *mut u64, arg1: RocListWith<u8, false>) -> TryType113;
+    /// Hosted symbol for Host.tcp_write!
+    /// Roc signature: Host.TcpStream, List(U8) => Try({}, Str)
+    pub fn hosted_tcp_write(arg0: *mut u64, arg1: RocListWith<u8, false>) -> TryType57;
 
-    /// Hosted symbol for Utc.now!
+    /// Hosted symbol for Host.utc_now!
     /// Roc signature: {} => U128
     pub fn hosted_utc_now() -> u128;
 
@@ -4306,9 +3744,9 @@ pub fn make_roc_host(env: *mut c_void) -> RocHost {
 #[allow(improper_ctypes)]
 unsafe extern "C" {
     /// Entrypoint: init_for_host!
-    pub fn roc_init_for_host() -> TryType139;
+    pub fn roc_init_for_host() -> TryType80;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct143, arg1: RocBox) -> AnonStruct145;
+    pub fn roc_respond_for_host(arg0: AnonStruct84, arg1: RocBox) -> AnonStruct88;
 
 }

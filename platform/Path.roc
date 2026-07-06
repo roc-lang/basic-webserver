@@ -1,15 +1,10 @@
 import IOErr exposing [IOErr]
+import Host
 
 # TODO: This is a temporary vendored subset of roc-lang/path until packages can
 # be used here. The long-term API should preserve OS paths as raw Unix bytes or
 # Windows U16s end-to-end; some current Env and Dir helpers still expose lossy
 # Str paths during the migration.
-
-PathType : {
-    is_file : Bool,
-    is_sym_link : Bool,
-    is_dir : Bool,
-}
 
 Path :: [
     # We have these different internal representations for two reasons:
@@ -46,8 +41,6 @@ Path :: [
     # for more details on the UTF-8 Code Page in Windows.
     FromStr(Str),
 ].{
-    host_path_type! : List(U8) => Try(PathType, IOErr)
-
     ## Returns `Bool.True` if the path exists on disk and is pointing at a regular file.
     ##
     ## This function will traverse symbolic links to query information about the
@@ -149,7 +142,7 @@ Path :: [
     ## > [`File.type`](File#type!) does the same thing, except it takes a [Str] instead of a [Path].
     type! : Path => Try([IsFile, IsDir, IsSymLink], [PathErr(IOErr), ..])
     type! = |path| {
-        Path.host_path_type!(to_bytes(path))
+        Host.path_type!(to_bytes(path))
             .map_err(|err| PathErr(err))
             .map_ok(|path_type|{
                 if path_type.is_sym_link {

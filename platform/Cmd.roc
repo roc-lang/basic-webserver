@@ -1,4 +1,5 @@
 import IOErr exposing [IOErr]
+import Host
 
 Cmd :: {
     args : List(Str),
@@ -6,11 +7,6 @@ Cmd :: {
     envs : List(Str), # TODO change this to List((Str, Str))
     program : Str,
 }.{
-    host_exec_exit_code! : Cmd => Try(I32, IOErr)
-
-    host_exec_output! : Cmd => Try(OutputFromHostSuccess, Try(OutputFromHostFailure, IOErr))
-
-
     ## Simplest way to execute a command by name with arguments.
     ## Stdin, stdout, and stderr are inherited from the parent process.
     ##
@@ -81,7 +77,7 @@ Cmd :: {
         ]
     )
     exec_output! = |cmd| {
-        exec_try = Cmd.host_exec_output!(cmd)
+        exec_try = Host.cmd_exec_output!(to_host_cmd(cmd))
 
        match exec_try {
             Ok({ stderr_bytes, stdout_bytes }) => {
@@ -130,7 +126,7 @@ Cmd :: {
         ]
     )
     exec_output_bytes! = |cmd| {
-        exec_try = Cmd.host_exec_output!(cmd)
+        exec_try = Host.cmd_exec_output!(to_host_cmd(cmd))
 
         match exec_try {
             Ok({ stderr_bytes, stdout_bytes }) =>
@@ -161,7 +157,7 @@ Cmd :: {
     ## ```
     exec_exit_code! : Cmd => Try(I32, [FailedToGetExitCode({ command : Str, err : IOErr }), ..])
     exec_exit_code! = |cmd| {
-        match Cmd.host_exec_exit_code!(cmd) {
+        match Host.cmd_exec_exit_code!(to_host_cmd(cmd)) {
             Ok(num) => Ok(num)
             Err(io_err) => Err(FailedToGetExitCode({ command : to_str(cmd), err: io_err }))
         }
@@ -246,19 +242,6 @@ Cmd :: {
     }
 }
 
-# Do not change the order of the fields! It will lead to a segfault.
-OutputFromHostSuccess : {
-    stderr_bytes : List(U8),
-    stdout_bytes : List(U8),
-}
-
-# Do not change the order of the fields! It will lead to a segfault.
-OutputFromHostFailure : {
-    stderr_bytes : List(U8),
-    stdout_bytes : List(U8),
-    exit_code : I32,
-}
-
 flatten_str_pairs : List((Str, Str)), List(Str), U64 -> List(Str)
 flatten_str_pairs = |pairs, acc, idx| {
     if idx >= pairs.len() {
@@ -290,4 +273,12 @@ to_str = |cmd| {
     args_str = Str.join_with(cmd.args, " ")
 
     "{ cmd: ${cmd.program}, args: ${args_str}${envs_str}${clear_envs_str} }"
+}
+
+to_host_cmd : Cmd -> Host.Cmd
+to_host_cmd = |cmd| {
+    args: cmd.args,
+    clear_envs: cmd.clear_envs,
+    envs: cmd.envs,
+    program: cmd.program,
 }

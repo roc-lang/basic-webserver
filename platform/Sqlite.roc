@@ -1,4 +1,5 @@
 import InternalSqlite
+import Host
 
 # Porting notes for the new (zig) compiler: the decoder combinator API is written
 # with fully-literal nested lambdas (`|name| |cols| |stmt| ...`) and relies on
@@ -11,23 +12,7 @@ import InternalSqlite
 # of tags (see DecodeErr below for the documented shape).
 Sqlite := [].{
     ## Represents a prepared statement that can be executed many times.
-    Stmt :: Box(U64)
-
-    # ---- Host functions (the FFI boundary) -------------------------------------
-
-    host_prepare! : Str, Str => Try(Stmt, InternalSqlite.SqliteError)
-
-    host_bind! : Stmt, List(InternalSqlite.SqliteBindings) => Try({}, InternalSqlite.SqliteError)
-
-    host_columns! : Stmt => List(Str)
-
-    host_column_value! : Stmt, U64 => Try(InternalSqlite.SqliteValue, InternalSqlite.SqliteError)
-
-    # Returns Bool.True for SQLITE_ROW, Bool.False for SQLITE_DONE (the glue
-    # generator mishandles a bare `[Row, Done]` enum at the host boundary).
-    host_step! : Stmt => Try(Bool, InternalSqlite.SqliteError)
-
-    host_reset! : Stmt => Try({}, InternalSqlite.SqliteError)
+    Stmt : Host.SqliteStmt
 
     ## Represents various error codes that can be returned by Sqlite.
     ErrCode : [
@@ -83,35 +68,37 @@ Sqlite := [].{
     # ---- Statement lifecycle ---------------------------------------------------
 
     ## Prepare a [Stmt] for execution at a later time.
+    prepare! : { path : Str, query : Str } => Try(Stmt, [SqliteErr(ErrCode, Str), ..])
     prepare! = |{ path, query: q }|
-        Sqlite.host_prepare!(path, q)
-            .map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+        Ok(Host.sqlite_prepare!(path, q).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
 
     ## Bind named parameters to a prepared statement.
+    bind! : Stmt, List(InternalSqlite.SqliteBindings) => Try({}, [SqliteErr(ErrCode, Str), ..])
     bind! = |stmt, bindings|
-        Sqlite.host_bind!(stmt, bindings)
-            .map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+        Ok(Host.sqlite_bind!(stmt, bindings).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
 
     ## Return the column names for a prepared statement.
+    columns! : Stmt => List(Str)
     columns! = |stmt|
-        Sqlite.host_columns!(stmt)
+        Host.sqlite_columns!(stmt)
 
     ## Read the value of a column (by index) from the current row.
+    column_value! : Stmt, U64 => Try(InternalSqlite.SqliteValue, [SqliteErr(ErrCode, Str), ..])
     column_value! = |stmt, i|
-        Sqlite.host_column_value!(stmt, i)
-            .map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+        Ok(Host.sqlite_column_value!(stmt, i).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
 
     ## Advance a prepared statement. Returns `Row` if a row is available, `Done` otherwise.
+    step! : Stmt => Try([Row, Done], [SqliteErr(ErrCode, Str), ..])
     step! = |stmt|
-        match Sqlite.host_step!(stmt) {
+        match Host.sqlite_step!(stmt) {
             Ok(has_row) => if has_row { Ok(Row) } else { Ok(Done) }
             Err({ code, message }) => Err(SqliteErr(code_from_i64(code), message))
         }
 
     ## Reset a prepared statement back to its initial state, ready to be re-executed.
+    reset! : Stmt => Try({}, [SqliteErr(ErrCode, Str), ..])
     reset! = |stmt|
-        Sqlite.host_reset!(stmt)
-            .map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+        Ok(Host.sqlite_reset!(stmt).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
 
     ## Execute a SQL statement that **doesn't return any rows** (INSERT/UPDATE/DELETE).
     execute! = |{ path, query: q, bindings }| {

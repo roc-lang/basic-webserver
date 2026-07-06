@@ -1,6 +1,9 @@
+import Host
+
 Utc := [].{
     ## Get the current UTC time as nanoseconds since the Unix epoch (January 1, 1970).
     now! : {} => U128
+    now! = |{}| Host.utc_now!({})
 
     ## Convert nanoseconds since epoch to milliseconds since epoch.
     to_millis_since_epoch : U128 -> U128

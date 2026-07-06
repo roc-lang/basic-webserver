@@ -28,71 +28,138 @@ use crate::roc_platform_abi::*;
 // records and result types, and those numbers shift whenever a module is added.
 // To stay robust against renumbering we alias against the *semantic* names the
 // generator also emits (keyed by module + function name).
-type StdoutUnitResult = StdoutLineResult;
-type StdoutUnitResultPayload = StdoutLineResultPayload;
-type StdoutUnitResultTag = StdoutLineResultTag;
-type StdoutBytesResult = StdoutWriteBytesResult;
-type StdoutBytesResultPayload = StdoutWriteBytesResultPayload;
-type StdoutBytesResultTag = StdoutWriteBytesResultTag;
+type StdoutUnitResult = HostStdoutLineResult;
+type StdoutUnitResultPayload = HostStdoutLineResultPayload;
+type StdoutUnitResultTag = HostStdoutLineResultTag;
+type StdoutBytesResult = HostStdoutWriteBytesResult;
+type StdoutBytesResultPayload = HostStdoutWriteBytesResultPayload;
+type StdoutBytesResultTag = HostStdoutWriteBytesResultTag;
 
-type StderrUnitResult = StderrLineResult;
-type StderrUnitResultPayload = StderrLineResultPayload;
-type StderrUnitResultTag = StderrLineResultTag;
-type StderrBytesResult = StderrWriteBytesResult;
-type StderrBytesResultPayload = StderrWriteBytesResultPayload;
-type StderrBytesResultTag = StderrWriteBytesResultTag;
+type StderrUnitResult = HostStderrLineResult;
+type StderrUnitResultPayload = HostStderrLineResultPayload;
+type StderrUnitResultTag = HostStderrLineResultTag;
+type StderrBytesResult = HostStderrWriteBytesResult;
+type StderrBytesResultPayload = HostStderrWriteBytesResultPayload;
+type StderrBytesResultTag = HostStderrWriteBytesResultTag;
 
 // CORE effect result aliases (see basic-cli/src/lib.rs). Keyed against the
 // generated semantic names so they survive glue renumbering.
-type CmdExitResult = CmdHostExecExitCodeResult;
-type CmdExitResultPayload = CmdHostExecExitCodeResultPayload;
-type CmdExitResultTag = CmdHostExecExitCodeResultTag;
-type CmdOutputResult = CmdHostExecOutputResult;
-type CmdOutputResultPayload = CmdHostExecOutputResultPayload;
-type CmdOutputResultTag = CmdHostExecOutputResultTag;
-type CmdOutputFailureResult = CmdHostExecOutputErrResult;
-type CmdOutputFailureResultPayload = CmdHostExecOutputErrResultPayload;
-type CmdOutputFailureResultTag = CmdHostExecOutputErrResultTag;
-type CmdOutputFailure = CmdHostExecOutputErrOk;
-type CmdOutputSuccess = CmdHostExecOutputOk;
+type Cmd = HostCmdExecExitCodeArgs;
+type CmdExitResult = HostCmdExecExitCodeResult;
+type CmdExitResultPayload = HostCmdExecExitCodeResultPayload;
+type CmdExitResultTag = HostCmdExecExitCodeResultTag;
+type CmdOutputResult = HostCmdExecOutputResult;
+type CmdOutputResultPayload = HostCmdExecOutputResultPayload;
+type CmdOutputResultTag = HostCmdExecOutputResultTag;
+type CmdOutputFailureResult = HostCmdExecOutputErrResult;
+type CmdOutputFailureResultPayload = HostCmdExecOutputErrResultPayload;
+type CmdOutputFailureResultTag = HostCmdExecOutputErrResultTag;
+type CmdOutputFailure = HostCmdExecOutputErrOk;
+type CmdOutputSuccess = HostCmdExecOutputOk;
 
-type DirUnitResult = DirCreateResult;
-type DirUnitResultPayload = DirCreateResultPayload;
-type DirUnitResultTag = DirCreateResultTag;
+type DirUnitResult = HostDirCreateResult;
+type DirUnitResultPayload = HostDirCreateResultPayload;
+type DirUnitResultTag = HostDirCreateResultTag;
+type DirListResult = HostDirListResult;
+type DirListResultPayload = HostDirListResultPayload;
+type DirListResultTag = HostDirListResultTag;
 
-type FileBytesResult = FileReadBytesResult;
-type FileBytesResultPayload = FileReadBytesResultPayload;
-type FileBytesResultTag = FileReadBytesResultTag;
-type FileStrResult = FileReadUtf8Result;
-type FileStrResultPayload = FileReadUtf8ResultPayload;
-type FileStrResultTag = FileReadUtf8ResultTag;
-type FileSizeResult = FileSizeInBytesResult;
-type FileSizeResultPayload = FileSizeInBytesResultPayload;
-type FileSizeResultTag = FileSizeInBytesResultTag;
-type FileBoolResult = FileIsExecutableResult;
-type FileBoolResultPayload = FileIsExecutableResultPayload;
-type FileBoolResultTag = FileIsExecutableResultTag;
-type FileTimeResult = FileTimeAccessedResult;
-type FileTimeResultPayload = FileTimeAccessedResultPayload;
-type FileTimeResultTag = FileTimeAccessedResultTag;
+type EnvCwdResult = HostEnvCwdResult;
+type EnvCwdResultPayload = HostEnvCwdResultPayload;
+type EnvCwdResultTag = HostEnvCwdResultTag;
+type EnvExePathResult = HostEnvExePathResult;
+type EnvExePathResultPayload = HostEnvExePathResultPayload;
+type EnvExePathResultTag = HostEnvExePathResultTag;
+type EnvVarResult = HostEnvVarResult;
+type EnvVarResultPayload = HostEnvVarResultPayload;
+type EnvVarResultTag = HostEnvVarResultTag;
 
-type PathTypeResult = PathHostPathTypeResult;
-type PathTypeResultPayload = PathHostPathTypeResultPayload;
-type PathTypeResultTag = PathHostPathTypeResultTag;
-type PathInfo = PathHostPathTypeOk;
+type FileBytesResult = HostFileReadBytesResult;
+type FileBytesResultPayload = HostFileReadBytesResultPayload;
+type FileBytesResultTag = HostFileReadBytesResultTag;
+type FileStrResult = HostFileReadUtf8Result;
+type FileStrResultPayload = HostFileReadUtf8ResultPayload;
+type FileStrResultTag = HostFileReadUtf8ResultTag;
+type FileSizeResult = HostFileSizeInBytesResult;
+type FileSizeResultPayload = HostFileSizeInBytesResultPayload;
+type FileSizeResultTag = HostFileSizeInBytesResultTag;
+type FileBoolResult = HostFileIsExecutableResult;
+type FileBoolResultPayload = HostFileIsExecutableResultPayload;
+type FileBoolResultTag = HostFileIsExecutableResultTag;
+type FileTimeResult = HostFileTimeAccessedResult;
+type FileTimeResultPayload = HostFileTimeAccessedResultPayload;
+type FileTimeResultTag = HostFileTimeAccessedResultTag;
+type FileDeleteResult = HostFileDeleteResult;
+type FileDeleteResultPayload = HostFileDeleteResultPayload;
+type FileDeleteResultTag = HostFileDeleteResultTag;
+type FileWriteBytesResult = HostFileWriteBytesResult;
+type FileWriteBytesResultPayload = HostFileWriteBytesResultPayload;
+type FileWriteBytesResultTag = HostFileWriteBytesResultTag;
+type FileWriteUtf8Result = HostFileWriteUtf8Result;
+type FileWriteUtf8ResultPayload = HostFileWriteUtf8ResultPayload;
+type FileWriteUtf8ResultTag = HostFileWriteUtf8ResultTag;
+
+type PathTypeResult = HostPathTypeResult;
+type PathTypeResultPayload = HostPathTypeResultPayload;
+type PathTypeResultTag = HostPathTypeResultTag;
+type PathInfo = HostPathTypeOk;
+
+type SqliteHostPrepareResult = HostSqlitePrepareResult;
+type SqliteHostPrepareResultPayload = HostSqlitePrepareResultPayload;
+type SqliteHostPrepareResultTag = HostSqlitePrepareResultTag;
+type SqliteHostBindResult = HostSqliteBindResult;
+type SqliteHostBindResultPayload = HostSqliteBindResultPayload;
+type SqliteHostBindResultTag = HostSqliteBindResultTag;
+type SqliteHostColumnValueResult = HostSqliteColumnValueResult;
+type SqliteHostColumnValueResultPayload = HostSqliteColumnValueResultPayload;
+type SqliteHostColumnValueResultTag = HostSqliteColumnValueResultTag;
+type SqliteHostStepResult = HostSqliteStepResult;
+type SqliteHostStepResultPayload = HostSqliteStepResultPayload;
+type SqliteHostStepResultTag = HostSqliteStepResultTag;
+
+type TcpHostConnectResult = HostTcpConnectResult;
+type TcpHostConnectResultPayload = HostTcpConnectResultPayload;
+type TcpHostConnectResultTag = HostTcpConnectResultTag;
+type TcpHostReadUpToResult = HostTcpReadUpToResult;
+type TcpHostReadUpToResultPayload = HostTcpReadUpToResultPayload;
+type TcpHostReadUpToResultTag = HostTcpReadUpToResultTag;
+type TcpHostReadExactlyResult = HostTcpReadExactlyResult;
+type TcpHostReadUntilResult = HostTcpReadUntilResult;
+type TcpHostWriteResult = HostTcpWriteResult;
+type TcpHostWriteResultPayload = HostTcpWriteResultPayload;
+type TcpHostWriteResultTag = HostTcpWriteResultTag;
+
+type StdoutIOErr = HostIOErr;
+type StdoutIOErrPayload = HostIOErrPayload;
+type StdoutIOErrTag = HostIOErrTag;
+type StderrIOErr = HostIOErr;
+type StderrIOErrPayload = HostIOErrPayload;
+type StderrIOErrTag = HostIOErrTag;
+type CmdIOErr = HostIOErr;
+type CmdIOErrPayload = HostIOErrPayload;
+type CmdIOErrTag = HostIOErrTag;
+type DirIOErr = HostIOErr;
+type DirIOErrPayload = HostIOErrPayload;
+type DirIOErrTag = HostIOErrTag;
+type FileIOErr = HostIOErr;
+type FileIOErrPayload = HostIOErrPayload;
+type FileIOErrTag = HostIOErrTag;
+type PathIOErr = HostIOErr;
+type PathIOErrPayload = HostIOErrPayload;
+type PathIOErrTag = HostIOErrTag;
 
 // The init/respond entrypoint and request/response boundary types are anonymous
 // (`AnonStructN` / `TryTypeN`) and have NO generated semantic alias, so they are
 // referenced by their numbered names. Update this block if the glue renumbers
 // them (only happens when the platform's hosted/provides/types change).
-pub(crate) type InitForHostResult = TryType139;
-pub(crate) type InitForHostResultTag = TryType139Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct143;
-pub(crate) type ResponseToAndFromHost = AnonStruct145;
-pub(crate) type Header = AnonStruct123;
+pub(crate) type InitForHostResult = TryType80;
+pub(crate) type InitForHostResultTag = TryType80Tag;
+pub(crate) type RequestToAndFromHost = AnonStruct84;
+pub(crate) type ResponseToAndFromHost = AnonStruct88;
+pub(crate) type Header = AnonStruct86;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct145(value, roc_host);
+    decref_anon_struct88(value, roc_host);
 }
 
 // ============================================================================
@@ -1155,8 +1222,8 @@ pub extern "C" fn hosted_utc_now() -> u128 {
 type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
 type SqliteValueTag = BytesOrIntegerOrNullOrRealOrStringTag;
 type SqliteValuePayload = BytesOrIntegerOrNullOrRealOrStringPayload;
-type SqliteError = AnonStruct70;
-type SqliteBindings = AnonStruct78;
+type SqliteError = HostSqlitePrepareErr;
+type SqliteBindings = AnonStruct45;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
@@ -1531,7 +1598,7 @@ pub extern "C" fn hosted_sqlite_bind(
         sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
     };
     for binding in bindings.as_slice() {
-        decref_anon_struct78(*binding, roc_host);
+        decref_anon_struct45(*binding, roc_host);
     }
     bindings.decref(roc_host);
     release_sqlite_stmt(handle, roc_host);
@@ -1938,9 +2005,9 @@ pub extern "C" fn hosted_tcp_write(
 
 // The generated glue names the response/header records by anonymous-struct
 // number; alias them to stable semantic names (the response also has the
-// generator's stable `HttpHostSendRequest` alias).
-type HttpResponse = HttpHostSendRequest;
-type HttpHeader = AnonStruct57;
+// generator's stable `HostHttpSendRequest` alias).
+type HttpResponse = HostHttpSendRequest;
+type HttpHeader = AnonStruct34;
 
 thread_local! {
     static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
@@ -1976,7 +2043,7 @@ fn http_sentinel_response(status: u16, body: &[u8], roc_host: &RocHost) -> HttpR
 }
 
 fn build_hyper_request(
-    args: &HttpHostSendRequestArgs,
+    args: &HostHttpSendRequestArgs,
 ) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, String> {
     let method = as_hyper_method(args.method, args.method_ext.as_str())
         .ok_or_else(|| "invalid HTTP method".to_string())?;
@@ -2065,7 +2132,7 @@ async fn async_send_request(
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_http_send_request(args: HttpHostSendRequestArgs) -> HttpResponse {
+pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> HttpResponse {
     let roc_host = roc_host();
     let timeout_ms = args.timeout_ms;
 
@@ -2074,7 +2141,7 @@ pub extern "C" fn hosted_http_send_request(args: HttpHostSendRequestArgs) -> Htt
     let request_result = build_hyper_request(&args);
     args.body.decref(roc_host);
     for header in args.headers.as_slice() {
-        decref_anon_struct57(*header, roc_host);
+        decref_anon_struct34(*header, roc_host);
     }
     args.headers.decref(roc_host);
     args.method_ext.decref(roc_host);

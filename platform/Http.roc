@@ -1,4 +1,5 @@
 import InternalHttp
+import Host
 import http.Method
 import http.Request
 import http.Response
@@ -58,12 +59,6 @@ Http :: [].{
         encode_to = |value, _format| |state| encode_json_value(value, state)
     }
 
-    # The single outbound host effect: hand a fully-marshalled request to the
-    # host and get back a marshalled response. Transport failures are encoded by
-    # the host as a sentinel status+body pair (see `send!`), not as a separate
-    # error channel.
-    host_send_request! : InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
-
     ## Send an HTTP request, succeeding with a [Response] or failing with an
     ## `HttpErr`.
     ##
@@ -71,10 +66,10 @@ Http :: [].{
     ## request = Request.from_method(GET) |> Request.with_uri("https://www.roc-lang.org")
     ## response = Http.send!(request)?
     ## ```
-    send! : Request => Try(Response, [HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))])])
+    send! : Request => Try(Response, [HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), ..])
     send! = |request| {
         host_request = InternalHttp.to_host_request(request)
-        host_response = Http.host_send_request!(host_request)
+        host_response = Host.http_send_request!(host_request)
 
         # The host signals transport failures with these reserved status+body
         # sentinels (produced in src/lib.rs); everything else is a real response.
@@ -98,7 +93,7 @@ Http :: [].{
     ## ```roc
     ## hello_str = Http.get_utf8!("http://localhost:8000")?
     ## ```
-    get_utf8! : Str => Try(Str, [BadBody(Str), HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))])])
+    get_utf8! : Str => Try(Str, [BadBody(Str), HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), ..])
     get_utf8! = |uri|
         match send!(Request.with_uri(Request.from_method(GET), uri)) {
             Err(HttpErr(err)) => Err(HttpErr(err))
@@ -121,7 +116,7 @@ Http :: [].{
         Err(JsonDecodeNotMigrated("Http.get!: JSON decoding is not migrated to the current Roc compiler yet"))
 
     ## Decode a request body as a UTF-8 [Str].
-    body_utf8 : Request -> Try(Str, [BadBody(Str)])
+    body_utf8 : Request -> Try(Str, [BadBody(Str), ..])
     body_utf8 = |request|
         match Str.from_utf8(Request.body(request)) {
             Ok(str) => Ok(str)
