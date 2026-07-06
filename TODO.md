@@ -5,14 +5,16 @@ Release-readiness backlog for the Zig compiler migration PR.
 ## Before Publishing
 
 - [ ] Get GitHub CI green for [PR #163](https://github.com/roc-lang/basic-webserver/pull/163).
-  - Current blocker: `build-and-test (macos-15)` fails because `rust-toolchain.toml` pins Rust `1.82.0`, while the resolved `security-framework 3.7.0` crate requires Edition 2024 support.
-  - Either bump the Rust toolchain or pin the dependency chain; choose the simpler stable option.
+  - Rust is bumped to `1.85.0` so the resolved dependency graph can build Edition 2024 crates.
+  - CI now has per-target coverage for Linux musl, macOS, and Windows host libraries.
+  - Confirm the workflow is green after the next push.
 
-- [ ] Decide and validate release target support.
+- [x] Decide and validate release target support.
   - `platform/main.roc` currently advertises `x64mac`, `arm64mac`, `x64musl`, `arm64musl`, `x64win`, and `arm64win`.
-  - The release should support musl Linux, macOS, and Windows for both amd64 and arm64.
-  - Host libraries are intentionally ignored and must be rebuilt before packaging with `./build.sh` or `./build.sh --all`.
-  - Add CI/build coverage where practical so every advertised target is validated.
+  - Decision: keep all six targets for the release.
+  - CI runs full Roc app tests for `x64musl`, `arm64musl`, `x64mac`, `arm64mac`, and `x64win`.
+  - CI validates the `arm64win` Rust host library, but skips Roc app tests because `roc-lang/setup-roc` does not publish a Windows arm64 compiler binary yet.
+  - Host libraries are intentionally ignored and must be rebuilt before packaging with `./build.sh --target <target>` or `./build.sh --all` on the appropriate host OS.
 
 - [ ] Run a docs pass before tagging.
   - Update README release URLs, package extension wording (`tar.zst`, not `tar.br`), and version links.

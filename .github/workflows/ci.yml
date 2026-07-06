@@ -18,37 +18,72 @@ env:
 jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
-        # x64 musl Linux (native target x64musl) and arm64 macOS (native target
-        # arm64mac). arm64 musl Linux is omitted until its committed link inputs
-        # (platform/targets/arm64musl/) are added.
-        os: [ubuntu-24.04, macos-15]
+        include:
+          - os: ubuntu-24.04
+            target: x64musl
+            rust_target: x86_64-unknown-linux-musl
+            install_zig: true
+            run_roc_tests: true
+          - os: ubuntu-24.04-arm
+            target: arm64musl
+            rust_target: aarch64-unknown-linux-musl
+            install_zig: true
+            run_roc_tests: true
+          - os: macos-15-intel
+            target: x64mac
+            rust_target: x86_64-apple-darwin
+            install_zig: false
+            run_roc_tests: true
+          - os: macos-15
+            target: arm64mac
+            rust_target: aarch64-apple-darwin
+            install_zig: false
+            run_roc_tests: true
+          - os: windows-2025
+            target: x64win
+            rust_target: x86_64-pc-windows-msvc
+            install_zig: false
+            run_roc_tests: true
+          # setup-roc does not publish a Windows arm64 compiler binary yet, so
+          # this job validates the host library only.
+          - os: windows-11-arm
+            target: arm64win
+            rust_target: aarch64-pc-windows-msvc
+            install_zig: false
+            run_roc_tests: false
     steps:
       - uses: actions/checkout@v4
 
       - name: Install the new Zig-based Roc compiler
-        uses: roc-lang/setup-roc@32db54b6716d13ba653f8b4073670572c980013c
+        if: matrix.run_roc_tests
+        uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
         with:
           # Nightly build of the new (Zig-based) compiler. Hashes are not verified
           # because nightlies are updated regularly.
           version: nightly-new-compiler
 
-      - run: roc version
+      - if: matrix.run_roc_tests
+        run: roc version
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install musl target (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          rustup target add x86_64-unknown-linux-musl
+      - name: Install Zig
+        if: matrix.install_zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.rust_target }}
 
       - name: Build host static library
-        run: ./build.sh
+        run: ./build.sh --target ${{ matrix.target }}
 
       - name: Build and test examples
+        if: matrix.run_roc_tests
         run: ./ci/all_tests.sh

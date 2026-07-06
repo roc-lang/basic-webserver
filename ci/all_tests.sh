@@ -16,6 +16,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ROC="${ROC:-roc}"
+EXE_SUFFIX=""
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) EXE_SUFFIX=".exe" ;;
+esac
 
 echo "Using roc: $($ROC version 2>&1 | head -1)"
 echo ""
@@ -40,16 +44,16 @@ done
 for file in examples/*.roc tests/*.roc; do
     [ -e "$file" ] || continue
     name="$(basename "${file%.roc}")"
-    rm -f "$name"
+    rm -f "$name" "$name.exe"
 done
 
 echo ""
 echo "=== Smoke test: hello-web ==="
 "$ROC" build examples/hello-web.roc
 PORT="${SMOKE_PORT:-8080}"
-ROC_BASIC_WEBSERVER_PORT="$PORT" ./hello-web &
+ROC_BASIC_WEBSERVER_PORT="$PORT" "./hello-web${EXE_SUFFIX}" &
 SERVER_PID=$!
-cleanup() { kill "$SERVER_PID" 2>/dev/null || true; rm -f ./hello-web; }
+cleanup() { kill "$SERVER_PID" 2>/dev/null || true; rm -f ./hello-web ./hello-web.exe; }
 trap cleanup EXIT
 
 # Wait for the server to come up.
