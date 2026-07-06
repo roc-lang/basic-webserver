@@ -12,10 +12,8 @@ import pf.Cmd
 import pf.Http
 import http.Response
 
-# NOTE: The migrated Path module is a reduced "vendored subset". This test
-# covers the functions that are currently available: from_str, display,
-# is_file!, is_dir!, is_sym_link!, type!. (read/write/create/delete/rename/
-# hard_link/exists/from_bytes/with_extension are not yet migrated.)
+# NOTE: The Path module re-exports pure path operations from roc-lang/path and
+# adds effectful filesystem predicates from the platform host.
 
 Model : {}
 
@@ -36,14 +34,44 @@ init! = |{}|
         }
     }
 
-run_tests! : {} => Try({}, _)
+run_tests! : {} => Try(
+    {},
+    [
+        InvalidStr(U64),
+        IsDirPath,
+        EndsInDots,
+        StdoutErr(_),
+        FileErr(_),
+        DirErr(_),
+        PathErr(_),
+        ExecFailed(_),
+        FailedToGetExitCode(_),
+        ..
+    ],
+)
 run_tests! = |{}| {
     Stdout.line!("Testing Path functions...\n")?
 
-    # Test Path.from_str and Path.display roundtrip
+    # Test pure path operations from roc-lang/path.
     expected_str = "test_path"
-    roundtrip = Path.display(Path.from_str(expected_str))
+    typed_path : Path.Path
+    typed_path = Path.from_str(expected_str)
+    roundtrip = Path.display(typed_path)
+    to_str_roundtrip = Path.to_str(typed_path)?
+    joined_path = Path.join(Path.from_str("test_path"), "nested.txt")
+    filename = Path.filename(joined_path)?
+    extension = Path.ext(joined_path)?
+    raw_bytes_match =
+        match Path.to_raw(typed_path) {
+            UnixBytes(bytes) => bytes == Str.to_utf8(expected_str)
+            WindowsU16s(_) => Bool.False
+        }
     Stdout.line!("from_str/display roundtrip matches: ${Str.inspect(roundtrip == expected_str)}")?
+    Stdout.line!("to_str roundtrip matches: ${Str.inspect(to_str_roundtrip == expected_str)}")?
+    Stdout.line!("joined path: ${Path.display(joined_path)}")?
+    Stdout.line!("filename: ${Path.display(filename)}")?
+    Stdout.line!("extension: ${Path.display(extension)}")?
+    Stdout.line!("raw bytes match: ${Str.inspect(raw_bytes_match)}")?
 
     # Create a regular file and test Path predicates on it
     File.write_utf8!("test_path_file.txt", "file for path testing")?
@@ -80,7 +108,9 @@ run_tests! = |{}| {
         }
     Stdout.line!("Nonexistent path type! result: ${nonexistent_result}")?
 
-    Stdout.line!("\nI ran all Path function tests.")
+    Stdout.line!("\nI ran all Path function tests.")?
+
+    Ok({})
 }
 
 cleanup! : {} => Try({}, _)

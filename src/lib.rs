@@ -63,6 +63,7 @@ type DirUnitResultTag = HostDirCreateResultTag;
 type DirListResult = HostDirListResult;
 type DirListResultPayload = HostDirListResultPayload;
 type DirListResultTag = HostDirListResultTag;
+type RawPath = HostDirListOk;
 
 type EnvCwdResult = HostEnvCwdResult;
 type EnvCwdResultPayload = HostEnvCwdResultPayload;
@@ -141,6 +142,9 @@ type CmdIOErrTag = HostIOErrTag;
 type DirIOErr = HostIOErr;
 type DirIOErrPayload = HostIOErrPayload;
 type DirIOErrTag = HostIOErrTag;
+type EnvIOErr = HostIOErr;
+type EnvIOErrPayload = HostIOErrPayload;
+type EnvIOErrTag = HostIOErrTag;
 type FileIOErr = HostIOErr;
 type FileIOErrPayload = HostIOErrPayload;
 type FileIOErrTag = HostIOErrTag;
@@ -152,14 +156,14 @@ type PathIOErrTag = HostIOErrTag;
 // (`AnonStructN` / `TryTypeN`) and have NO generated semantic alias, so they are
 // referenced by their numbered names. Update this block if the glue renumbers
 // them (only happens when the platform's hosted/provides/types change).
-pub(crate) type InitForHostResult = TryType80;
-pub(crate) type InitForHostResultTag = TryType80Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct84;
-pub(crate) type ResponseToAndFromHost = AnonStruct88;
-pub(crate) type Header = AnonStruct86;
+pub(crate) type InitForHostResult = TryType81;
+pub(crate) type InitForHostResultTag = TryType81Tag;
+pub(crate) type RequestToAndFromHost = AnonStruct85;
+pub(crate) type ResponseToAndFromHost = AnonStruct89;
+pub(crate) type Header = AnonStruct87;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct88(value, roc_host);
+    decref_anon_struct89(value, roc_host);
 }
 
 // ============================================================================
@@ -305,6 +309,13 @@ define_common_io_err!(
     DirIOErr,
     DirIOErrTag,
     DirIOErrPayload
+);
+define_common_io_err!(
+    env_io_err_from_io,
+    env_io_err_other,
+    EnvIOErr,
+    EnvIOErrTag,
+    EnvIOErrPayload
 );
 define_common_io_err!(
     file_io_err_from_io,
@@ -601,7 +612,7 @@ fn try_dir_unit_err(error: DirIOErr) -> DirUnitResult {
     }
 }
 
-fn try_dir_list_ok(value: RocList<RocStr>) -> DirListResult {
+fn try_dir_list_ok(value: RocList<RawPath>) -> DirListResult {
     DirListResult {
         payload: DirListResultPayload {
             ok: ManuallyDrop::new(value),
@@ -646,10 +657,10 @@ fn try_env_cwd_ok(value: RocStr) -> EnvCwdResult {
     }
 }
 
-fn try_env_cwd_err() -> EnvCwdResult {
+fn try_env_cwd_err(error: EnvIOErr) -> EnvCwdResult {
     EnvCwdResult {
         payload: EnvCwdResultPayload {
-            err: ManuallyDrop::new(core::ptr::null_mut()),
+            err: ManuallyDrop::new(error),
         },
         tag: EnvCwdResultTag::Err,
     }
@@ -664,10 +675,10 @@ fn try_env_exe_path_ok(value: RocStr) -> EnvExePathResult {
     }
 }
 
-fn try_env_exe_path_err() -> EnvExePathResult {
+fn try_env_exe_path_err(error: EnvIOErr) -> EnvExePathResult {
     EnvExePathResult {
         payload: EnvExePathResultPayload {
-            err: ManuallyDrop::new(core::ptr::null_mut()),
+            err: ManuallyDrop::new(error),
         },
         tag: EnvExePathResultTag::Err,
     }
@@ -936,19 +947,15 @@ pub extern "C" fn hosted_dir_list(path: RocStr) -> DirListResult {
     let roc_host = roc_host();
     match fs::read_dir(path_from_roc_str(path, roc_host)) {
         Ok(read_dir) => {
-            let entries: Vec<String> = read_dir
-                .filter_map(|entry| {
-                    entry
-                        .ok()
-                        .map(|entry| entry.path().to_string_lossy().into_owned())
-                })
+            let entries: Vec<std::path::PathBuf> = read_dir
+                .filter_map(|entry| entry.ok().map(|entry| entry.path()))
                 .collect();
-            let list = RocList::<RocStr>::allocate(entries.len(), roc_host);
-            for (index, entry) in entries.iter().enumerate() {
+            let list = RocList::<RawPath>::allocate(entries.len(), roc_host);
+            for (index, entry) in entries.into_iter().enumerate() {
                 unsafe {
                     list.elements
                         .add(index)
-                        .write(RocStr::from_str(entry, roc_host));
+                        .write(raw_path_from_path_buf(entry, roc_host));
                 }
             }
             try_dir_list_ok(list)
@@ -958,28 +965,34 @@ pub extern "C" fn hosted_dir_list(path: RocStr) -> DirListResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_cwd() -> EnvCwdResult {
+pub extern "C" fn hosted_env_cwd(_dummy: RocStr) -> EnvCwdResult {
     let roc_host = roc_host();
+    _dummy.decref(roc_host);
+
     match std::env::current_dir() {
         Ok(path) => try_env_cwd_ok(RocStr::from_str(path.to_string_lossy().as_ref(), roc_host)),
-        Err(_) => try_env_cwd_err(),
+        Err(error) => try_env_cwd_err(env_io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_exe_path() -> EnvExePathResult {
+pub extern "C" fn hosted_env_exe_path(_dummy: RocStr) -> EnvExePathResult {
     let roc_host = roc_host();
+    _dummy.decref(roc_host);
+
     match std::env::current_exe() {
         Ok(path) => {
             try_env_exe_path_ok(RocStr::from_str(path.to_string_lossy().as_ref(), roc_host))
         }
-        Err(_) => try_env_exe_path_err(),
+        Err(error) => try_env_exe_path_err(env_io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_temp_dir() -> RocStr {
+pub extern "C" fn hosted_env_temp_dir(_dummy: RocStr) -> RocStr {
     let roc_host = roc_host();
+    _dummy.decref(roc_host);
+
     RocStr::from_str(std::env::temp_dir().to_string_lossy().as_ref(), roc_host)
 }
 
@@ -1159,31 +1172,83 @@ pub extern "C" fn hosted_file_write_utf8(path: RocStr, content: RocStr) -> FileW
     }
 }
 
-fn path_buf_from_roc_bytes(
-    bytes: RocListWith<u8, false>,
-    roc_host: &RocHost,
-) -> std::path::PathBuf {
+fn raw_path_from_path_buf(path: std::path::PathBuf, roc_host: &RocHost) -> RawPath {
     #[cfg(unix)]
     {
-        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::ffi::OsStringExt;
 
-        let path = std::ffi::OsStr::from_bytes(bytes.as_slice()).to_owned();
-        bytes.decref(roc_host);
-        std::path::PathBuf::from(path)
+        let bytes = path.into_os_string().into_vec();
+        RawPath {
+            unix_bytes: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
+            windows_u16s: RocListWith::<u16, false>::from_slice(&[], roc_host),
+            is_windows: false,
+        }
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
-        let path = String::from_utf8_lossy(bytes.as_slice()).into_owned();
-        bytes.decref(roc_host);
-        std::path::PathBuf::from(path)
+        use std::os::windows::ffi::OsStrExt;
+
+        let u16s: Vec<u16> = path.as_os_str().encode_wide().collect();
+        RawPath {
+            unix_bytes: RocListWith::<u8, false>::from_slice(&[], roc_host),
+            windows_u16s: RocListWith::<u16, false>::from_slice(&u16s, roc_host),
+            is_windows: true,
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let bytes = path.to_string_lossy().as_bytes().to_vec();
+        RawPath {
+            unix_bytes: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
+            windows_u16s: RocListWith::<u16, false>::from_slice(&[], roc_host),
+            is_windows: false,
+        }
     }
 }
 
+fn path_buf_from_raw_path(path: HostPathTypeArgs, roc_host: &RocHost) -> std::path::PathBuf {
+    let unix_bytes = path.unix_bytes;
+    let windows_u16s = path.windows_u16s;
+
+    let path_buf = if path.is_windows {
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStringExt;
+
+            let os_string = std::ffi::OsString::from_wide(windows_u16s.as_slice());
+            std::path::PathBuf::from(os_string)
+        }
+
+        #[cfg(not(windows))]
+        {
+            std::path::PathBuf::from(String::from_utf16_lossy(windows_u16s.as_slice()))
+        }
+    } else {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+
+            let os_string = std::ffi::OsString::from_vec(unix_bytes.as_slice().to_vec());
+            std::path::PathBuf::from(os_string)
+        }
+
+        #[cfg(not(unix))]
+        {
+            std::path::PathBuf::from(String::from_utf8_lossy(unix_bytes.as_slice()).into_owned())
+        }
+    };
+
+    unix_bytes.decref(roc_host);
+    windows_u16s.decref(roc_host);
+    path_buf
+}
+
 #[no_mangle]
-pub extern "C" fn hosted_path_type(path: RocListWith<u8, false>) -> PathTypeResult {
+pub extern "C" fn hosted_path_type(path: HostPathTypeArgs) -> PathTypeResult {
     let roc_host = roc_host();
-    let path = path_buf_from_roc_bytes(path, roc_host);
+    let path = path_buf_from_raw_path(path, roc_host);
 
     match path.symlink_metadata() {
         Ok(metadata) => {
@@ -1223,7 +1288,7 @@ type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
 type SqliteValueTag = BytesOrIntegerOrNullOrRealOrStringTag;
 type SqliteValuePayload = BytesOrIntegerOrNullOrRealOrStringPayload;
 type SqliteError = HostSqlitePrepareErr;
-type SqliteBindings = AnonStruct45;
+type SqliteBindings = AnonStruct46;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
@@ -1598,7 +1663,7 @@ pub extern "C" fn hosted_sqlite_bind(
         sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
     };
     for binding in bindings.as_slice() {
-        decref_anon_struct45(*binding, roc_host);
+        decref_anon_struct46(*binding, roc_host);
     }
     bindings.decref(roc_host);
     release_sqlite_stmt(handle, roc_host);
@@ -1655,8 +1720,8 @@ pub extern "C" fn hosted_sqlite_column_value(
                     }
                     libsqlite3_sys::SQLITE_TEXT => {
                         let text = libsqlite3_sys::sqlite3_column_text(stmt.stmt, index);
-                        let len = libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0)
-                            as usize;
+                        let len =
+                            libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0) as usize;
                         let slice = if text.is_null() {
                             &[][..]
                         } else {
@@ -1668,9 +1733,10 @@ pub extern "C" fn hosted_sqlite_column_value(
                         ))
                     }
                     libsqlite3_sys::SQLITE_BLOB => {
-                        let blob = libsqlite3_sys::sqlite3_column_blob(stmt.stmt, index) as *const u8;
-                        let len = libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0)
-                            as usize;
+                        let blob =
+                            libsqlite3_sys::sqlite3_column_blob(stmt.stmt, index) as *const u8;
+                        let len =
+                            libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0) as usize;
                         let slice = if blob.is_null() {
                             &[][..]
                         } else {
@@ -2007,7 +2073,7 @@ pub extern "C" fn hosted_tcp_write(
 // number; alias them to stable semantic names (the response also has the
 // generator's stable `HostHttpSendRequest` alias).
 type HttpResponse = HostHttpSendRequest;
-type HttpHeader = AnonStruct34;
+type HttpHeader = AnonStruct36;
 
 thread_local! {
     static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
@@ -2141,7 +2207,7 @@ pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> Htt
     let request_result = build_hyper_request(&args);
     args.body.decref(roc_host);
     for header in args.headers.as_slice() {
-        decref_anon_struct34(*header, roc_host);
+        decref_anon_struct36(*header, roc_host);
     }
     args.headers.decref(roc_host);
     args.method_ext.decref(roc_host);

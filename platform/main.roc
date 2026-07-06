@@ -37,6 +37,9 @@ platform "webserver"
         # roc-lang/http package so apps and other packages using it see the same
         # nominal types. The platform supplies the effectful server/client glue.
         http: "https://github.com/roc-lang/http/releases/download/0.1/6LcdNq2r7xTBwj972ecYWUkMWobJr94yL2NyJpHRAXap.tar.zst",
+        # Pure filesystem path operations come from roc-lang/path; this
+        # platform layers effectful filesystem queries on top in Path.roc.
+        path: "https://github.com/roc-lang/path/releases/download/1.0.0/8p8iryUUorAFTUDeqYcwc9bFYSwpbVqhYpuHvRAS5Cq4.tar.zst",
     }
     provides {
         "roc_init_for_host": init_for_host!,

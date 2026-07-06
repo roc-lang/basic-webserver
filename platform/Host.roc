@@ -27,6 +27,12 @@ Host := [].{
         is_dir : Bool,
     }
 
+    RawPath : {
+        is_windows : Bool,
+        unix_bytes : List(U8),
+        windows_u16s : List(U16),
+    }
+
     SqliteStmt :: Box(U64)
 
     TcpStream :: Box(U64)
@@ -38,12 +44,12 @@ Host := [].{
     dir_create_all! : Str => Try({}, [DirErr(IOErr)])
     dir_delete_empty! : Str => Try({}, [DirErr(IOErr)])
     dir_delete_all! : Str => Try({}, [DirErr(IOErr)])
-    dir_list! : Str => Try(List(Str), [DirErr(IOErr)])
+    dir_list! : Str => Try(List(RawPath), [DirErr(IOErr)])
 
     env_var! : Str => Try(Str, [VarNotFound(Str)])
-    env_cwd! : {} => Try(Str, [CwdUnavailable])
-    env_exe_path! : {} => Try(Str, [ExePathUnavailable])
-    env_temp_dir! : {} => Str
+    env_cwd! : Str => Try(Str, [EnvErr(IOErr)])
+    env_exe_path! : Str => Try(Str, [EnvErr(IOErr)])
+    env_temp_dir! : Str => Str
 
     file_read_bytes! : Str => Try(List(U8), [FileErr(IOErr)])
     file_write_bytes! : Str, List(U8) => Try({}, [FileErr(IOErr)])
@@ -60,7 +66,7 @@ Host := [].{
 
     http_send_request! : InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
 
-    path_type! : List(U8) => Try(PathType, IOErr)
+    path_type! : RawPath => Try(PathType, IOErr)
 
     sqlite_prepare! : Str, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
     sqlite_bind! : SqliteStmt, List(InternalSqlite.SqliteBindings) => Try({}, InternalSqlite.SqliteError)

@@ -1,5 +1,7 @@
 import IOErr exposing [IOErr]
 import Host
+import InternalPath
+import Path
 
 Dir := [].{
     ## Creates a new, empty directory at the provided path.
@@ -31,9 +33,6 @@ Dir := [].{
     ## Lists the contents of a directory.
     ##
     ## Returns the paths of all files and directories within the specified directory.
-    ##
-    ## TODO: This temporarily returns lossy Str paths. When the vendored Path
-    ## subset is replaced by roc-lang/path, return byte-preserving Path values.
-    list! : Str => Try(List(Str), [DirErr(IOErr), ..])
-    list! = |path| Ok(Host.dir_list!(path)?)
+    list! : Str => Try(List(Path.Path), [DirErr(IOErr), ..])
+    list! = |path| Ok(List.map(Host.dir_list!(path)?, InternalPath.from_host_raw))
 }

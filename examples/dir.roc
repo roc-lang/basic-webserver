@@ -7,6 +7,7 @@ import pf.Stdout
 import pf.Stderr
 import pf.Dir
 import pf.Http
+import pf.Path
 import http.Response
 
 # To run this example: check the README.md in this folder
@@ -30,7 +31,7 @@ init! = |{}| {
         # List the contents of a directory
         paths = Dir.list!("nested-dir")?
 
-        paths_str = Str.join_with(paths, ", ")
+        paths_str = Str.join_with(List.map(paths, Path.display), ", ")
 
         _ = Stdout.line!("The paths in nested-dir are: ${paths_str}")
 

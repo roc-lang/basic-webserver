@@ -6,7 +6,10 @@
 //! `roc_respond_for_host(request, model)` for each request.
 
 use crate::roc_platform_abi::*;
-use crate::{decref_response, roc_host, Header, InitForHostResult, InitForHostResultTag, RequestToAndFromHost, ResponseToAndFromHost};
+use crate::{
+    decref_response, roc_host, Header, InitForHostResult, InitForHostResultTag,
+    RequestToAndFromHost, ResponseToAndFromHost,
+};
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use http_body_util::{BodyExt, Full};
@@ -210,7 +213,10 @@ async fn run_server() -> i32 {
     let addr = match format!("{}:{}", host, port).parse::<SocketAddr>() {
         Ok(addr) => addr,
         Err(err) => {
-            eprintln!("Failed to parse host '{}' and port '{}': {}", host, port, err);
+            eprintln!(
+                "Failed to parse host '{}' and port '{}': {}",
+                host, port, err
+            );
             return 1;
         }
     };

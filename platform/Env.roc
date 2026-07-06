@@ -13,26 +13,34 @@ Env := [].{
     ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
     ## from the environment.
     ##
-    ## TODO: This temporarily returns a lossy Str path. When the vendored Path
-    ## subset is replaced by roc-lang/path, return a byte-preserving Path value.
+    ## TODO: Return Path.Path once this zero-argument Try-returning API can be
+    ## changed safely without triggering the current runtime crash.
     ##
     ## Returns `Err(CwdUnavailable)` if the cwd cannot be determined.
     cwd! : {} => Try(Str, [CwdUnavailable, ..])
-    cwd! = |{}| Ok(Host.env_cwd!({})?)
+    cwd! = |{}|
+        match Host.env_cwd!("") {
+            Ok(path) => Ok(path)
+            Err(_) => Err(CwdUnavailable)
+        }
 
     ## Gets the path to the currently-running executable.
     ##
-    ## TODO: This temporarily returns a lossy Str path. When the vendored Path
-    ## subset is replaced by roc-lang/path, return a byte-preserving Path value.
+    ## TODO: Return Path.Path once this zero-argument Try-returning API can be
+    ## changed safely without triggering the current runtime crash.
     ##
     ## Returns `Err(ExePathUnavailable)` if the path cannot be determined.
     exe_path! : {} => Try(Str, [ExePathUnavailable, ..])
-    exe_path! = |{}| Ok(Host.env_exe_path!({})?)
+    exe_path! = |{}|
+        match Host.env_exe_path!("") {
+            Ok(path) => Ok(path)
+            Err(_) => Err(ExePathUnavailable)
+        }
 
     ## Gets the default directory for temporary files.
     ##
-    ## TODO: This temporarily returns a lossy Str path. When the vendored Path
-    ## subset is replaced by roc-lang/path, return a byte-preserving Path value.
+    ## TODO: Return Path.Path with cwd! and exe_path! once the compiler/runtime
+    ## issue is resolved.
     temp_dir! : {} => Str
-    temp_dir! = |{}| Host.env_temp_dir!({})
+    temp_dir! = |{}| Host.env_temp_dir!("")
 }

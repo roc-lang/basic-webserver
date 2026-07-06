@@ -9,9 +9,8 @@ import pf.Http
 import pf.Env
 import http.Response
 
-# NOTE: The migrated Env module is a reduced subset. This test covers the
-# functions that are currently available: var!, cwd!, exe_path!, temp_dir!.
-# (platform!, dict!, set_cwd!, and Path.list_dir! are not yet migrated.)
+# NOTE: The migrated Env module is a reduced subset. This test covers var!,
+# cwd!, exe_path!, and temp_dir!.
 
 Model : {}
 
