@@ -81,6 +81,9 @@ jobs:
       - name: Install Rust target
         run: rustup target add ${{ matrix.rust_target }}
 
+      - name: Run Rust unit tests
+        run: cargo test
+
       - name: Build host static library
         run: ./build.sh --target ${{ matrix.target }}
 

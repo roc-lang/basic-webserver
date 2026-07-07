@@ -5,11 +5,11 @@
 //! never freed), then runs a tokio/hyper accept loop that calls
 //! `roc_respond_for_host(request, model)` for each request.
 
-use crate::roc_platform_abi::*;
-use crate::{
+use crate::abi::{
     decref_response, roc_host, Header, InitForHostResult, InitForHostResultTag,
     RequestToAndFromHost, ResponseToAndFromHost,
 };
+use crate::roc_platform_abi::*;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
 use http_body_util::{BodyExt, Full};
@@ -253,5 +253,35 @@ async fn run_server() -> i32 {
                 eprintln!("Failed to accept incoming connection: {}", err);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn method_to_tag_matches_internal_http_contract() {
+        assert_eq!(method_to_tag(&hyper::Method::CONNECT), (0, ""));
+        assert_eq!(method_to_tag(&hyper::Method::DELETE), (1, ""));
+        assert_eq!(method_to_tag(&hyper::Method::GET), (3, ""));
+        assert_eq!(method_to_tag(&hyper::Method::HEAD), (4, ""));
+        assert_eq!(method_to_tag(&hyper::Method::OPTIONS), (5, ""));
+        assert_eq!(method_to_tag(&hyper::Method::PATCH), (6, ""));
+        assert_eq!(method_to_tag(&hyper::Method::POST), (7, ""));
+        assert_eq!(method_to_tag(&hyper::Method::PUT), (8, ""));
+        assert_eq!(method_to_tag(&hyper::Method::TRACE), (9, ""));
+        assert_eq!(
+            method_to_tag(&hyper::Method::from_bytes(b"QUERY").unwrap()),
+            (10, "")
+        );
+    }
+
+    #[test]
+    fn method_to_tag_marks_extensions_as_unknown() {
+        assert_eq!(
+            method_to_tag(&hyper::Method::from_bytes(b"PROPFIND").unwrap()),
+            (2, "EXTENSION")
+        );
     }
 }
