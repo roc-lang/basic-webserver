@@ -32,6 +32,59 @@ get_lib_name() {
     esac
 }
 
+get_windows_sdk_arch() {
+    case "$1" in
+        x64win)   echo "x64" ;;
+        arm64win) echo "arm64" ;;
+        *) echo "Unknown Windows SDK arch for: $1" >&2; exit 1 ;;
+    esac
+}
+
+find_windows_import_lib() {
+    local arch=$1
+    local lib=$2
+
+    if [[ -n "${WindowsSdkDir:-}" && -n "${WindowsSDKLibVersion:-}" ]] && command -v cygpath >/dev/null 2>&1; then
+        local candidate
+        candidate="$(cygpath -u "${WindowsSdkDir}\\Lib\\${WindowsSDKLibVersion}\\um\\${arch}\\${lib}" 2>/dev/null || true)"
+        if [[ -f "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    local root
+    for root in "/c/Program Files (x86)/Windows Kits/10/Lib" "/c/Program Files/Windows Kits/10/Lib"; do
+        if [[ -d "$root" ]]; then
+            find "$root" -path "*/um/${arch}/${lib}" -print 2>/dev/null | sort | tail -n 1
+            return 0
+        fi
+    done
+}
+
+copy_windows_import_libs() {
+    local target_name=$1
+
+    [[ "$target_name" == *"win" ]] || return 0
+
+    local arch
+    arch="$(get_windows_sdk_arch "$target_name")"
+
+    local dest_dir="platform/targets/$target_name"
+    local lib
+    for lib in ws2_32.lib bcrypt.lib advapi32.lib; do
+        local src
+        src="$(find_windows_import_lib "$arch" "$lib")"
+        if [[ -z "$src" || ! -f "$src" ]]; then
+            echo "Could not find Windows SDK import library $lib for $arch." >&2
+            echo "Install the Windows SDK, then rerun ./build.sh --target $target_name." >&2
+            exit 1
+        fi
+
+        cp "$src" "$dest_dir/$lib"
+    done
+}
+
 get_zig_target() {
     case "$1" in
         x64mac)    echo "x86_64-macos" ;;
@@ -163,6 +216,7 @@ build_target_cross() {
 
     mkdir -p "platform/targets/$target_name"
     cp "target/$rust_triple/release/$lib_name" "platform/targets/$target_name/"
+    copy_windows_import_libs "$target_name"
     echo "  -> platform/targets/$target_name/$lib_name"
 }
 
@@ -191,6 +245,7 @@ build_target_native() {
         exit 1
     fi
 
+    copy_windows_import_libs "$target_name"
     echo "  -> platform/targets/$target_name/$lib_name"
 }
 

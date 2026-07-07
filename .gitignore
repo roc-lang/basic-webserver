@@ -56,6 +56,10 @@ curl_form_output.txt
 # Host libraries are rebuilt by build.sh and are NOT committed.
 platform/targets/*/libhost.a
 platform/targets/*/host.lib
+# Windows SDK import libraries are copied by build.sh and are NOT committed.
+platform/targets/*/ws2_32.lib
+platform/targets/*/bcrypt.lib
+platform/targets/*/advapi32.lib
 
 # build script artifacts
 build

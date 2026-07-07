@@ -19,16 +19,6 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Roc performs the final app link itself from `host.lib` and the compiled app
-// object. Keep Windows system import libs visible to that COFF link step.
-#[cfg(target_os = "windows")]
-#[link(name = "advapi32")]
-#[link(name = "bcrypt")]
-#[link(name = "ntdll")]
-#[link(name = "userenv")]
-#[link(name = "ws2_32")]
-unsafe extern "C" {}
-
 mod http_server;
 mod roc_platform_abi;
 
