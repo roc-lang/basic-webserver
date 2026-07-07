@@ -4,17 +4,18 @@ Release-readiness backlog for the Zig compiler migration PR.
 
 ## Before Publishing
 
-- [ ] Get GitHub CI green for [PR #163](https://github.com/roc-lang/basic-webserver/pull/163).
+- [x] Get GitHub CI green for [PR #163](https://github.com/roc-lang/basic-webserver/pull/163).
   - Rust is bumped to `1.85.0` so the resolved dependency graph can build Edition 2024 crates.
   - CI now has per-target coverage for Linux musl, macOS, and Windows host libraries.
-  - Confirm the workflow is green after the next push.
+  - Windows SDK import libraries are explicit platform target inputs and are copied into `platform/targets/<target>/` by `./build.sh`.
+  - The workflow has been confirmed green after the Windows import-library fix.
 
 - [x] Decide and validate release target support.
   - `platform/main.roc` currently advertises `x64mac`, `arm64mac`, `x64musl`, `arm64musl`, `x64win`, and `arm64win`.
   - Decision: keep all six targets for the release.
   - CI runs full Roc app tests for `x64musl`, `arm64musl`, `x64mac`, `arm64mac`, and `x64win`.
   - CI validates the `arm64win` Rust host library, but skips Roc app tests because `roc-lang/setup-roc` does not publish a Windows arm64 compiler binary yet.
-  - Host libraries are intentionally ignored and must be rebuilt before packaging with `./build.sh --target <target>` or `./build.sh --all` on the appropriate host OS.
+  - Host libraries and copied Windows SDK import libraries are intentionally ignored and must be rebuilt before packaging with `./build.sh --target <target>` or `./build.sh --all` on the appropriate host OS.
 
 - [x] Run a docs pass before tagging.
   - README version links now point at `0.13.1`, `0.13.0`, and `main`.
