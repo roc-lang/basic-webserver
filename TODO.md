@@ -36,9 +36,10 @@ Release-readiness backlog for the Zig compiler migration PR.
 - [ ] Triage the GitHub Dependabot alert before tagging.
   - GitHub reports one moderate vulnerability on the default branch: <https://github.com/roc-lang/basic-webserver/security/dependabot/4>
 
-- [ ] Return `Path.Path` from `Env.cwd!`, `Env.exe_path!`, and `Env.temp_dir!`.
-  - Currently blocked by upstream Roc issue [roc#9963](https://github.com/roc-lang/roc/issues/9963).
-  - Re-test after the latest API refactors and implement if the current compiler/runtime supports it.
+- [x] Return `Path.Path` from `Env.cwd!`, `Env.exe_path!`, and `Env.temp_dir!`.
+  - `cwd!` and `exe_path!` now return byte-preserving `Path.Path` values from Unix bytes or Windows UTF-16 code units.
+  - `temp_dir!` now returns `Path.Path` through the platform raw-path representation.
+  - The public API keeps open error rows; hosted functions keep closed rows for the host boundary.
 
 - [ ] Revisit the `Tcp.read_line!` implementation once [roc#9826](https://github.com/roc-lang/roc/issues/9826) is fixed.
   - The current implementation avoids `?` for a single-variant error union because that path currently crashes.

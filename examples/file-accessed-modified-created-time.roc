@@ -16,7 +16,7 @@ program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
-    result = || {
+    result! = || {
         file = "LICENSE"
 
         # NOTE: some timestamp metadata may be unavailable on some filesystems
@@ -31,7 +31,7 @@ init! = || {
         Ok({})
     }
 
-    match result() {
+    match result!() {
         Ok(_) => Ok({})
         Err(err) => {
             Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}") ?? {}

@@ -65,12 +65,12 @@ type DirListResultPayload = HostDirListResultPayload;
 type DirListResultTag = HostDirListResultTag;
 type RawPath = HostDirListOk;
 
-type EnvCwdResult = HostEnvCwdResult;
-type EnvCwdResultPayload = HostEnvCwdResultPayload;
-type EnvCwdResultTag = HostEnvCwdResultTag;
-type EnvExePathResult = HostEnvExePathResult;
-type EnvExePathResultPayload = HostEnvExePathResultPayload;
-type EnvExePathResultTag = HostEnvExePathResultTag;
+type EnvUnixPathResult = HostEnvCwdUnixResult;
+type EnvUnixPathResultPayload = HostEnvCwdUnixResultPayload;
+type EnvUnixPathResultTag = HostEnvCwdUnixResultTag;
+type EnvWindowsPathResult = HostEnvCwdWindowsResult;
+type EnvWindowsPathResultPayload = HostEnvCwdWindowsResultPayload;
+type EnvWindowsPathResultTag = HostEnvCwdWindowsResultTag;
 type EnvVarResult = HostEnvVarResult;
 type EnvVarResultPayload = HostEnvVarResultPayload;
 type EnvVarResultTag = HostEnvVarResultTag;
@@ -162,14 +162,14 @@ type PathIOErrTag = HostIOErrTag;
 // (`AnonStructN` / `TryTypeN`) and have NO generated semantic alias, so they are
 // referenced by their numbered names. Update this block if the glue renumbers
 // them (only happens when the platform's hosted/provides/types change).
-pub(crate) type InitForHostResult = TryType82;
-pub(crate) type InitForHostResultTag = TryType82Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct86;
-pub(crate) type ResponseToAndFromHost = AnonStruct90;
-pub(crate) type Header = AnonStruct88;
+pub(crate) type InitForHostResult = TryType83;
+pub(crate) type InitForHostResultTag = TryType83Tag;
+pub(crate) type RequestToAndFromHost = AnonStruct87;
+pub(crate) type ResponseToAndFromHost = AnonStruct91;
+pub(crate) type Header = AnonStruct89;
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct90(value, roc_host);
+    decref_anon_struct91(value, roc_host);
 }
 
 // ============================================================================
@@ -654,39 +654,39 @@ fn try_env_str_err(error: RocStr) -> EnvVarResult {
     }
 }
 
-fn try_env_cwd_ok(value: RocStr) -> EnvCwdResult {
-    EnvCwdResult {
-        payload: EnvCwdResultPayload {
+fn try_env_unix_path_ok(value: RocListWith<u8, false>) -> EnvUnixPathResult {
+    EnvUnixPathResult {
+        payload: EnvUnixPathResultPayload {
             ok: ManuallyDrop::new(value),
         },
-        tag: EnvCwdResultTag::Ok,
+        tag: EnvUnixPathResultTag::Ok,
     }
 }
 
-fn try_env_cwd_err(error: EnvIOErr) -> EnvCwdResult {
-    EnvCwdResult {
-        payload: EnvCwdResultPayload {
+fn try_env_unix_path_err(error: EnvIOErr) -> EnvUnixPathResult {
+    EnvUnixPathResult {
+        payload: EnvUnixPathResultPayload {
             err: ManuallyDrop::new(error),
         },
-        tag: EnvCwdResultTag::Err,
+        tag: EnvUnixPathResultTag::Err,
     }
 }
 
-fn try_env_exe_path_ok(value: RocStr) -> EnvExePathResult {
-    EnvExePathResult {
-        payload: EnvExePathResultPayload {
+fn try_env_windows_path_ok(value: RocListWith<u16, false>) -> EnvWindowsPathResult {
+    EnvWindowsPathResult {
+        payload: EnvWindowsPathResultPayload {
             ok: ManuallyDrop::new(value),
         },
-        tag: EnvExePathResultTag::Ok,
+        tag: EnvWindowsPathResultTag::Ok,
     }
 }
 
-fn try_env_exe_path_err(error: EnvIOErr) -> EnvExePathResult {
-    EnvExePathResult {
-        payload: EnvExePathResultPayload {
+fn try_env_windows_path_err(error: EnvIOErr) -> EnvWindowsPathResult {
+    EnvWindowsPathResult {
+        payload: EnvWindowsPathResultPayload {
             err: ManuallyDrop::new(error),
         },
-        tag: EnvExePathResultTag::Err,
+        tag: EnvWindowsPathResultTag::Err,
     }
 }
 
@@ -1007,35 +1007,63 @@ pub extern "C" fn hosted_dir_list(path: RocStr) -> DirListResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_cwd(_dummy: RocStr) -> EnvCwdResult {
+pub extern "C" fn hosted_env_is_windows(dummy: RocStr) -> bool {
     let roc_host = roc_host();
-    _dummy.decref(roc_host);
+    dummy.decref(roc_host);
+
+    cfg!(windows)
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_env_cwd_unix(dummy: RocStr) -> EnvUnixPathResult {
+    let roc_host = roc_host();
+    dummy.decref(roc_host);
 
     match std::env::current_dir() {
-        Ok(path) => try_env_cwd_ok(RocStr::from_str(path.to_string_lossy().as_ref(), roc_host)),
-        Err(error) => try_env_cwd_err(env_io_err_from_io(&error, roc_host)),
+        Ok(path) => try_env_unix_path_ok(unix_bytes_from_path_buf(path, roc_host)),
+        Err(error) => try_env_unix_path_err(env_io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_exe_path(_dummy: RocStr) -> EnvExePathResult {
+pub extern "C" fn hosted_env_cwd_windows(dummy: RocStr) -> EnvWindowsPathResult {
     let roc_host = roc_host();
-    _dummy.decref(roc_host);
+    dummy.decref(roc_host);
+
+    match std::env::current_dir() {
+        Ok(path) => try_env_windows_path_ok(windows_u16s_from_path_buf(path, roc_host)),
+        Err(error) => try_env_windows_path_err(env_io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_env_exe_path_unix(dummy: RocStr) -> EnvUnixPathResult {
+    let roc_host = roc_host();
+    dummy.decref(roc_host);
 
     match std::env::current_exe() {
-        Ok(path) => {
-            try_env_exe_path_ok(RocStr::from_str(path.to_string_lossy().as_ref(), roc_host))
-        }
-        Err(error) => try_env_exe_path_err(env_io_err_from_io(&error, roc_host)),
+        Ok(path) => try_env_unix_path_ok(unix_bytes_from_path_buf(path, roc_host)),
+        Err(error) => try_env_unix_path_err(env_io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_temp_dir(_dummy: RocStr) -> RocStr {
+pub extern "C" fn hosted_env_exe_path_windows(dummy: RocStr) -> EnvWindowsPathResult {
     let roc_host = roc_host();
-    _dummy.decref(roc_host);
+    dummy.decref(roc_host);
 
-    RocStr::from_str(std::env::temp_dir().to_string_lossy().as_ref(), roc_host)
+    match std::env::current_exe() {
+        Ok(path) => try_env_windows_path_ok(windows_u16s_from_path_buf(path, roc_host)),
+        Err(error) => try_env_windows_path_err(env_io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_env_temp_dir(dummy: RocStr) -> RawPath {
+    let roc_host = roc_host();
+    dummy.decref(roc_host);
+
+    raw_path_from_path_buf(std::env::temp_dir(), roc_host)
 }
 
 #[no_mangle]
@@ -1295,6 +1323,43 @@ pub extern "C" fn hosted_file_write_utf8(path: RocStr, content: RocStr) -> FileW
     }
 }
 
+fn unix_bytes_from_path_buf(
+    path: std::path::PathBuf,
+    roc_host: &RocHost,
+) -> RocListWith<u8, false> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+
+        let bytes = path.into_os_string().into_vec();
+        RocListWith::<u8, false>::from_slice(&bytes, roc_host)
+    }
+
+    #[cfg(not(unix))]
+    {
+        RocListWith::<u8, false>::from_slice(path.to_string_lossy().as_bytes(), roc_host)
+    }
+}
+
+fn windows_u16s_from_path_buf(
+    path: std::path::PathBuf,
+    roc_host: &RocHost,
+) -> RocListWith<u16, false> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        let u16s: Vec<u16> = path.as_os_str().encode_wide().collect();
+        RocListWith::<u16, false>::from_slice(&u16s, roc_host)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let u16s: Vec<u16> = path.to_string_lossy().as_ref().encode_utf16().collect();
+        RocListWith::<u16, false>::from_slice(&u16s, roc_host)
+    }
+}
+
 fn raw_path_from_path_buf(path: std::path::PathBuf, roc_host: &RocHost) -> RawPath {
     #[cfg(unix)]
     {
@@ -1416,7 +1481,7 @@ type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
 type SqliteValueTag = BytesOrIntegerOrNullOrRealOrStringTag;
 type SqliteValuePayload = BytesOrIntegerOrNullOrRealOrStringPayload;
 type SqliteError = HostSqlitePrepareErr;
-type SqliteBindings = AnonStruct48;
+type SqliteBindings = AnonStruct49;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
@@ -1791,7 +1856,7 @@ pub extern "C" fn hosted_sqlite_bind(
         sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
     };
     for binding in bindings.as_slice() {
-        decref_anon_struct48(*binding, roc_host);
+        decref_anon_struct49(*binding, roc_host);
     }
     bindings.decref(roc_host);
     release_sqlite_stmt(handle, roc_host);
@@ -2201,7 +2266,7 @@ pub extern "C" fn hosted_tcp_write(
 // number; alias them to stable semantic names (the response also has the
 // generator's stable `HostHttpSendRequest` alias).
 type HttpResponse = HostHttpSendRequest;
-type HttpHeader = AnonStruct38;
+type HttpHeader = AnonStruct39;
 
 thread_local! {
     static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
@@ -2336,7 +2401,7 @@ pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> Htt
     let request_result = build_hyper_request(&args);
     args.body.decref(roc_host);
     for header in args.headers.as_slice() {
-        decref_anon_struct38(*header, roc_host);
+        decref_anon_struct39(*header, roc_host);
     }
     args.headers.decref(roc_host);
     args.method_ext.decref(roc_host);

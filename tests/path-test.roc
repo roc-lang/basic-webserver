@@ -57,10 +57,22 @@ run_tests! = || {
     typed_path : Path.Path
     typed_path = Path.from_str(expected_str)
     roundtrip = Path.display(typed_path)
-    to_str_roundtrip = Path.to_str(typed_path)?
+    to_str_roundtrip =
+        match Path.to_str(typed_path) {
+            Ok(str) => str
+            Err(_) => ""
+        }
     joined_path = Path.join(Path.from_str("test_path"), "nested.txt")
-    filename = Path.filename(joined_path)?
-    extension = Path.ext(joined_path)?
+    filename =
+        match Path.filename(joined_path) {
+            Ok(path) => path
+            Err(_) => Path.from_str("")
+        }
+    extension =
+        match Path.ext(joined_path) {
+            Ok(path) => path
+            Err(_) => Path.from_str("")
+        }
     raw_bytes_match =
         match Path.to_raw(typed_path) {
             UnixBytes(bytes) => bytes == Str.to_utf8(expected_str)

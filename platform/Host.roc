@@ -49,9 +49,12 @@ Host := [].{
     dir_list! : Str => Try(List(RawPath), [DirErr(IOErr)])
 
     env_var! : Str => Try(Str, [VarNotFound(Str)])
-    env_cwd! : Str => Try(Str, [EnvErr(IOErr)])
-    env_exe_path! : Str => Try(Str, [EnvErr(IOErr)])
-    env_temp_dir! : Str => Str
+    env_is_windows! : Str => Bool
+    env_cwd_unix! : Str => Try(List(U8), [EnvErr(IOErr)])
+    env_cwd_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
+    env_exe_path_unix! : Str => Try(List(U8), [EnvErr(IOErr)])
+    env_exe_path_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
+    env_temp_dir! : Str => RawPath
 
     file_read_bytes! : Str => Try(List(U8), [FileErr(IOErr)])
     file_write_bytes! : Str, List(U8) => Try({}, [FileErr(IOErr)])

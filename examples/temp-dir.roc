@@ -5,6 +5,7 @@ app [Model, program] {
 
 import pf.Http
 import pf.Env
+import pf.Path
 import http.Response
 
 # To run this example: check the root README.md
@@ -20,7 +21,7 @@ init! = || Ok({})
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model| {
-    temp_dir_str = Env.temp_dir!()
+    temp_dir_str = Path.display(Env.temp_dir!())
 
     Ok(Response.from_status(200).with_body(Str.to_utf8("The temp dir path is ${temp_dir_str}")))
 }

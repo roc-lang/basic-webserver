@@ -15,7 +15,7 @@ program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
-    result = || {
+    result! = || {
         file = "LICENSE"
 
         is_executable = File.is_executable!(file)?
@@ -29,7 +29,7 @@ init! = || {
         Ok({})
     }
 
-    match result() {
+    match result!() {
         Ok(_) => Ok({})
         Err(err) => {
             Stderr.line!("Error reading file permissions: ${Str.inspect(err)}") ?? {}

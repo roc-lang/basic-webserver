@@ -7,6 +7,7 @@ import pf.Stdout
 import pf.Stderr
 import pf.Http
 import pf.Env
+import pf.Path
 import http.Response
 
 # NOTE: The migrated Env module is a reduced subset. This test covers var!,
@@ -33,13 +34,13 @@ run_tests! : () => Try({}, _)
 run_tests! = || {
     Stdout.line!("Testing Env module functions...\n\nTesting Env.cwd!:")?
     cwd = Env.cwd!()?
-    Stdout.line!("cwd: ${cwd}\n\nTesting Env.exe_path!:")?
+    Stdout.line!("cwd: ${Path.display(cwd)}\n\nTesting Env.exe_path!:")?
 
     exe_path = Env.exe_path!()?
-    Stdout.line!("exe_path: ${exe_path}\n\nTesting Env.temp_dir!:")?
+    Stdout.line!("exe_path: ${Path.display(exe_path)}\n\nTesting Env.temp_dir!:")?
 
     temp_dir = Env.temp_dir!()
-    Stdout.line!("temp_dir: ${temp_dir}\n\nTesting Env.var!:")?
+    Stdout.line!("temp_dir: ${Path.display(temp_dir)}\n\nTesting Env.var!:")?
 
     # A variable that should exist in most environments
     match Env.var!("PATH") {

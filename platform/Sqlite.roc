@@ -70,12 +70,18 @@ Sqlite := [].{
     ## Prepare a `Stmt` for execution at a later time.
     prepare! : { path : Str, query : Str } => Try(Stmt, [SqliteErr(ErrCode, Str), ..])
     prepare! = |{ path, query: q }|
-        Ok(Host.sqlite_prepare!(path, q).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
+        match Host.sqlite_prepare!(path, q) {
+            Ok(stmt) => Ok(stmt)
+            Err({ code, message }) => Err(SqliteErr(code_from_i64(code), message))
+        }
 
     ## Bind named parameters to a prepared statement.
     bind! : Stmt, List(InternalSqlite.SqliteBindings) => Try({}, [SqliteErr(ErrCode, Str), ..])
     bind! = |stmt, bindings|
-        Ok(Host.sqlite_bind!(stmt, bindings).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
+        match Host.sqlite_bind!(stmt, bindings) {
+            Ok(done) => Ok(done)
+            Err({ code, message }) => Err(SqliteErr(code_from_i64(code), message))
+        }
 
     ## Return the column names for a prepared statement.
     columns! : Stmt => List(Str)
@@ -85,7 +91,10 @@ Sqlite := [].{
     ## Read the value of a column (by index) from the current row.
     column_value! : Stmt, U64 => Try(InternalSqlite.SqliteValue, [SqliteErr(ErrCode, Str), ..])
     column_value! = |stmt, i|
-        Ok(Host.sqlite_column_value!(stmt, i).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
+        match Host.sqlite_column_value!(stmt, i) {
+            Ok(value) => Ok(value)
+            Err({ code, message }) => Err(SqliteErr(code_from_i64(code), message))
+        }
 
     ## Advance a prepared statement. Returns `Row` if a row is available, `Done` otherwise.
     step! : Stmt => Try([Row, Done], [SqliteErr(ErrCode, Str), ..])
@@ -98,7 +107,10 @@ Sqlite := [].{
     ## Reset a prepared statement back to its initial state, ready to be re-executed.
     reset! : Stmt => Try({}, [SqliteErr(ErrCode, Str), ..])
     reset! = |stmt|
-        Ok(Host.sqlite_reset!(stmt).map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))?)
+        match Host.sqlite_reset!(stmt) {
+            Ok(done) => Ok(done)
+            Err({ code, message }) => Err(SqliteErr(code_from_i64(code), message))
+        }
 
     ## Execute a SQL statement that **doesn't return any rows** (INSERT/UPDATE/DELETE).
     execute! = |{ path, query: q, bindings }| {
@@ -114,7 +126,7 @@ Sqlite := [].{
         match res {
             Ok(Done) => Ok({})
             Ok(Row) => Err(RowsReturnedUseQueryInstead)
-            Err(e) => Err(e)
+            Err(SqliteErr(code, message)) => Err(SqliteErr(code, message))
         }
     }
 
@@ -150,15 +162,17 @@ Sqlite := [].{
     decode_exactly_one_row! = |stmt, gen_decode| {
         cols = columns!(stmt)
         decode_row! = gen_decode(cols)
-        match step!(stmt)? {
-            Row => {
+        match step!(stmt) {
+            Ok(Row) => {
                 row = decode_row!(stmt)?
-                match step!(stmt)? {
-                    Done => Ok(row)
-                    Row => Err(TooManyRowsReturned)
+                match step!(stmt) {
+                    Ok(Done) => Ok(row)
+                    Ok(Row) => Err(TooManyRowsReturned)
+                    Err(SqliteErr(code, message)) => Err(SqliteErr(code, message))
                 }
             }
-            Done => Err(NoRowsReturned)
+            Ok(Done) => Err(NoRowsReturned)
+            Err(SqliteErr(code, message)) => Err(SqliteErr(code, message))
         }
     }
 
@@ -167,12 +181,13 @@ Sqlite := [].{
         cols = columns!(stmt)
         decode_row! = gen_decode(cols)
         helper! = |out|
-            match step!(stmt)? {
-                Done => Ok(out)
-                Row => {
+            match step!(stmt) {
+                Ok(Done) => Ok(out)
+                Ok(Row) => {
                     row = decode_row!(stmt)?
                     helper!(out.append(row))
                 }
+                Err(SqliteErr(code, message)) => Err(SqliteErr(code, message))
             }
         helper!([])
     }
@@ -213,7 +228,11 @@ Sqlite := [].{
     # internal use only — look the named column's value up in the current row.
     lookup_value! = |cols, stmt, name|
         match cols.find_first_index(|x| x == name) {
-            Ok(index) => column_value!(stmt, index)
+            Ok(index) =>
+                match column_value!(stmt, index) {
+                    Ok(value) => Ok(value)
+                    Err(SqliteErr(code, message)) => Err(SqliteErr(code, message))
+                }
             Err(NotFound) => Err(NoSuchField(name))
         }
 

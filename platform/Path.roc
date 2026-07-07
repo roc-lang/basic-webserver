@@ -96,16 +96,16 @@ Path := [].{
     ## Return the type of the path if the path exists on disk.
     type! : PathPkg.Path => Try([IsFile, IsDir, IsSymLink], [PathErr(IOErr), ..])
     type! = |path| {
-        Host.path_type!(InternalPath.to_host_raw(path))
-            .map_err(|err| PathErr(err))
-            .map_ok(|path_type|
+        match Host.path_type!(InternalPath.to_host_raw(path)) {
+            Ok(path_type) =>
                 if path_type.is_sym_link {
-                    IsSymLink
+                    Ok(IsSymLink)
                 } else if path_type.is_dir {
-                    IsDir
+                    Ok(IsDir)
                 } else {
-                    IsFile
-                },
-            )
+                    Ok(IsFile)
+                }
+            Err(err) => Err(PathErr(err))
+        }
     }
 }

@@ -18,7 +18,7 @@ program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
-    result = || {
+    result! = || {
         # Create a directory
         Dir.create!("empty-dir")?
 
@@ -46,7 +46,7 @@ init! = || {
         Ok({})
     }
 
-    match result() {
+    match result!() {
         Ok(_) => Ok({})
         Err(err) => {
             Stderr.line!("Error during directory operations: ${Str.inspect(err)}") ?? {}

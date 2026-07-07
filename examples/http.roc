@@ -62,29 +62,21 @@ demo! = || {
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model| {
-	payload : {
-		message : Str,
-		status : U64,
-		ok : Http.JsonValue,
-		notes : Http.JsonValue,
-		meta : Http.JsonValue,
-	}
+	payload : Http.JsonValue
 	payload = {
-		message: "See init! for the outbound HTTP example code.",
-		status: 200,
-		ok: Http.JsonValue.bool(Bool.True),
-		notes: Http.JsonValue.list(
-			[
+		Http.JsonValue.object([
+			Http.JsonValue.field("message", Http.JsonValue.str("See init! for the outbound HTTP example code.")),
+			Http.JsonValue.field("status", Http.JsonValue.u64(200)),
+			Http.JsonValue.field("ok", Http.JsonValue.bool(Bool.True)),
+			Http.JsonValue.field("notes", Http.JsonValue.list([
 				Http.JsonValue.str("plain text"),
 				Http.JsonValue.i64(-7),
-			],
-		),
-		meta: Http.JsonValue.object(
-			[
-				{ name: "missing", value: Http.JsonValue.null },
-				{ name: "count", value: Http.JsonValue.u64(2) },
-			],
-		),
+			])),
+			Http.JsonValue.field("meta", Http.JsonValue.object([
+				Http.JsonValue.field("missing", Http.JsonValue.null),
+				Http.JsonValue.field("count", Http.JsonValue.u64(2)),
+			])),
+		])
 	}
 
 	Ok(Http.json_response(payload))

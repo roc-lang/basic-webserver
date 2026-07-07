@@ -18,7 +18,7 @@ program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
-    result = || {
+    result! = || {
         # Simplest way to execute a command (prints to your terminal).
         Cmd.exec!("echo", ["Hello"])?
 
@@ -59,7 +59,7 @@ init! = || {
         Ok({})
     }
 
-    match result() {
+    match result!() {
         Ok(_) => Ok({})
         Err(err) => {
             Stderr.line!("Error running commands: ${Str.inspect(err)}") ?? {}

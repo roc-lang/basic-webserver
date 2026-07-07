@@ -41,7 +41,21 @@ Tcp := [].{
     ##
     ## Valid hostnames look like `127.0.0.1`, `::1`, `localhost`, or `roc-lang.org`.
     connect! : Str, U16 => Try(Stream, [PermissionDenied, AddrInUse, AddrNotAvailable, ConnectionRefused, Interrupted, TimedOut, Unsupported, Unrecognized(Str), ..])
-    connect! = |host, port| Ok(Host.tcp_connect!(host, port).map_err(parse_connect_err)?)
+    connect! = |host, port|
+        match Host.tcp_connect!(host, port) {
+            Ok(stream) => Ok(stream)
+            Err(err) =>
+                match parse_connect_err(err) {
+                    PermissionDenied => Err(PermissionDenied)
+                    AddrInUse => Err(AddrInUse)
+                    AddrNotAvailable => Err(AddrNotAvailable)
+                    ConnectionRefused => Err(ConnectionRefused)
+                    Interrupted => Err(Interrupted)
+                    TimedOut => Err(TimedOut)
+                    Unsupported => Err(Unsupported)
+                    Unrecognized(message) => Err(Unrecognized(message))
+                }
+        }
 
     ## Read up to a number of bytes from the TCP stream.
     ##
@@ -52,7 +66,10 @@ Tcp := [].{
     ## > To read an exact number of bytes or fail, use [Tcp.read_exactly!] instead.
     read_up_to! : Stream, U64 => Try(List(U8), [TcpReadErr(StreamErr), ..])
     read_up_to! = |stream, bytes_to_read|
-        Ok(Host.tcp_read_up_to!(stream, bytes_to_read).map_err(|err| TcpReadErr(parse_stream_err(err)))?)
+        match Host.tcp_read_up_to!(stream, bytes_to_read) {
+            Ok(bytes) => Ok(bytes)
+            Err(err) => Err(TcpReadErr(parse_stream_err(err)))
+        }
 
     ## Read an exact number of bytes or fail.
     ##
@@ -80,7 +97,10 @@ Tcp := [].{
     ## If found, the delimiter is included as the last byte.
     read_until! : Stream, U8 => Try(List(U8), [TcpReadErr(StreamErr), ..])
     read_until! = |stream, byte|
-        Ok(Host.tcp_read_until!(stream, byte).map_err(|err| TcpReadErr(parse_stream_err(err)))?)
+        match Host.tcp_read_until!(stream, byte) {
+            Ok(bytes) => Ok(bytes)
+            Err(err) => Err(TcpReadErr(parse_stream_err(err)))
+        }
 
     ## Read until a newline (`\n`, byte 10) or EOF is reached, decoded as a `Str`.
     ##
@@ -94,8 +114,12 @@ Tcp := [].{
         # NB: use `match` rather than `?` here — `read_until!` yields a single-
         # variant error union and `?` on that currently miscompiles (roc#9826).
         match read_until!(stream, 10) {
-            Ok(bytes) => Str.from_utf8(bytes).map_err(|err| TcpReadBadUtf8(err))
-            Err(err) => Err(err)
+            Ok(bytes) =>
+                match Str.from_utf8(bytes) {
+                    Ok(str) => Ok(str)
+                    Err(err) => Err(TcpReadBadUtf8(err))
+                }
+            Err(TcpReadErr(err)) => Err(TcpReadErr(err))
         }
 
     ## Writes bytes to a TCP stream.
@@ -108,7 +132,10 @@ Tcp := [].{
     ## > To write a `Str`, use [Tcp.write_utf8!] instead.
     write! : Stream, List(U8) => Try({}, [TcpWriteErr(StreamErr), ..])
     write! = |stream, bytes|
-        Ok(Host.tcp_write!(stream, bytes).map_err(|err| TcpWriteErr(parse_stream_err(err)))?)
+        match Host.tcp_write!(stream, bytes) {
+            Ok(done) => Ok(done)
+            Err(err) => Err(TcpWriteErr(parse_stream_err(err)))
+        }
 
     ## Writes a `Str` to a TCP stream, encoded as UTF-8.
     ##
@@ -116,7 +143,7 @@ Tcp := [].{
     ## Tcp.write_utf8!(stream, "Hi from Roc!")?
     ## ```
     write_utf8! : Stream, Str => Try({}, [TcpWriteErr(StreamErr), ..])
-    write_utf8! = |stream, str| Ok(write!(stream, Str.to_utf8(str))?)
+    write_utf8! = |stream, str| write!(stream, Str.to_utf8(str))
 
     ## Convert a `ConnectErr` to a `Str` you can print.
     connect_err_to_str = |err|
