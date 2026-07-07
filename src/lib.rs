@@ -19,6 +19,16 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+// Roc performs the final app link itself from `host.lib` and the compiled app
+// object. Keep Windows system import libs visible to that COFF link step.
+#[cfg(target_os = "windows")]
+#[link(name = "advapi32")]
+#[link(name = "bcrypt")]
+#[link(name = "ntdll")]
+#[link(name = "userenv")]
+#[link(name = "ws2_32")]
+unsafe extern "C" {}
+
 mod http_server;
 mod roc_platform_abi;
 
@@ -2461,10 +2471,11 @@ async fn async_send_request(
     use hyper_util::client::legacy::Client;
     use hyper_util::rt::TokioExecutor;
 
-    let https = match HttpsConnectorBuilder::new().with_native_roots() {
-        Ok(builder) => builder.https_or_http().enable_http1().build(),
-        Err(_) => return http_sentinel_response(500, b"NetworkError", roc_host),
-    };
+    let https = HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .build();
 
     let client: Client<_, http_body_util::Full<bytes::Bytes>> =
         Client::builder(TokioExecutor::new()).build(https);
