@@ -40,6 +40,7 @@ run_tests! = || {
     test_decoders!()?
     test_query_one!()?
     test_prepared_update!()?
+    test_binding_validation!()?
     test_tagged_value!()?
     test_execute_rejects_rows!()
 }
@@ -204,6 +205,73 @@ test_prepared_update! = || {
         })?
 
     expect_true(List.contains(updated_rows, "Updated text 1"), "expected prepared update to change row text")
+}
+
+test_binding_validation! : () => Try({}, _)
+test_binding_validation! = || {
+    update_query = "UPDATE test SET col_text = :col_text WHERE id = :id;"
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: update_query,
+        bindings: [{ name: ":id", value: Integer(1) }],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected missing binding to fail, got ${Str.inspect(other)}"))
+    }?
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: update_query,
+        bindings: [
+            { name: ":id", value: Integer(1) },
+            { name: ":col_text", value: String("unused") },
+            { name: ":extra", value: String("unused") },
+        ],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected unknown binding to fail, got ${Str.inspect(other)}"))
+    }?
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: update_query,
+        bindings: [
+            { name: ":id", value: Integer(1) },
+            { name: ":id", value: Integer(1) },
+            { name: ":col_text", value: String("unused") },
+        ],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected duplicate binding to fail, got ${Str.inspect(other)}"))
+    }?
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: "UPDATE test SET col_text = ? WHERE id = :id;",
+        bindings: [{ name: ":id", value: Integer(1) }],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected positional parameter to fail, got ${Str.inspect(other)}"))
+    }?
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: "",
+        bindings: [],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected empty SQL to fail, got ${Str.inspect(other)}"))
+    }?
+
+    match Sqlite.execute!({
+        path: db_path,
+        query: "SELECT id FROM test; SELECT id FROM test;",
+        bindings: [],
+    }) {
+        Err(SqliteErr(Error, _)) => Ok({})
+        other => Err(FailedExpectation("expected multiple SQL statements to fail, got ${Str.inspect(other)}"))
+    }
 }
 
 test_tagged_value! : () => Try({}, _)

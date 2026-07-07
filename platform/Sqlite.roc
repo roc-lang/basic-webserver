@@ -76,6 +76,10 @@ Sqlite := [].{
         }
 
     ## Bind named parameters to a prepared statement.
+    ## Use bindings for untrusted values instead of interpolating them into `query`.
+    ## Binding names must include their SQL prefix, like `:id`, `$id`, or `@id`.
+    ## Every parameter in the statement must have exactly one binding; missing,
+    ## duplicate, positional, and unknown bindings fail.
     bind! : Stmt, List(InternalSqlite.SqliteBindings) => Try({}, [SqliteErr(ErrCode, Str), ..])
     bind! = |stmt, bindings|
         match Host.sqlite_bind!(stmt, bindings) {
@@ -291,7 +295,7 @@ Sqlite := [].{
     f64 = |name| real_decoder(name, |r| Ok(r))
 
     ## Decode a column to an `F32`.
-    f32 = |name| real_decoder(name, |r| bounds_err(F64.to_f32_try(r)))
+    f32 = |name| real_decoder(name, f64_to_f32)
 
     # Nullable decoders return `NotNull(value)` for a present value, or `Null` when
     # the column holds SQL NULL. Useful for nullable columns.
@@ -346,7 +350,7 @@ Sqlite := [].{
     nullable_f64 = |name| nullable_real_decoder(name, |r| Ok(r))
 
     ## Decode a nullable column to `[NotNull(F32), Null]`.
-    nullable_f32 = |name| nullable_real_decoder(name, |r| bounds_err(F64.to_f32_try(r)))
+    nullable_f32 = |name| nullable_real_decoder(name, f64_to_f32)
 
     # internal use only
     nullable_int_decoder = |name, cast|
@@ -453,6 +457,12 @@ bounds_err = |result|
     match result {
         Ok(v) => Ok(v)
         Err(_) => Err(IntOutOfBounds)
+    }
+
+f64_to_f32 = |value|
+    match F32.from_str(F64.to_str(value)) {
+        Ok(f32_value) => Ok(f32_value)
+        Err(_) => Err(FailedToDecodeReal)
     }
 
 code_from_i64 : I64 -> Sqlite.ErrCode

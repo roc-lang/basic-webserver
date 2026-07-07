@@ -44,10 +44,13 @@ Release-readiness backlog for the Zig compiler migration PR.
 - [ ] Revisit the `Tcp.read_line!` implementation once [roc#9826](https://github.com/roc-lang/roc/issues/9826) is fixed.
   - The current implementation avoids `?` for a single-variant error union because that path currently crashes.
 
-- [ ] Review Sqlite safety and API details.
+- [x] Review Sqlite safety and API details.
   - Investigate SQL injection protection: [#119](https://github.com/roc-lang/basic-webserver/issues/119)
   - Compare against the more mature sibling implementation in `../basic-cli`.
   - Consider transaction wrappers and query/decoder ergonomics in the updated `examples/todos.roc`.
+  - Decision: keep the current prepared-statement API shape from `../basic-cli` for this upgrade PR.
+  - Named bindings now reject missing, duplicate, positional, and unknown parameters so callers do not accidentally run with implicit SQL NULL values.
+  - API docs now direct callers to bind untrusted values instead of interpolating them into SQL strings.
 
 ## Out of Scope for This Upgrade PR
 

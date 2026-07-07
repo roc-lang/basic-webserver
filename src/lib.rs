@@ -1609,6 +1609,11 @@ fn sqlite_get_connection(path: &str) -> Result<*mut libsqlite3_sys::sqlite3, (c_
         };
         if err != libsqlite3_sys::SQLITE_OK {
             let message = sqlite_errmsg(connection, err);
+            if !connection.is_null() {
+                unsafe {
+                    libsqlite3_sys::sqlite3_close(connection);
+                }
+            }
             return Err((err, message));
         }
 
@@ -1776,6 +1781,10 @@ fn sqlite_bind_all(
     bindings: &[SqliteBindings],
     roc_host: &RocHost,
 ) -> SqliteHostBindResult {
+    if let Err(error) = sqlite_validate_bindings(stmt, bindings, roc_host) {
+        return try_sqlite_unit_err(error);
+    }
+
     // Clear old bindings so callers must supply every parameter each time.
     let cleared = unsafe { libsqlite3_sys::sqlite3_clear_bindings(stmt.stmt) };
     if cleared != libsqlite3_sys::SQLITE_OK {
@@ -1811,6 +1820,74 @@ fn sqlite_bind_all(
     try_sqlite_unit_ok()
 }
 
+fn sqlite_validate_bindings(
+    stmt: &SqliteStatement,
+    bindings: &[SqliteBindings],
+    roc_host: &RocHost,
+) -> Result<(), SqliteError> {
+    for (index, binding) in bindings.iter().enumerate() {
+        for previous in bindings[..index].iter() {
+            if previous.name.as_str().as_bytes() == binding.name.as_str().as_bytes() {
+                return Err(sqlite_error(
+                    libsqlite3_sys::SQLITE_ERROR,
+                    &format!("duplicate binding: {}", binding.name.as_str()),
+                    roc_host,
+                ));
+            }
+        }
+
+        let name = CString::new(binding.name.as_str()).map_err(|_| {
+            sqlite_error(
+                libsqlite3_sys::SQLITE_ERROR,
+                "binding name contained an interior nul byte",
+                roc_host,
+            )
+        })?;
+        let parameter_index =
+            unsafe { libsqlite3_sys::sqlite3_bind_parameter_index(stmt.stmt, name.as_ptr()) };
+        if parameter_index == 0 {
+            return Err(sqlite_error(
+                libsqlite3_sys::SQLITE_ERROR,
+                &format!("unknown parameter: {}", binding.name.as_str()),
+                roc_host,
+            ));
+        }
+    }
+
+    let parameter_count = unsafe { libsqlite3_sys::sqlite3_bind_parameter_count(stmt.stmt) };
+    for parameter_index in 1..=parameter_count {
+        let parameter_name =
+            unsafe { libsqlite3_sys::sqlite3_bind_parameter_name(stmt.stmt, parameter_index) };
+        if parameter_name.is_null() {
+            return Err(sqlite_error(
+                libsqlite3_sys::SQLITE_ERROR,
+                &format!(
+                    "positional parameter at index {} cannot be bound by name",
+                    parameter_index
+                ),
+                roc_host,
+            ));
+        }
+
+        let parameter_name = unsafe { CStr::from_ptr(parameter_name) };
+        let found = bindings
+            .iter()
+            .any(|binding| binding.name.as_str().as_bytes() == parameter_name.to_bytes());
+        if !found {
+            return Err(sqlite_error(
+                libsqlite3_sys::SQLITE_ERROR,
+                &format!(
+                    "missing binding for parameter: {}",
+                    parameter_name.to_string_lossy()
+                ),
+                roc_host,
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[no_mangle]
 pub extern "C" fn hosted_sqlite_prepare(path: RocStr, query: RocStr) -> SqliteHostPrepareResult {
     let roc_host = roc_host();
@@ -1827,18 +1904,52 @@ pub extern "C" fn hosted_sqlite_prepare(path: RocStr, query: RocStr) -> SqliteHo
     };
 
     let mut stmt: *mut libsqlite3_sys::sqlite3_stmt = core::ptr::null_mut();
+    let mut tail: *const c_char = core::ptr::null();
+    let query_start = query_string.as_ptr() as *const c_char;
     let err = unsafe {
         libsqlite3_sys::sqlite3_prepare_v2(
             connection,
-            query_string.as_ptr() as *const c_char,
+            query_start,
             query_string.len() as c_int,
             &mut stmt,
-            core::ptr::null_mut(),
+            &mut tail,
         )
     };
     if err != libsqlite3_sys::SQLITE_OK {
         let message = sqlite_errmsg(connection, err);
+        if !stmt.is_null() {
+            unsafe {
+                libsqlite3_sys::sqlite3_finalize(stmt);
+            }
+        }
         return try_sqlite_prepare_err(sqlite_error(err, &message, roc_host));
+    }
+    if stmt.is_null() {
+        return try_sqlite_prepare_err(sqlite_error(
+            libsqlite3_sys::SQLITE_ERROR,
+            "query did not contain a SQL statement",
+            roc_host,
+        ));
+    }
+    if !tail.is_null() {
+        let tail_offset = unsafe { tail.offset_from(query_start) };
+        if tail_offset >= 0 {
+            let tail_index = tail_offset as usize;
+            if tail_index <= query_string.len()
+                && query_string.as_bytes()[tail_index..]
+                    .iter()
+                    .any(|byte| !byte.is_ascii_whitespace())
+            {
+                unsafe {
+                    libsqlite3_sys::sqlite3_finalize(stmt);
+                }
+                return try_sqlite_prepare_err(sqlite_error(
+                    libsqlite3_sys::SQLITE_ERROR,
+                    "query contained more than one SQL statement",
+                    roc_host,
+                ));
+            }
+        }
     }
 
     let handle = box_sqlite_stmt(SqliteStatement { connection, stmt }, roc_host);
