@@ -53,13 +53,62 @@ find_windows_import_lib() {
         fi
     fi
 
+    local roots=()
+    if command -v cygpath >/dev/null 2>&1; then
+        local sdk_dir
+        sdk_dir="$(printenv WindowsSdkDir 2>/dev/null || true)"
+        if [[ -n "$sdk_dir" ]]; then
+            roots+=("$(cygpath -u "$sdk_dir" 2>/dev/null || true)")
+        fi
+
+        local program_files_x86
+        program_files_x86="$(printenv 'ProgramFiles(x86)' 2>/dev/null || true)"
+        if [[ -n "$program_files_x86" ]]; then
+            roots+=("$(cygpath -u "${program_files_x86}\\Windows Kits" 2>/dev/null || true)")
+        fi
+
+        local program_files
+        program_files="$(printenv ProgramFiles 2>/dev/null || true)"
+        if [[ -n "$program_files" ]]; then
+            roots+=("$(cygpath -u "${program_files}\\Windows Kits" 2>/dev/null || true)")
+        fi
+    fi
+
+    roots+=("/c/Program Files (x86)/Windows Kits" "/c/Program Files/Windows Kits")
+
     local root
-    for root in "/c/Program Files (x86)/Windows Kits/10/Lib" "/c/Program Files/Windows Kits/10/Lib"; do
-        if [[ -d "$root" ]]; then
-            find "$root" -path "*/um/${arch}/${lib}" -print 2>/dev/null | sort | tail -n 1
-            return 0
+    for root in "${roots[@]}"; do
+        if [[ -n "$root" && -d "$root" ]]; then
+            local found
+            found="$(
+                find "$root" -type f -iname "$lib" -print 2>/dev/null \
+                    | awk -v arch="$arch" '
+                        {
+                            path = tolower($0)
+                            needle = "/um/" tolower(arch) "/"
+                            if (index(path, needle) > 0) print
+                        }
+                    ' \
+                    | sort \
+                    | tail -n 1
+            )"
+            if [[ -n "$found" ]]; then
+                echo "$found"
+                return 0
+            fi
         fi
     done
+}
+
+describe_windows_import_lib_roots() {
+    if command -v cygpath >/dev/null 2>&1; then
+        printenv WindowsSdkDir 2>/dev/null || true
+        printenv 'ProgramFiles(x86)' 2>/dev/null || true
+        printenv ProgramFiles 2>/dev/null || true
+    fi
+
+    echo "/c/Program Files (x86)/Windows Kits"
+    echo "/c/Program Files/Windows Kits"
 }
 
 copy_windows_import_libs() {
@@ -77,6 +126,8 @@ copy_windows_import_libs() {
         src="$(find_windows_import_lib "$arch" "$lib")"
         if [[ -z "$src" || ! -f "$src" ]]; then
             echo "Could not find Windows SDK import library $lib for $arch." >&2
+            echo "Searched these Windows SDK roots:" >&2
+            describe_windows_import_lib_roots >&2
             echo "Install the Windows SDK, then rerun ./build.sh --target $target_name." >&2
             exit 1
         fi
