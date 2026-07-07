@@ -33,8 +33,10 @@ Release-readiness backlog for the Zig compiler migration PR.
   - Deleted obsolete `platform/EnvDecoding.todoroc`, `platform/InternalDateTime.todoroc`, and `platform/Tcp.todoroc`.
   - `./ci/all_tests.sh` now fails if any `.todoroc` files are present: [#109](https://github.com/roc-lang/basic-webserver/issues/109).
 
-- [ ] Triage the GitHub Dependabot alert before tagging.
+- [x] Triage the GitHub Dependabot alert before tagging.
   - GitHub reports one moderate vulnerability on the default branch: <https://github.com/roc-lang/basic-webserver/security/dependabot/4>
+  - Alert is [GHSA-434x-w66g-qw3r](https://github.com/advisories/GHSA-434x-w66g-qw3r) / CVE-2026-25541 for `bytes < 1.11.1`.
+  - `bytes` is now pinned to patched version `1.11.1`.
 
 - [x] Return `Path.Path` from `Env.cwd!`, `Env.exe_path!`, and `Env.temp_dir!`.
   - `cwd!` and `exe_path!` now return byte-preserving `Path.Path` values from Unix bytes or Windows UTF-16 code units.
