@@ -6,7 +6,7 @@ app [Model, program] {
 import pf.Stdout
 import pf.Stderr
 import pf.Http
-import pf.File
+import pf.Path
 import pf.Utc
 import http.Response
 
@@ -17,16 +17,13 @@ program = { init!, respond! }
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
     result! = || {
-        file = "LICENSE"
+        file = Path.utf8("LICENSE")
 
-        # NOTE: some timestamp metadata may be unavailable on some filesystems
-        # or targets; this example reports an error if the host cannot provide it.
+        time_modified = Utc.to_iso_8601(Path.time_modified!(file)?)
+        time_accessed = Utc.to_iso_8601(Path.time_accessed!(file)?)
+        time_created = Utc.to_iso_8601(Path.time_created!(file)?)
 
-        time_modified = Utc.to_millis_since_epoch(File.time_modified!(file)?)
-        time_accessed = Utc.to_millis_since_epoch(File.time_accessed!(file)?)
-        time_created = Utc.to_millis_since_epoch(File.time_created!(file)?)
-
-        Stdout.line!("${file} file time metadata:\n    Modified: ${time_modified.to_str()} ms since epoch\n    Accessed: ${time_accessed.to_str()} ms since epoch\n    Created: ${time_created.to_str()} ms since epoch")?
+        Stdout.line!("${Path.display(file)} file time metadata:\n    Modified: ${time_modified}\n    Accessed: ${time_accessed}\n    Created: ${time_created}")?
 
         Ok({})
     }

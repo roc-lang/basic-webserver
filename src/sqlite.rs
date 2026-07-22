@@ -16,7 +16,7 @@ type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
 type SqliteValueTag = BytesOrIntegerOrNullOrRealOrStringTag;
 type SqliteValuePayload = BytesOrIntegerOrNullOrRealOrStringPayload;
 type SqliteError = HostSqlitePrepareErr;
-type SqliteBindings = AnonStruct49;
+type SqliteBindings = HostSqliteBindArg1;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
@@ -35,18 +35,30 @@ impl Drop for SqliteStatement {
 
 thread_local! {
     // Connections are cached per database path and live until process exit.
-    static SQLITE_CONNECTIONS: RefCell<Vec<(CString, *mut libsqlite3_sys::sqlite3)>> =
+    static SQLITE_CONNECTIONS: RefCell<Vec<(SqlitePath, *mut libsqlite3_sys::sqlite3)>> =
         const { RefCell::new(Vec::new()) };
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum SqlitePath {
+    #[cfg(unix)]
+    Unix(Vec<u8>),
+    #[cfg(windows)]
+    Windows(Vec<u16>),
 }
 
 fn box_sqlite_stmt(stmt: SqliteStatement, roc_host: &RocHost) -> *mut u64 {
     let raw: *mut SqliteStatement = Box::into_raw(Box::new(stmt));
-    let boxed = allocate_box(
-        core::mem::size_of::<u64>(),
-        SQLITE_STMT_BOX_ALIGN,
-        false,
-        roc_host,
-    );
+    // SAFETY: the payload is initialized immediately below as a u64 containing
+    // the owned statement pointer, matching this layout.
+    let boxed = unsafe {
+        allocate_box(
+            core::mem::size_of::<u64>(),
+            SQLITE_STMT_BOX_ALIGN,
+            false,
+            roc_host,
+        )
+    };
     unsafe {
         *(boxed as *mut u64) = raw as u64;
     }
@@ -67,15 +79,19 @@ extern "C" fn drop_sqlite_stmt(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
 }
 
 fn release_sqlite_stmt(handle: *mut u64, roc_host: &RocHost) {
-    decref_box_with(
-        handle as RocBox,
-        SQLITE_STMT_BOX_ALIGN,
-        // The boxed payload is a raw `u64` (a pointer to our SqliteStatement),
-        // not a Roc-refcounted value. This must match `box_sqlite_stmt`.
-        false,
-        Some(drop_sqlite_stmt),
-        roc_host,
-    );
+    // SAFETY: the handle came from `box_sqlite_stmt` with this exact layout and
+    // this call consumes its owned Roc reference.
+    unsafe {
+        decref_box_with(
+            handle as RocBox,
+            SQLITE_STMT_BOX_ALIGN,
+            // The boxed payload is a raw `u64` (a pointer to our SqliteStatement),
+            // not a Roc-refcounted value. This must match `box_sqlite_stmt`.
+            false,
+            Some(drop_sqlite_stmt),
+            roc_host,
+        )
+    };
 }
 
 // SQLITE_TRANSIENT tells SQLite to make its own copy of bound text/blob data, so
@@ -115,43 +131,107 @@ fn sqlite_err_from_stmt(stmt: &SqliteStatement, code: c_int, roc_host: &RocHost)
     sqlite_error(code, &message, roc_host)
 }
 
-fn sqlite_get_connection(path: &str) -> Result<*mut libsqlite3_sys::sqlite3, (c_int, String)> {
+fn sqlite_path_from_raw(
+    path: HostSqlitePrepareArg0,
+    roc_host: &RocHost,
+) -> Result<SqlitePath, (c_int, String)> {
+    let result = if path.is_windows {
+        #[cfg(windows)]
+        {
+            Ok(SqlitePath::Windows(path.windows_u16s.as_slice().to_vec()))
+        }
+        #[cfg(not(windows))]
+        {
+            Err((
+                libsqlite3_sys::SQLITE_CANTOPEN,
+                "Windows database paths are not supported on this host".to_string(),
+            ))
+        }
+    } else {
+        #[cfg(unix)]
+        {
+            Ok(SqlitePath::Unix(path.unix_bytes.as_slice().to_vec()))
+        }
+        #[cfg(not(unix))]
+        {
+            Err((
+                libsqlite3_sys::SQLITE_CANTOPEN,
+                "Unix database paths are not supported on this host".to_string(),
+            ))
+        }
+    };
+
+    unsafe { path.unix_bytes.decref(roc_host) };
+    unsafe { path.windows_u16s.decref(roc_host) };
+    result
+}
+
+#[cfg(windows)]
+unsafe extern "C" {
+    fn sqlite3_open16(filename: *const c_void, pp_db: *mut *mut libsqlite3_sys::sqlite3) -> c_int;
+}
+
+fn sqlite_open_native(path: &SqlitePath) -> Result<*mut libsqlite3_sys::sqlite3, (c_int, String)> {
+    let mut connection: *mut libsqlite3_sys::sqlite3 = core::ptr::null_mut();
+
+    let err = match path {
+        #[cfg(unix)]
+        SqlitePath::Unix(bytes) => {
+            let cpath = CString::new(bytes.as_slice()).map_err(|_| {
+                (
+                    libsqlite3_sys::SQLITE_ERROR,
+                    "database path contained an interior nul byte".to_string(),
+                )
+            })?;
+            let flags = libsqlite3_sys::SQLITE_OPEN_CREATE
+                | libsqlite3_sys::SQLITE_OPEN_READWRITE
+                | libsqlite3_sys::SQLITE_OPEN_NOMUTEX;
+            unsafe {
+                libsqlite3_sys::sqlite3_open_v2(
+                    cpath.as_ptr(),
+                    &mut connection,
+                    flags,
+                    core::ptr::null(),
+                )
+            }
+        }
+        #[cfg(windows)]
+        SqlitePath::Windows(units) => {
+            if units.iter().any(|unit| *unit == 0) {
+                return Err((
+                    libsqlite3_sys::SQLITE_ERROR,
+                    "database path contained an interior nul code unit".to_string(),
+                ));
+            }
+            let mut terminated = units.clone();
+            terminated.push(0);
+            unsafe { sqlite3_open16(terminated.as_ptr() as *const c_void, &mut connection) }
+        }
+    };
+
+    if err != libsqlite3_sys::SQLITE_OK {
+        let message = sqlite_errmsg(connection, err);
+        if !connection.is_null() {
+            unsafe { libsqlite3_sys::sqlite3_close(connection) };
+        }
+        Err((err, message))
+    } else {
+        Ok(connection)
+    }
+}
+
+fn sqlite_get_connection(
+    path: SqlitePath,
+) -> Result<*mut libsqlite3_sys::sqlite3, (c_int, String)> {
     SQLITE_CONNECTIONS.with(|cell| {
         for (conn_path, connection) in cell.borrow().iter() {
-            if conn_path.as_bytes() == path.as_bytes() {
+            if conn_path == &path {
                 return Ok(*connection);
             }
         }
 
-        let cpath = CString::new(path).map_err(|_| {
-            (
-                libsqlite3_sys::SQLITE_ERROR,
-                "database path contained an interior nul byte".to_string(),
-            )
-        })?;
-        let mut connection: *mut libsqlite3_sys::sqlite3 = core::ptr::null_mut();
-        let flags = libsqlite3_sys::SQLITE_OPEN_CREATE
-            | libsqlite3_sys::SQLITE_OPEN_READWRITE
-            | libsqlite3_sys::SQLITE_OPEN_NOMUTEX;
-        let err = unsafe {
-            libsqlite3_sys::sqlite3_open_v2(
-                cpath.as_ptr(),
-                &mut connection,
-                flags,
-                core::ptr::null(),
-            )
-        };
-        if err != libsqlite3_sys::SQLITE_OK {
-            let message = sqlite_errmsg(connection, err);
-            if !connection.is_null() {
-                unsafe {
-                    libsqlite3_sys::sqlite3_close(connection);
-                }
-            }
-            return Err((err, message));
-        }
-
-        cell.borrow_mut().push((cpath, connection));
+        let connection = sqlite_open_native(&path)?;
+        cell.borrow_mut().push((path, connection));
         Ok(connection)
     })
 }
@@ -219,9 +299,7 @@ fn try_sqlite_prepare_err(error: SqliteError) -> SqliteHostPrepareResult {
 
 fn try_sqlite_unit_ok() -> SqliteHostBindResult {
     SqliteHostBindResult {
-        payload: SqliteHostBindResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: SqliteHostBindResultPayload { ok: [] },
         tag: SqliteHostBindResultTag::Ok,
     }
 }
@@ -432,14 +510,22 @@ fn sqlite_validate_bindings(
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_sqlite_prepare(path: RocStr, query: RocStr) -> SqliteHostPrepareResult {
+pub extern "C" fn hosted_sqlite_prepare(
+    path: HostSqlitePrepareArg0,
+    query: RocStr,
+) -> SqliteHostPrepareResult {
     let roc_host = roc_host();
-    let path_string = path.as_str().to_owned();
+    let path = match sqlite_path_from_raw(path, roc_host) {
+        Ok(path) => path,
+        Err((code, message)) => {
+            unsafe { query.decref(roc_host) };
+            return try_sqlite_prepare_err(sqlite_error(code, &message, roc_host));
+        }
+    };
     let query_string = query.as_str().to_owned();
-    path.decref(roc_host);
-    query.decref(roc_host);
+    unsafe { query.decref(roc_host) };
 
-    let connection = match sqlite_get_connection(&path_string) {
+    let connection = match sqlite_get_connection(path) {
         Ok(connection) => connection,
         Err((code, message)) => {
             return try_sqlite_prepare_err(sqlite_error(code, &message, roc_host));
@@ -510,9 +596,9 @@ pub extern "C" fn hosted_sqlite_bind(
         sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
     };
     for binding in bindings.as_slice() {
-        decref_anon_struct49(*binding, roc_host);
+        unsafe { binding.decref(roc_host) };
     }
-    bindings.decref(roc_host);
+    unsafe { bindings.decref(roc_host) };
     release_sqlite_stmt(handle, roc_host);
     result
 }
@@ -522,7 +608,8 @@ pub extern "C" fn hosted_sqlite_columns(handle: *mut u64) -> RocList<RocStr> {
     let roc_host = roc_host();
     let stmt = unsafe { sqlite_stmt_ref(handle) };
     let count = unsafe { libsqlite3_sys::sqlite3_column_count(stmt.stmt) }.max(0) as usize;
-    let list = RocList::<RocStr>::allocate(count, roc_host);
+    // SAFETY: every allocated element is initialized below before return.
+    let list = unsafe { RocList::<RocStr>::allocate(count, roc_host) };
     for index in 0..count {
         let name = unsafe {
             let raw = libsqlite3_sys::sqlite3_column_name(stmt.stmt, index as c_int);

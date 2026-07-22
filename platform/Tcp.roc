@@ -1,199 +1,155 @@
 import Host
 
-Tcp := [].{
-    ## Represents a TCP stream.
-    ##
-    ## The connection is automatically closed when the last reference to the
-    ## stream is dropped. This is an opaque `Box(U64)` handle into a host-side
-    ## `BufReader<TcpStream>`.
-    Stream : Host.TcpStream
+## Connect to TCP servers and exchange buffered byte streams.
+##
+## See the [host runtime behavior](https://github.com/roc-lang/basic-webserver#host-runtime-behavior)
+## for current timeout and buffering limitations.
+Tcp :: [].{
 
-    ## Represents errors that can occur when connecting to a remote host.
-    ConnectErr : [
-        PermissionDenied,
-        AddrInUse,
-        AddrNotAvailable,
-        ConnectionRefused,
-        Interrupted,
-        TimedOut,
-        Unsupported,
-        Unrecognized(Str),
-    ]
+	## Represents a TCP stream.
+	##
+	## The connection is automatically closed when the last reference to the
+	## stream is dropped. It wraps an opaque host-side `BufReader<TcpStream>`
+	## handle.
+	Stream :: { host : Host.TcpStream }.{
 
-    ## Represents errors that can occur when performing an effect with a `Stream`.
-    StreamErr : [
-        StreamNotFound,
-        PermissionDenied,
-        ConnectionRefused,
-        ConnectionReset,
-        Interrupted,
-        OutOfMemory,
-        BrokenPipe,
-        Unrecognized(Str),
-    ]
+		## Render the stream without exposing its host handle.
+		to_inspect : Stream -> Str
+		to_inspect = |_| "Tcp.Stream(<opaque>)"
 
-    ## Opens a TCP connection to a remote host.
-    ##
-    ## ```roc
-    ## # Connect to localhost:8080
-    ## stream = Tcp.connect!("localhost", 8080)?
-    ## ```
-    ##
-    ## Valid hostnames look like `127.0.0.1`, `::1`, `localhost`, or `roc-lang.org`.
-    connect! : Str, U16 => Try(Stream, [PermissionDenied, AddrInUse, AddrNotAvailable, ConnectionRefused, Interrupted, TimedOut, Unsupported, Unrecognized(Str), ..])
-    connect! = |host, port|
-        match Host.tcp_connect!(host, port) {
-            Ok(stream) => Ok(stream)
-            Err(err) =>
-                match parse_connect_err(err) {
-                    PermissionDenied => Err(PermissionDenied)
-                    AddrInUse => Err(AddrInUse)
-                    AddrNotAvailable => Err(AddrNotAvailable)
-                    ConnectionRefused => Err(ConnectionRefused)
-                    Interrupted => Err(Interrupted)
-                    TimedOut => Err(TimedOut)
-                    Unsupported => Err(Unsupported)
-                    Unrecognized(message) => Err(Unrecognized(message))
-                }
-        }
+		## Read up to a number of bytes from this TCP stream.
+		read_up_to! : Stream, U64 => Try(List(U8), _)
+		read_up_to! = |stream, bytes_to_read|
+			Host.tcp_read_up_to!(stream.host, bytes_to_read)
+				.map_err(|err| TcpReadErr(parse_stream_err(err)))
 
-    ## Read up to a number of bytes from the TCP stream.
-    ##
-    ## ```roc
-    ## received_bytes = Tcp.read_up_to!(stream, 64)?
-    ## ```
-    ##
-    ## > To read an exact number of bytes or fail, use [Tcp.read_exactly!] instead.
-    read_up_to! : Stream, U64 => Try(List(U8), [TcpReadErr(StreamErr), ..])
-    read_up_to! = |stream, bytes_to_read|
-        match Host.tcp_read_up_to!(stream, bytes_to_read) {
-            Ok(bytes) => Ok(bytes)
-            Err(err) => Err(TcpReadErr(parse_stream_err(err)))
-        }
+		## Read an exact number of bytes or fail.
+		##
+		## `TcpUnexpectedEOF` is returned if the stream ends before the specified
+		## number of bytes is reached.
+		read_exactly! : Stream, U64 => Try(List(U8), _)
+		read_exactly! = |stream, bytes_to_read|
+			match Host.tcp_read_exactly!(stream.host, bytes_to_read) {
+				Ok(bytes) => Ok(bytes)
+				Err("UnexpectedEof") => Err(TcpUnexpectedEOF)
+				Err(err) => Err(TcpReadErr(parse_stream_err(err)))
+			}
 
-    ## Read an exact number of bytes or fail.
-    ##
-    ## ```roc
-    ## bytes = Tcp.read_exactly!(stream, 64)?
-    ## ```
-    ##
-    ## `TcpUnexpectedEOF` is returned if the stream ends before the specified
-    ## number of bytes is reached.
-    read_exactly! : Stream, U64 => Try(List(U8), [TcpUnexpectedEOF, TcpReadErr(StreamErr), ..])
-    read_exactly! = |stream, bytes_to_read|
-        match Host.tcp_read_exactly!(stream, bytes_to_read) {
-            Ok(bytes) => Ok(bytes)
-            Err("UnexpectedEof") => Err(TcpUnexpectedEOF)
-            Err(err) => Err(TcpReadErr(parse_stream_err(err)))
-        }
+		## Read until a delimiter or EOF is reached. If found, the delimiter is
+		## included as the last byte.
+		read_until! : Stream, U8 => Try(List(U8), _)
+		read_until! = |stream, byte|
+			Host.tcp_read_until!(stream.host, byte)
+				.map_err(|err| TcpReadErr(parse_stream_err(err)))
 
-    ## Read until a delimiter or EOF is reached.
-    ##
-    ## ```roc
-    ## # Read until null terminator
-    ## bytes = Tcp.read_until!(stream, 0)?
-    ## ```
-    ##
-    ## If found, the delimiter is included as the last byte.
-    read_until! : Stream, U8 => Try(List(U8), [TcpReadErr(StreamErr), ..])
-    read_until! = |stream, byte|
-        match Host.tcp_read_until!(stream, byte) {
-            Ok(bytes) => Ok(bytes)
-            Err(err) => Err(TcpReadErr(parse_stream_err(err)))
-        }
+		## Read until a newline (`\n`, byte 10) or EOF is reached as UTF-8.
+		## If found, the newline is included as the last character.
+		read_line! : Stream => Try(Str, _)
+		read_line! = |stream|
+		# NB: use `match` rather than `?` here — `read_until!` yields a
+		# single-variant error union and `?` currently miscompiles (roc#9826).
+			match read_until!(stream, 10) {
+				Ok(bytes) => Str.from_utf8(bytes).map_err(|err| TcpReadBadUtf8(err))
+				Err(err) => Err(err)
+			}
 
-    ## Read until a newline (`\n`, byte 10) or EOF is reached, decoded as a `Str`.
-    ##
-    ## ```roc
-    ## line_str = Tcp.read_line!(stream)?
-    ## ```
-    ##
-    ## If found, the newline is included as the last character in the `Str`.
-    read_line! : Stream => Try(Str, [TcpReadErr(StreamErr), TcpReadBadUtf8(_), ..])
-    read_line! = |stream|
-        # NB: use `match` rather than `?` here — `read_until!` yields a single-
-        # variant error union and `?` on that currently miscompiles (roc#9826).
-        match read_until!(stream, 10) {
-            Ok(bytes) =>
-                match Str.from_utf8(bytes) {
-                    Ok(str) => Ok(str)
-                    Err(err) => Err(TcpReadBadUtf8(err))
-                }
-            Err(TcpReadErr(err)) => Err(TcpReadErr(err))
-        }
+		## Write bytes to this TCP stream.
+		write! : Stream, List(U8) => Try({}, _)
+		write! = |stream, bytes|
+			Host.tcp_write!(stream.host, bytes)
+				.map_err(|err| TcpWriteErr(parse_stream_err(err)))
 
-    ## Writes bytes to a TCP stream.
-    ##
-    ## ```roc
-    ## # Writes the bytes 1, 2, 3
-    ## Tcp.write!(stream, [1, 2, 3])?
-    ## ```
-    ##
-    ## > To write a `Str`, use [Tcp.write_utf8!] instead.
-    write! : Stream, List(U8) => Try({}, [TcpWriteErr(StreamErr), ..])
-    write! = |stream, bytes|
-        match Host.tcp_write!(stream, bytes) {
-            Ok(done) => Ok(done)
-            Err(err) => Err(TcpWriteErr(parse_stream_err(err)))
-        }
+		## Write a string to this TCP stream, encoded as UTF-8.
+		write_utf8! : Stream, Str => Try({}, _)
+		write_utf8! = |stream, str| write!(stream, Str.to_utf8(str))
+	}
 
-    ## Writes a `Str` to a TCP stream, encoded as UTF-8.
-    ##
-    ## ```roc
-    ## Tcp.write_utf8!(stream, "Hi from Roc!")?
-    ## ```
-    write_utf8! : Stream, Str => Try({}, [TcpWriteErr(StreamErr), ..])
-    write_utf8! = |stream, str| write!(stream, Str.to_utf8(str))
+	## Represents errors that can occur when connecting to a remote host.
+	ConnectErr : [
+		PermissionDenied,
+		AddrInUse,
+		AddrNotAvailable,
+		ConnectionRefused,
+		Interrupted,
+		TimedOut,
+		Unsupported,
+		Unrecognized(Str),
+	]
 
-    ## Convert a `ConnectErr` to a `Str` you can print.
-    connect_err_to_str = |err|
-        match err {
-            PermissionDenied => "PermissionDenied"
-            AddrInUse => "AddrInUse"
-            AddrNotAvailable => "AddrNotAvailable"
-            ConnectionRefused => "ConnectionRefused"
-            Interrupted => "Interrupted"
-            TimedOut => "TimedOut"
-            Unsupported => "Unsupported"
-            Unrecognized(message) => "Unrecognized Error: ${message}"
-        }
+	## Represents errors that can occur when performing an effect with a `Stream`.
+	StreamErr : [
+		StreamNotFound,
+		PermissionDenied,
+		ConnectionRefused,
+		ConnectionReset,
+		Interrupted,
+		OutOfMemory,
+		BrokenPipe,
+		Unrecognized(Str),
+	]
 
-    ## Convert a `StreamErr` to a `Str` you can print.
-    stream_err_to_str = |err|
-        match err {
-            StreamNotFound => "StreamNotFound"
-            PermissionDenied => "PermissionDenied"
-            ConnectionRefused => "ConnectionRefused"
-            ConnectionReset => "ConnectionReset"
-            Interrupted => "Interrupted"
-            OutOfMemory => "OutOfMemory"
-            BrokenPipe => "BrokenPipe"
-            Unrecognized(message) => "Unrecognized Error: ${message}"
-        }
+	## Opens a TCP connection to a remote host.
+	##
+	## ```roc
+	## # Connect to localhost:8080
+	## stream = Tcp.connect!("localhost", 8080)?
+	## ```
+	##
+	## Valid hostnames look like `127.0.0.1`, `::1`, `localhost`, or `roc-lang.org`.
+	connect! = |host, port|
+		Host.tcp_connect!(host, port)
+			.map_ok(|stream| Stream.{ host: stream })
+			.map_err(parse_connect_err)
+
+	## Convert a `ConnectErr` to a `Str` you can print.
+	connect_err_to_str = |err|
+		match err {
+			PermissionDenied => "PermissionDenied"
+			AddrInUse => "AddrInUse"
+			AddrNotAvailable => "AddrNotAvailable"
+			ConnectionRefused => "ConnectionRefused"
+			Interrupted => "Interrupted"
+			TimedOut => "TimedOut"
+			Unsupported => "Unsupported"
+			Unrecognized(message) => "Unrecognized Error: ${message}"
+		}
+
+	## Convert a `StreamErr` to a `Str` you can print.
+	stream_err_to_str = |err|
+		match err {
+			StreamNotFound => "StreamNotFound"
+			PermissionDenied => "PermissionDenied"
+			ConnectionRefused => "ConnectionRefused"
+			ConnectionReset => "ConnectionReset"
+			Interrupted => "Interrupted"
+			OutOfMemory => "OutOfMemory"
+			BrokenPipe => "BrokenPipe"
+			Unrecognized(message) => "Unrecognized Error: ${message}"
+		}
 }
 
 # ---- internal helpers (module-private) -----------------------------------------
 
 parse_connect_err = |err|
-    match err {
-        "ErrorKind::PermissionDenied" => PermissionDenied
-        "ErrorKind::AddrInUse" => AddrInUse
-        "ErrorKind::AddrNotAvailable" => AddrNotAvailable
-        "ErrorKind::ConnectionRefused" => ConnectionRefused
-        "ErrorKind::Interrupted" => Interrupted
-        "ErrorKind::TimedOut" => TimedOut
-        "ErrorKind::Unsupported" => Unsupported
-        other => Unrecognized(other)
-    }
+	match err {
+		"ErrorKind::PermissionDenied" => PermissionDenied
+		"ErrorKind::AddrInUse" => AddrInUse
+		"ErrorKind::AddrNotAvailable" => AddrNotAvailable
+		"ErrorKind::ConnectionRefused" => ConnectionRefused
+		"ErrorKind::Interrupted" => Interrupted
+		"ErrorKind::TimedOut" => TimedOut
+		"ErrorKind::Unsupported" => Unsupported
+		other => Unrecognized(other)
+	}
 
 parse_stream_err = |err|
-    match err {
-        "StreamNotFound" => StreamNotFound
-        "ErrorKind::PermissionDenied" => PermissionDenied
-        "ErrorKind::ConnectionRefused" => ConnectionRefused
-        "ErrorKind::ConnectionReset" => ConnectionReset
-        "ErrorKind::Interrupted" => Interrupted
-        "ErrorKind::OutOfMemory" => OutOfMemory
-        "ErrorKind::BrokenPipe" => BrokenPipe
-        other => Unrecognized(other)
-    }
+	match err {
+		"StreamNotFound" => StreamNotFound
+		"ErrorKind::PermissionDenied" => PermissionDenied
+		"ErrorKind::ConnectionRefused" => ConnectionRefused
+		"ErrorKind::ConnectionReset" => ConnectionReset
+		"ErrorKind::Interrupted" => Interrupted
+		"ErrorKind::OutOfMemory" => OutOfMemory
+		"ErrorKind::BrokenPipe" => BrokenPipe
+		other => Unrecognized(other)
+	}

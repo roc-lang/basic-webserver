@@ -23,10 +23,10 @@ init! = || Ok("🎁")
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, model| {
-    # Log request time (millis since epoch), method and url
-    millis = Utc.to_millis_since_epoch(Utc.now!())
+    # Log request datetime, method and url
+    datetime = Utc.to_iso_8601(Utc.now!())
 
-    Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}")
+    Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.uri()}")
         ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
     Ok(Response.from_status(200).with_body(Str.to_utf8("<b>init gave me ${model}</b>")))

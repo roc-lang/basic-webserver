@@ -41,16 +41,33 @@ demo! = || {
         }
     }
 
-    # Use send! with a custom header and inspect the Response.
+    # Getting a Response record.
     request =
         Request.from_method(GET)
-            .with_uri("http://localhost:9000/utf8test")
-            .with_headers([{ name: "Accept", value: "text/plain" }])
+            .with_uri("http://localhost:9000/htmltest")
             .with_timeout(TimeoutMilliseconds(5000))
 
     match Http.send!(request) {
         Ok(response) => {
-            Stdout.line!("send! returned status ${Str.inspect(response.status())}.")?
+            body_str = Str.from_utf8(response.body())?
+            Stdout.line!("Response body:\n\t${body_str}.\n")?
+        }
+        Err(HttpErr(_)) => {
+            Stdout.line!("send! failed")?
+        }
+    }
+
+    # Same request with a custom Accept header.
+    request_2 =
+        Request.from_method(GET)
+            .with_uri("http://localhost:9000/htmltest")
+            .with_headers([{ name: "Accept", value: "text/html" }])
+            .with_timeout(TimeoutMilliseconds(5000))
+
+    match Http.send!(request_2) {
+        Ok(response_2) => {
+            body_str_2 = Str.from_utf8(response_2.body())?
+            Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
             Ok({})
         }
         Err(HttpErr(_)) => {

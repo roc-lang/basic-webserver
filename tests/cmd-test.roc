@@ -17,7 +17,7 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            Stdout.line!("Ran all Cmd tests.") ?? {}
+            Stdout.line!("Done.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
@@ -28,8 +28,8 @@ init! = ||
 
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    Cmd.exec!("echo", ["hello"])?
-    Cmd.new("echo").arg("hello").exec_cmd!()?
+    Cmd.exec!("true", [])?
+    Cmd.new("true").exec_cmd!()?
 
     output = Cmd.new("printf").arg("hello").exec_output!()?
     expect_true(output.stdout_utf8 == "hello", "printf stdout should be captured as UTF-8")?
@@ -37,8 +37,13 @@ run_tests! = || {
     bytes = Cmd.new("printf").arg("bytes").exec_output_bytes!()?
     expect_true(bytes.stdout_bytes == Str.to_utf8("bytes"), "printf stdout should be captured as bytes")?
 
-    exit_code = Cmd.new("roc").arg("definitely_missing_file.roc").exec_exit_code!()?
-    expect_true(exit_code != 0, "exec_exit_code! should return a non-zero exit code without failing")?
+    _ = Cmd.new("cat").arg("non_existent.txt").exec_exit_code!()?
+    _ = Cmd.new("cat").arg("non_existent.txt").exec_exit_code!()?
+
+    exit_code = Cmd.new("cat").arg("non_existent.txt").exec_exit_code!()?
+    expect_true(exit_code == 1, "exec_exit_code! should return the non-zero exit code without failing")?
+
+    Stdout.line!("All tests passed.")?
 
     Ok({})
 }

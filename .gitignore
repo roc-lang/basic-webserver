@@ -68,3 +68,12 @@ build
 *.db-shm
 
 basic-cli/
+
+# Release artifacts
+*.tar.zst
+dist/
+.release/
+
+# Python helper caches
+__pycache__/
+*.pyc

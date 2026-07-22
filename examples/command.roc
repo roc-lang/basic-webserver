@@ -28,7 +28,7 @@ init! = || {
             .args(["Hi"])
             .exec_output!()?
 
-        Stdout.line!("${Str.inspect(cmd_output)}")?
+        Stdout.line!("{stderr_utf8_lossy: \"${cmd_output.stderr_utf8_lossy}\", stdout_utf8: \"${cmd_output.stdout_utf8}\"}")?
 
         # To run a command with environment variables.
         Cmd.new("env")
@@ -54,7 +54,7 @@ init! = || {
             .args(["Hi"])
             .exec_output_bytes!()?
 
-        Stdout.line!("${Str.inspect(cmd_output_bytes)}")?
+        Stdout.line!("{stderr_bytes: ${Str.inspect(cmd_output_bytes.stderr_bytes)}, stdout_bytes: ${Str.inspect(cmd_output_bytes.stdout_bytes)}}")?
 
         Ok({})
     }
@@ -70,10 +70,10 @@ init! = || {
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |req, _model| {
-    millis = Utc.to_millis_since_epoch(Utc.now!())
+    time = Utc.to_iso_8601(Utc.now!())
 
     # Log request time, method and url using echo
-    match Cmd.exec!("echo", ["${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}"]) {
+    match Cmd.exec!("echo", ["${time} ${Str.inspect(req.method())} ${req.uri()}"]) {
         Ok(_) => Ok(Response.from_status(200).with_body(Str.to_utf8("Command succeeded.")))
         Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
     }

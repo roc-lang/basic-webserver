@@ -7,6 +7,7 @@ app [Model, program] {
 import pf.Env
 import pf.Http
 import pf.MultipartFormData
+import pf.Path
 import pf.Sqlite
 import pf.Stdout
 import pf.Url
@@ -31,8 +32,8 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
     db_path =
         match Env.var!("DB_PATH") {
-            Ok(path) => path
-            Err(_) => "./examples/todos.db"
+            Ok(path) => Path.utf8(path)
+            Err(_) => Path.utf8("./examples/todos.db")
         }
 
     ensure_schema!(db_path) ? |_| Exit(1)
@@ -100,11 +101,7 @@ route_todos! = |model, req|
 list_todos! : Model => Try(Http.Response, _)
 list_todos! = |{ list_todos_stmt, create_todo_stmt: _, last_created_todo_stmt: _ }| {
     todos =
-        Sqlite.query_many_prepared!({
-            stmt: list_todos_stmt,
-            bindings: [],
-            rows: decode_todo,
-        })
+        list_todos_stmt.query_many!([], decode_todo)
         ? |err| DbErr(Str.inspect(err))
 
     Ok(Http.json_response(Http.JsonValue.list(todos.map(todo_to_json))))
@@ -112,21 +109,14 @@ list_todos! = |{ list_todos_stmt, create_todo_stmt: _, last_created_todo_stmt: _
 
 create_todo! : Model, { task : Str, status : Str } => Try(Http.Response, _)
 create_todo! = |model, params| {
-    Sqlite.execute_prepared!({
-        stmt: model.create_todo_stmt,
-        bindings: [
+    model.create_todo_stmt.execute!([
             { name: ":task", value: String(params.task) },
             { name: ":status", value: String(params.status) },
-        ],
-    })
+        ])
     ? |err| DbErr(Str.inspect(err))
 
     todo =
-        Sqlite.query_prepared!({
-            stmt: model.last_created_todo_stmt,
-            bindings: [],
-            row: decode_todo,
-        })
+        model.last_created_todo_stmt.query!([], decode_todo)
         ? |err| DbErr(Str.inspect(err))
 
     Ok(Http.json_response(Http.JsonValue.list([todo_to_json(todo)])))
@@ -162,7 +152,7 @@ task_from_query = |uri| {
     Ok({ task, status })
 }
 
-ensure_schema! : Str => Try({}, _)
+ensure_schema! : Path.Path => Try({}, _)
 ensure_schema! = |db_path|
     Sqlite.execute!({
         path: db_path,

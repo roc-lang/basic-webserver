@@ -6,7 +6,7 @@ app [Model, program] {
 import pf.Stdout
 import pf.Stderr
 import pf.Http
-import pf.File
+import pf.Path
 import http.Response
 
 Model : {}
@@ -16,15 +16,15 @@ program = { init!, respond! }
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
     result! = || {
-        file = "LICENSE"
+        file = Path.utf8("LICENSE")
 
-        is_executable = File.is_executable!(file)?
+        is_executable = Path.is_executable!(file)?
 
-        is_readable = File.is_readable!(file)?
+        is_readable = Path.is_readable!(file)?
 
-        is_writable = File.is_writable!(file)?
+        is_writable = Path.is_writable!(file)?
 
-        Stdout.line!("${file} file permissions:\n    Executable: ${Str.inspect(is_executable)}\n    Readable: ${Str.inspect(is_readable)}\n    Writable: ${Str.inspect(is_writable)}")?
+        Stdout.line!("${Path.display(file)} file permissions:\n    Executable: ${bool_to_str(is_executable)}\n    Readable: ${bool_to_str(is_readable)}\n    Writable: ${bool_to_str(is_writable)}")?
 
         Ok({})
     }
@@ -37,6 +37,9 @@ init! = || {
         }
     }
 }
+
+bool_to_str : Bool -> Str
+bool_to_str = |value| if value { "Bool.true" } else { "Bool.false" }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model|

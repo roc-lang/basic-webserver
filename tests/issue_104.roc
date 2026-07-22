@@ -3,68 +3,61 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.File
+import pf.Env
 import pf.Http
 import pf.Sqlite
-import pf.Stderr
+import pf.Path
 import pf.Stdout
 import http.Response
 
-Model : {}
+Model : {
+    list_todos_stmt : Sqlite.Stmt,
+    create_todo_stmt : Sqlite.Stmt,
+    last_created_todo_stmt : Sqlite.Stmt,
+    begin_stmt : Sqlite.Stmt,
+    end_stmt : Sqlite.Stmt,
+    rollback_stmt : Sqlite.Stmt,
+}
 
 program = { init!, respond! }
 
-db_path = "issue-104.db"
-
-init! : () => Try(Model, [Exit(I64), ..])
-init! = ||
-    match run_tests!() {
-        Ok(_) => {
-            cleanup!() ?? {}
-            Stdout.line!("Ran issue 104 regression.") ?? {}
-            Err(Exit(0))
-        }
-        Err(err) => {
-            cleanup!() ?? {}
-            Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
-            Err(Exit(1))
-        }
+prepare_stmt! : Path.Path, Str => Try(Sqlite.Stmt, [ServerErr(Str), ..])
+prepare_stmt! = |path, query|
+    match Sqlite.prepare!({ path, query }) {
+        Ok(stmt) => Ok(stmt)
+        Err(err) => Err(ServerErr("Failed to prepare Sqlite statement: ${Str.inspect(err)}"))
     }
 
-run_tests! : () => Try({}, _)
-run_tests! = || {
-    cleanup!()?
-
-    Sqlite.execute!({
-        path: db_path,
-        query: "CREATE TABLE todos (id INTEGER PRIMARY KEY AUTOINCREMENT, task TEXT NOT NULL, status TEXT NOT NULL);",
-        bindings: [],
-    })?
-
-    Sqlite.execute!({
-        path: db_path,
-        query: "INSERT INTO todos (task, status) VALUES ('write test', 'todo');",
-        bindings: [],
-    })?
-
-    list_todos_stmt =
-        Sqlite.prepare!({
-            path: db_path,
-            query: "SELECT id, task, status FROM todos;",
-        })?
-
-    match Sqlite.execute_prepared!({ bindings: [], stmt: list_todos_stmt }) {
-        Err(RowsReturnedUseQueryInstead) => Ok({})
-        other => Err(FailedExpectation("expected execute_prepared! to reject row-returning SQL, got ${Str.inspect(other)}"))
+read_env_var! : Str => Try(Str, [ServerErr(Str), ..])
+read_env_var! = |name|
+    match Env.var!(name) {
+        Ok(value) => Ok(value)
+        Err(_) => Err(ServerErr("${name} not set on environment"))
     }
-}
 
-cleanup! : () => Try({}, _)
-cleanup! = || {
-    File.delete!(db_path) ?? {}
-    Ok({})
+init! : () => Try(Model, _)
+init! = || {
+    db_path = Path.utf8(read_env_var!("DB_PATH")?)
+
+    list_todos_stmt = prepare_stmt!(db_path, "SELECT id, task, status FROM todos")?
+    create_todo_stmt = prepare_stmt!(db_path, "INSERT INTO todos (task, status) VALUES (:task, :status)")?
+    last_created_todo_stmt = prepare_stmt!(db_path, "SELECT id, task, status FROM todos WHERE id = last_insert_rowid()")?
+    begin_stmt = prepare_stmt!(db_path, "BEGIN")?
+    end_stmt = prepare_stmt!(db_path, "END")?
+    rollback_stmt = prepare_stmt!(db_path, "ROLLBACK")?
+
+    list_todos_stmt.execute!([])?
+
+    Ok({ list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt })
 }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+respond! = |_, _| {
+    Stdout.line!("hey") ? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
+
+    Ok(
+        Response.from_status(200)
+        .with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
+        .with_body(Str.to_utf8("yow")),
+    )
+}

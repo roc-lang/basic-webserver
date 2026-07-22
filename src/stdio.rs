@@ -11,14 +11,12 @@ use crate::roc_platform_abi::*;
 
 fn try_stdout_unit_ok() -> StdoutUnitResult {
     StdoutUnitResult {
-        payload: StdoutUnitResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: StdoutUnitResultPayload { ok: [] },
         tag: StdoutUnitResultTag::Ok,
     }
 }
 
-fn try_stdout_unit_err(error: HostIOErr) -> StdoutUnitResult {
+fn try_stdout_unit_err(error: IOErr) -> StdoutUnitResult {
     StdoutUnitResult {
         payload: StdoutUnitResultPayload {
             err: ManuallyDrop::new(error),
@@ -29,14 +27,12 @@ fn try_stdout_unit_err(error: HostIOErr) -> StdoutUnitResult {
 
 fn try_stdout_bytes_ok() -> StdoutBytesResult {
     StdoutBytesResult {
-        payload: StdoutBytesResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: StdoutBytesResultPayload { ok: [] },
         tag: StdoutBytesResultTag::Ok,
     }
 }
 
-fn try_stdout_bytes_err(error: HostIOErr) -> StdoutBytesResult {
+fn try_stdout_bytes_err(error: IOErr) -> StdoutBytesResult {
     StdoutBytesResult {
         payload: StdoutBytesResultPayload {
             err: ManuallyDrop::new(error),
@@ -47,14 +43,12 @@ fn try_stdout_bytes_err(error: HostIOErr) -> StdoutBytesResult {
 
 fn try_stderr_unit_ok() -> StderrUnitResult {
     StderrUnitResult {
-        payload: StderrUnitResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: StderrUnitResultPayload { ok: [] },
         tag: StderrUnitResultTag::Ok,
     }
 }
 
-fn try_stderr_unit_err(error: HostIOErr) -> StderrUnitResult {
+fn try_stderr_unit_err(error: IOErr) -> StderrUnitResult {
     StderrUnitResult {
         payload: StderrUnitResultPayload {
             err: ManuallyDrop::new(error),
@@ -65,14 +59,12 @@ fn try_stderr_unit_err(error: HostIOErr) -> StderrUnitResult {
 
 fn try_stderr_bytes_ok() -> StderrBytesResult {
     StderrBytesResult {
-        payload: StderrBytesResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: StderrBytesResultPayload { ok: [] },
         tag: StderrBytesResultTag::Ok,
     }
 }
 
-fn try_stderr_bytes_err(error: HostIOErr) -> StderrBytesResult {
+fn try_stderr_bytes_err(error: IOErr) -> StderrBytesResult {
     StderrBytesResult {
         payload: StderrBytesResultPayload {
             err: ManuallyDrop::new(error),
@@ -88,7 +80,7 @@ pub extern "C" fn hosted_stdout_line(message: RocStr) -> StdoutUnitResult {
         let mut stdout = io::stdout().lock();
         writeln!(stdout, "{}", message.as_str())
     };
-    message.decref(roc_host);
+    unsafe { message.decref(roc_host) };
 
     match result {
         Ok(()) => try_stdout_unit_ok(),
@@ -103,7 +95,7 @@ pub extern "C" fn hosted_stdout_write(message: RocStr) -> StdoutUnitResult {
         let mut stdout = io::stdout().lock();
         write!(stdout, "{}", message.as_str()).and_then(|()| stdout.flush())
     };
-    message.decref(roc_host);
+    unsafe { message.decref(roc_host) };
 
     match result {
         Ok(()) => try_stdout_unit_ok(),
@@ -120,7 +112,7 @@ pub extern "C" fn hosted_stdout_write_bytes(bytes: RocListWith<u8, false>) -> St
             .write_all(bytes.as_slice())
             .and_then(|()| stdout.flush())
     };
-    bytes.decref(roc_host);
+    unsafe { bytes.decref(roc_host) };
 
     match result {
         Ok(()) => try_stdout_bytes_ok(),
@@ -135,7 +127,7 @@ pub extern "C" fn hosted_stderr_line(message: RocStr) -> StderrUnitResult {
         let mut stderr = io::stderr().lock();
         writeln!(stderr, "{}", message.as_str())
     };
-    message.decref(roc_host);
+    unsafe { message.decref(roc_host) };
 
     match result {
         Ok(()) => try_stderr_unit_ok(),
@@ -150,7 +142,7 @@ pub extern "C" fn hosted_stderr_write(message: RocStr) -> StderrUnitResult {
         let mut stderr = io::stderr().lock();
         write!(stderr, "{}", message.as_str()).and_then(|()| stderr.flush())
     };
-    message.decref(roc_host);
+    unsafe { message.decref(roc_host) };
 
     match result {
         Ok(()) => try_stderr_unit_ok(),
@@ -167,7 +159,7 @@ pub extern "C" fn hosted_stderr_write_bytes(bytes: RocListWith<u8, false>) -> St
             .write_all(bytes.as_slice())
             .and_then(|()| stderr.flush())
     };
-    bytes.decref(roc_host);
+    unsafe { bytes.decref(roc_host) };
 
     match result {
         Ok(()) => try_stderr_bytes_ok(),

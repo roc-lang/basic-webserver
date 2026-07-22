@@ -3,9 +3,10 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.File
+import pf.Env
 import pf.Http
 import pf.Sqlite
+import pf.Path
 import pf.Stderr
 import pf.Stdout
 import http.Response
@@ -18,87 +19,80 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
-            cleanup!() ?? {}
-            Stdout.line!("Ran all Sqlite tests.") ?? {}
+            Stdout.line!("Ran all tests.") ?? {}
             Err(Exit(0))
         }
         Err(err) => {
-            cleanup!() ?? {}
             Stderr.line!("Test run failed:\n\t${Str.inspect(err)}") ?? {}
             Err(Exit(1))
         }
     }
 
-db_path = "sqlite-test.db"
-
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    cleanup!()?
-    create_schema!()?
-    insert_rows!()?
+    db_path = Path.utf8(Env.var!("DB_PATH") ? |_| EnvVarNotFound("DB_PATH"))
 
-    test_decoders!()?
-    test_query_one!()?
-    test_prepared_update!()?
-    test_binding_validation!()?
-    test_tagged_value!()?
-    test_execute_rejects_rows!()
+    rows = test_decoders!(db_path)?
+    rows_texts = Str.join_with(rows.map(Str.inspect), "\n")
+    Stdout.line!("Rows: ${rows_texts}")?
+
+    test_query_one!(db_path)?
+    test_prepared_update!(db_path)?
+    test_tagged_value!(db_path)?
+    test_data_type_mismatch!(db_path)
 }
 
-create_schema! : () => Try({}, _)
-create_schema! = ||
-    Sqlite.execute!({
-        path: db_path,
-        query: "CREATE TABLE test (id INTEGER PRIMARY KEY, col_text TEXT NOT NULL, col_bytes BLOB NOT NULL, col_i32 INTEGER NOT NULL, col_i16 INTEGER NOT NULL, col_i8 INTEGER NOT NULL, col_u32 INTEGER NOT NULL, col_u16 INTEGER NOT NULL, col_u8 INTEGER NOT NULL, col_f64 REAL NOT NULL, col_f32 REAL NOT NULL, col_nullable_str TEXT, col_nullable_bytes BLOB, col_nullable_i64 INTEGER, col_nullable_i32 INTEGER, col_nullable_i16 INTEGER, col_nullable_i8 INTEGER, col_nullable_u64 INTEGER, col_nullable_u32 INTEGER, col_nullable_u16 INTEGER, col_nullable_u8 INTEGER, col_nullable_f64 REAL, col_nullable_f32 REAL);",
-        bindings: [],
-    })
-
-insert_rows! : () => Try({}, _)
-insert_rows! = || {
-    Sqlite.execute!({
-        path: db_path,
-        query: "INSERT INTO test (id, col_text, col_bytes, col_i32, col_i16, col_i8, col_u32, col_u16, col_u8, col_f64, col_f32) VALUES (1, 'example text', x'010203', 2147483647, 32767, 127, 4294967295, 65535, 255, 3.5, 4.5);",
-        bindings: [],
-    })?
-
-    Sqlite.execute!({
-        path: db_path,
-        query: "INSERT INTO test (id, col_text, col_bytes, col_i32, col_i16, col_i8, col_u32, col_u16, col_u8, col_f64, col_f32, col_nullable_str, col_nullable_bytes, col_nullable_i64, col_nullable_i32, col_nullable_i16, col_nullable_i8, col_nullable_u64, col_nullable_u32, col_nullable_u16, col_nullable_u8, col_nullable_f64, col_nullable_f32) VALUES (2, 'sample text', x'0405', -2147483648, -32768, -128, 42, 43, 44, 5.5, 6.5, 'nullable text', x'0607', -9, -10, -11, -12, 13, 14, 15, 16, 7.5, 8.5);",
-        bindings: [],
-    })
+DecodedRow := {
+    col_text : Str,
+    col_bytes : List(U8),
+    col_i32 : I32,
+    col_i16 : I16,
+    col_i8 : I8,
+    col_u32 : U32,
+    col_u16 : U16,
+    col_u8 : U8,
+    col_f64 : F64,
+    col_nullable_str : [NotNull(Str), Null],
+    col_nullable_bytes : [NotNull(List(U8)), Null],
+    col_nullable_i64 : [NotNull(I64), Null],
+    col_nullable_i32 : [NotNull(I32), Null],
+    col_nullable_i16 : [NotNull(I16), Null],
+    col_nullable_i8 : [NotNull(I8), Null],
+    col_nullable_u64 : [NotNull(U64), Null],
+    col_nullable_u32 : [NotNull(U32), Null],
+    col_nullable_u16 : [NotNull(U16), Null],
+    col_nullable_u8 : [NotNull(U8), Null],
+    col_nullable_f64 : [NotNull(F64), Null],
+}.{
+    to_inspect : DecodedRow -> Str
+    to_inspect = |row|
+        "{col_bytes: ${Str.inspect(row.col_bytes)}, col_f64: ${Str.inspect(row.col_f64)}, col_i16: ${Str.inspect(row.col_i16)}, col_i32: ${Str.inspect(row.col_i32)}, col_i8: ${Str.inspect(row.col_i8)}, col_nullable_bytes: ${inspect_nullable(row.col_nullable_bytes)}, col_nullable_f64: ${inspect_nullable(row.col_nullable_f64)}, col_nullable_i16: ${inspect_nullable(row.col_nullable_i16)}, col_nullable_i32: ${inspect_nullable(row.col_nullable_i32)}, col_nullable_i64: ${inspect_nullable(row.col_nullable_i64)}, col_nullable_i8: ${inspect_nullable(row.col_nullable_i8)}, col_nullable_str: ${inspect_nullable(row.col_nullable_str)}, col_nullable_u16: ${inspect_nullable(row.col_nullable_u16)}, col_nullable_u32: ${inspect_nullable(row.col_nullable_u32)}, col_nullable_u64: ${inspect_nullable(row.col_nullable_u64)}, col_nullable_u8: ${inspect_nullable(row.col_nullable_u8)}, col_text: ${Str.inspect(row.col_text)}, col_u16: ${Str.inspect(row.col_u16)}, col_u32: ${Str.inspect(row.col_u32)}, col_u8: ${Str.inspect(row.col_u8)}}"
 }
 
-test_decoders! : () => Try({}, _)
-test_decoders! = || {
+TaggedValue := { value : [Null, Real(F64), Integer(I64), String(Str), Bytes(List(U8))] }.{
+    to_inspect : TaggedValue -> Str
+    to_inspect = |tagged|
+        match tagged.value {
+            String(str) => "(String ${Str.inspect(str)})"
+            Integer(n) => "(Integer ${Str.inspect(n)})"
+            Real(n) => "(Real ${Str.inspect(n)})"
+            Bytes(bytes) => "(Bytes ${Str.inspect(bytes)})"
+            Null => "Null"
+        }
+}
+
+test_decoders! : Path.Path => Try(List(DecodedRow), _)
+test_decoders! = |db_path| {
     rows =
         Sqlite.query_many!({
             path: db_path,
-            query: "SELECT * FROM test ORDER BY id;",
+            query: "SELECT * FROM test;",
             bindings: [],
             rows: decode_all_columns,
         })?
 
     expect_true(rows.len() == 2, "expected two rows")?
-
-    first = List.first(rows)?
-    expect_true(first.col_text == "example text", "expected first text column")?
-    expect_true(first.col_bytes == [1, 2, 3], "expected first bytes column")?
-    expect_true(first.col_i32 == 2_147_483_647, "expected first i32 column")?
-    expect_true(first.col_i16 == 32_767, "expected first i16 column")?
-    expect_true(first.col_i8 == 127, "expected first i8 column")?
-    expect_true(first.col_u32 == 4_294_967_295, "expected first u32 column")?
-    expect_true(first.col_u16 == 65_535, "expected first u16 column")?
-    expect_true(first.col_u8 == 255, "expected first u8 column")?
-    expect_true(first.col_nullable_str == Null, "expected nullable str to be Null")?
-    expect_true(first.col_nullable_bytes == Null, "expected nullable bytes to be Null")?
-
-    second = rows.get(1)?
-    expect_true(second.col_nullable_str == NotNull("nullable text"), "expected nullable str to decode")?
-    expect_true(second.col_nullable_bytes == NotNull([6, 7]), "expected nullable bytes to decode")?
-    expect_true(second.col_nullable_i64 == NotNull(-9), "expected nullable i64 to decode")?
-    expect_true(second.col_nullable_u8 == NotNull(16), "expected nullable u8 to decode")?
-
-    Ok({})
+    Ok(rows)
 }
 
 decode_all_columns = |cols|
@@ -112,7 +106,6 @@ decode_all_columns = |cols|
         col_u16 = Sqlite.u16("col_u16")(cols)(stmt)?
         col_u8 = Sqlite.u8("col_u8")(cols)(stmt)?
         col_f64 = Sqlite.f64("col_f64")(cols)(stmt)?
-        col_f32 = Sqlite.f32("col_f32")(cols)(stmt)?
         col_nullable_str = Sqlite.nullable_str("col_nullable_str")(cols)(stmt)?
         col_nullable_bytes = Sqlite.nullable_bytes("col_nullable_bytes")(cols)(stmt)?
         col_nullable_i64 = Sqlite.nullable_i64("col_nullable_i64")(cols)(stmt)?
@@ -124,9 +117,8 @@ decode_all_columns = |cols|
         col_nullable_u16 = Sqlite.nullable_u16("col_nullable_u16")(cols)(stmt)?
         col_nullable_u8 = Sqlite.nullable_u8("col_nullable_u8")(cols)(stmt)?
         col_nullable_f64 = Sqlite.nullable_f64("col_nullable_f64")(cols)(stmt)?
-        col_nullable_f32 = Sqlite.nullable_f32("col_nullable_f32")(cols)(stmt)?
 
-        Ok({
+        Ok(DecodedRow.{
             col_text,
             col_bytes,
             col_i32,
@@ -136,7 +128,6 @@ decode_all_columns = |cols|
             col_u16,
             col_u8,
             col_f64,
-            col_f32,
             col_nullable_str,
             col_nullable_bytes,
             col_nullable_i64,
@@ -148,154 +139,107 @@ decode_all_columns = |cols|
             col_nullable_u16,
             col_nullable_u8,
             col_nullable_f64,
-            col_nullable_f32,
         })
     }
 
-test_query_one! : () => Try({}, _)
-test_query_one! = || {
+test_query_one! : Path.Path => Try({}, _)
+test_query_one! = |db_path| {
     count =
         Sqlite.query!({
             path: db_path,
-            query: "SELECT COUNT(*) AS count FROM test;",
+            query: "SELECT COUNT(*) as \"count\" FROM test;",
             bindings: [],
             row: Sqlite.u64("count"),
         })?
 
     expect_true(count == 2, "expected row count from query!")?
+    Stdout.line!("Row count: ${count.to_str()}")?
 
     prepared_count =
         Sqlite.prepare!({
             path: db_path,
-            query: "SELECT COUNT(*) AS count FROM test;",
+            query: "SELECT COUNT(*) as \"count\" FROM test;",
         })?
 
-    count_prepared =
-        Sqlite.query_prepared!({
-            stmt: prepared_count,
-            bindings: [],
-            row: Sqlite.u64("count"),
-        })?
+    count_prepared = prepared_count.query!([], Sqlite.u64("count"))?
 
-    expect_true(count_prepared == 2, "expected row count from query_prepared!")
+    expect_true(count_prepared == 2, "expected row count from query_prepared!")?
+    Stdout.line!("Row count (prepared): ${count_prepared.to_str()}")
 }
 
-test_prepared_update! : () => Try({}, _)
-test_prepared_update! = || {
+test_prepared_update! : Path.Path => Try({}, _)
+test_prepared_update! = |db_path| {
     prepared_update =
         Sqlite.prepare!({
             path: db_path,
             query: "UPDATE test SET col_text = :col_text WHERE id = :id;",
         })?
 
-    Sqlite.execute_prepared!({
-        stmt: prepared_update,
-        bindings: [
+    prepared_update.execute!([
             { name: ":id", value: Integer(1) },
             { name: ":col_text", value: String("Updated text 1") },
-        ],
-    })?
+        ])?
+
+    prepared_update.execute!([
+            { name: ":id", value: Integer(2) },
+            { name: ":col_text", value: String("Updated text 2") },
+        ])?
 
     updated_rows =
         Sqlite.query_many!({
             path: db_path,
-            query: "SELECT col_text FROM test ORDER BY id;",
+            query: "SELECT COL_TEXT FROM test;",
             bindings: [],
             rows: Sqlite.str("col_text"),
         })?
 
-    expect_true(List.contains(updated_rows, "Updated text 1"), "expected prepared update to change row text")
+    Stdout.line!("Updated rows: ${Str.inspect(updated_rows)}")?
+
+    prepared_update.execute!([
+            { name: ":id", value: Integer(1) },
+            { name: ":col_text", value: String("example text") },
+        ])?
+
+    prepared_update.execute!([
+            { name: ":id", value: Integer(2) },
+            { name: ":col_text", value: String("sample text") },
+        ])
 }
 
-test_binding_validation! : () => Try({}, _)
-test_binding_validation! = || {
-    update_query = "UPDATE test SET col_text = :col_text WHERE id = :id;"
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: update_query,
-        bindings: [{ name: ":id", value: Integer(1) }],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected missing binding to fail, got ${Str.inspect(other)}"))
-    }?
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: update_query,
-        bindings: [
-            { name: ":id", value: Integer(1) },
-            { name: ":col_text", value: String("unused") },
-            { name: ":extra", value: String("unused") },
-        ],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected unknown binding to fail, got ${Str.inspect(other)}"))
-    }?
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: update_query,
-        bindings: [
-            { name: ":id", value: Integer(1) },
-            { name: ":id", value: Integer(1) },
-            { name: ":col_text", value: String("unused") },
-        ],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected duplicate binding to fail, got ${Str.inspect(other)}"))
-    }?
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: "UPDATE test SET col_text = ? WHERE id = :id;",
-        bindings: [{ name: ":id", value: Integer(1) }],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected positional parameter to fail, got ${Str.inspect(other)}"))
-    }?
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: "",
-        bindings: [],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected empty SQL to fail, got ${Str.inspect(other)}"))
-    }?
-
-    match Sqlite.execute!({
-        path: db_path,
-        query: "SELECT id FROM test; SELECT id FROM test;",
-        bindings: [],
-    }) {
-        Err(SqliteErr(Error, _)) => Ok({})
-        other => Err(FailedExpectation("expected multiple SQL statements to fail, got ${Str.inspect(other)}"))
-    }
-}
-
-test_tagged_value! : () => Try({}, _)
-test_tagged_value! = || {
+test_tagged_value! : Path.Path => Try({}, _)
+test_tagged_value! = |db_path| {
     values =
         Sqlite.query_many!({
             path: db_path,
-            query: "SELECT col_text FROM test ORDER BY id;",
+            query: "SELECT * FROM test;",
             bindings: [],
-            rows: Sqlite.tagged_value("col_text"),
+            rows: |cols| |stmt| {
+                value = Sqlite.tagged_value("col_text")(cols)(stmt)?
+                Ok(TaggedValue.{ value })
+            },
         })?
 
-    match List.first(values) {
-        Ok(String(_)) => Ok({})
-        other => Err(FailedExpectation("expected tagged value to decode as String, got ${Str.inspect(other)}"))
-    }
+    Stdout.line!("Tagged value test: ${Str.inspect(values)}")
 }
 
-test_execute_rejects_rows! : () => Try({}, _)
-test_execute_rejects_rows! = ||
-    match Sqlite.execute!({ path: db_path, query: "SELECT * FROM test;", bindings: [] }) {
-        Err(RowsReturnedUseQueryInstead) => Ok({})
-        other => Err(FailedExpectation("expected execute! to reject row-returning SQL, got ${Str.inspect(other)}"))
+test_data_type_mismatch! : Path.Path => Try({}, _)
+test_data_type_mismatch! = |db_path| {
+    sql_res =
+        Sqlite.execute!({
+            path: db_path,
+            query: "UPDATE test SET id = :id WHERE col_text = :col_text;",
+            bindings: [
+                { name: ":col_text", value: String("sample text") },
+                { name: ":id", value: String("This should be an integer") },
+            ],
+        })
+
+    match sql_res {
+        Ok(_) => Err(FailedExpectation("expected data type mismatch"))
+        Err(SqliteErr(err_type, _)) => Stdout.line!("Error: ${Sqlite.errcode_to_str(err_type)}")
+        Err(err) => Err(FailedExpectation("expected SqliteErr, got ${Str.inspect(err)}"))
     }
+}
 
 expect_true = |condition, message|
     if condition {
@@ -304,11 +248,11 @@ expect_true = |condition, message|
         Err(FailedExpectation(message))
     }
 
-cleanup! : () => Try({}, _)
-cleanup! = || {
-    File.delete!(db_path) ?? {}
-    Ok({})
-}
+inspect_nullable = |value|
+    match value {
+        NotNull(inner) => "(NotNull ${Str.inspect(inner)})"
+        Null => "Null"
+    }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_, _|

@@ -9,16 +9,22 @@ import http.Response
 
 # To run this example: check the root README.md
 
-Model : {}
+Model : [DebugPrintMode, NonDebugMode]
 
 program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+init! = ||
+    match Env.var!("DEBUG") {
+        Ok("1") => Ok(DebugPrintMode)
+        _ => Ok(NonDebugMode)
+    }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    match Env.var!("HOME") {
-        Ok(value) => Ok(Response.from_status(200).with_body(Str.to_utf8("HOME=${value}")))
-        Err(VarNotFound(name)) => Ok(Response.from_status(200).with_body(Str.to_utf8("env var not found: ${name}")))
+respond! = |_request, model|
+    match model {
+        DebugPrintMode => {
+            Ok(Response.from_status(200).with_body(Str.to_utf8(Str.inspect(Env.dict!()))))
+        }
+        NonDebugMode => Ok(Response.from_status(200).with_body(Str.to_utf8("DEBUG var not set")))
     }

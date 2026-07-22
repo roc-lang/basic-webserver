@@ -1,10 +1,10 @@
 use core::mem::ManuallyDrop;
 
 use crate::abi::{
-    decref_roc_str_list, io_err_from_io, io_err_other, roc_host, Cmd, CmdExitResult,
-    CmdExitResultPayload, CmdExitResultTag, CmdOutputFailure, CmdOutputFailureResult,
-    CmdOutputFailureResultPayload, CmdOutputFailureResultTag, CmdOutputResult,
-    CmdOutputResultPayload, CmdOutputResultTag, CmdOutputSuccess,
+    cmd_io_err_from_io, cmd_io_err_other, decref_roc_str_list, io_err_from_io, io_err_other,
+    roc_host, Cmd, CmdExitResult, CmdExitResultPayload, CmdExitResultTag, CmdOutputFailure,
+    CmdOutputFailureResult, CmdOutputFailureResultPayload, CmdOutputFailureResultTag,
+    CmdOutputResult, CmdOutputResultPayload, CmdOutputResultTag, CmdOutputSuccess,
 };
 use crate::roc_platform_abi::*;
 
@@ -28,7 +28,8 @@ fn env_pairs<T: CommandEnvValue>(envs: &[T]) -> impl Iterator<Item = (&str, &str
 fn decref_host_cmd_arg(cmd: &Cmd, roc_host: &RocHost) {
     decref_roc_str_list(&cmd.args, roc_host);
     decref_roc_str_list(&cmd.envs, roc_host);
-    cmd.program.decref(roc_host);
+    // SAFETY: hosted arguments transfer ownership to the host.
+    unsafe { cmd.program.decref(roc_host) };
 }
 
 fn cmd_to_std(cmd: &Cmd) -> std::process::Command {
@@ -94,7 +95,7 @@ fn try_cmd_output_failure_ok(value: CmdOutputFailure) -> CmdOutputFailureResult 
     }
 }
 
-fn try_cmd_output_failure_err(error: HostIOErr) -> CmdOutputFailureResult {
+fn try_cmd_output_failure_err(error: crate::abi::HostIOErrType) -> CmdOutputFailureResult {
     CmdOutputFailureResult {
         payload: CmdOutputFailureResultPayload {
             err: ManuallyDrop::new(error),
@@ -112,9 +113,9 @@ pub extern "C" fn hosted_cmd_host_exec_exit_code(cmd: Cmd) -> CmdExitResult {
     match std_cmd.status() {
         Ok(status) => match status.code() {
             Some(code) => try_cmd_exit_ok(code),
-            None => try_cmd_exit_err(io_err_other("Process was killed by signal", roc_host)),
+            None => try_cmd_exit_err(cmd_io_err_other("Process was killed by signal", roc_host)),
         },
-        Err(error) => try_cmd_exit_err(io_err_from_io(&error, roc_host)),
+        Err(error) => try_cmd_exit_err(cmd_io_err_from_io(&error, roc_host)),
     }
 }
 
@@ -126,8 +127,11 @@ pub extern "C" fn hosted_cmd_host_exec_output(cmd: Cmd) -> CmdOutputResult {
 
     match std_cmd.output() {
         Ok(output) => {
-            let stdout_bytes = RocListWith::<u8, false>::from_slice(&output.stdout, roc_host);
-            let stderr_bytes = RocListWith::<u8, false>::from_slice(&output.stderr, roc_host);
+            // SAFETY: both lists own copies of the process output buffers.
+            let stdout_bytes =
+                unsafe { RocListWith::<u8, false>::from_slice(&output.stdout, roc_host) };
+            let stderr_bytes =
+                unsafe { RocListWith::<u8, false>::from_slice(&output.stderr, roc_host) };
 
             match output.status.code() {
                 Some(0) => try_cmd_output_ok(CmdOutputSuccess {
@@ -142,8 +146,8 @@ pub extern "C" fn hosted_cmd_host_exec_output(cmd: Cmd) -> CmdOutputResult {
                     }))
                 }
                 None => {
-                    stdout_bytes.decref(roc_host);
-                    stderr_bytes.decref(roc_host);
+                    unsafe { stdout_bytes.decref(roc_host) };
+                    unsafe { stderr_bytes.decref(roc_host) };
                     try_cmd_output_err(try_cmd_output_failure_err(io_err_other(
                         "Process was killed by signal",
                         roc_host,

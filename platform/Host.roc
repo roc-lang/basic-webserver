@@ -33,6 +33,16 @@ Host := [].{
         windows_u16s : List(U16),
     }
 
+    EnvVar : {
+        key : Str,
+        value : Str,
+    }
+
+    Platform : {
+        arch : Str,
+        os : Str,
+    }
+
     SqliteStmt :: Box(U64)
 
     FileReader :: Box(U64)
@@ -42,11 +52,11 @@ Host := [].{
     cmd_exec_exit_code! : Cmd => Try(I32, IOErr)
     cmd_exec_output! : Cmd => Try(CmdOutputSuccess, Try(CmdOutputFailure, IOErr))
 
-    dir_create! : Str => Try({}, [DirErr(IOErr)])
-    dir_create_all! : Str => Try({}, [DirErr(IOErr)])
-    dir_delete_empty! : Str => Try({}, [DirErr(IOErr)])
-    dir_delete_all! : Str => Try({}, [DirErr(IOErr)])
-    dir_list! : Str => Try(List(RawPath), [DirErr(IOErr)])
+    dir_create! : RawPath => Try({}, [DirErr(IOErr)])
+    dir_create_all! : RawPath => Try({}, [DirErr(IOErr)])
+    dir_delete_empty! : RawPath => Try({}, [DirErr(IOErr)])
+    dir_delete_all! : RawPath => Try({}, [DirErr(IOErr)])
+    dir_list! : RawPath => Try(List(RawPath), [DirErr(IOErr)])
 
     env_var! : Str => Try(Str, [VarNotFound(Str)])
     env_is_windows! : Str => Bool
@@ -55,27 +65,32 @@ Host := [].{
     env_exe_path_unix! : Str => Try(List(U8), [EnvErr(IOErr)])
     env_exe_path_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
     env_temp_dir! : Str => RawPath
+    env_set_cwd! : RawPath => Try({}, [EnvErr(IOErr)])
+    env_dict! : Str => List(EnvVar)
+    env_current_arch_os! : Str => Platform
 
-    file_read_bytes! : Str => Try(List(U8), [FileErr(IOErr)])
-    file_write_bytes! : Str, List(U8) => Try({}, [FileErr(IOErr)])
-    file_read_utf8! : Str => Try(Str, [FileErr(IOErr)])
-    file_write_utf8! : Str, Str => Try({}, [FileErr(IOErr)])
-    file_open_reader! : Str, U64 => Try(FileReader, [FileErr(IOErr)])
+    file_read_bytes! : RawPath => Try(List(U8), [FileErr(IOErr)])
+    file_write_bytes! : RawPath, List(U8) => Try({}, [FileErr(IOErr)])
+    file_read_utf8! : RawPath => Try(Str, [FileErr(IOErr)])
+    file_write_utf8! : RawPath, Str => Try({}, [FileErr(IOErr)])
+    file_open_reader! : RawPath, U64 => Try(FileReader, [FileErr(IOErr)])
     file_read_line! : FileReader => Try(List(U8), [FileErr(IOErr)])
-    file_delete! : Str => Try({}, [FileErr(IOErr)])
-    file_size_in_bytes! : Str => Try(U64, [FileErr(IOErr)])
-    file_is_executable! : Str => Try(Bool, [FileErr(IOErr)])
-    file_is_readable! : Str => Try(Bool, [FileErr(IOErr)])
-    file_is_writable! : Str => Try(Bool, [FileErr(IOErr)])
-    file_time_accessed! : Str => Try(U128, [FileErr(IOErr)])
-    file_time_modified! : Str => Try(U128, [FileErr(IOErr)])
-    file_time_created! : Str => Try(U128, [FileErr(IOErr)])
+    file_delete! : RawPath => Try({}, [FileErr(IOErr)])
+    file_hard_link! : RawPath, RawPath => Try({}, [FileErr(IOErr)])
+    file_rename! : RawPath, RawPath => Try({}, [FileErr(IOErr)])
+    file_size_in_bytes! : RawPath => Try(U64, [FileErr(IOErr)])
+    file_is_executable! : RawPath => Try(Bool, [FileErr(IOErr)])
+    file_is_readable! : RawPath => Try(Bool, [FileErr(IOErr)])
+    file_is_writable! : RawPath => Try(Bool, [FileErr(IOErr)])
+    file_time_accessed! : RawPath => Try(U128, [FileErr(IOErr)])
+    file_time_modified! : RawPath => Try(U128, [FileErr(IOErr)])
+    file_time_created! : RawPath => Try(U128, [FileErr(IOErr)])
 
     http_send_request! : InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
 
     path_type! : RawPath => Try(PathType, IOErr)
 
-    sqlite_prepare! : Str, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
+    sqlite_prepare! : RawPath, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
     sqlite_bind! : SqliteStmt, List(InternalSqlite.SqliteBindings) => Try({}, InternalSqlite.SqliteError)
     sqlite_columns! : SqliteStmt => List(Str)
     sqlite_column_value! : SqliteStmt, U64 => Try(InternalSqlite.SqliteValue, InternalSqlite.SqliteError)

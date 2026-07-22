@@ -5,7 +5,7 @@ app [Model, program] {
 
 import pf.Stdout
 import pf.Stderr
-import pf.Dir
+import pf.Env
 import pf.Http
 import pf.Path
 import http.Response
@@ -19,29 +19,15 @@ program = { init!, respond! }
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
     result! = || {
-        # Create a directory
-        Dir.create!("empty-dir")?
+        cwd = Env.cwd!()?
+        Stdout.line!("The current working directory is ${Path.display(cwd)}")?
 
-        # Create a directory and its parents
-        Dir.create_all!("nested-dir/a/b/c")?
+        Env.set_cwd!(Path.utf8("examples/"))?
+        Stdout.line!("Set cwd to examples/")?
 
-        # Create a child directory
-        Dir.create!("nested-dir/child")?
-
-        # List the contents of a directory
-        paths = Dir.list!("nested-dir")?
-
-        paths_str = Str.join_with(paths.map(Path.display), ", ")
-
-        Stdout.line!("The paths in nested-dir are: ${paths_str}")?
-
-        # Delete an empty directory
-        Dir.delete_empty!("empty-dir")?
-
-        # Delete all directories recursively
-        Dir.delete_all!("nested-dir")?
-
-        Stdout.line!("Success!")?
+        paths = Path.list!(Path.utf8("./"))?
+        paths_str = Str.join_with(paths.map(Path.display), "\n")
+        Stdout.line!("The paths are;\n${paths_str}")?
 
         Ok({})
     }

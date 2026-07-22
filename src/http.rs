@@ -2,7 +2,7 @@ use crate::abi::roc_host;
 use crate::roc_platform_abi::*;
 
 type HttpResponse = HostHttpSendRequest;
-type HttpHeader = AnonStruct39;
+type HttpHeader = HostHttpSendRequestArg0Headers;
 
 thread_local! {
     static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
@@ -32,7 +32,8 @@ fn as_hyper_method(method: u8, method_ext: &str) -> Option<hyper::Method> {
 
 fn http_sentinel_response(status: u16, body: &[u8], roc_host: &RocHost) -> HttpResponse {
     HttpResponse {
-        body: RocListWith::<u8, false>::from_slice(body, roc_host),
+        // SAFETY: the returned list owns a copy of `body`.
+        body: unsafe { RocListWith::<u8, false>::from_slice(body, roc_host) },
         headers: RocList::empty(),
         status,
     }
@@ -81,7 +82,8 @@ fn build_hyper_request(
 }
 
 fn build_roc_headers(pairs: &[(String, String)], roc_host: &RocHost) -> RocList<HttpHeader> {
-    let list = RocList::<HttpHeader>::allocate(pairs.len(), roc_host);
+    // SAFETY: every allocated element is initialized below before return.
+    let list = unsafe { RocList::<HttpHeader>::allocate(pairs.len(), roc_host) };
     for (index, (name, value)) in pairs.iter().enumerate() {
         let header = HttpHeader {
             name: RocStr::from_str(name, roc_host),
@@ -130,7 +132,8 @@ async fn async_send_request(
                 Ok(collected) => {
                     let bytes = collected.to_bytes();
                     HttpResponse {
-                        body: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
+                        // SAFETY: the returned list owns a copy of the body.
+                        body: unsafe { RocListWith::<u8, false>::from_slice(&bytes, roc_host) },
                         headers: build_roc_headers(&pairs, roc_host),
                         status,
                     }
@@ -153,13 +156,13 @@ pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> Htt
     // Build the hyper request from borrowed args, then release the owned Roc
     // values after the request has copied everything it needs.
     let request_result = build_hyper_request(&args);
-    args.body.decref(roc_host);
+    unsafe { args.body.decref(roc_host) };
     for header in args.headers.as_slice() {
-        decref_anon_struct39(*header, roc_host);
+        unsafe { header.decref(roc_host) };
     }
-    args.headers.decref(roc_host);
-    args.method_ext.decref(roc_host);
-    args.uri.decref(roc_host);
+    unsafe { args.headers.decref(roc_host) };
+    unsafe { args.method_ext.decref(roc_host) };
+    unsafe { args.uri.decref(roc_host) };
 
     let request = match request_result {
         Ok(request) => request,

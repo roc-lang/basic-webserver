@@ -6,6 +6,52 @@ use crate::abi::{
 };
 use crate::roc_platform_abi::*;
 
+pub(crate) trait IntoRawPath {
+    fn into_raw_path(self) -> RawPath;
+}
+
+impl IntoRawPath for RawPath {
+    fn into_raw_path(self) -> RawPath {
+        self
+    }
+}
+
+macro_rules! impl_into_raw_path {
+    ($($type_name:ty),+ $(,)?) => {
+        $(
+            impl IntoRawPath for $type_name {
+                fn into_raw_path(self) -> RawPath {
+                    RawPath {
+                        unix_bytes: self.unix_bytes,
+                        windows_u16s: self.windows_u16s,
+                        is_windows: self.is_windows,
+                    }
+                }
+            }
+        )+
+    };
+}
+
+impl_into_raw_path!(
+    HostDirCreateArgs,
+    HostDirCreateAllArgs,
+    HostDirDeleteAllArgs,
+    HostDirDeleteEmptyArgs,
+    HostDirListArgs,
+    HostEnvSetCwdArgs,
+    HostFileDeleteArgs,
+    HostFileIsExecutableArgs,
+    HostFileIsReadableArgs,
+    HostFileIsWritableArgs,
+    HostFileReadBytesArgs,
+    HostFileReadUtf8Args,
+    HostFileSizeInBytesArgs,
+    HostFileTimeAccessedArgs,
+    HostFileTimeCreatedArgs,
+    HostFileTimeModifiedArgs,
+    HostPathTypeArgs,
+);
+
 pub(crate) fn unix_bytes_from_path_buf(
     path: std::path::PathBuf,
     roc_host: &RocHost,
@@ -15,12 +61,12 @@ pub(crate) fn unix_bytes_from_path_buf(
         use std::os::unix::ffi::OsStringExt;
 
         let bytes = path.into_os_string().into_vec();
-        RocListWith::<u8, false>::from_slice(&bytes, roc_host)
+        unsafe { RocListWith::<u8, false>::from_slice(&bytes, roc_host) }
     }
 
     #[cfg(not(unix))]
     {
-        RocListWith::<u8, false>::from_slice(path.to_string_lossy().as_bytes(), roc_host)
+        unsafe { RocListWith::<u8, false>::from_slice(path.to_string_lossy().as_bytes(), roc_host) }
     }
 }
 
@@ -33,13 +79,13 @@ pub(crate) fn windows_u16s_from_path_buf(
         use std::os::windows::ffi::OsStrExt;
 
         let u16s: Vec<u16> = path.as_os_str().encode_wide().collect();
-        RocListWith::<u16, false>::from_slice(&u16s, roc_host)
+        unsafe { RocListWith::<u16, false>::from_slice(&u16s, roc_host) }
     }
 
     #[cfg(not(windows))]
     {
         let u16s: Vec<u16> = path.to_string_lossy().as_ref().encode_utf16().collect();
-        RocListWith::<u16, false>::from_slice(&u16s, roc_host)
+        unsafe { RocListWith::<u16, false>::from_slice(&u16s, roc_host) }
     }
 }
 
@@ -50,8 +96,8 @@ pub(crate) fn raw_path_from_path_buf(path: std::path::PathBuf, roc_host: &RocHos
 
         let bytes = path.into_os_string().into_vec();
         RawPath {
-            unix_bytes: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
-            windows_u16s: RocListWith::<u16, false>::from_slice(&[], roc_host),
+            unix_bytes: unsafe { RocListWith::<u8, false>::from_slice(&bytes, roc_host) },
+            windows_u16s: unsafe { RocListWith::<u16, false>::from_slice(&[], roc_host) },
             is_windows: false,
         }
     }
@@ -62,8 +108,8 @@ pub(crate) fn raw_path_from_path_buf(path: std::path::PathBuf, roc_host: &RocHos
 
         let u16s: Vec<u16> = path.as_os_str().encode_wide().collect();
         RawPath {
-            unix_bytes: RocListWith::<u8, false>::from_slice(&[], roc_host),
-            windows_u16s: RocListWith::<u16, false>::from_slice(&u16s, roc_host),
+            unix_bytes: unsafe { RocListWith::<u8, false>::from_slice(&[], roc_host) },
+            windows_u16s: unsafe { RocListWith::<u16, false>::from_slice(&u16s, roc_host) },
             is_windows: true,
         }
     }
@@ -72,48 +118,59 @@ pub(crate) fn raw_path_from_path_buf(path: std::path::PathBuf, roc_host: &RocHos
     {
         let bytes = path.to_string_lossy().as_bytes().to_vec();
         RawPath {
-            unix_bytes: RocListWith::<u8, false>::from_slice(&bytes, roc_host),
-            windows_u16s: RocListWith::<u16, false>::from_slice(&[], roc_host),
+            unix_bytes: unsafe { RocListWith::<u8, false>::from_slice(&bytes, roc_host) },
+            windows_u16s: unsafe { RocListWith::<u16, false>::from_slice(&[], roc_host) },
             is_windows: false,
         }
     }
 }
 
-fn path_buf_from_raw_path(path: HostPathTypeArgs, roc_host: &RocHost) -> std::path::PathBuf {
+fn unsupported_native_path(expected: &str, got: &str) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        format!("expected {expected} path on this platform, got {got}"),
+    )
+}
+
+/// Convert an owned Roc raw path into a native `PathBuf` without passing
+/// through Unicode. Both Roc list fields are consumed on every path.
+pub(crate) fn path_buf_from_raw_path(
+    path: impl IntoRawPath,
+    roc_host: &RocHost,
+) -> std::io::Result<std::path::PathBuf> {
+    let path = path.into_raw_path();
     let unix_bytes = path.unix_bytes;
     let windows_u16s = path.windows_u16s;
 
-    let path_buf = if path.is_windows {
-        #[cfg(windows)]
-        {
-            use std::os::windows::ffi::OsStringExt;
-
-            let os_string = std::ffi::OsString::from_wide(windows_u16s.as_slice());
-            std::path::PathBuf::from(os_string)
-        }
-
-        #[cfg(not(windows))]
-        {
-            std::path::PathBuf::from(String::from_utf16_lossy(windows_u16s.as_slice()))
-        }
+    #[cfg(unix)]
+    let result = if path.is_windows {
+        Err(unsupported_native_path("Unix", "Windows"))
     } else {
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStringExt;
-
-            let os_string = std::ffi::OsString::from_vec(unix_bytes.as_slice().to_vec());
-            std::path::PathBuf::from(os_string)
-        }
-
-        #[cfg(not(unix))]
-        {
-            std::path::PathBuf::from(String::from_utf8_lossy(unix_bytes.as_slice()).into_owned())
-        }
+        use std::os::unix::ffi::OsStringExt;
+        Ok(std::path::PathBuf::from(std::ffi::OsString::from_vec(
+            unix_bytes.as_slice().to_vec(),
+        )))
     };
 
-    unix_bytes.decref(roc_host);
-    windows_u16s.decref(roc_host);
-    path_buf
+    #[cfg(windows)]
+    let result = if path.is_windows {
+        use std::os::windows::ffi::OsStringExt;
+        Ok(std::path::PathBuf::from(std::ffi::OsString::from_wide(
+            windows_u16s.as_slice(),
+        )))
+    } else {
+        Err(unsupported_native_path("Windows", "Unix"))
+    };
+
+    #[cfg(not(any(unix, windows)))]
+    let result = Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "native paths are not implemented on this platform",
+    ));
+
+    unsafe { unix_bytes.decref(roc_host) };
+    unsafe { windows_u16s.decref(roc_host) };
+    result
 }
 
 fn try_path_type_ok(value: PathInfo) -> PathTypeResult {
@@ -125,7 +182,7 @@ fn try_path_type_ok(value: PathInfo) -> PathTypeResult {
     }
 }
 
-fn try_path_type_err(error: HostIOErr) -> PathTypeResult {
+fn try_path_type_err(error: IOErr) -> PathTypeResult {
     PathTypeResult {
         payload: PathTypeResultPayload {
             err: ManuallyDrop::new(error),
@@ -137,7 +194,10 @@ fn try_path_type_err(error: HostIOErr) -> PathTypeResult {
 #[no_mangle]
 pub extern "C" fn hosted_path_type(path: HostPathTypeArgs) -> PathTypeResult {
     let roc_host = roc_host();
-    let path = path_buf_from_raw_path(path, roc_host);
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_path_type_err(io_err_from_io(&error, roc_host)),
+    };
 
     match path.symlink_metadata() {
         Ok(metadata) => {
@@ -168,6 +228,39 @@ mod tests {
         let encoded = windows_u16s_from_path_buf(path, &host);
 
         assert_eq!(encoded.as_slice(), &[97, 98, 99]);
-        encoded.decref(&host);
+        unsafe { encoded.decref(&host) };
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn raw_unix_path_preserves_non_utf8_bytes() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let host = test_host();
+        let bytes = [b'f', 0x80, b'o'];
+        let raw = RawPath {
+            unix_bytes: unsafe { RocListWith::from_slice(&bytes, &host) },
+            windows_u16s: RocListWith::empty(),
+            is_windows: false,
+        };
+
+        let path = path_buf_from_raw_path(raw, &host).unwrap();
+
+        assert_eq!(path.as_os_str().as_bytes(), bytes);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn raw_windows_path_is_rejected_on_unix() {
+        let host = test_host();
+        let raw = RawPath {
+            unix_bytes: RocListWith::empty(),
+            windows_u16s: unsafe { RocListWith::from_slice(&[b'x' as u16], &host) },
+            is_windows: true,
+        };
+
+        let error = path_buf_from_raw_path(raw, &host).unwrap_err();
+
+        assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
     }
 }

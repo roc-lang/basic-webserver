@@ -1,0 +1,25 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+set env(DB_PATH) "$env(TESTS_DIR)todos.db"
+
+spawn $env(TESTS_DIR)issue_104
+
+expect "Server `init!` failed with error:" {
+    expect -re {.*RowsReturned.*} {
+                exit 0
+    }
+
+    puts stderr "\nError: output was different from expected value."
+    exit 1
+
+}
+
+puts stderr "\nError: output was different from expected value."
+exit 1

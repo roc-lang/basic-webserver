@@ -4,9 +4,9 @@ use std::fs;
 use std::io::{self, BufRead, BufReader};
 
 use crate::abi::{
-    io_err_from_io, path_from_roc_str, roc_host, FileBoolResult, FileBoolResultPayload,
-    FileBoolResultTag, FileBytesResult, FileBytesResultPayload, FileBytesResultTag,
-    FileDeleteResult, FileDeleteResultPayload, FileDeleteResultTag, FileReaderLineResult,
+    io_err_from_io, roc_host, FileBoolResult, FileBoolResultPayload, FileBoolResultTag,
+    FileBytesResult, FileBytesResultPayload, FileBytesResultTag, FileDeleteResult,
+    FileDeleteResultPayload, FileDeleteResultTag, FileReaderLineResult,
     FileReaderLineResultPayload, FileReaderLineResultTag, FileReaderOpenResult,
     FileReaderOpenResultPayload, FileReaderOpenResultTag, FileSizeResult, FileSizeResultPayload,
     FileSizeResultTag, FileStrResult, FileStrResultPayload, FileStrResultTag, FileTimeResult,
@@ -14,6 +14,7 @@ use crate::abi::{
     FileWriteBytesResultTag, FileWriteUtf8Result, FileWriteUtf8ResultPayload,
     FileWriteUtf8ResultTag,
 };
+use crate::path::{path_buf_from_raw_path, IntoRawPath};
 use crate::roc_platform_abi::*;
 
 fn try_file_bytes_ok(value: RocListWith<u8, false>) -> FileBytesResult {
@@ -25,7 +26,7 @@ fn try_file_bytes_ok(value: RocListWith<u8, false>) -> FileBytesResult {
     }
 }
 
-fn try_file_bytes_err(error: HostIOErr) -> FileBytesResult {
+fn try_file_bytes_err(error: IOErr) -> FileBytesResult {
     FileBytesResult {
         payload: FileBytesResultPayload {
             err: ManuallyDrop::new(error),
@@ -43,7 +44,7 @@ fn try_file_reader_ok(handle: *mut u64) -> FileReaderOpenResult {
     }
 }
 
-fn try_file_reader_err(error: HostIOErr) -> FileReaderOpenResult {
+fn try_file_reader_err(error: IOErr) -> FileReaderOpenResult {
     FileReaderOpenResult {
         payload: FileReaderOpenResultPayload {
             err: ManuallyDrop::new(error),
@@ -61,7 +62,7 @@ fn try_file_reader_line_ok(value: RocListWith<u8, false>) -> FileReaderLineResul
     }
 }
 
-fn try_file_reader_line_err(error: HostIOErr) -> FileReaderLineResult {
+fn try_file_reader_line_err(error: IOErr) -> FileReaderLineResult {
     FileReaderLineResult {
         payload: FileReaderLineResultPayload {
             err: ManuallyDrop::new(error),
@@ -72,14 +73,12 @@ fn try_file_reader_line_err(error: HostIOErr) -> FileReaderLineResult {
 
 fn try_file_write_bytes_ok() -> FileWriteBytesResult {
     FileWriteBytesResult {
-        payload: FileWriteBytesResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: FileWriteBytesResultPayload { ok: [] },
         tag: FileWriteBytesResultTag::Ok,
     }
 }
 
-fn try_file_write_bytes_err(error: HostIOErr) -> FileWriteBytesResult {
+fn try_file_write_bytes_err(error: IOErr) -> FileWriteBytesResult {
     FileWriteBytesResult {
         payload: FileWriteBytesResultPayload {
             err: ManuallyDrop::new(error),
@@ -97,7 +96,7 @@ fn try_file_str_ok(value: RocStr) -> FileStrResult {
     }
 }
 
-fn try_file_str_err(error: HostIOErr) -> FileStrResult {
+fn try_file_str_err(error: IOErr) -> FileStrResult {
     FileStrResult {
         payload: FileStrResultPayload {
             err: ManuallyDrop::new(error),
@@ -108,14 +107,12 @@ fn try_file_str_err(error: HostIOErr) -> FileStrResult {
 
 fn try_file_write_utf8_ok() -> FileWriteUtf8Result {
     FileWriteUtf8Result {
-        payload: FileWriteUtf8ResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: FileWriteUtf8ResultPayload { ok: [] },
         tag: FileWriteUtf8ResultTag::Ok,
     }
 }
 
-fn try_file_write_utf8_err(error: HostIOErr) -> FileWriteUtf8Result {
+fn try_file_write_utf8_err(error: IOErr) -> FileWriteUtf8Result {
     FileWriteUtf8Result {
         payload: FileWriteUtf8ResultPayload {
             err: ManuallyDrop::new(error),
@@ -126,14 +123,12 @@ fn try_file_write_utf8_err(error: HostIOErr) -> FileWriteUtf8Result {
 
 fn try_file_delete_ok() -> FileDeleteResult {
     FileDeleteResult {
-        payload: FileDeleteResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: FileDeleteResultPayload { ok: [] },
         tag: FileDeleteResultTag::Ok,
     }
 }
 
-fn try_file_delete_err(error: HostIOErr) -> FileDeleteResult {
+fn try_file_delete_err(error: IOErr) -> FileDeleteResult {
     FileDeleteResult {
         payload: FileDeleteResultPayload {
             err: ManuallyDrop::new(error),
@@ -151,7 +146,7 @@ fn try_file_size_ok(value: u64) -> FileSizeResult {
     }
 }
 
-fn try_file_size_err(error: HostIOErr) -> FileSizeResult {
+fn try_file_size_err(error: IOErr) -> FileSizeResult {
     FileSizeResult {
         payload: FileSizeResultPayload {
             err: ManuallyDrop::new(error),
@@ -169,7 +164,7 @@ fn try_file_bool_ok(value: bool) -> FileBoolResult {
     }
 }
 
-fn try_file_bool_err(error: HostIOErr) -> FileBoolResult {
+fn try_file_bool_err(error: IOErr) -> FileBoolResult {
     FileBoolResult {
         payload: FileBoolResultPayload {
             err: ManuallyDrop::new(error),
@@ -187,7 +182,7 @@ fn try_file_time_ok(value: u128) -> FileTimeResult {
     }
 }
 
-fn try_file_time_err(error: HostIOErr) -> FileTimeResult {
+fn try_file_time_err(error: IOErr) -> FileTimeResult {
     FileTimeResult {
         payload: FileTimeResultPayload {
             err: ManuallyDrop::new(error),
@@ -197,27 +192,92 @@ fn try_file_time_err(error: HostIOErr) -> FileTimeResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_delete(path: RocStr) -> FileDeleteResult {
+pub extern "C" fn hosted_file_delete(path: HostFileDeleteArgs) -> FileDeleteResult {
     let roc_host = roc_host();
-    match fs::remove_file(path_from_roc_str(path, roc_host)) {
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_delete_err(io_err_from_io(&error, roc_host)),
+    };
+    match fs::remove_file(path) {
         Ok(()) => try_file_delete_ok(),
         Err(error) => try_file_delete_err(io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_read_bytes(path: RocStr) -> FileBytesResult {
+pub extern "C" fn hosted_file_hard_link(
+    original_path: HostFileHardLinkArg0,
+    link_path: HostFileHardLinkArg1,
+) -> FileWriteUtf8Result {
     let roc_host = roc_host();
-    match fs::read(path_from_roc_str(path, roc_host)) {
-        Ok(bytes) => try_file_bytes_ok(RocListWith::<u8, false>::from_slice(&bytes, roc_host)),
+    let original_path = match path_buf_from_raw_path(original_path, roc_host) {
+        Ok(path) => path,
+        Err(error) => {
+            // The second hosted argument is also owned even when the first is invalid.
+            let _ = path_buf_from_raw_path(link_path, roc_host);
+            return try_file_write_utf8_err(io_err_from_io(&error, roc_host));
+        }
+    };
+    let link_path = match path_buf_from_raw_path(link_path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_write_utf8_err(io_err_from_io(&error, roc_host)),
+    };
+
+    match fs::hard_link(original_path, link_path) {
+        Ok(()) => try_file_write_utf8_ok(),
+        Err(error) => try_file_write_utf8_err(io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_file_rename(
+    from: HostFileRenameArg0,
+    to: HostFileRenameArg1,
+) -> FileWriteUtf8Result {
+    let roc_host = roc_host();
+    let from = match path_buf_from_raw_path(from, roc_host) {
+        Ok(path) => path,
+        Err(error) => {
+            // The second hosted argument is also owned even when the first is invalid.
+            let _ = path_buf_from_raw_path(to, roc_host);
+            return try_file_write_utf8_err(io_err_from_io(&error, roc_host));
+        }
+    };
+    let to = match path_buf_from_raw_path(to, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_write_utf8_err(io_err_from_io(&error, roc_host)),
+    };
+
+    match fs::rename(from, to) {
+        Ok(()) => try_file_write_utf8_ok(),
+        Err(error) => try_file_write_utf8_err(io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_file_read_bytes(path: HostFileReadBytesArgs) -> FileBytesResult {
+    let roc_host = roc_host();
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_bytes_err(io_err_from_io(&error, roc_host)),
+    };
+    match fs::read(path) {
+        Ok(bytes) => try_file_bytes_ok(unsafe {
+            // SAFETY: the returned Roc list owns a copy of `bytes`.
+            RocListWith::<u8, false>::from_slice(&bytes, roc_host)
+        }),
         Err(error) => try_file_bytes_err(io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_read_utf8(path: RocStr) -> FileStrResult {
+pub extern "C" fn hosted_file_read_utf8(path: HostFileReadUtf8Args) -> FileStrResult {
     let roc_host = roc_host();
-    match fs::read_to_string(path_from_roc_str(path, roc_host)) {
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_str_err(io_err_from_io(&error, roc_host)),
+    };
+    match fs::read_to_string(path) {
         Ok(content) => try_file_str_ok(RocStr::from_str(&content, roc_host)),
         Err(error) => try_file_str_err(io_err_from_io(&error, roc_host)),
     }
@@ -227,12 +287,16 @@ const FILE_READER_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
 fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 {
     let raw: *mut BufReader<fs::File> = Box::into_raw(Box::new(reader));
-    let boxed = allocate_box(
-        core::mem::size_of::<u64>(),
-        FILE_READER_BOX_ALIGN,
-        false,
-        roc_host,
-    );
+    // SAFETY: the payload is initialized immediately below as a u64 containing
+    // the owned reader pointer, matching the requested layout.
+    let boxed = unsafe {
+        allocate_box(
+            core::mem::size_of::<u64>(),
+            FILE_READER_BOX_ALIGN,
+            false,
+            roc_host,
+        )
+    };
     unsafe {
         *(boxed as *mut u64) = raw as u64;
     }
@@ -253,19 +317,30 @@ extern "C" fn drop_file_reader(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
 }
 
 fn release_file_reader(handle: *mut u64, roc_host: &RocHost) {
-    decref_box_with(
-        handle as RocBox,
-        FILE_READER_BOX_ALIGN,
-        false,
-        Some(drop_file_reader),
-        roc_host,
-    );
+    // SAFETY: the handle was allocated by `box_file_reader` with this exact
+    // layout and this function consumes its owned Roc reference.
+    unsafe {
+        decref_box_with(
+            handle as RocBox,
+            FILE_READER_BOX_ALIGN,
+            false,
+            Some(drop_file_reader),
+            roc_host,
+        )
+    };
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_open_reader(path: RocStr, capacity: u64) -> FileReaderOpenResult {
+pub extern "C" fn hosted_file_open_reader(
+    path: HostFileOpenReaderArg0,
+    capacity: u64,
+) -> FileReaderOpenResult {
     let roc_host = roc_host();
-    match fs::File::open(path_from_roc_str(path, roc_host)) {
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => return try_file_reader_err(io_err_from_io(&error, roc_host)),
+    };
+    match fs::File::open(path) {
         Ok(file) => {
             let reader = if capacity == 0 {
                 BufReader::new(file)
@@ -285,9 +360,9 @@ pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResul
         let reader = unsafe { file_reader_ref(handle) };
         let mut buffer = Vec::new();
         match reader.read_until(b'\n', &mut buffer) {
-            Ok(_) => {
-                try_file_reader_line_ok(RocListWith::<u8, false>::from_slice(&buffer, roc_host))
-            }
+            Ok(_) => try_file_reader_line_ok(unsafe {
+                RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+            }),
             Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
         }
     };
@@ -295,12 +370,12 @@ pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResul
     result
 }
 
-fn file_metadata(path: RocStr, roc_host: &RocHost) -> io::Result<fs::Metadata> {
-    fs::metadata(path_from_roc_str(path, roc_host))
+fn file_metadata(path: impl IntoRawPath, roc_host: &RocHost) -> io::Result<fs::Metadata> {
+    fs::metadata(path_buf_from_raw_path(path, roc_host)?)
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_size_in_bytes(path: RocStr) -> FileSizeResult {
+pub extern "C" fn hosted_file_size_in_bytes(path: HostFileSizeInBytesArgs) -> FileSizeResult {
     let roc_host = roc_host();
     match file_metadata(path, roc_host) {
         Ok(metadata) => try_file_size_ok(metadata.len()),
@@ -316,7 +391,7 @@ fn unsupported_file_permission_error() -> io::Error {
     )
 }
 
-fn file_permission_bit(path: RocStr, roc_host: &RocHost, bit: u32) -> io::Result<bool> {
+fn file_permission_bit(path: impl IntoRawPath, roc_host: &RocHost, bit: u32) -> io::Result<bool> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -327,14 +402,14 @@ fn file_permission_bit(path: RocStr, roc_host: &RocHost, bit: u32) -> io::Result
 
     #[cfg(not(unix))]
     {
-        let _ = path_from_roc_str(path, roc_host);
+        let _ = path_buf_from_raw_path(path, roc_host)?;
         let _ = bit;
         Err(unsupported_file_permission_error())
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_is_executable(path: RocStr) -> FileBoolResult {
+pub extern "C" fn hosted_file_is_executable(path: HostFileIsExecutableArgs) -> FileBoolResult {
     let roc_host = roc_host();
     match file_permission_bit(path, roc_host, 0o111) {
         Ok(value) => try_file_bool_ok(value),
@@ -343,7 +418,7 @@ pub extern "C" fn hosted_file_is_executable(path: RocStr) -> FileBoolResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_is_readable(path: RocStr) -> FileBoolResult {
+pub extern "C" fn hosted_file_is_readable(path: HostFileIsReadableArgs) -> FileBoolResult {
     let roc_host = roc_host();
     match file_permission_bit(path, roc_host, 0o400) {
         Ok(value) => try_file_bool_ok(value),
@@ -352,7 +427,7 @@ pub extern "C" fn hosted_file_is_readable(path: RocStr) -> FileBoolResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_is_writable(path: RocStr) -> FileBoolResult {
+pub extern "C" fn hosted_file_is_writable(path: HostFileIsWritableArgs) -> FileBoolResult {
     let roc_host = roc_host();
     match file_permission_bit(path, roc_host, 0o200) {
         Ok(value) => try_file_bool_ok(value),
@@ -367,7 +442,7 @@ fn nanos_since_epoch(time: std::time::SystemTime) -> io::Result<u128> {
 }
 
 fn file_time(
-    path: RocStr,
+    path: impl IntoRawPath,
     roc_host: &RocHost,
     read_time: fn(&fs::Metadata) -> io::Result<std::time::SystemTime>,
 ) -> io::Result<u128> {
@@ -375,8 +450,38 @@ fn file_time(
     read_time(&metadata).and_then(nanos_since_epoch)
 }
 
+#[cfg(unix)]
+fn system_time_from_unix_parts(seconds: i64, nanos: i64) -> io::Result<std::time::SystemTime> {
+    if seconds < 0 || nanos < 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "file timestamp is before the Unix epoch",
+        ));
+    }
+
+    Ok(std::time::UNIX_EPOCH + std::time::Duration::new(seconds as u64, nanos as u32))
+}
+
+fn file_created_time(metadata: &fs::Metadata) -> io::Result<std::time::SystemTime> {
+    match metadata.created() {
+        Ok(time) => Ok(time),
+        Err(error) => {
+            #[cfg(unix)]
+            {
+                if error.kind() == io::ErrorKind::Unsupported {
+                    use std::os::unix::fs::MetadataExt;
+
+                    return system_time_from_unix_parts(metadata.ctime(), metadata.ctime_nsec());
+                }
+            }
+
+            Err(error)
+        }
+    }
+}
+
 #[no_mangle]
-pub extern "C" fn hosted_file_time_accessed(path: RocStr) -> FileTimeResult {
+pub extern "C" fn hosted_file_time_accessed(path: HostFileTimeAccessedArgs) -> FileTimeResult {
     let roc_host = roc_host();
     match file_time(path, roc_host, fs::Metadata::accessed) {
         Ok(value) => try_file_time_ok(value),
@@ -385,16 +490,16 @@ pub extern "C" fn hosted_file_time_accessed(path: RocStr) -> FileTimeResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_time_created(path: RocStr) -> FileTimeResult {
+pub extern "C" fn hosted_file_time_created(path: HostFileTimeCreatedArgs) -> FileTimeResult {
     let roc_host = roc_host();
-    match file_time(path, roc_host, fs::Metadata::created) {
+    match file_time(path, roc_host, file_created_time) {
         Ok(value) => try_file_time_ok(value),
         Err(error) => try_file_time_err(io_err_from_io(&error, roc_host)),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_time_modified(path: RocStr) -> FileTimeResult {
+pub extern "C" fn hosted_file_time_modified(path: HostFileTimeModifiedArgs) -> FileTimeResult {
     let roc_host = roc_host();
     match file_time(path, roc_host, fs::Metadata::modified) {
         Ok(value) => try_file_time_ok(value),
@@ -404,13 +509,19 @@ pub extern "C" fn hosted_file_time_modified(path: RocStr) -> FileTimeResult {
 
 #[no_mangle]
 pub extern "C" fn hosted_file_write_bytes(
-    path: RocStr,
+    path: HostFileWriteBytesArg0,
     bytes: RocListWith<u8, false>,
 ) -> FileWriteBytesResult {
     let roc_host = roc_host();
-    let path_string = path_from_roc_str(path, roc_host);
-    let result = fs::write(path_string, bytes.as_slice());
-    bytes.decref(roc_host);
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => {
+            unsafe { bytes.decref(roc_host) };
+            return try_file_write_bytes_err(io_err_from_io(&error, roc_host));
+        }
+    };
+    let result = fs::write(path, bytes.as_slice());
+    unsafe { bytes.decref(roc_host) };
 
     match result {
         Ok(()) => try_file_write_bytes_ok(),
@@ -419,13 +530,22 @@ pub extern "C" fn hosted_file_write_bytes(
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_file_write_utf8(path: RocStr, content: RocStr) -> FileWriteUtf8Result {
+pub extern "C" fn hosted_file_write_utf8(
+    path: HostFileWriteUtf8Arg0,
+    content: RocStr,
+) -> FileWriteUtf8Result {
     let roc_host = roc_host();
-    let path_string = path_from_roc_str(path, roc_host);
+    let path = match path_buf_from_raw_path(path, roc_host) {
+        Ok(path) => path,
+        Err(error) => {
+            unsafe { content.decref(roc_host) };
+            return try_file_write_utf8_err(io_err_from_io(&error, roc_host));
+        }
+    };
     let content_string = content.as_str().to_owned();
-    content.decref(roc_host);
+    unsafe { content.decref(roc_host) };
 
-    match fs::write(path_string, content_string) {
+    match fs::write(path, content_string) {
         Ok(()) => try_file_write_utf8_ok(),
         Err(error) => try_file_write_utf8_err(io_err_from_io(&error, roc_host)),
     }
@@ -438,5 +558,14 @@ mod tests {
     #[test]
     fn nanos_since_epoch_returns_zero_for_epoch() {
         assert_eq!(nanos_since_epoch(std::time::UNIX_EPOCH).unwrap(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_timestamp_parts_convert_from_epoch() {
+        assert_eq!(
+            nanos_since_epoch(system_time_from_unix_parts(1, 2).unwrap()).unwrap(),
+            1_000_000_002
+        );
     }
 }

@@ -15,12 +15,16 @@ const TCP_STREAM_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
 fn box_tcp_stream(stream: BufReader<TcpStream>, roc_host: &RocHost) -> *mut u64 {
     let raw: *mut BufReader<TcpStream> = Box::into_raw(Box::new(stream));
-    let boxed = allocate_box(
-        core::mem::size_of::<u64>(),
-        TCP_STREAM_BOX_ALIGN,
-        false,
-        roc_host,
-    );
+    // SAFETY: the payload is initialized immediately below as a u64 containing
+    // the owned stream pointer, matching this layout.
+    let boxed = unsafe {
+        allocate_box(
+            core::mem::size_of::<u64>(),
+            TCP_STREAM_BOX_ALIGN,
+            false,
+            roc_host,
+        )
+    };
     unsafe {
         *(boxed as *mut u64) = raw as u64;
     }
@@ -41,15 +45,19 @@ extern "C" fn drop_tcp_stream(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
 }
 
 fn release_tcp_stream(handle: *mut u64, roc_host: &RocHost) {
-    decref_box_with(
-        handle as RocBox,
-        TCP_STREAM_BOX_ALIGN,
-        // The boxed payload is a raw `u64` (a pointer to our BufReader), not a
-        // Roc-refcounted value. This must match `box_tcp_stream`.
-        false,
-        Some(drop_tcp_stream),
-        roc_host,
-    );
+    // SAFETY: the handle came from `box_tcp_stream` with this exact layout and
+    // this call consumes its owned Roc reference.
+    unsafe {
+        decref_box_with(
+            handle as RocBox,
+            TCP_STREAM_BOX_ALIGN,
+            // The boxed payload is a raw `u64` (a pointer to our BufReader), not a
+            // Roc-refcounted value. This must match `box_tcp_stream`.
+            false,
+            Some(drop_tcp_stream),
+            roc_host,
+        )
+    };
 }
 
 fn to_tcp_connect_err(err: io::Error, roc_host: &RocHost) -> RocStr {
@@ -149,9 +157,7 @@ fn try_tcp_read_err(error: RocStr) -> TcpHostReadUpToResult {
 
 fn try_tcp_write_ok() -> TcpHostWriteResult {
     TcpHostWriteResult {
-        payload: TcpHostWriteResultPayload {
-            ok: ManuallyDrop::new(()),
-        },
+        payload: TcpHostWriteResultPayload { ok: [] },
         tag: TcpHostWriteResultTag::Ok,
     }
 }
@@ -169,7 +175,7 @@ fn try_tcp_write_err(error: RocStr) -> TcpHostWriteResult {
 pub extern "C" fn hosted_tcp_connect(host: RocStr, port: u16) -> TcpHostConnectResult {
     let roc_host = roc_host();
     let host_string = host.as_str().to_owned();
-    host.decref(roc_host);
+    unsafe { host.decref(roc_host) };
 
     match TcpStream::connect((host_string.as_str(), port)) {
         Ok(stream) => {
@@ -193,7 +199,9 @@ pub extern "C" fn hosted_tcp_read_up_to(
             Ok(received) => {
                 let received = received.to_vec();
                 stream.consume(received.len());
-                try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&received, roc_host))
+                try_tcp_read_ok(unsafe {
+                    RocListWith::<u8, false>::from_slice(&received, roc_host)
+                })
             }
             Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
         }
@@ -217,7 +225,9 @@ pub extern "C" fn hosted_tcp_read_exactly(
                 if (read as u64) < bytes_to_read {
                     try_tcp_read_err(RocStr::from_str("UnexpectedEof", roc_host))
                 } else {
-                    try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&buffer, roc_host))
+                    try_tcp_read_ok(unsafe {
+                        RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                    })
                 }
             }
             Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
@@ -233,7 +243,9 @@ pub extern "C" fn hosted_tcp_read_until(handle: *mut u64, byte: u8) -> TcpHostRe
     let result = {
         let stream = unsafe { tcp_stream_ref(handle) };
         match tcp_read_until_impl(stream, byte) {
-            Ok(buffer) => try_tcp_read_ok(RocListWith::<u8, false>::from_slice(&buffer, roc_host)),
+            Ok(buffer) => {
+                try_tcp_read_ok(unsafe { RocListWith::<u8, false>::from_slice(&buffer, roc_host) })
+            }
             Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
         }
     };
@@ -254,7 +266,7 @@ pub extern "C" fn hosted_tcp_write(
             Err(err) => try_tcp_write_err(to_tcp_stream_err(err, roc_host)),
         }
     };
-    msg.decref(roc_host);
+    unsafe { msg.decref(roc_host) };
     release_tcp_stream(handle, roc_host);
     result
 }

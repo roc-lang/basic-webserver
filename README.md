@@ -13,6 +13,39 @@ A webserver [platform](https://www.roc-lang.org/platforms) with a simple interfa
 
 :racing_car: basic-webserver uses Rust's high-performance [hyper](https://hyper.rs) and [tokio](https://tokio.rs) libraries to execute your Roc function on incoming requests.
 
+## Supported targets
+
+The platform builds and runs on these targets in CI:
+
+| Roc target | Operating system | Architecture |
+| --- | --- | --- |
+| `x64mac` | macOS | x86-64 |
+| `arm64mac` | macOS | ARM64 |
+| `x64musl` | Linux (musl) | x86-64 |
+| `arm64musl` | Linux (musl) | ARM64 |
+| `x64win` | Windows | x86-64 |
+
+Other targets are not currently supported. In particular, Windows support is
+x86-64 only.
+
+## Host runtime behavior
+
+These current host-level constraints matter when designing a production
+server:
+
+- The server accepts HTTP/1 connections only. It does not terminate TLS; put a
+  reverse proxy or load balancer in front when HTTPS is required.
+- Each complete request body is buffered in memory before Roc is called, with
+  no configurable body-size limit. Responses are also returned as complete
+  in-memory bodies; request or response streaming is not yet available.
+- Each Roc request handler runs on Tokio's blocking thread pool. There is no
+  graceful-shutdown API, so deployments should treat process termination as an
+  abrupt stop and drain traffic externally.
+- `init!` runs once. Its model is shared read-only by all request handlers for
+  the lifetime of the process; request handlers cannot return an updated model.
+- A Roc `crash` exits the entire server process. Ordinary `ServerErr` values are
+  logged and converted to an HTTP 500 response.
+
 ## Example
 
 Run this example server with `roc examples/hello-web.roc` and go to `http://localhost:8000` in your browser. You can change the port and host with `ROC_BASIC_WEBSERVER_PORT` and `ROC_BASIC_WEBSERVER_HOST`.
@@ -66,7 +99,20 @@ If you have cloned this repository and want to run the examples without using a 
 
 Then run examples with `roc examples/hello-web.roc`.
 
-Use `./build.sh --target <target>` to build a specific host library, or `./build.sh --all` to build every target supported by the current host OS. Release packages use `.tar.zst` assets.
+Use `./build.sh --target <target>` to build a specific host library, or
+`./build.sh --all` to build all macOS and Linux host libraries. Windows host
+inputs must be built on Windows. Release packages use `.tar.zst` assets.
+
+Run the complete local verification suite with:
+
+```bash
+./ci/all_tests.sh
+```
+
+To build a release-format package after assembling all target inputs, run
+`./scripts/bundle.py --output-dir dist`. Windows inputs must be built on a
+Windows host; the release workflow combines them with the macOS and Linux
+inputs automatically.
 
 ## Benchmarking
 

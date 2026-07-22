@@ -6,6 +6,7 @@ app [Model, program] {
 import pf.Http
 import pf.Sqlite
 import pf.Env
+import pf.Path
 import http.Response
 
 # To run this example: check the root README.md and set
@@ -19,7 +20,7 @@ import http.Response
 # );
 
 # The database path is resolved once at startup and stored in the Model.
-Model : { db_path : Str }
+Model : { db_path : Path.Path }
 
 program = { init!, respond! }
 
@@ -27,8 +28,8 @@ init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
     db_path =
         match Env.var!("DB_PATH") {
-            Ok(path) => path
-            Err(_) => "./examples/todos.db"
+            Ok(path) => Path.utf8(path)
+            Err(_) => Path.utf8("./examples/todos.db")
         }
     Ok({ db_path: db_path })
 }
@@ -51,7 +52,7 @@ respond! = |_request, { db_path }| {
 
 Todo : { id : Str, status : TodoStatus, task : Str }
 
-query_todos_by_status! : Str, Str => Try(List(Todo), _)
+query_todos_by_status! : Path.Path, Str => Try(List(Todo), _)
 query_todos_by_status! = |db_path, status|
     Sqlite.query_many!(
         {

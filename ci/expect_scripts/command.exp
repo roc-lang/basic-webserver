@@ -1,0 +1,44 @@
+#!/usr/bin/expect
+
+# uncomment line below for debugging
+# exp_internal 1
+
+set timeout 7
+
+source ./ci/expect_scripts/shared-code.exp
+
+spawn $env(EXAMPLES_DIR)command
+
+
+set expected_output [normalize_output {
+Hello
+\{stderr_utf8_lossy: "", stdout_utf8: "Hi
+"\}
+BAZ=DUCK
+FOO=BAR
+XYZ=ABC
+cat: non_existent.txt: No such file or directory
+Exit code: 1
+\{stderr_bytes: \[\], stdout_bytes: \[72, 105, 10\]\}
+}]
+
+expect $expected_output {
+    # Then expect the webserver to start listening
+    expect "Listening on <http://127.0.0.1:8000>\r\n" {
+        # Make the curl request
+        set curlOutput [exec curl -sS localhost:8000]
+
+        if {$curlOutput eq "Command succeeded."} {
+            # Expect the logged request (datetime will vary, so we match the pattern)
+            expect -re {[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /\r\n} {
+                exit 0
+            }
+        } else {
+            puts "Error: curl output was different than expected: $curlOutput"
+            exit 1
+        }
+    }
+}
+
+puts stderr "\nExpected output pattern not found. uncomment `exp_internal 1` to debug."
+exit 1

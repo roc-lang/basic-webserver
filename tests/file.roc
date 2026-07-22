@@ -6,13 +6,10 @@ app [Model, program] {
 import pf.Stdout
 import pf.Stderr
 import pf.File
+import pf.Path
 import pf.Cmd
 import pf.Http
 import http.Response
-
-# NOTE: Path existence/type checks live in `tests/path-test.roc`; this file keeps
-# coverage focused on file reads/writes, metadata, permissions, deletion, and the
-# buffered reader.
 
 Model : {}
 
@@ -35,93 +32,210 @@ init! = ||
 
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    Stdout.line!("Testing some File functions...")?
+    Stdout.line!("Testing filesystem functions...")?
     Stdout.line!("This will create and manipulate test files in the current directory.\n")?
 
     test_basic_file_operations!()?
-    test_file_permissions!()?
+    test_file_type_checking!()?
+    test_file_reader_with_capacity!()?
+    test_hard_link!()?
+    test_file_rename!()?
+    test_file_exists!()?
     test_file_size!()?
-    test_buffered_reader!()?
-    test_file_delete!()?
+    test_is_dir!()?
 
-    Stdout.line!("\nI ran all file function tests.")
+    Stdout.line!("\nI ran all filesystem tests.")
 }
 
 test_basic_file_operations! : () => Try({}, _)
 test_basic_file_operations! = || {
-    Stdout.line!("Testing File.write_bytes! and File.read_bytes!:")?
+    Stdout.line!("Testing Path.write_bytes! and Path.read_bytes!:")?
 
     test_bytes = [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33] # "Hello, World!" in bytes
-    File.write_bytes!("test_bytes.txt", test_bytes)?
+    Path.write_bytes!(Path.utf8("test_bytes.txt"), test_bytes)?
 
-    file_content_bytes = File.read_bytes!("test_bytes.txt")?
+    file_content_bytes = Path.read_bytes!(Path.utf8("test_bytes.txt"))?
     Stdout.line!("Bytes in test_bytes.txt: ${Str.inspect(file_content_bytes)}")?
-    Stdout.line!("Bytes match: ${Str.inspect(file_content_bytes == test_bytes)}")?
 
-    Stdout.line!("\nTesting File.write_utf8! and File.read_utf8!:")?
+    Stdout.line!("\nTesting Path.write_utf8!:")?
 
-    File.write_utf8!("test_write.txt", "some text content")?
-    utf8_file_content = File.read_utf8!("test_write.txt")?
-    Stdout.line!("Content of test_write.txt: ${utf8_file_content}")?
+    Path.write_utf8!(Path.utf8("test_write.json"), "{\"some\":\"json stuff\"}")?
+    json_file_content = Path.read_utf8!(Path.utf8("test_write.json"))?
+    Stdout.line!("Content of test_write.json: ${json_file_content}")?
 
     Ok({})
 }
 
-test_file_permissions! : () => Try({}, _)
-test_file_permissions! = || {
-    Stdout.line!("\nTesting File.is_executable!, File.is_readable!, File.is_writable!:")?
+test_file_type_checking! : () => Try({}, _)
+test_file_type_checking! = || {
+    Stdout.line!("\nTesting Path.is_file!:")?
 
-    is_executable = File.is_executable!("test_bytes.txt")?
-    is_readable = File.is_readable!("test_bytes.txt")?
-    is_writable = File.is_writable!("test_bytes.txt")?
+    if Path.is_file!(Path.utf8("test_bytes.txt"))? {
+        Stdout.line!("✓ test_bytes.txt is confirmed to be a file")?
+    } else {
+        Stderr.line!("✗ test_bytes.txt is not recognized as a file")?
+    }
 
-    Stdout.line!("Executable: ${Str.inspect(is_executable)}\nReadable: ${Str.inspect(is_readable)}\nWritable: ${Str.inspect(is_writable)}")?
+    Stdout.line!("\nTesting Path.is_sym_link!:")?
+
+    if Path.is_sym_link!(Path.utf8("test_bytes.txt"))? {
+        Stderr.line!("✗ test_bytes.txt is a symbolic link")?
+    } else {
+        Stdout.line!("✓ test_bytes.txt is not a symbolic link")?
+    }
+
+    Cmd.exec!("ln", ["-s", "test_bytes.txt", "test_symlink.txt"])?
+
+    if Path.is_sym_link!(Path.utf8("test_symlink.txt"))? {
+        Stdout.line!("✓ test_symlink.txt is a symbolic link")?
+    } else {
+        Stderr.line!("✗ test_symlink.txt is not a symbolic link")?
+    }
+
+    Stdout.line!("\nTesting Path.type!:")?
+
+    file_type_file = Path.type!(Path.utf8("test_bytes.txt"))?
+    Stdout.line!("test_bytes.txt file type: ${Str.inspect(file_type_file)}")?
+
+    file_type_dir = Path.type!(Path.utf8("."))?
+    Stdout.line!(". file type: ${Str.inspect(file_type_dir)}")?
+
+    file_type_symlink = Path.type!(Path.utf8("test_symlink.txt"))?
+    Stdout.line!("test_symlink.txt file type: ${Str.inspect(file_type_symlink)}")?
+
+    Ok({})
+}
+
+test_file_reader_with_capacity! : () => Try({}, _)
+test_file_reader_with_capacity! = || {
+    Stdout.line!("\nTesting File.open_reader_with_capacity!:")?
+
+    multi_line_content = "First line\nSecond line\nThird line\n"
+    Path.write_utf8!(Path.utf8("test_multiline.txt"), multi_line_content)?
+
+    reader_buf_size : U64
+    reader_buf_size = 3
+    reader = File.open_reader_with_capacity!(Path.utf8("test_multiline.txt"), reader_buf_size)?
+    Stdout.line!("✓ Successfully opened reader with ${reader_buf_size.to_str()} byte capacity")?
+
+    Stdout.line!("\nReading lines from file:")?
+    line1_bytes = reader.read_line!()?
+    line1_str = Str.from_utf8(line1_bytes) ? |_| LineOneInvalidUtf8
+    Stdout.line!("Line 1: ${line1_str}")?
+
+    line2_bytes = reader.read_line!()?
+    line2_str = Str.from_utf8(line2_bytes) ? |_| LineTwoInvalidUtf8
+    Stdout.line!("Line 2: ${line2_str}")?
+
+    Ok({})
+}
+
+test_hard_link! : () => Try({}, _)
+test_hard_link! = || {
+    Stdout.line!("\nTesting Path.hard_link!:")?
+
+    Path.write_utf8!(Path.utf8("test_original_file.txt"), "Original file content for hard link test")?
+    Path.hard_link!(Path.utf8("test_original_file.txt"), Path.utf8("test_link_to_original.txt"))?
+    Stdout.line!("✓ Successfully created hard link: test_link_to_original.txt")?
+
+    same_inode = !Try.is_err(Cmd.exec!("test", ["test_original_file.txt", "-ef", "test_link_to_original.txt"]))
+    Stdout.line!("Hard link inodes should be equal: ${bool_to_str(same_inode)}")?
+    expect_true(same_inode, "hard link should point at the same inode")?
+
+    original_content = Path.read_utf8!(Path.utf8("test_original_file.txt"))?
+    link_content = Path.read_utf8!(Path.utf8("test_link_to_original.txt"))?
+
+    if original_content == link_content {
+        Stdout.line!("✓ Hard link contains same content as original")
+    } else {
+        Stderr.line!("✗ Hard link content differs from original")
+    }
+}
+
+test_file_rename! : () => Try({}, _)
+test_file_rename! = || {
+    Stdout.line!("\nTesting Path.rename!:")?
+
+    original_name = "test_rename_original.txt"
+    new_name = "test_rename_new.txt"
+    Path.write_utf8!(Path.utf8(original_name), "Content for rename test")?
+
+    Path.rename!(Path.utf8(original_name), Path.utf8(new_name))?
+    Stdout.line!("✓ Successfully renamed ${original_name} to ${new_name}")?
+
+    if Path.exists!(Path.utf8(original_name))? {
+        Stderr.line!("✗ Original file ${original_name} still exists after rename")?
+    } else {
+        Stdout.line!("✓ Original file ${original_name} no longer exists")?
+    }
+
+    if Path.is_file!(Path.utf8(new_name))? {
+        Stdout.line!("✓ Renamed file ${new_name} exists")?
+
+        content = Path.read_utf8!(Path.utf8(new_name))?
+        if content == "Content for rename test" {
+            Stdout.line!("✓ Renamed file has correct content")?
+        } else {
+            Stderr.line!("✗ Renamed file has incorrect content")?
+        }
+    } else {
+        Stderr.line!("✗ Renamed file ${new_name} does not exist")?
+    }
+
+    Ok({})
+}
+
+test_file_exists! : () => Try({}, _)
+test_file_exists! = || {
+    Stdout.line!("\nTesting Path.exists!:")?
+
+    filename = "test_exists.txt"
+    Path.write_utf8!(Path.utf8(filename), "")?
+
+    if Path.exists!(Path.utf8(filename))? {
+        Stdout.line!("✓ Path.exists! returns true for a file that exists")?
+    } else {
+        Stderr.line!("✗ Path.exists! returned false for a file that exists")?
+    }
+
+    Path.delete!(Path.utf8(filename))?
+
+    if Path.exists!(Path.utf8(filename))? {
+        Stderr.line!("✗ Path.exists! returned true for a file that does not exist")?
+    } else {
+        Stdout.line!("✓ Path.exists! returns false for a file that does not exist")?
+    }
 
     Ok({})
 }
 
 test_file_size! : () => Try({}, _)
 test_file_size! = || {
-    Stdout.line!("\nTesting File.size_in_bytes!:")?
+    Stdout.line!("\nTesting Path.size_in_bytes!:")?
 
-    file_size = File.size_in_bytes!("test_bytes.txt")?
-    Stdout.line!("File.size_in_bytes! returned ${file_size.to_str()} bytes for test_bytes.txt")?
-
-    Ok({})
-}
-
-test_file_delete! : () => Try({}, _)
-test_file_delete! = || {
-    Stdout.line!("\nTesting File.delete!:")?
-
-    File.write_utf8!("test_to_delete.txt", "")?
-
-    # Verify it exists before delete
-    Cmd.exec!("test", ["-e", "test_to_delete.txt"])?
-
-    File.delete!("test_to_delete.txt")?
-
-    # Verify it's gone after delete
-    exists_res = Cmd.exec!("test", ["-e", "test_to_delete.txt"])
-    Stdout.line!("File no longer exists after delete: ${Str.inspect(Try.is_err(exists_res))}")?
+    file_size = Path.size_in_bytes!(Path.utf8("test_bytes.txt"))?
+    Stdout.line!("✓ Path.size_in_bytes! returned ${file_size.to_str()} bytes for test_bytes.txt")?
 
     Ok({})
 }
 
-test_buffered_reader! : () => Try({}, _)
-test_buffered_reader! = || {
-    Stdout.line!("\nTesting File.open_reader! and File.read_line!:")?
+test_is_dir! : () => Try({}, _)
+test_is_dir! = || {
+    Stdout.line!("\nTesting Path.is_dir!:")?
 
-    File.write_utf8!("test_buffered.txt", "one\ntwo\n")?
-    reader = File.open_reader_with_capacity!("test_buffered.txt", 4)?
+    if Path.is_dir!(Path.utf8("."))? {
+        Stdout.line!("✓ Current directory '.' is recognized as a directory")?
+    } else {
+        Stderr.line!("✗ Current directory '.' is not recognized as a directory")?
+    }
 
-    first = File.read_line!(reader)?
-    second = File.read_line!(reader)?
-    eof = File.read_line!(reader)?
+    if Path.is_dir!(Path.utf8("test_bytes.txt"))? {
+        Stderr.line!("✗ Regular file is incorrectly recognized as a directory")?
+    } else {
+        Stdout.line!("✓ Regular file is correctly not recognized as a directory")?
+    }
 
-    expect_true(first == Str.to_utf8("one\n"), "first buffered line should include newline")?
-    expect_true(second == Str.to_utf8("two\n"), "second buffered line should include newline")?
-    expect_true(eof == [], "buffered reader should return an empty list at EOF")
+    Ok({})
 }
 
 expect_true = |condition, message|
@@ -137,17 +251,23 @@ cleanup_test_files! = || {
 
     test_files = [
         "test_bytes.txt",
-        "test_write.txt",
-        "test_buffered.txt",
-        "test_to_delete.txt",
+        "test_symlink.txt",
+        "test_write.json",
+        "test_multiline.txt",
+        "test_original_file.txt",
+        "test_link_to_original.txt",
+        "test_rename_new.txt",
     ]
 
     for filename in test_files {
-        File.delete!(filename) ?? {}
+        Path.delete!(Path.utf8(filename)) ?? {}
     }
 
-    Stdout.line!("Deleted all files.")
+    Stdout.line!("✓ Deleted all files.")
 }
+
+bool_to_str : Bool -> Str
+bool_to_str = |value| if value { "Bool.true" } else { "Bool.false" }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_request, _model|

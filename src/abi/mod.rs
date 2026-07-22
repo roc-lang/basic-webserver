@@ -52,6 +52,9 @@ pub(crate) type EnvWindowsPathResultTag = HostEnvCwdWindowsResultTag;
 pub(crate) type EnvVarResult = HostEnvVarResult;
 pub(crate) type EnvVarResultPayload = HostEnvVarResultPayload;
 pub(crate) type EnvVarResultTag = HostEnvVarResultTag;
+pub(crate) type EnvUnitResult = HostEnvSetCwdResult;
+pub(crate) type EnvUnitResultPayload = HostEnvSetCwdResultPayload;
+pub(crate) type EnvUnitResultTag = HostEnvSetCwdResultTag;
 
 pub(crate) type FileBytesResult = HostFileReadBytesResult;
 pub(crate) type FileBytesResultPayload = HostFileReadBytesResultPayload;
@@ -114,18 +117,13 @@ pub(crate) type TcpHostWriteResult = HostTcpWriteResult;
 pub(crate) type TcpHostWriteResultPayload = HostTcpWriteResultPayload;
 pub(crate) type TcpHostWriteResultTag = HostTcpWriteResultTag;
 
-pub(crate) type HostIOErrType = HostIOErr;
-pub(crate) type HostIOErrPayloadType = HostIOErrPayload;
-pub(crate) type HostIOErrTagType = HostIOErrTag;
+pub(crate) type HostIOErrType = IOErr;
+pub(crate) type HostIOErrPayloadType = IOErrPayload;
+pub(crate) type HostIOErrTagType = IOErrTag;
 
-// The init/respond entrypoint and request/response boundary types are anonymous
-// (`AnonStructN` / `TryTypeN`) and have no generated semantic alias, so they are
-// referenced by numbered names. Update this block if glue renumbers them.
-pub(crate) type InitForHostResult = TryType83;
-pub(crate) type InitForHostResultTag = TryType83Tag;
-pub(crate) type RequestToAndFromHost = AnonStruct87;
-pub(crate) type ResponseToAndFromHost = AnonStruct91;
-pub(crate) type Header = AnonStruct89;
+pub(crate) type RequestToAndFromHost = HostHttpSendRequestArg0;
+pub(crate) type ResponseToAndFromHost = HostHttpSendRequest;
+pub(crate) type Header = HostHttpSendRequestArg0Headers;
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
 static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
@@ -187,20 +185,18 @@ pub extern "C" fn roc_crashed(bytes: *const u8, len: usize) {
 }
 
 pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
-    decref_anon_struct91(value, roc_host);
+    // SAFETY: `roc_respond_for_host` returned one owned reference for every
+    // refcounted field in the response.
+    unsafe { value.decref(roc_host) };
 }
 
 pub(crate) fn decref_roc_str_list(list: &RocList<RocStr>, roc_host: &RocHost) {
     for item in list.as_slice() {
-        item.decref(roc_host);
+        // SAFETY: a hosted argument transfers one owned reference per item.
+        unsafe { item.decref(roc_host) };
     }
-    list.decref(roc_host);
-}
-
-pub(crate) fn path_from_roc_str(path: RocStr, roc_host: &RocHost) -> String {
-    let path_string = path.as_str().to_owned();
-    path.decref(roc_host);
-    path_string
+    // SAFETY: the hosted argument transfers ownership of the list allocation.
+    unsafe { list.decref(roc_host) };
 }
 
 pub(crate) fn io_err_other(message: &str, roc_host: &RocHost) -> HostIOErrType {
@@ -245,6 +241,53 @@ pub(crate) fn io_err_from_io(error: &io::Error, roc_host: &RocHost) -> HostIOErr
             tag: HostIOErrTagType::Unsupported,
         },
         _ => io_err_other(&error.to_string(), roc_host),
+    }
+}
+
+/// Commands expose `IOErr` directly, so RustGlue emits a distinct nominal type
+/// from the `IOErr` nested in File/Dir/etc. effect errors.
+pub(crate) fn cmd_io_err_other(message: &str, roc_host: &RocHost) -> HostIOErr {
+    HostIOErr {
+        payload: HostIOErrPayload {
+            other: core::mem::ManuallyDrop::new(RocStr::from_str(message, roc_host)),
+        },
+        tag: HostIOErrTag::Other,
+    }
+}
+
+pub(crate) fn cmd_io_err_from_io(error: &io::Error, roc_host: &RocHost) -> HostIOErr {
+    match error.kind() {
+        io::ErrorKind::AlreadyExists => HostIOErr {
+            payload: HostIOErrPayload { already_exists: [] },
+            tag: HostIOErrTag::AlreadyExists,
+        },
+        io::ErrorKind::BrokenPipe => HostIOErr {
+            payload: HostIOErrPayload { broken_pipe: [] },
+            tag: HostIOErrTag::BrokenPipe,
+        },
+        io::ErrorKind::Interrupted => HostIOErr {
+            payload: HostIOErrPayload { interrupted: [] },
+            tag: HostIOErrTag::Interrupted,
+        },
+        io::ErrorKind::NotFound => HostIOErr {
+            payload: HostIOErrPayload { not_found: [] },
+            tag: HostIOErrTag::NotFound,
+        },
+        io::ErrorKind::OutOfMemory => HostIOErr {
+            payload: HostIOErrPayload { out_of_memory: [] },
+            tag: HostIOErrTag::OutOfMemory,
+        },
+        io::ErrorKind::PermissionDenied => HostIOErr {
+            payload: HostIOErrPayload {
+                permission_denied: [],
+            },
+            tag: HostIOErrTag::PermissionDenied,
+        },
+        io::ErrorKind::Unsupported => HostIOErr {
+            payload: HostIOErrPayload { unsupported: [] },
+            tag: HostIOErrTag::Unsupported,
+        },
+        _ => cmd_io_err_other(&error.to_string(), roc_host),
     }
 }
 

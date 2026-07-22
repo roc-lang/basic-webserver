@@ -68,24 +68,24 @@ run_tests! = || {
 
     url_with_query = Url.from_str("https://example.com?key=value#stuff")
     has_query_1 = Url.has_query(url_with_query)
-    Stdout.line!("URL with query has_query: ${Str.inspect(has_query_1)}")?
+    Stdout.line!("URL with query has_query: ${legacy_bool(has_query_1)}")?
     # expects Bool.True
 
     url_hashtag = Url.from_str("https://example.com#stuff")
     has_query_2 = Url.has_query(url_hashtag)
-    Stdout.line!("URL without query has_query: ${Str.inspect(has_query_2)}")?
+    Stdout.line!("URL without query has_query: ${legacy_bool(has_query_2)}")?
     # expects Bool.False
 
     Stdout.line!("\nTesting Url.has_fragment:")?
 
     url_key_val_hashtag = Url.from_str("https://example.com?key=value#stuff")
     has_fragment_1 = Url.has_fragment(url_key_val_hashtag)
-    Stdout.line!("URL with fragment has_fragment: ${Str.inspect(has_fragment_1)}")?
+    Stdout.line!("URL with fragment has_fragment: ${legacy_bool(has_fragment_1)}")?
     # expects Bool.True
 
     url_key_val = Url.from_str("https://example.com?key=value")
     has_fragment_2 = Url.has_fragment(url_key_val)
-    Stdout.line!("URL without fragment has_fragment: ${Str.inspect(has_fragment_2)}")?
+    Stdout.line!("URL without fragment has_fragment: ${legacy_bool(has_fragment_2)}")?
     # expects Bool.False
 
     Stdout.line!("\nTesting Url.query:")?
@@ -163,8 +163,11 @@ run_tests! = || {
 
     url_with_many_params = Url.from_str("https://example.com?key1=val1&key2=val2&key3=val3")
     params_dict = Url.query_params(url_with_many_params)
+    key1 = Dict.get(params_dict, "key1") ? |_| MissingQueryParam("key1")
+    key2 = Dict.get(params_dict, "key2") ? |_| MissingQueryParam("key2")
+    key3 = Dict.get(params_dict, "key3") ? |_| MissingQueryParam("key3")
 
-    Stdout.line!("params_dict: ${Str.inspect(params_dict)}")?
+    Stdout.line!("params_dict: {\"key1\": \"${key1}\", \"key2\": \"${key2}\", \"key3\": \"${key3}\"}")?
     # expects Dict with key1=val1, key2=val2, key3=val3
 
     # Test Url.path
@@ -182,6 +185,13 @@ run_tests! = || {
 
     Ok({})
 }
+
+legacy_bool = |value|
+    if value {
+        "Bool.true"
+    } else {
+        "Bool.false"
+    }
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_, _|

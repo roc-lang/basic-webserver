@@ -4,6 +4,7 @@ app [Model, program] {
 }
 
 import pf.File
+import pf.Path
 import pf.Http
 import http.Response
 
@@ -20,7 +21,7 @@ program = { init!, respond! }
 
 init! : () => Try(Model, [Exit(I64), ..])
 init! = || {
-    reader = File.open_reader!("LICENSE") ? |_| Exit(1)
+    reader = File.open_reader!(Path.utf8("LICENSE")) ? |_| Exit(1)
     summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |_| Exit(1)
 
     Ok(summary)
@@ -28,12 +29,16 @@ init! = || {
 
 respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
 respond! = |_, model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8(Str.inspect(model))))
+    Ok(
+        Response.from_status(200).with_body(
+            Str.to_utf8("{bytes_read: ${model.bytes_read.to_str()}, lines_read: ${model.lines_read.to_str()}}"),
+        ),
+    )
 
 ## Count the number of lines and bytes read.
 process_line! : File.Reader, ReadSummary => Try(ReadSummary, _)
 process_line! = |reader, { lines_read, bytes_read }|
-    match File.read_line!(reader) {
+    match reader.read_line!() {
         Ok(bytes) if bytes.len() == 0 =>
             Ok({ lines_read, bytes_read })
 

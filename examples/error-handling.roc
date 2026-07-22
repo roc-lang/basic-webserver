@@ -7,6 +7,7 @@ app [Model, program] {
 import pf.Stdout
 import pf.Http
 import pf.Env
+import pf.Utc
 import http.Response
 
 Model : {}
@@ -54,8 +55,11 @@ handle_req! = |req| {
 }
 
 log_request! : Http.Request => Try({}, [StdoutErr(Str), ..])
-log_request! = |req|
-    Ok(Stdout.line!("${Str.inspect(req.method())} ${req.uri()}") ? |err| StdoutErr(Str.inspect(err)))
+log_request! = |req| {
+    datetime = Utc.to_iso_8601(Utc.now!())
+
+    Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.uri()}") ? |err| StdoutErr(Str.inspect(err)))
+}
 
 read_env_var! : Str => Try(Str, [EnvVarNotSet(Str), ..])
 read_env_var! = |env_var_name|

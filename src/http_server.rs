@@ -5,10 +5,7 @@
 //! never freed), then runs a tokio/hyper accept loop that calls
 //! `roc_respond_for_host(request, model)` for each request.
 
-use crate::abi::{
-    decref_response, roc_host, Header, InitForHostResult, InitForHostResultTag,
-    RequestToAndFromHost, ResponseToAndFromHost,
-};
+use crate::abi::{decref_response, roc_host, Header, RequestToAndFromHost, ResponseToAndFromHost};
 use crate::roc_platform_abi::*;
 use bytes::Bytes;
 use futures::{Future, FutureExt};
@@ -115,10 +112,13 @@ fn call_roc<'a>(
             value: RocStr::from_str(value.to_str().unwrap_or_default(), roc_host),
         })
         .collect();
-    let roc_headers = RocList::<Header>::from_slice(&header_vec, roc_host);
+    // SAFETY: the Roc list owns copied header records; their strings were
+    // freshly allocated for this request and ownership transfers to Roc.
+    let roc_headers = unsafe { RocList::<Header>::from_slice(&header_vec, roc_host) };
 
     let roc_uri = RocStr::from_str(&url.to_string(), roc_host);
-    let roc_body = RocListWith::<u8, false>::from_slice(&body, roc_host);
+    // SAFETY: the returned Roc list owns a copy of the request body.
+    let roc_body = unsafe { RocListWith::<u8, false>::from_slice(&body, roc_host) };
 
     let roc_request = RequestToAndFromHost {
         body: roc_body,
