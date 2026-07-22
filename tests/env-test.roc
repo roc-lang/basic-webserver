@@ -5,16 +5,19 @@ app [Model, program] {
 
 import pf.Stdout
 import pf.Stderr
-import pf.Http
+import pf.Server
 import pf.Env
+import pf.OsStr
 import pf.Path
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -40,8 +43,7 @@ run_tests! = || {
     Stdout.line!("Current platform:{arch: ${format_arch(platform_info.arch)}, os: ${format_os(platform_info.os)}}\n\nTesting Env.dict!:")?
 
     env_vars = Env.dict!()
-    env_pairs = Dict.to_list(env_vars)
-    Stdout.line!("Environment variables count: ${env_pairs.len().to_str()}")?
+    Stdout.line!("Environment variables count: ${env_vars.len().to_str()}")?
     Stdout.line!("Sample environment variables:${sample_env_vars(env_vars)}\n\nTesting Env.set_cwd!:")?
 
     Env.set_cwd!(Path.utf8("examples"))?
@@ -58,7 +60,11 @@ run_tests! = || {
             {}
         }
         Err(VarNotFound(name)) => {
-            Stdout.line!("PATH variable not found: ${name}")?
+            Stdout.line!("PATH variable not found: ${OsStr.display(name)}")?
+            {}
+        }
+        Err(_) => {
+            Stdout.line!("PATH could not be read")?
             {}
         }
     }
@@ -66,11 +72,15 @@ run_tests! = || {
     # A variable that should not exist
     match Env.var!("DEFINITELY_NOT_A_REAL_ENV_VAR_123456") {
         Ok(value) => {
-            Stdout.line!("Unexpected value: ${value}")?
+            Stdout.line!("Unexpected value: ${OsStr.display(value)}")?
             {}
         }
         Err(VarNotFound(name)) => {
-            Stdout.line!("var not found (expected): ${name}")?
+            Stdout.line!("var not found (expected): ${OsStr.display(name)}")?
+            {}
+        }
+        Err(_) => {
+            Stdout.line!("variable name could not be read")?
             {}
         }
     }
@@ -97,13 +107,19 @@ format_os = |os|
         OTHER(_) => "OTHER"
     }
 
-sample_env_vars : Dict(Str, Str) -> Str
+sample_env_vars : List({ name : OsStr.OsStr, value : OsStr.OsStr }) -> Str
 sample_env_vars = |env_vars|
-    match Dict.get(env_vars, "PATH") {
-        Ok(_) => "[(\"PATH\", \"set\")]"
-        Err(_) => "[(\"ENV\", \"set\")]"
+    if env_vars.any(|entry| entry.name == OsStr.from_str("PATH")) {
+        "[(\"PATH\", \"set\")]"
+    } else {
+        "[(\"ENV\", \"set\")]"
     }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

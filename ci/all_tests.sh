@@ -244,8 +244,8 @@ run_expect_scripts
 echo ""
 echo "=== Smoke test: hello-web ==="
 "$ROC" build examples/hello-web.roc
-PORT="${SMOKE_PORT:-8080}"
-ROC_BASIC_WEBSERVER_PORT="$PORT" "./hello-web${EXE_SUFFIX}" &
+PORT=8000
+"./hello-web${EXE_SUFFIX}" &
 SERVER_PID=$!
 cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true

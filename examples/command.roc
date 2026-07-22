@@ -3,7 +3,7 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import pf.Cmd
 import pf.Utc
 import pf.Stdout
@@ -13,10 +13,12 @@ import http.Response
 # To run this example: check the root README.md
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = || {
     result! = || {
         # Simplest way to execute a command (prints to your terminal).
@@ -34,7 +36,7 @@ init! = || {
         Cmd.new("env")
         .clear_envs() # You probably don't need to clear all other environment variables, this is just an example.
         .env("FOO", "BAR")
-        .envs([{ name: "BAZ", value: "DUCK" }, { name: "XYZ", value: "ABC" }]) # Set multiple environment variables at once with `envs`
+        .envs_str([{ name: "BAZ", value: "DUCK" }, { name: "XYZ", value: "ABC" }]) # Set multiple UTF-8 environment variables at once.
         .args(["-v"])
         .exec_cmd!()?
 
@@ -60,7 +62,7 @@ init! = || {
     }
 
     match result!() {
-        Ok(_) => Ok({})
+        Ok(_) => Ok({ config: Server.default_config, model: {} })
         Err(err) => {
             Stderr.line!("Error running commands: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
@@ -68,13 +70,18 @@ init! = || {
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |req, _model| {
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, _state| {
     time = Utc.to_iso_8601(Utc.now!())
 
     # Log request time, method and url using echo
-    match Cmd.exec!("echo", ["${time} ${Str.inspect(req.method())} ${req.uri()}"]) {
-        Ok(_) => Ok(Response.from_status(200).with_body(Str.to_utf8("Command succeeded.")))
+    match Cmd.exec_str!("echo", ["${time} ${Str.inspect(req.method())} ${req.target()}"]) {
+        Ok(_) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Command succeeded."))))
         Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
     }
 }
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

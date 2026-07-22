@@ -2,12 +2,8 @@
 set -euo pipefail
 
 # Glue provenance (2026-07-22): the committed Rust glue is generated with Roc
-# 05e7355e33 and the RustGlue.roc from that same checkout. Roc 08cc24a16c (the
-# compiler-owned glue-platform merge) currently fails `roc glue` for this
-# platform and for basic-cli with only `Error: Compilation failed`, although
-# normal check/build commands succeed. Until that regression is fixed, build
-# 05e7355e33 and set both ROC and ROC_SRC to that matching checkout. Compiler
-# and glue-spec revisions must match.
+# 2988994af7 and the RustGlue.roc from that same checkout. Compiler and
+# glue-spec revisions must match.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -33,7 +29,7 @@ Environment overrides:
 By default the script looks for RustGlue.roc in ROC_GLUE_SPEC, ROC_SRC,
 next to the ROC binary if it is from a source checkout, then sibling ../roc.
 
-Known-good regeneration revision: Roc + RustGlue.roc at 05e7355e33.
+Known-good regeneration revision: Roc + RustGlue.roc at 2988994af7.
 EOF
 }
 
@@ -111,8 +107,7 @@ run_glue() {
     mkdir -p "$out_dir"
     if ! "$ROC_BIN" glue "$GLUE_SPEC" "$out_dir" "$PLATFORM_FILE"; then
         echo "Glue generation failed." >&2
-        echo "Use matching Roc and RustGlue.roc revisions; 05e7355e33 is the known-good pair." >&2
-        echo "Roc 08cc24a16c has a known roc-glue regression with no detailed diagnostic." >&2
+        echo "Use matching Roc and RustGlue.roc revisions; 2988994af7 is the known-good pair." >&2
         return 1
     fi
 }

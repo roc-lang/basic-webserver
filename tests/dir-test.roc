@@ -4,17 +4,19 @@ app [Model, program] {
 }
 
 import pf.Path
-import pf.Http
+import pf.Server
 import pf.Cmd
 import pf.Stderr
 import pf.Stdout
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -56,7 +58,7 @@ test_dir_create! = || {
 
     ls_output =
         Cmd.new("ls")
-        .args(["-ld", test_dir])
+        .args_str(["-ld", test_dir])
         .exec_output!()?
 
     Stdout.line!("Created directory: ${test_dir}")?
@@ -114,7 +116,7 @@ test_dir_delete_empty! = || {
 
     Path.delete_empty!(Path.utf8(empty_dir))?
     expect_not_dir!(empty_dir)?
-    empty_exists_after_delete = !Try.is_err(Cmd.exec!("test", ["-e", empty_dir]))
+    empty_exists_after_delete = !Try.is_err(Cmd.exec_str!("test", ["-e", empty_dir]))
     Stdout.line!("Empty directory exists after delete: ${bool_to_str(empty_exists_after_delete)}")?
 
     non_empty_dir = "test_non_empty_for_delete"
@@ -161,7 +163,7 @@ test_dir_delete_all! = || {
     expect_is_dir!(complex_dir)?
     Path.delete_all!(Path.utf8(complex_dir))?
     expect_not_dir!(complex_dir)?
-    complex_exists_after_delete = !Try.is_err(Cmd.exec!("test", ["-e", complex_dir]))
+    complex_exists_after_delete = !Try.is_err(Cmd.exec_str!("test", ["-e", complex_dir]))
     Stdout.line!("Complex directory is gone after delete_all: ${bool_to_str(!complex_exists_after_delete)}")?
 
     delete_all_nonexistent_result =
@@ -221,6 +223,11 @@ cleanup_test_dirs! = || {
     Ok({})
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

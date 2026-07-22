@@ -8,14 +8,16 @@ import pf.Stderr
 import pf.File
 import pf.Path
 import pf.Cmd
-import pf.Http
+import pf.Server
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -269,6 +271,11 @@ cleanup_test_files! = || {
 bool_to_str : Bool -> Str
 bool_to_str = |value| if value { "Bool.true" } else { "Bool.false" }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

@@ -4,7 +4,7 @@ app [Model, program] {
 }
 
 import pf.Env
-import pf.Http
+import pf.Server
 import pf.Sqlite
 import pf.Path
 import pf.Stderr
@@ -12,10 +12,12 @@ import pf.Stdout
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -30,7 +32,7 @@ init! = ||
 
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    db_path = Path.utf8(Env.var!("DB_PATH") ? |_| EnvVarNotFound("DB_PATH"))
+    db_path = Path.from_os_str(Env.var!("DB_PATH") ? |_| EnvVarNotFound("DB_PATH"))
 
     rows = test_decoders!(db_path)?
     rows_texts = Str.join_with(rows.map(Str.inspect), "\n")
@@ -254,6 +256,11 @@ inspect_nullable = |value|
         Null => "Null"
     }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

@@ -22,19 +22,6 @@ pub(crate) type StderrBytesResult = HostStderrWriteBytesResult;
 pub(crate) type StderrBytesResultPayload = HostStderrWriteBytesResultPayload;
 pub(crate) type StderrBytesResultTag = HostStderrWriteBytesResultTag;
 
-pub(crate) type Cmd = HostCmdExecExitCodeArgs;
-pub(crate) type CmdExitResult = HostCmdExecExitCodeResult;
-pub(crate) type CmdExitResultPayload = HostCmdExecExitCodeResultPayload;
-pub(crate) type CmdExitResultTag = HostCmdExecExitCodeResultTag;
-pub(crate) type CmdOutputResult = HostCmdExecOutputResult;
-pub(crate) type CmdOutputResultPayload = HostCmdExecOutputResultPayload;
-pub(crate) type CmdOutputResultTag = HostCmdExecOutputResultTag;
-pub(crate) type CmdOutputFailureResult = HostCmdExecOutputErrResult;
-pub(crate) type CmdOutputFailureResultPayload = HostCmdExecOutputErrResultPayload;
-pub(crate) type CmdOutputFailureResultTag = HostCmdExecOutputErrResultTag;
-pub(crate) type CmdOutputFailure = HostCmdExecOutputErrOk;
-pub(crate) type CmdOutputSuccess = HostCmdExecOutputOk;
-
 pub(crate) type DirUnitResult = HostDirCreateResult;
 pub(crate) type DirUnitResultPayload = HostDirCreateResultPayload;
 pub(crate) type DirUnitResultTag = HostDirCreateResultTag;
@@ -49,9 +36,6 @@ pub(crate) type EnvUnixPathResultTag = HostEnvCwdUnixResultTag;
 pub(crate) type EnvWindowsPathResult = HostEnvCwdWindowsResult;
 pub(crate) type EnvWindowsPathResultPayload = HostEnvCwdWindowsResultPayload;
 pub(crate) type EnvWindowsPathResultTag = HostEnvCwdWindowsResultTag;
-pub(crate) type EnvVarResult = HostEnvVarResult;
-pub(crate) type EnvVarResultPayload = HostEnvVarResultPayload;
-pub(crate) type EnvVarResultTag = HostEnvVarResultTag;
 pub(crate) type EnvUnitResult = HostEnvSetCwdResult;
 pub(crate) type EnvUnitResultPayload = HostEnvSetCwdResultPayload;
 pub(crate) type EnvUnitResultTag = HostEnvSetCwdResultTag;
@@ -121,9 +105,30 @@ pub(crate) type HostIOErrType = IOErr;
 pub(crate) type HostIOErrPayloadType = IOErrPayload;
 pub(crate) type HostIOErrTagType = IOErrTag;
 
-pub(crate) type RequestToAndFromHost = HostHttpSendRequestArg0;
-pub(crate) type ResponseToAndFromHost = HostHttpSendRequest;
-pub(crate) type Header = HostHttpSendRequestArg0Headers;
+pub(crate) type ServerConfig = InitForHostOkConfig;
+pub(crate) type ServerRequest = RespondForHostArg0;
+pub(crate) type ServerResponse = RespondForHost;
+pub(crate) type ServerHeader = RespondForHostArg0Headers;
+pub(crate) type ServerTransition = TransitionForHost;
+pub(crate) type ServerShutdownReason = ShutdownForHostArg0;
+
+pub(crate) type BodyReadResult = HostRequestBodyReadResult;
+pub(crate) type BodyReadResultPayload = HostRequestBodyReadResultPayload;
+pub(crate) type BodyReadResultTag = HostRequestBodyReadResultTag;
+pub(crate) type BodyReadAllResult = HostRequestBodyReadAllResult;
+pub(crate) type BodyReadAllResultPayload = HostRequestBodyReadAllResultPayload;
+pub(crate) type BodyReadAllResultTag = HostRequestBodyReadAllResultTag;
+pub(crate) type BodyReadValue = HostRequestBodyReadOk;
+pub(crate) type BodyReadValuePayload = HostRequestBodyReadOkPayload;
+pub(crate) type BodyReadValueTag = HostRequestBodyReadOkTag;
+pub(crate) type BodyReadError = HostRequestBodyReadErr;
+pub(crate) type BodyReadErrorPayload = HostRequestBodyReadErrPayload;
+pub(crate) type BodyReadErrorTag = HostRequestBodyReadErrTag;
+pub(crate) type BodyTooLarge = HostRequestBodyReadErrTooLarge;
+
+pub(crate) type StateApplyResult = HostStateApplyResult;
+pub(crate) type StateApplyResultPayload = HostStateApplyResultPayload;
+pub(crate) type StateApplyResultTag = HostStateApplyResultTag;
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
 static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
@@ -184,19 +189,194 @@ pub extern "C" fn roc_crashed(bytes: *const u8, len: usize) {
     DefaultHandlers::roc_crashed(roc_host_ptr(), bytes, len);
 }
 
-pub(crate) fn decref_response(value: ResponseToAndFromHost, roc_host: &RocHost) {
+pub(crate) fn decref_server_response(value: ServerResponse, roc_host: &RocHost) {
     // SAFETY: `roc_respond_for_host` returned one owned reference for every
     // refcounted field in the response.
     unsafe { value.decref(roc_host) };
 }
 
-pub(crate) fn decref_roc_str_list(list: &RocList<RocStr>, roc_host: &RocHost) {
-    for item in list.as_slice() {
-        // SAFETY: a hosted argument transfers one owned reference per item.
-        unsafe { item.decref(roc_host) };
+#[cfg(target_pointer_width = "32")]
+unsafe fn write_payload<T, const N: usize>(payload: &mut [u8; N], value: T) {
+    debug_assert!(core::mem::size_of::<T>() <= N);
+    unsafe { core::ptr::write(payload.as_mut_ptr().cast::<T>(), value) };
+}
+
+pub(crate) fn body_read_chunk(bytes: RocListWith<u8, false>) -> BodyReadResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut value: BodyReadValue = core::mem::zeroed();
+        write_payload(&mut value.payload, bytes);
+        value.tag = BodyReadValueTag::Chunk;
+        let mut result: BodyReadResult = core::mem::zeroed();
+        write_payload(&mut result.payload, value);
+        result.tag = BodyReadResultTag::Ok;
+        result
     }
-    // SAFETY: the hosted argument transfers ownership of the list allocation.
-    unsafe { list.decref(roc_host) };
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        let value = BodyReadValue {
+            payload: BodyReadValuePayload {
+                chunk: core::mem::ManuallyDrop::new(bytes),
+            },
+            tag: BodyReadValueTag::Chunk,
+        };
+        BodyReadResult {
+            payload: BodyReadResultPayload {
+                ok: core::mem::ManuallyDrop::new(value),
+            },
+            tag: BodyReadResultTag::Ok,
+        }
+    }
+}
+
+pub(crate) fn body_read_end() -> BodyReadResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut value: BodyReadValue = core::mem::zeroed();
+        value.tag = BodyReadValueTag::End;
+        let mut result: BodyReadResult = core::mem::zeroed();
+        write_payload(&mut result.payload, value);
+        result.tag = BodyReadResultTag::Ok;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        let value = BodyReadValue {
+            payload: BodyReadValuePayload { end: [] },
+            tag: BodyReadValueTag::End,
+        };
+        BodyReadResult {
+            payload: BodyReadResultPayload {
+                ok: core::mem::ManuallyDrop::new(value),
+            },
+            tag: BodyReadResultTag::Ok,
+        }
+    }
+}
+
+pub(crate) fn body_read_error(error: BodyReadError) -> BodyReadResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: BodyReadResult = core::mem::zeroed();
+        write_payload(&mut result.payload, error);
+        result.tag = BodyReadResultTag::Err;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        BodyReadResult {
+            payload: BodyReadResultPayload {
+                err: core::mem::ManuallyDrop::new(error),
+            },
+            tag: BodyReadResultTag::Err,
+        }
+    }
+}
+
+pub(crate) fn body_read_all_ok(bytes: RocListWith<u8, false>) -> BodyReadAllResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: BodyReadAllResult = core::mem::zeroed();
+        write_payload(&mut result.payload, bytes);
+        result.tag = BodyReadAllResultTag::Ok;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        BodyReadAllResult {
+            payload: BodyReadAllResultPayload {
+                ok: core::mem::ManuallyDrop::new(bytes),
+            },
+            tag: BodyReadAllResultTag::Ok,
+        }
+    }
+}
+
+pub(crate) fn body_read_all_error(error: BodyReadError) -> BodyReadAllResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: BodyReadAllResult = core::mem::zeroed();
+        write_payload(&mut result.payload, error);
+        result.tag = BodyReadAllResultTag::Err;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        BodyReadAllResult {
+            payload: BodyReadAllResultPayload {
+                err: core::mem::ManuallyDrop::new(error),
+            },
+            tag: BodyReadAllResultTag::Err,
+        }
+    }
+}
+
+pub(crate) fn body_error(
+    tag: BodyReadErrorTag,
+    string: Option<RocStr>,
+    too_large: Option<BodyTooLarge>,
+) -> BodyReadError {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut error: BodyReadError = core::mem::zeroed();
+        if let Some(string) = string {
+            write_payload(&mut error.payload, string);
+        }
+        if let Some(too_large) = too_large {
+            write_payload(&mut error.payload, too_large);
+        }
+        error.tag = tag;
+        error
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        let payload = match (string, too_large) {
+            (Some(string), None) => BodyReadErrorPayload {
+                invalid_body: core::mem::ManuallyDrop::new(string),
+            },
+            (None, Some(too_large)) => BodyReadErrorPayload {
+                too_large: core::mem::ManuallyDrop::new(too_large),
+            },
+            (None, None) => BodyReadErrorPayload { cancelled: [] },
+            (Some(_), Some(_)) => unreachable!("body error has one payload"),
+        };
+        BodyReadError { payload, tag }
+    }
+}
+
+pub(crate) fn state_apply_ok(value: RocBox) -> StateApplyResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: StateApplyResult = core::mem::zeroed();
+        write_payload(&mut result.payload, value);
+        result.tag = StateApplyResultTag::Ok;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        StateApplyResult {
+            payload: StateApplyResultPayload {
+                ok: core::mem::ManuallyDrop::new(value),
+            },
+            tag: StateApplyResultTag::Ok,
+        }
+    }
+}
+
+pub(crate) fn state_apply_stopping() -> StateApplyResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: StateApplyResult = core::mem::zeroed();
+        result.tag = StateApplyResultTag::Err;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        StateApplyResult {
+            payload: StateApplyResultPayload { err: [] },
+            tag: StateApplyResultTag::Err,
+        }
+    }
 }
 
 pub(crate) fn io_err_other(message: &str, roc_host: &RocHost) -> HostIOErrType {
@@ -323,5 +503,20 @@ mod tests {
             let error = io::Error::from(kind);
             assert_eq!(io_err_from_io(&error, &host).tag, expected);
         }
+    }
+
+    #[test]
+    fn lifecycle_result_constructors_match_generated_tags() {
+        let end = body_read_end();
+        assert_eq!(end.tag, BodyReadResultTag::Ok);
+        assert_eq!(end.payload_ok().tag, BodyReadValueTag::End);
+
+        let stopping = state_apply_stopping();
+        assert_eq!(stopping.tag, StateApplyResultTag::Err);
+
+        let null_box = core::ptr::null_mut();
+        let applied = state_apply_ok(null_box);
+        assert_eq!(applied.tag, StateApplyResultTag::Ok);
+        assert_eq!(applied.payload_ok(), null_box);
     }
 }

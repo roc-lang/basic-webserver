@@ -26,7 +26,9 @@ hyper-util = { version = "=0.1.12", features = ["tokio", "client", "client-legac
 # Outbound HTTP client TLS stack (Http.send!). `ring` is the rustls crypto
 # backend, and WebPKI roots keep the static host self-contained for Roc linking.
 hyper-rustls = { version = "=0.27.6", default-features = false, features = ["http1", "tls12", "webpki-tokio", "ring"] }
-tokio = { version = "=1.45.0", features = ["rt", "rt-multi-thread", "macros", "net", "time"] }
+rustls = { version = "=0.23.41", default-features = false }
+tokio = { version = "=1.45.0", features = ["rt", "rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tower-service = "=0.3.3"
 
 [profile.release]
 lto = true

@@ -3,25 +3,32 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import http.Response
 
 # To run this example: check the root README.md
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, model: {} })
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state|
     match check_file!("good") {
-        Ok(Good) => Ok(Response.from_status(200).with_body(Str.to_utf8("GOOD")))
-        Ok(Bad) => Ok(Response.from_status(200).with_body(Str.to_utf8("BAD")))
-        Err(IOError) => Ok(Response.from_status(500).with_body(Str.to_utf8("ERROR: IoError when executing checkFile!.")))
+        Ok(Good) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("GOOD"))))
+        Ok(Bad) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("BAD"))))
+        Err(IOError) => Ok(Server.respond(Response.from_status(500).with_body(Str.to_utf8("ERROR: IoError when executing checkFile!."))))
     }
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})
 
 # imagine this function does some IO operation
 # and returns a Try, succeeding with a tag either Good or Bad,

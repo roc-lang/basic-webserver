@@ -8,9 +8,11 @@
 # `process::exit`. (Root cause: src/glue/glue.zig `getSizeAlignForRepr` .unknown.)
 platform "webserver"
     requires {
-        [Model : model] for program : {
-            init! : () => Try(model, [Exit(I64), ..]),
-            respond! : _, model => Try(_, [ServerErr(Str), ..]),
+        [Model : model, Action : action, Result : result] for program : {
+            init! : () => Try({ config : Server.Config, model : model }, [Exit(I64), ..]),
+            transition : action, model -> { model : model, result : result },
+            respond! : Server.Request, Server.State(action, result) => Try(Server.Outcome, [ServerErr(Str), ..]),
+            shutdown! : Server.ShutdownReason, model => Try({}, [Exit(I64), ..]),
         }
     }
     exposes [
@@ -25,6 +27,7 @@ platform "webserver"
         MultipartFormData,
         OsStr,
         Path,
+        Server,
         Sleep,
         Sqlite,
         Stderr,
@@ -41,7 +44,9 @@ platform "webserver"
     }
     provides {
         "roc_init_for_host": init_for_host!,
+        "roc_transition_for_host": transition_for_host,
         "roc_respond_for_host": respond_for_host!,
+        "roc_shutdown_for_host": shutdown_for_host!,
     }
     hosted {
         "hosted_cmd_host_exec_exit_code": Host.cmd_exec_exit_code!,
@@ -98,6 +103,9 @@ platform "webserver"
         "hosted_file_open_reader": Host.file_open_reader!,
         "hosted_file_read_line": Host.file_read_line!,
         "hosted_sleep_millis": Host.sleep_millis!,
+        "hosted_request_body_read": Host.request_body_read!,
+        "hosted_request_body_read_all": Host.request_body_read_all!,
+        "hosted_state_apply": Host.state_apply!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -118,6 +126,7 @@ import Http
 import IOErr
 import OsStr
 import Path
+import Server
 import Sleep
 import Sqlite
 import InternalSqlite
@@ -127,13 +136,14 @@ import Tcp
 import Url
 import Utc
 import InternalHttp
+import InternalServer
 import MultipartFormData
 import SplitList
 
-init_for_host! : () => Try(Box(Model), I64)
+init_for_host! : () => Try({ config : InternalServer.ConfigToHost, model : Box(Model) }, I64)
 init_for_host! = ||
     match (program.init!)() {
-        Ok(model) => Ok(Box.box(model))
+        Ok({ config, model }) => Ok({ config: InternalServer.to_host_config(config), model: Box.box(model) })
         Err(Exit(code)) => Err(code)
         Err(other) => {
             Stderr.line!("Server `init!` failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
@@ -141,16 +151,33 @@ init_for_host! = ||
         }
     }
 
-respond_for_host! : InternalHttp.RequestToAndFromHost, Box(Model) => InternalHttp.ResponseToAndFromHost
-respond_for_host! = |request, boxed_model|
-    match (program.respond!)(InternalHttp.from_host_request(request), Box.unbox(boxed_model)) {
-        Ok(response) => InternalHttp.to_host_response(response)
+transition_for_host : Box(Action), Box(Model) -> { model : Box(Model), result : Box(Result) }
+transition_for_host = |boxed_action, boxed_model| {
+    transitioned = (program.transition)(Box.unbox(boxed_action), Box.unbox(boxed_model))
+    { model: Box.box(transitioned.model), result: Box.box(transitioned.result) }
+}
+
+respond_for_host! : InternalServer.RequestFromHost => InternalServer.OutcomeToHost
+respond_for_host! = |request|
+    match (program.respond!)(InternalServer.from_host_request(request), Server.State.for_host({})) {
+        Ok(outcome) => InternalServer.to_host_outcome(outcome)
         Err(ServerErr(msg)) => {
             Stderr.line!("ServerErr: ${msg}") ?? {}
-            { status: 500, headers: [], body: [] }
+            { status: 500, headers: [], body: [], stop: False, exit_code: 0 }
         }
         Err(other) => {
             Stderr.line!("Server error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
-            { status: 500, headers: [], body: [] }
+            { status: 500, headers: [], body: [], stop: False, exit_code: 0 }
+        }
+    }
+
+shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Model) => Try({}, I64)
+shutdown_for_host! = |reason, boxed_model|
+    match (program.shutdown!)(InternalServer.from_host_shutdown_reason(reason), Box.unbox(boxed_model)) {
+        Ok({}) => Ok({})
+        Err(Exit(code)) => Err(code)
+        Err(other) => {
+            Stderr.line!("Server `shutdown!` failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
+            Err(1)
         }
     }

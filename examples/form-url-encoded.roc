@@ -3,7 +3,7 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import pf.MultipartFormData
 import http.Response
 
@@ -11,9 +11,7 @@ import http.Response
 
 # Demonstrates how to handle URL-encoded form data.
 
-program = { init!, respond! }
-
-form_page : Http.Response
+form_page : Response.Response
 form_page = {
     response =
         Response.from_status(200)
@@ -46,7 +44,7 @@ form_page = {
     )
 }
 
-display_form_data! : Http.Request => Try(Http.Response, [ServerErr(Str), ..])
+display_form_data! : Server.Request => Try(Response.Response, [ServerErr(Str), ..])
 display_form_data! = |req| {
     page = |form_data| {
         entries =
@@ -74,7 +72,9 @@ display_form_data! = |req| {
         )
     }
 
-    parsed_form = MultipartFormData.parse_form_url_encoded(req.body())
+    body = req.body().with_limit(64 * 1024).read_all!()
+        ? |err| ServerErr("Failed to read URL-encoded form: ${Str.inspect(err)}")
+    parsed_form = MultipartFormData.parse_form_url_encoded(body)
 
     match parsed_form {
         Ok(form_data) => {
@@ -89,16 +89,25 @@ display_form_data! = |req| {
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |req, _model|
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, _state|
     match req.method() {
-        GET => Ok(form_page)
-        POST => display_form_data!(req)
-        _ => Ok(Response.from_status(500))
+        GET => Ok(Server.respond(form_page))
+        POST => Ok(Server.respond(display_form_data!(req)?))
+        _ => Ok(Server.respond(Response.from_status(405)))
     }
 
 # Model is produced by `init!`.
 Model : {}
+Action : {}
+Result : {}
 
-init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+program = { init!, transition, respond!, shutdown! }
+
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, model: {} })
+
+transition = Server.no_transition
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

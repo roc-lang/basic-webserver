@@ -1,53 +1,109 @@
 use core::mem::ManuallyDrop;
+use std::io;
 
-use crate::abi::{
-    cmd_io_err_from_io, cmd_io_err_other, decref_roc_str_list, io_err_from_io, io_err_other,
-    roc_host, Cmd, CmdExitResult, CmdExitResultPayload, CmdExitResultTag, CmdOutputFailure,
-    CmdOutputFailureResult, CmdOutputFailureResultPayload, CmdOutputFailureResultTag,
-    CmdOutputResult, CmdOutputResultPayload, CmdOutputResultTag, CmdOutputSuccess,
-};
+use crate::abi::{cmd_io_err_from_io, cmd_io_err_other, io_err_from_io, io_err_other, roc_host};
+use crate::os_str::{os_string_from_raw, validate_env_key, RawOsStr};
 use crate::roc_platform_abi::*;
 
-trait CommandEnvValue {
-    fn command_env_str(&self) -> &str;
-}
+type Cmd = HostCmdExecExitCodeArgs;
+type CmdExitResult = HostCmdExecExitCodeResult;
+type CmdExitResultPayload = HostCmdExecExitCodeResultPayload;
+type CmdExitResultTag = HostCmdExecExitCodeResultTag;
+type CmdOutputResult = HostCmdExecOutputResult;
+type CmdOutputResultPayload = HostCmdExecOutputResultPayload;
+type CmdOutputResultTag = HostCmdExecOutputResultTag;
+type CmdOutputError = FailedToGetExitCodeOrNonZeroExitCode;
+type CmdOutputErrorPayload = FailedToGetExitCodeOrNonZeroExitCodePayload;
+type CmdOutputErrorTag = FailedToGetExitCodeOrNonZeroExitCodeTag;
+type CmdOutputFailure = HostCmdExecOutputErrNonZeroExitCode;
+type CmdOutputSuccess = HostCmdExecOutputOk;
 
-impl CommandEnvValue for RocStr {
-    fn command_env_str(&self) -> &str {
-        self.as_str()
+/// Consume every list element even when one representation is invalid so a
+/// rejected foreign-platform value cannot leak later elements.
+fn take_native_list(
+    list: &RocList<RawOsStr>,
+    roc_host: &RocHost,
+) -> io::Result<Vec<std::ffi::OsString>> {
+    let mut values = Vec::with_capacity(list.len());
+    let mut first_error = None;
+
+    for item in list.as_slice() {
+        match os_string_from_raw(*item, roc_host) {
+            Ok(value) => values.push(value),
+            Err(error) if first_error.is_none() => first_error = Some(error),
+            Err(_) => {}
+        }
+    }
+
+    // SAFETY: the hosted call transfers ownership of the list allocation. Each
+    // element payload was consumed by `os_string_from_raw` above.
+    unsafe { list.decref(roc_host) };
+
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(values),
     }
 }
 
-fn env_pairs<T: CommandEnvValue>(envs: &[T]) -> impl Iterator<Item = (&str, &str)> {
-    envs.chunks(2).filter_map(|chunk| match chunk {
-        [key, value] => Some((key.command_env_str(), value.command_env_str())),
-        _ => None,
-    })
-}
+/// Consume native environment records while preserving which value is the
+/// variable name and which is its value at every layer of the ABI.
+fn take_environment(
+    list: &RocList<HostCmdExecExitCodeArg0Envs>,
+    roc_host: &RocHost,
+) -> io::Result<Vec<(std::ffi::OsString, std::ffi::OsString)>> {
+    let mut variables = Vec::with_capacity(list.len());
+    let mut first_error = None;
 
-fn decref_host_cmd_arg(cmd: &Cmd, roc_host: &RocHost) {
-    decref_roc_str_list(&cmd.args, roc_host);
-    decref_roc_str_list(&cmd.envs, roc_host);
-    // SAFETY: hosted arguments transfer ownership to the host.
-    unsafe { cmd.program.decref(roc_host) };
-}
+    for variable in list.as_slice() {
+        let name = os_string_from_raw(variable.name, roc_host);
+        let value = os_string_from_raw(variable.value, roc_host);
 
-fn cmd_to_std(cmd: &Cmd) -> std::process::Command {
-    let mut std_cmd = std::process::Command::new(cmd.program.as_str());
-
-    for arg in cmd.args.as_slice() {
-        std_cmd.arg(arg.as_str());
+        match (name, value) {
+            (Ok(name), Ok(value)) => {
+                if let Err(error) = validate_env_key(name.as_os_str()) {
+                    if first_error.is_none() {
+                        first_error = Some(error);
+                    }
+                } else {
+                    variables.push((name, value));
+                }
+            }
+            (Err(error), _) | (_, Err(error)) if first_error.is_none() => {
+                first_error = Some(error);
+            }
+            _ => {}
+        }
     }
+
+    // SAFETY: the hosted call transfers ownership of the list allocation. Both
+    // native-string payloads in every element were consumed above.
+    unsafe { list.decref(roc_host) };
+
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(variables),
+    }
+}
+
+fn cmd_to_std(cmd: &Cmd, roc_host: &RocHost) -> io::Result<std::process::Command> {
+    // Perform all conversions before propagating an error so every owned field
+    // is released even if the program or an earlier argument is invalid.
+    let program = os_string_from_raw(cmd.program, roc_host);
+    let arguments = take_native_list(&cmd.args, roc_host);
+    let environment = take_environment(&cmd.envs, roc_host);
+
+    let mut std_cmd = std::process::Command::new(program?);
+    std_cmd.args(arguments?);
 
     if cmd.clear_envs {
         std_cmd.env_clear();
     }
 
-    for (key, value) in env_pairs(cmd.envs.as_slice()) {
-        std_cmd.env(key, value);
+    for (name, value) in environment? {
+        std_cmd.env(name, value);
     }
 
-    std_cmd
+    Ok(std_cmd)
 }
 
 fn try_cmd_exit_ok(value: i32) -> CmdExitResult {
@@ -77,7 +133,7 @@ fn try_cmd_output_ok(value: CmdOutputSuccess) -> CmdOutputResult {
     }
 }
 
-fn try_cmd_output_err(error: CmdOutputFailureResult) -> CmdOutputResult {
+fn try_cmd_output_err(error: CmdOutputError) -> CmdOutputResult {
     CmdOutputResult {
         payload: CmdOutputResultPayload {
             err: ManuallyDrop::new(error),
@@ -86,34 +142,36 @@ fn try_cmd_output_err(error: CmdOutputFailureResult) -> CmdOutputResult {
     }
 }
 
-fn try_cmd_output_failure_ok(value: CmdOutputFailure) -> CmdOutputFailureResult {
-    CmdOutputFailureResult {
-        payload: CmdOutputFailureResultPayload {
-            ok: ManuallyDrop::new(value),
+fn cmd_output_nonzero_error(value: CmdOutputFailure) -> CmdOutputError {
+    CmdOutputError {
+        payload: CmdOutputErrorPayload {
+            non_zero_exit_code: ManuallyDrop::new(value),
         },
-        tag: CmdOutputFailureResultTag::Ok,
+        tag: CmdOutputErrorTag::NonZeroExitCode,
     }
 }
 
-fn try_cmd_output_failure_err(error: crate::abi::HostIOErrType) -> CmdOutputFailureResult {
-    CmdOutputFailureResult {
-        payload: CmdOutputFailureResultPayload {
-            err: ManuallyDrop::new(error),
+fn cmd_output_failed_to_get_exit_code(error: IOErr) -> CmdOutputError {
+    CmdOutputError {
+        payload: CmdOutputErrorPayload {
+            failed_to_get_exit_code: ManuallyDrop::new(error),
         },
-        tag: CmdOutputFailureResultTag::Err,
+        tag: CmdOutputErrorTag::FailedToGetExitCode,
     }
 }
 
 #[no_mangle]
 pub extern "C" fn hosted_cmd_host_exec_exit_code(cmd: Cmd) -> CmdExitResult {
     let roc_host = roc_host();
-    let mut std_cmd = cmd_to_std(&cmd);
-    decref_host_cmd_arg(&cmd, roc_host);
+    let mut std_cmd = match cmd_to_std(&cmd, roc_host) {
+        Ok(cmd) => cmd,
+        Err(error) => return try_cmd_exit_err(cmd_io_err_from_io(&error, roc_host)),
+    };
 
     match std_cmd.status() {
         Ok(status) => match status.code() {
             Some(code) => try_cmd_exit_ok(code),
-            None => try_cmd_exit_err(cmd_io_err_other("Process was killed by signal", roc_host)),
+            None => try_cmd_exit_err(cmd_io_err_other("process was killed by signal", roc_host)),
         },
         Err(error) => try_cmd_exit_err(cmd_io_err_from_io(&error, roc_host)),
     }
@@ -122,12 +180,18 @@ pub extern "C" fn hosted_cmd_host_exec_exit_code(cmd: Cmd) -> CmdExitResult {
 #[no_mangle]
 pub extern "C" fn hosted_cmd_host_exec_output(cmd: Cmd) -> CmdOutputResult {
     let roc_host = roc_host();
-    let mut std_cmd = cmd_to_std(&cmd);
-    decref_host_cmd_arg(&cmd, roc_host);
+    let mut std_cmd = match cmd_to_std(&cmd, roc_host) {
+        Ok(cmd) => cmd,
+        Err(error) => {
+            return try_cmd_output_err(cmd_output_failed_to_get_exit_code(io_err_from_io(
+                &error, roc_host,
+            )))
+        }
+    };
 
     match std_cmd.output() {
         Ok(output) => {
-            // SAFETY: both lists own copies of the process output buffers.
+            // SAFETY: both Roc lists own copies of the process output buffers.
             let stdout_bytes =
                 unsafe { RocListWith::<u8, false>::from_slice(&output.stdout, roc_host) };
             let stderr_bytes =
@@ -138,51 +202,25 @@ pub extern "C" fn hosted_cmd_host_exec_output(cmd: Cmd) -> CmdOutputResult {
                     stderr_bytes,
                     stdout_bytes,
                 }),
-                Some(exit_code) => {
-                    try_cmd_output_err(try_cmd_output_failure_ok(CmdOutputFailure {
-                        stderr_bytes,
-                        stdout_bytes,
-                        exit_code,
-                    }))
-                }
+                Some(exit_code) => try_cmd_output_err(cmd_output_nonzero_error(CmdOutputFailure {
+                    stderr_bytes,
+                    stdout_bytes,
+                    exit_code,
+                })),
                 None => {
-                    unsafe { stdout_bytes.decref(roc_host) };
-                    unsafe { stderr_bytes.decref(roc_host) };
-                    try_cmd_output_err(try_cmd_output_failure_err(io_err_other(
-                        "Process was killed by signal",
+                    unsafe {
+                        stdout_bytes.decref(roc_host);
+                        stderr_bytes.decref(roc_host);
+                    }
+                    try_cmd_output_err(cmd_output_failed_to_get_exit_code(io_err_other(
+                        "process was killed by signal",
                         roc_host,
                     )))
                 }
             }
         }
-        Err(error) => {
-            try_cmd_output_err(try_cmd_output_failure_err(io_err_from_io(&error, roc_host)))
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    impl CommandEnvValue for String {
-        fn command_env_str(&self) -> &str {
-            self.as_str()
-        }
-    }
-
-    #[test]
-    fn env_pairs_uses_complete_key_value_pairs_only() {
-        let values = vec![
-            "FIRST".to_string(),
-            "1".to_string(),
-            "SECOND".to_string(),
-            "2".to_string(),
-            "TRAILING_KEY".to_string(),
-        ];
-
-        let pairs: Vec<_> = env_pairs(&values).collect();
-
-        assert_eq!(pairs, vec![("FIRST", "1"), ("SECOND", "2")]);
+        Err(error) => try_cmd_output_err(cmd_output_failed_to_get_exit_code(io_err_from_io(
+            &error, roc_host,
+        ))),
     }
 }

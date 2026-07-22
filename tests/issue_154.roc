@@ -3,17 +3,19 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import pf.MultipartFormData
 import pf.Stderr
 import pf.Stdout
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -53,6 +55,11 @@ run_tests! = || {
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(404))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(404)))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

@@ -4,22 +4,32 @@ app [Model, program] {
 }
 
 import pf.Path
-import pf.Http
+import pf.Server
 import http.Response
 
 # To run this example: check the root README.md
 
 Model : Str
+Action : [GetContents]
+Result : [Contents(Str)]
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match Path.read_utf8!(Path.utf8("examples/file-read.roc")) {
-        Ok(contents) => Ok("Source code of current program:\n\n${contents}")
+        Ok(contents) => Ok({ config: Server.default_config, model: "Source code of current program:\n\n${contents}" })
         Err(_) => Err(Exit(1))
     }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8(model)))
+transition : Action, Model -> { model : Model, result : Result }
+transition = |GetContents, model| { model, result: Contents(model) }
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, state| {
+    Contents(contents) = state.apply!(GetContents) ? |_| ServerErr("Server is stopping")
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(contents))))
+}
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

@@ -5,16 +5,18 @@ app [Model, program] {
 
 import pf.Stdout
 import pf.Stderr
-import pf.Http
+import pf.Server
 import pf.Path
 import pf.Utc
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = || {
     result! = || {
         file = Path.utf8("LICENSE")
@@ -29,7 +31,7 @@ init! = || {
     }
 
     match result!() {
-        Ok(_) => Ok({})
+        Ok(_) => Ok({ config: Server.default_config, model: {} })
         Err(err) => {
             Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
@@ -37,6 +39,11 @@ init! = || {
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("See example in init! function.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("See example in init! function."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

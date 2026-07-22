@@ -4,17 +4,19 @@ app [Model, program] {
 }
 
 import pf.Stdout
-import pf.Http
+import pf.Server
 import pf.Tcp
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
 # This test exercises the Tcp module. It requires an echo server listening on
 # localhost:8085, e.g. `ncat -e $(which cat) -l 8085`.
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -88,6 +90,11 @@ test_tcp_functions! = |stream| {
     Ok({})
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

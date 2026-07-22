@@ -6,20 +6,24 @@ app [Model, program] {
 
 import pf.Stdout
 import pf.Http
+import pf.Server
+import pf.Url
 import http.Request
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
 # Fetch some content at startup to demonstrate the outbound HTTP client. To
 # exercise it, run a server on localhost:9000 (see the root README); otherwise the
 # requests simply report a failure and the webserver still starts.
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = || {
 	demo!() ?? {}
-	Ok({})
+	Ok({ config: Server.default_config, model: {} })
 }
 
 demo! : () => Try({}, _)
@@ -42,9 +46,12 @@ demo! = || {
     }
 
     # Getting a Response record.
+    html_url : Url.Url
+    html_url = "http://localhost:9000/htmltest"
+
     request =
         Request.from_method(GET)
-            .with_uri("http://localhost:9000/htmltest")
+            .with_uri(Url.to_str(html_url))
             .with_timeout(TimeoutMilliseconds(5000))
 
     match Http.send!(request) {
@@ -52,15 +59,15 @@ demo! = || {
             body_str = Str.from_utf8(response.body())?
             Stdout.line!("Response body:\n\t${body_str}.\n")?
         }
-        Err(HttpErr(_)) => {
-            Stdout.line!("send! failed")?
+        Err(err) => {
+            Stdout.line!("send! failed: ${Str.inspect(err)}")?
         }
     }
 
     # Same request with a custom Accept header.
     request_2 =
         Request.from_method(GET)
-            .with_uri("http://localhost:9000/htmltest")
+            .with_uri(Url.to_str(html_url))
             .with_headers([{ name: "Accept", value: "text/html" }])
             .with_timeout(TimeoutMilliseconds(5000))
 
@@ -70,31 +77,22 @@ demo! = || {
             Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
             Ok({})
         }
-        Err(HttpErr(_)) => {
-            Stdout.line!("send! failed")?
+        Err(err) => {
+            Stdout.line!("send! failed: ${Str.inspect(err)}")?
             Ok({})
         }
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model| {
-	payload : Http.JsonValue
-	payload = {
-		Http.JsonValue.object([
-			Http.JsonValue.field("message", Http.JsonValue.str("See init! for the outbound HTTP example code.")),
-			Http.JsonValue.field("status", Http.JsonValue.u64(200)),
-			Http.JsonValue.field("ok", Http.JsonValue.bool(Bool.True)),
-			Http.JsonValue.field("notes", Http.JsonValue.list([
-				Http.JsonValue.str("plain text"),
-				Http.JsonValue.i64(-7),
-			])),
-			Http.JsonValue.field("meta", Http.JsonValue.object([
-				Http.JsonValue.field("missing", Http.JsonValue.null),
-				Http.JsonValue.field("count", Http.JsonValue.u64(2)),
-			])),
-		])
-	}
+transition = Server.no_transition
 
-	Ok(Http.json_response(payload))
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state| {
+    response = Response.from_status(200)
+        .with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+        .with_body(Str.to_utf8("See init! for the outbound HTTP example code."))
+    Ok(Server.respond(response))
 }
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

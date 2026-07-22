@@ -1,8 +1,5 @@
 #!/usr/bin/expect
 
-# uncomment line below for debugging
-# exp_internal 1
-
 set timeout 7
 
 source ./ci/expect_scripts/shared-code.exp
@@ -10,49 +7,10 @@ source ./ci/expect_scripts/shared-code.exp
 spawn $env(TESTS_DIR)url
 
 set expected_output [normalize_output "
-Created URL: https://example.com
-Testing Url.append:
-URL with append: https://example.com/some%20stuff
-URL with query and fragment, then appended path: https://example.com/stuff\\?search=blah#fragment
-URL with multiple appended paths: https://example.com/things/stuff/more/etc/
-Testing Url.append_param:
-URL with appended param: https://example.com\\?email=someone%40example.com
-URL with multiple appended params: https://example.com\\?caf%C3%A9=du%20Monde&email=hi%40example.com
-
-Testing Url.has_query:
-URL with query has_query: Bool.true
-URL without query has_query: Bool.false
-
-Testing Url.has_fragment:
-URL with fragment has_fragment: Bool.true
-URL without fragment has_fragment: Bool.false
-
-Testing Url.query:
-Query from URL: key1=val1&key2=val2&key3=val3
-Query from URL without query:
-
-Testing Url.fragment:
-Fragment from URL: stuff
-Fragment from URL without fragment:
-
-Testing Url.reserve:
-URL with reserved capacity and params: https://example.com/stuff\\?caf%C3%A9=du%20Monde&email=hi%40example.com
-
-Testing Url.with_query:
-URL with replaced query: https://example.com\\?newQuery=thisRightHere#stuff
-URL with removed query: https://example.com#stuff
-
-Testing Url.with_fragment:
-URL with replaced fragment: https://example.com#things
-URL with added fragment: https://example.com#things
-URL with removed fragment: https://example.com
-
-Testing Url.query_params:
-params_dict: {\"key1\": \"val1\", \"key2\": \"val2\", \"key3\": \"val3\"}
-
-Testing Url.path:
-Path from URL: example.com/foo/bar
-Path from relative URL: /foo/bar
+Canonical literal: https://example.com/hello%20world\\?q=roc#frag
+Built URL: http://127.0.0.1:8080/base/api/todo%20item\\?status=in\\+progress
+Resolved URL: http://127.0.0.1:8080/todos\\?task=write\\+tests&task=ship
+Rejected relative URL without a base.
 Ran all tests.
 "]
 
@@ -62,5 +20,5 @@ expect -re $expected_output {
     }
 }
 
-puts stderr "\nExpect script failed: output was not as expected. Diff the output with expected_output in this script. Alternatively, uncomment `exp_internal 1` to debug."
+puts stderr "\nExpect script failed: output was not as expected."
 exit 1

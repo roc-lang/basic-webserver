@@ -3,16 +3,18 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
+import pf.Server
 import pf.Stdout
 import pf.Url
-import pf.Http
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -25,174 +27,59 @@ init! = ||
         }
     }
 
+# Pure Url behavior has comprehensive inline expects in platform/Url.roc. This
+# executable keeps a small integration check for quoted literals, dynamic
+# validation, builders, resolution, and duplicate query parameters.
 run_tests! : () => Try({}, _)
 run_tests! = || {
-    # Test Url.from_str and Url.to_str
-    url = Url.from_str("https://example.com")
-    Stdout.line!("Created URL: ${Url.to_str(url)}")?
-    # expects "https://example.com"
+    literal : Url.Url
+    literal = "https://Example.COM:443/a/../hello%20world?q=roc#frag"
+    canonical = Url.to_str(literal)
+    expect_equal(canonical, "https://example.com/hello%20world?q=roc#frag")?
+    Stdout.line!("Canonical literal: ${canonical}") ?? {}
 
-    Stdout.line!("Testing Url.append:")?
+    base = Url.parse("http://127.0.0.1:8080/base/") ? |err| FailedExpectation(Str.inspect(err))
+    built = base
+        .append_path_segments(["api", "todo item"])
+        .append_query_param("status", "in progress")
+    built_str = Url.to_str(built)
+    expect_equal(built_str, "http://127.0.0.1:8080/base/api/todo%20item?status=in+progress")?
+    Stdout.line!("Built URL: ${built_str}") ?? {}
 
-    url_with_path = Url.append(url, "some stuff")
-    Stdout.line!("URL with append: ${Url.to_str(url_with_path)}")?
-    # expects "https://example.com/some%20stuff"
+    resolved = Url.resolve(base, "/todos?task=write+tests&task=ship") ? |err| FailedExpectation(Str.inspect(err))
+    expect_true(
+        Url.query_pairs(resolved) == [("task", "write tests"), ("task", "ship")],
+        "query pairs should decode plus signs and preserve duplicates",
+    )?
+    Stdout.line!("Resolved URL: ${Url.to_str(resolved)}") ?? {}
 
-    url_search = Url.from_str("https://example.com?search=blah#fragment")
-    url_search_append = Url.append(url_search, "stuff")
-    Stdout.line!("URL with query and fragment, then appended path: ${Url.to_str(url_search_append)}")?
-    # expects "https://example.com/stuff?search=blah#fragment"
-
-    url_things = Url.from_str("https://example.com/things/")
-    url_things_append = Url.append(url_things, "/stuff/")
-    url_things_append_more = Url.append(url_things_append, "/more/etc/")
-    Stdout.line!("URL with multiple appended paths: ${Url.to_str(url_things_append_more)}")?
-    # expects "https://example.com/things/stuff/more/etc/")
-
-    # Test Url.append_param
-    Stdout.line!("Testing Url.append_param:")?
-
-    url_example = Url.from_str("https://example.com")
-    url_example_param = Url.append_param(url_example, "email", "someone@example.com")
-    Stdout.line!("URL with appended param: ${Url.to_str(url_example_param)}")?
-    # expects "https://example.com?email=someone%40example.com"
-
-    url_example_2 = Url.from_str("https://example.com")
-    url_example_2_cafe = Url.append_param(url_example_2, "café", "du Monde")
-    url_example_2_cafe_email = Url.append_param(url_example_2_cafe, "email", "hi@example.com")
-    Stdout.line!("URL with multiple appended params: ${Url.to_str(url_example_2_cafe_email)}")?
-    # expects "https://example.com?caf%C3%A9=du%20Monde&email=hi%40example.com"
-
-    # Test Url.has_query
-    Stdout.line!("\nTesting Url.has_query:")?
-
-    url_with_query = Url.from_str("https://example.com?key=value#stuff")
-    has_query_1 = Url.has_query(url_with_query)
-    Stdout.line!("URL with query has_query: ${legacy_bool(has_query_1)}")?
-    # expects Bool.True
-
-    url_hashtag = Url.from_str("https://example.com#stuff")
-    has_query_2 = Url.has_query(url_hashtag)
-    Stdout.line!("URL without query has_query: ${legacy_bool(has_query_2)}")?
-    # expects Bool.False
-
-    Stdout.line!("\nTesting Url.has_fragment:")?
-
-    url_key_val_hashtag = Url.from_str("https://example.com?key=value#stuff")
-    has_fragment_1 = Url.has_fragment(url_key_val_hashtag)
-    Stdout.line!("URL with fragment has_fragment: ${legacy_bool(has_fragment_1)}")?
-    # expects Bool.True
-
-    url_key_val = Url.from_str("https://example.com?key=value")
-    has_fragment_2 = Url.has_fragment(url_key_val)
-    Stdout.line!("URL without fragment has_fragment: ${legacy_bool(has_fragment_2)}")?
-    # expects Bool.False
-
-    Stdout.line!("\nTesting Url.query:")?
-
-    url_key_val_multi = Url.from_str("https://example.com?key1=val1&key2=val2&key3=val3#stuff")
-    query = Url.query(url_key_val_multi)
-    Stdout.line!("Query from URL: ${query}")?
-    # expects "key1=val1&key2=val2&key3=val3"
-
-    url_no_query = Url.from_str("https://example.com#stuff")
-    query_empty = Url.query(url_no_query)
-    Stdout.line!("Query from URL without query: ${query_empty}")?
-    # expects ""
-
-    # Test Url.fragment
-    Stdout.line!("\nTesting Url.fragment:")?
-
-    url_with_fragment = Url.from_str("https://example.com#stuff")
-    fragment = Url.fragment(url_with_fragment)
-    Stdout.line!("Fragment from URL: ${fragment}")?
-    # expects "stuff"
-
-    url_no_fragment = Url.from_str("https://example.com")
-    fragment_empty = Url.fragment(url_no_fragment)
-    Stdout.line!("Fragment from URL without fragment: ${fragment_empty}")?
-    # expects ""
-
-    # Test Url.reserve
-    Stdout.line!("\nTesting Url.reserve:")?
-
-    url_to_reserve = Url.from_str("https://example.com")
-    url_reserved = Url.reserve(url_to_reserve, 50)
-    url_with_params =
-        url_reserved
-            .append("stuff")
-            .append_param("café", "du Monde")
-            .append_param("email", "hi@example.com")
-
-    Stdout.line!("URL with reserved capacity and params: ${Url.to_str(url_with_params)}")?
-    # expects "https://example.com/stuff?caf%C3%A9=du%20Monde&email=hi%40example.com"
-
-    # Test Url.with_query
-    Stdout.line!("\nTesting Url.with_query:")?
-
-    url_replace_query = Url.from_str("https://example.com?key1=val1&key2=val2#stuff")
-    url_with_new_query = Url.with_query(url_replace_query, "newQuery=thisRightHere")
-    Stdout.line!("URL with replaced query: ${Url.to_str(url_with_new_query)}")?
-    # expects "https://example.com?newQuery=thisRightHere#stuff"
-
-    url_remove_query = Url.from_str("https://example.com?key1=val1&key2=val2#stuff")
-    url_with_empty_query = Url.with_query(url_remove_query, "")
-    Stdout.line!("URL with removed query: ${Url.to_str(url_with_empty_query)}")?
-    # expects "https://example.com#stuff"
-
-    # Test Url.with_fragment
-    Stdout.line!("\nTesting Url.with_fragment:")?
-
-    url_replace_fragment = Url.from_str("https://example.com#stuff")
-    url_with_new_fragment = Url.with_fragment(url_replace_fragment, "things")
-    Stdout.line!("URL with replaced fragment: ${Url.to_str(url_with_new_fragment)}")?
-    # expects "https://example.com#things"
-
-    url_add_fragment = Url.from_str("https://example.com")
-    url_with_added_fragment = Url.with_fragment(url_add_fragment, "things")
-    Stdout.line!("URL with added fragment: ${Url.to_str(url_with_added_fragment)}")?
-    # expects "https://example.com#things"
-
-    url_remove_fragment = Url.from_str("https://example.com#stuff")
-    url_with_empty_fragment = Url.with_fragment(url_remove_fragment, "")
-    Stdout.line!("URL with removed fragment: ${Url.to_str(url_with_empty_fragment)}")?
-    # expects "https://example.com"
-
-    # Test Url.query_params
-    Stdout.line!("\nTesting Url.query_params:")?
-
-    url_with_many_params = Url.from_str("https://example.com?key1=val1&key2=val2&key3=val3")
-    params_dict = Url.query_params(url_with_many_params)
-    key1 = Dict.get(params_dict, "key1") ? |_| MissingQueryParam("key1")
-    key2 = Dict.get(params_dict, "key2") ? |_| MissingQueryParam("key2")
-    key3 = Dict.get(params_dict, "key3") ? |_| MissingQueryParam("key3")
-
-    Stdout.line!("params_dict: {\"key1\": \"${key1}\", \"key2\": \"${key2}\", \"key3\": \"${key3}\"}")?
-    # expects Dict with key1=val1, key2=val2, key3=val3
-
-    # Test Url.path
-    Stdout.line!("\nTesting Url.path:")?
-
-    url_with_path_full = Url.from_str("https://example.com/foo/bar?key1=val1&key2=val2#stuff")
-    path = Url.path(url_with_path_full)
-    Stdout.line!("Path from URL: ${path}")?
-    # expects "example.com/foo/bar"
-
-    url_relative = Url.from_str("/foo/bar?key1=val1&key2=val2#stuff")
-    path_relative = Url.path(url_relative)
-    Stdout.line!("Path from relative URL: ${path_relative}")?
-    # expects "/foo/bar"
+    expect_missing_scheme!("/relative-only")?
+    Stdout.line!("Rejected relative URL without a base.") ?? {}
 
     Ok({})
 }
 
-legacy_bool = |value|
-    if value {
-        "Bool.true"
-    } else {
-        "Bool.false"
+expect_missing_scheme! : Str => Try({}, [FailedExpectation(Str)])
+expect_missing_scheme! = |input|
+    match Url.parse(input) {
+        Err(MissingScheme) => Ok({})
+        Err(err) => Err(FailedExpectation("Expected MissingScheme, got ${Str.inspect(err)}"))
+        Ok(url) => Err(FailedExpectation("Expected rejection, got ${Url.to_str(url)}"))
     }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+expect_equal : Str, Str -> Try({}, [FailedExpectation(Str)])
+expect_equal = |actual, expected|
+    expect_true(actual == expected, "Expected ${expected}, got ${actual}")
+
+expect_true : Bool, Str -> Try({}, [FailedExpectation(Str)])
+expect_true = |condition, message|
+    if condition { Ok({}) } else { Err(FailedExpectation(message)) }
+
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

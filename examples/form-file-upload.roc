@@ -3,20 +3,28 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import pf.MultipartFormData
 import http.Response
 
 # To run this example: check the root README.md
 
-program = { init!, respond! }
-
 Model : {}
+Action : {}
+Result : {}
 
-init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+program = { init!, transition, respond!, shutdown! }
 
-upload_form : Http.Response
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! = || {
+    config = {
+        ..Server.default_config,
+        request_bodies: { ..Server.default_config.request_bodies, max_bytes: 10 * 1024 * 1024 },
+    }
+    Ok({ config, model: {} })
+}
+
+upload_form : Response.Response
 upload_form =
     Response.from_status(200)
     .with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
@@ -39,12 +47,14 @@ upload_form =
         ),
     )
 
-display_uploaded_image! : Http.Request => Try(Http.Response, [ServerErr(Str), ..])
+display_uploaded_image! : Server.Request => Try(Response.Response, [ServerErr(Str), ..])
 display_uploaded_image! = |req| {
+    body = req.body().with_limit(10 * 1024 * 1024).read_all!()
+        ? |err| ServerErr("Failed to read multipart form-data: ${Str.inspect(err)}")
     parts =
         MultipartFormData.parse_multipart_form_data({
             headers: req.headers(),
-            body: req.body(),
+            body,
         })
         ? |err| ServerErr("Failed to parse multipart form-data: ${Str.inspect(err)}")
 
@@ -88,13 +98,18 @@ display_uploaded_image! = |req| {
     }
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |req, _|
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, _state|
     match req.method() {
-        GET => Ok(upload_form)
-        POST => display_uploaded_image!(req)
-        _ => Ok(Response.from_status(405))
+        GET => Ok(Server.respond(upload_form))
+        POST => Ok(Server.respond(display_uploaded_image!(req)?))
+        _ => Ok(Server.respond(Response.from_status(405)))
     }
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})
 
 base64_encode : List(U8) -> Str
 base64_encode = |bytes|

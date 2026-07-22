@@ -1,13 +1,19 @@
 import IOErr exposing [IOErr]
 import InternalHttp
 import InternalSqlite
+import OsStr
 
 Host := [].{
+    RawEnvVar : {
+        name : OsStr.Raw,
+        value : OsStr.Raw,
+    }
+
     Cmd : {
-        args : List(Str),
+        args : List(OsStr.Raw),
         clear_envs : Bool,
-        envs : List(Str),
-        program : Str,
+        envs : List(RawEnvVar),
+        program : OsStr.Raw,
     }
 
     CmdOutputSuccess : {
@@ -33,11 +39,6 @@ Host := [].{
         windows_u16s : List(U16),
     }
 
-    EnvVar : {
-        key : Str,
-        value : Str,
-    }
-
     Platform : {
         arch : Str,
         os : Str,
@@ -49,8 +50,19 @@ Host := [].{
 
     TcpStream :: Box(U64)
 
+    RequestBodyRead : [Chunk(List(U8)), End]
+
+    RequestBodyErr : [
+        TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+        ClientDisconnected,
+        InvalidBody(Str),
+        RequestFinished,
+        ConcurrentRead,
+        Cancelled,
+    ]
+
     cmd_exec_exit_code! : Cmd => Try(I32, IOErr)
-    cmd_exec_output! : Cmd => Try(CmdOutputSuccess, Try(CmdOutputFailure, IOErr))
+    cmd_exec_output! : Cmd => Try(CmdOutputSuccess, [NonZeroExitCode(CmdOutputFailure), FailedToGetExitCode(IOErr)])
 
     dir_create! : RawPath => Try({}, [DirErr(IOErr)])
     dir_create_all! : RawPath => Try({}, [DirErr(IOErr)])
@@ -58,7 +70,7 @@ Host := [].{
     dir_delete_all! : RawPath => Try({}, [DirErr(IOErr)])
     dir_list! : RawPath => Try(List(RawPath), [DirErr(IOErr)])
 
-    env_var! : Str => Try(Str, [VarNotFound(Str)])
+    env_var! : OsStr.Raw => Try(OsStr.Raw, [VarNotFound(OsStr.Raw), EnvErr(IOErr)])
     env_is_windows! : Str => Bool
     env_cwd_unix! : Str => Try(List(U8), [EnvErr(IOErr)])
     env_cwd_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
@@ -66,7 +78,7 @@ Host := [].{
     env_exe_path_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
     env_temp_dir! : Str => RawPath
     env_set_cwd! : RawPath => Try({}, [EnvErr(IOErr)])
-    env_dict! : Str => List(EnvVar)
+    env_dict! : () => List(RawEnvVar)
     env_current_arch_os! : Str => Platform
 
     file_read_bytes! : RawPath => Try(List(U8), [FileErr(IOErr)])
@@ -86,7 +98,12 @@ Host := [].{
     file_time_modified! : RawPath => Try(U128, [FileErr(IOErr)])
     file_time_created! : RawPath => Try(U128, [FileErr(IOErr)])
 
-    http_send_request! : InternalHttp.RequestToAndFromHost => InternalHttp.ResponseToAndFromHost
+    http_send_request! : InternalHttp.OutboundRequestToHost => Try(InternalHttp.OutboundResponseFromHost, InternalHttp.SendErr)
+
+    request_body_read! : U64, U64 => Try(RequestBodyRead, RequestBodyErr)
+    request_body_read_all! : U64, U64 => Try(List(U8), RequestBodyErr)
+
+    state_apply! : Box(a) => Try(Box(b), [ServerStopping])
 
     path_type! : RawPath => Try(PathType, IOErr)
 

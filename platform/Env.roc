@@ -1,105 +1,113 @@
 import Host
 import InternalPath
+import IOErr exposing [IOErr]
+import OsStr exposing [OsStr]
 import Path exposing [Path]
 
+## Read process environment data without losing native operating-system strings.
 Env := [].{
-    ARCH : [X86, X64, ARM, AARCH64, OTHER(Str)]
-    OS : [LINUX, MACOS, WINDOWS, OTHER(Str)]
+	ARCH : [X86, X64, ARM, AARCH64, OTHER(Str)]
+	OS : [LINUX, MACOS, WINDOWS, OTHER(Str)]
 
-    ## Reads the given environment variable.
-    ##
-    ## If the value is invalid Unicode, the invalid parts will be replaced with the
-    ## [Unicode replacement character](https://unicode.org/glossary/#replacement_character).
-    ##
-    ## Returns `Err(VarNotFound(name))` if the variable is not set.
-    var! : Str => Try(Str, [VarNotFound(Str), ..])
-    var! = |name|
-        match Host.env_var!(name) {
-            Ok(value) => Ok(value)
-            Err(VarNotFound(missing_name)) => Err(VarNotFound(missing_name))
-        }
+	## Read an environment variable using an exact native name and value.
+	var! : OsStr => Try(OsStr, [VarNotFound(OsStr), EnvErr(IOErr), ..])
+	var! = |name|
+		match Host.env_var!(OsStr.to_raw(name)) {
+			Ok(raw) => Ok(OsStr.from_raw(raw))
+			Err(VarNotFound(raw_name)) => Err(VarNotFound(OsStr.from_raw(raw_name)))
+			Err(EnvErr(err)) => Err(EnvErr(err))
+		}
 
-    ## Reads the [current working directory](https://en.wikipedia.org/wiki/Working_directory)
-    ## from the environment.
-    ##
-    ## Returns `Err(CwdUnavailable)` if the cwd cannot be determined.
-    cwd! : () => Try(Path, [CwdUnavailable, ..])
-    cwd! = || {
-        if Host.env_is_windows!("") {
-            match Host.env_cwd_windows!("") {
-                Ok(u16s) => Ok(Path.windows_u16s(u16s))
-                Err(_) => Err(CwdUnavailable)
-            }
-        } else {
-            match Host.env_cwd_unix!("") {
-                Ok(bytes) => Ok(Path.unix_bytes(bytes))
-                Err(_) => Err(CwdUnavailable)
-            }
-        }
-    }
+	## Read an environment variable whose value must be valid Unicode text.
+	## The name remains native-safe; quoted names work through OsStr.from_quote.
+	var_str! : OsStr => Try(Str, [VarNotFound(OsStr), EnvErr(IOErr), InvalidStr(U64), ..])
+	var_str! = |name|
+		match var!(name) {
+			Ok(value) =>
+				match OsStr.to_str_try(value) {
+					Ok(str) => Ok(str)
+					Err(InvalidStr(index)) => Err(InvalidStr(index))
+				}
+			Err(VarNotFound(raw_name)) => Err(VarNotFound(raw_name))
+			Err(EnvErr(err)) => Err(EnvErr(err))
+		}
 
-    ## Sets the current working directory in the environment. After changing it,
-    ## relative file operations resolve from the new directory.
-    set_cwd! : Path => Try({}, [InvalidCwd, ..])
-    set_cwd! = |path|
-        match Host.env_set_cwd!(InternalPath.to_host_raw!(path)) {
-            Ok(done) => Ok(done)
-            Err(_) => Err(InvalidCwd)
-        }
+	## Read the process current working directory as a byte-preserving Path.
+	cwd! : () => Try(Path, [CwdUnavailable, ..])
+	cwd! = || {
+		if Host.env_is_windows!("") {
+			match Host.env_cwd_windows!("") {
+				Ok(u16s) => Ok(Path.windows_u16s(u16s))
+				Err(_) => Err(CwdUnavailable)
+			}
+		} else {
+			match Host.env_cwd_unix!("") {
+				Ok(bytes) => Ok(Path.unix_bytes(bytes))
+				Err(_) => Err(CwdUnavailable)
+			}
+		}
+	}
 
-    ## Gets the path to the currently-running executable.
-    ##
-    ## Returns `Err(ExePathUnavailable)` if the path cannot be determined.
-    exe_path! : () => Try(Path, [ExePathUnavailable, ..])
-    exe_path! = || {
-        if Host.env_is_windows!("") {
-            match Host.env_exe_path_windows!("") {
-                Ok(u16s) => Ok(Path.windows_u16s(u16s))
-                Err(_) => Err(ExePathUnavailable)
-            }
-        } else {
-            match Host.env_exe_path_unix!("") {
-                Ok(bytes) => Ok(Path.unix_bytes(bytes))
-                Err(_) => Err(ExePathUnavailable)
-            }
-        }
-    }
+	## Change the process current working directory.
+	set_cwd! : Path => Try({}, [InvalidCwd(IOErr), ..])
+	set_cwd! = |path|
+		match Host.env_set_cwd!(InternalPath.to_host_raw!(path)) {
+			Ok(done) => Ok(done)
+			Err(EnvErr(err)) => Err(InvalidCwd(err))
+		}
 
-    ## Gets the default directory for temporary files.
-    temp_dir! : () => Path
-    temp_dir! = || InternalPath.from_host_raw(Host.env_temp_dir!(""))
+	## Return the path to the currently running executable.
+	exe_path! : () => Try(Path, [ExePathUnavailable, ..])
+	exe_path! = || {
+		if Host.env_is_windows!("") {
+			match Host.env_exe_path_windows!("") {
+				Ok(u16s) => Ok(Path.windows_u16s(u16s))
+				Err(_) => Err(ExePathUnavailable)
+			}
+		} else {
+			match Host.env_exe_path_unix!("") {
+				Ok(bytes) => Ok(Path.unix_bytes(bytes))
+				Err(_) => Err(ExePathUnavailable)
+			}
+		}
+	}
 
-    ## Reads all process environment variables into a Dict.
-    dict! : () => Dict(Str, Str)
-    dict! = ||
-        List.fold(
-            Host.env_dict!(""),
-            Dict.empty(),
-            |dict, { key, value }| Dict.insert(dict, key, value),
-        )
+	## Return the platform's default temporary directory.
+	temp_dir! : () => Path
+	temp_dir! = || InternalPath.from_host_raw(Host.env_temp_dir!(""))
 
-    ## Returns the current architecture and operating system.
-    platform! : () => { arch : ARCH, os : OS }
-    platform! = || {
-        from_host = Host.env_current_arch_os!("")
+	## Return all environment variables as exact native `{ name, value }` records.
+	## Iteration order is unspecified. A list avoids imposing Unix equality on
+	## Windows, where environment variable names are case-insensitive.
+	dict! : () => List({ name : OsStr, value : OsStr })
+	dict! = ||
+		Host.env_dict!().map(|variable| {
+			name: OsStr.from_raw(variable.name),
+			value: OsStr.from_raw(variable.value),
+		})
 
-        arch =
-            match from_host.arch {
-                "x86" => X86
-                "x86_64" => X64
-                "arm" => ARM
-                "aarch64" => AARCH64
-                other => OTHER(other)
-            }
+	## Return the architecture and operating system for this host build.
+	platform! : () => { arch : ARCH, os : OS }
+	platform! = || {
+		from_host = Host.env_current_arch_os!("")
 
-        os =
-            match from_host.os {
-                "linux" => LINUX
-                "macos" => MACOS
-                "windows" => WINDOWS
-                other => OTHER(other)
-            }
+		arch =
+			match from_host.arch {
+				"x86" => X86
+				"x86_64" => X64
+				"arm" => ARM
+				"aarch64" => AARCH64
+				other => OTHER(other)
+			}
 
-        { arch, os }
-    }
+		os =
+			match from_host.os {
+				"linux" => LINUX
+				"macos" => MACOS
+				"windows" => WINDOWS
+				other => OTHER(other)
+			}
+
+		{ arch, os }
+	}
 }

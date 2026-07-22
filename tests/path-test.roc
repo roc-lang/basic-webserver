@@ -7,14 +7,16 @@ import pf.Stdout
 import pf.Stderr
 import pf.Path
 import pf.Cmd
-import pf.Http
+import pf.Server
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -165,7 +167,7 @@ test_directory_operations! = || {
 
 get_hard_link_count! : Str => Try(Str, _)
 get_hard_link_count! = |path_str| {
-    ls_l = Cmd.new("ls").args(["-l", path_str]).exec_output!()?
+    ls_l = Cmd.new("ls").args_str(["-l", path_str]).exec_output!()?
     fields = Str.split_on(ls_l.stdout_utf8, " ").drop_if(|field| Str.is_empty(field))
     match List.get(fields, 1) {
         Ok(count) => Ok(count)
@@ -385,13 +387,18 @@ cleanup! = || {
         Path.delete_all!(path) ?? {}
     }
 
-    ls_after_cleanup_res = Cmd.new("ls").args(test_paths).exec_output!()
+    ls_after_cleanup_res = Cmd.new("ls").args_str(test_paths).exec_output!()
     Stdout.line!("Files deleted successfully: ${bool_to_str(Try.is_err(ls_after_cleanup_res))}")
 }
 
 bool_to_str : Bool -> Str
 bool_to_str = |value| if value { "Bool.true" } else { "Bool.false" }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_request, _model|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

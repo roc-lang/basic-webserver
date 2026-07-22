@@ -1,33 +1,52 @@
 use core::mem::ManuallyDrop;
 use std::env as std_env;
+use std::ffi::OsString;
 
 use crate::abi::{
     io_err_from_io, roc_host, EnvUnitResult, EnvUnitResultPayload, EnvUnitResultTag,
-    EnvUnixPathResult, EnvUnixPathResultPayload, EnvUnixPathResultTag, EnvVarResult,
-    EnvVarResultPayload, EnvVarResultTag, EnvWindowsPathResult, EnvWindowsPathResultPayload,
-    EnvWindowsPathResultTag, RawPath,
+    EnvUnixPathResult, EnvUnixPathResultPayload, EnvUnixPathResultTag, EnvWindowsPathResult,
+    EnvWindowsPathResultPayload, EnvWindowsPathResultTag, RawPath,
 };
+use crate::os_str::{os_string_from_raw, raw_os_str_from_os_str, validate_env_key, RawOsStr};
 use crate::path::{
     path_buf_from_raw_path, raw_path_from_path_buf, unix_bytes_from_path_buf,
     windows_u16s_from_path_buf,
 };
 use crate::roc_platform_abi::*;
 
-fn try_env_str_ok(value: RocStr) -> EnvVarResult {
-    EnvVarResult {
-        payload: EnvVarResultPayload {
+fn try_env_var_ok(value: RawOsStr) -> HostEnvVarResult {
+    HostEnvVarResult {
+        payload: HostEnvVarResultPayload {
             ok: ManuallyDrop::new(value),
         },
-        tag: EnvVarResultTag::Ok,
+        tag: HostEnvVarResultTag::Ok,
     }
 }
 
-fn try_env_str_err(error: RocStr) -> EnvVarResult {
-    EnvVarResult {
-        payload: EnvVarResultPayload {
+fn try_env_var_err(error: EnvErrOrVarNotFound) -> HostEnvVarResult {
+    HostEnvVarResult {
+        payload: HostEnvVarResultPayload {
             err: ManuallyDrop::new(error),
         },
-        tag: EnvVarResultTag::Err,
+        tag: HostEnvVarResultTag::Err,
+    }
+}
+
+fn env_var_not_found(name: RawOsStr) -> EnvErrOrVarNotFound {
+    EnvErrOrVarNotFound {
+        payload: EnvErrOrVarNotFoundPayload {
+            var_not_found: ManuallyDrop::new(name),
+        },
+        tag: EnvErrOrVarNotFoundTag::VarNotFound,
+    }
+}
+
+fn env_var_env_err(error: IOErr) -> EnvErrOrVarNotFound {
+    EnvErrOrVarNotFound {
+        payload: EnvErrOrVarNotFoundPayload {
+            env_err: ManuallyDrop::new(error),
+        },
+        tag: EnvErrOrVarNotFoundTag::EnvErr,
     }
 }
 
@@ -144,15 +163,25 @@ pub extern "C" fn hosted_env_temp_dir(dummy: RocStr) -> RawPath {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_var(name: RocStr) -> EnvVarResult {
+pub extern "C" fn hosted_env_var(name: RawOsStr) -> HostEnvVarResult {
     let roc_host = roc_host();
-    let key = name.as_str().to_owned();
-    match std_env::var_os(&key) {
-        Some(value) => {
-            unsafe { name.decref(roc_host) };
-            try_env_str_ok(RocStr::from_str(value.to_string_lossy().as_ref(), roc_host))
+    let key = match os_string_from_raw(name, roc_host) {
+        Ok(key) => key,
+        Err(error) => {
+            return try_env_var_err(env_var_env_err(io_err_from_io(&error, roc_host)));
         }
-        None => try_env_str_err(name),
+    };
+
+    if let Err(error) = validate_env_key(key.as_os_str()) {
+        return try_env_var_err(env_var_env_err(io_err_from_io(&error, roc_host)));
+    }
+
+    match std_env::var_os(&key) {
+        Some(value) => try_env_var_ok(raw_os_str_from_os_str(value.as_os_str(), roc_host)),
+        None => try_env_var_err(env_var_not_found(raw_os_str_from_os_str(
+            key.as_os_str(),
+            roc_host,
+        ))),
     }
 }
 
@@ -170,26 +199,17 @@ pub extern "C" fn hosted_env_set_cwd(path: HostEnvSetCwdArgs) -> EnvUnitResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_env_dict(dummy: RocStr) -> RocList<HostEnvDict> {
+pub extern "C" fn hosted_env_dict() -> RocList<HostEnvDict> {
     let roc_host = roc_host();
-    unsafe { dummy.decref(roc_host) };
-
-    let pairs: Vec<(String, String)> = std_env::vars_os()
-        .map(|(key, value)| {
-            (
-                key.to_string_lossy().into_owned(),
-                value.to_string_lossy().into_owned(),
-            )
-        })
-        .collect();
+    let pairs: Vec<(OsString, OsString)> = std_env::vars_os().collect();
 
     // SAFETY: every allocated element is initialized below before return.
     let list = unsafe { RocList::<HostEnvDict>::allocate(pairs.len(), roc_host) };
-    for (index, (key, value)) in pairs.into_iter().enumerate() {
+    for (index, (key, value)) in pairs.iter().enumerate() {
         unsafe {
             list.elements.add(index).write(HostEnvDict {
-                key: RocStr::from_str(&key, roc_host),
-                value: RocStr::from_str(&value, roc_host),
+                name: raw_os_str_from_os_str(key.as_os_str(), roc_host),
+                value: raw_os_str_from_os_str(value.as_os_str(), roc_host),
             });
         }
     }

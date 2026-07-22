@@ -1,377 +1,119 @@
-import InternalHttp
 import Host
-import http.Header
-import http.Method
+import InternalHttp
+import Url
 import http.Request
 import http.Response
 
-## A module for working with both inbound HTTP requests/responses in a webserver
-## and outbound HTTP requests (`send!`/`get_utf8!`/`get!`).
+## Send requests using the shared
+## [`roc-lang/http`](https://github.com/roc-lang/http) `Request` and `Response`
+## types. This module supplies effects and small JSON/UTF-8 conveniences while
+## leaving pure request and response construction to that package.
+##
+## See the [host runtime behavior](https://github.com/roc-lang/basic-webserver#host-runtime-behavior)
+## for HTTP protocol, TLS trust-store, and timeout details.
 Http :: [].{
-    ## Represents an HTTP method: `[OPTIONS, GET, POST, PUT, DELETE, HEAD, TRACE, CONNECT, PATCH, QUERY, Unknown(Str)]`.
-    Method : Method.Method
 
-    ## Represents an HTTP header e.g. `Content-Type: application/json`.
-    Header : Header.Header
+	## Errors raised by the host while sending a request, before a real HTTP
+	## response is available.
+	TransportErr : InternalHttp.TransportErr
 
-    ## Represents an HTTP request.
-    Request : Request.Request
+	## Validate and send an HTTP request.
+	##
+	## The request URI must be an absolute HTTP or HTTPS URL accepted by Url.
+	## Invalid URLs return InvalidUrl before any host effect occurs. Fragments
+	## are removed because they are client-side identifiers and are not sent.
+	##
+	## ```roc
+	## request = Request.from_method(GET).with_uri("https://www.roc-lang.org")
+	## response = Http.send!(request)?
+	## ```
+	send! : Request => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send! = |request| {
+		url = Url.parse(Request.uri(request)) ? InvalidUrl
+		canonical_url = Url.without_fragment(url)
+		canonical_request = request.with_uri(Url.to_str(canonical_url))
 
-    ## Represents an HTTP response.
-    Response : Response.Response
+		send_validated!(canonical_request)
+	}
 
-    ## A JSON value wrapper for types the current compiler cannot yet derive
-    ## `encode_to` for structurally.
-    JsonValue :: [
-        Null,
-        Boolean(Bool),
-        String(Str),
-        Unsigned(U64),
-        Signed(I64),
-        Array(List(JsonValue)),
-        Object(List({ name : Str, value : JsonValue })),
-    ].{
-        null : JsonValue
-        null = Null
+	## Encode a value as JSON and set it as the request body.
+	##
+	## This uses Roc's builtin JSON encoder, so the value's type determines the
+	## encoder through static dispatch.
+	with_json_body : Request, _ => Try(Request, [JsonErr(_), ..])
+	with_json_body = |request, value| {
+		body = Json.to_str_try(value) ? JsonErr
 
-        bool : Bool -> JsonValue
-        bool = |value| Boolean(value)
+		Ok(
+			request
+				.add_header("Content-Type", "application/json")
+				.with_body(Str.to_utf8(body)),
+		)
+	}
 
-        str : Str -> JsonValue
-        str = |value| String(value)
+	## Encode a value as JSON, attach it to the request body, and send it.
+	send_json! : Request, _ => Try(Response, [JsonErr(_), InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send_json! = |request, value| {
+		json_request = with_json_body(request, value)?
 
-        u64 : U64 -> JsonValue
-        u64 = |value| Unsigned(value)
+		send!(json_request)
+	}
 
-        i64 : I64 -> JsonValue
-        i64 = |value| Signed(value)
+	## Perform an HTTP GET and decode the response body as a UTF-8 `Str`.
+	##
+	## The argument is a validated Url. Quoted literals work through
+	## Url.from_quote; dynamic strings should be passed through Url.parse.
+	##
+	## ```roc
+	## hello_str = Http.get_utf8!("http://localhost:8000")?
+	## ```
+	get_utf8! : Url.Url => Try(Str, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	get_utf8! = |url| {
+		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)))?
+		body = Str.from_utf8(Response.body(response)) ? |_| BadBody("get_utf8!: response body was not valid UTF-8")
 
-        list : List(JsonValue) -> JsonValue
-        list = |values| Array(values)
+		Ok(body)
+	}
 
-        object : List({ name : Str, value : JsonValue }) -> JsonValue
-        object = |fields| Object(fields)
+	## Decode a response body as JSON.
+	##
+	## This uses Roc's builtin JSON parser, so the expected result type
+	## determines the parser through static dispatch.
+	decode_json_response : Response => Try(_, [BadBody(Str), JsonErr(_), ..])
+	decode_json_response = |response| {
+		body = Str.from_utf8(Response.body(response)) ? |_| BadBody("decode_json_response: response body was not valid UTF-8")
+		decoded = Json.parse(body) ? JsonErr
 
-        field : Str, JsonValue -> { name : Str, value : JsonValue }
-        field = |name, value| { name, value }
+		Ok(decoded)
+	}
 
-        encode_to : JsonValue, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, []))
-        encode_to = |value, _format| |state| encode_json_value(value, state)
-    }
+	## Perform an HTTP GET and decode the response body as JSON.
+	##
+	## The argument is a validated Url. JSON parser failures are returned as
+	## JsonErr(_).
+	##
+	## ```roc
+	## payload : Try({ foo : Str }, _)
+	## payload = Http.get!("http://localhost:8000")
+	## ```
+	get! : Url.Url => Try(_, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), JsonErr(_), ..])
+	get! = |url| {
+		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)))?
 
-    ## Send an HTTP request, succeeding with a [Response] or failing with an
-    ## `HttpErr`.
-    ##
-    ## ```roc
-    ## request = Request.from_method(GET) |> Request.with_uri("https://www.roc-lang.org")
-    ## response = Http.send!(request)?
-    ## ```
-    send! : Request => Try(Response, [HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), ..])
-    send! = |request| {
-        host_request = InternalHttp.to_host_request(request)
-        host_response = Host.http_send_request!(host_request)
-
-        # The host signals transport failures with these reserved status+body
-        # sentinels (produced in src/lib.rs); everything else is a real response.
-        other_error_prefix = Str.to_utf8("OTHER ERROR\n")
-
-        if host_response.status == 408 and host_response.body == Str.to_utf8("Timeout") {
-            Err(HttpErr(Timeout))
-        } else if host_response.status == 500 and host_response.body == Str.to_utf8("NetworkError") {
-            Err(HttpErr(NetworkError))
-        } else if host_response.status == 500 and host_response.body == Str.to_utf8("BadBody") {
-            Err(HttpErr(BadBody))
-        } else if host_response.status == 500 and List.starts_with(host_response.body, other_error_prefix) {
-            Err(HttpErr(Other(List.drop_first(host_response.body, other_error_prefix.len()))))
-        } else {
-            Ok(InternalHttp.from_host_response(host_response))
-        }
-    }
-
-    ## Perform an HTTP GET and decode the response body as a UTF-8 `Str`.
-    ##
-    ## ```roc
-    ## hello_str = Http.get_utf8!("http://localhost:8000")?
-    ## ```
-    get_utf8! : Str => Try(Str, [BadBody(Str), HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), ..])
-    get_utf8! = |uri|
-        match send!(Request.with_uri(Request.from_method(GET), uri)) {
-            Err(HttpErr(err)) => Err(HttpErr(err))
-            Ok(resp) =>
-                match Str.from_utf8(Response.body(resp)) {
-                    Ok(str) => Ok(str)
-                    Err(_) => Err(BadBody("get_utf8!: response body was not valid UTF-8"))
-                }
-        }
-
-    ## Perform an HTTP GET and decode the response body as JSON.
-    ##
-    ## JSON parser failures are returned as `JsonErr(_)`.
-    ##
-    ## ```roc
-    ## payload : Try({ foo : Str }, _)
-    ## payload = Http.get!("http://localhost:8000")
-    ## ```
-    get! : Str => Try(_, [BadBody(Str), HttpErr([Timeout, NetworkError, BadBody, Other(List(U8))]), JsonErr(_), ..])
-    get! = |uri| {
-        body = get_utf8!(uri)?
-        decoded = Json.parse(body) ? JsonErr
-
-        Ok(decoded)
-    }
-
-    ## Decode a request body as a UTF-8 `Str`.
-    body_utf8 : Request -> Try(Str, [BadBody(Str), ..])
-    body_utf8 = |request|
-        match Str.from_utf8(Request.body(request)) {
-            Ok(str) => Ok(str)
-            Err(_) => Err(BadBody("body_utf8: request body was not valid UTF-8"))
-        }
-
-    ## Decode a request body as JSON.
-    body_json : Request -> Try(_, [BadBody(Str), JsonErr(_), ..])
-    body_json = |request| {
-        body = body_utf8(request)?
-        decoded = Json.parse(body) ? JsonErr
-
-        Ok(decoded)
-    }
-
-    ## Encode a Roc value as UTF-8 JSON bytes.
-    ##
-    ## The current compiler-derived `encode_to` support covers records, empty
-    ## records, `Str`, `U64`, aliases around those shapes, and custom nominal
-    ## types that define `encode_to`.
-    json_bytes : value -> List(U8)
-        where [
-            value.encode_to : value, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, [])),
-        ]
-    json_bytes = |value| Str.to_utf8(encode_json_string(value))
-
-    ## Encode a Roc value as a 200 JSON [Response].
-    json_response : value -> Response
-        where [
-            value.encode_to : value, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, [])),
-        ]
-    json_response = |value| json_response_with_status(200, value)
-
-    ## Encode a Roc value as a JSON [Response] with the given status code.
-    json_response_with_status : U16, value -> Response
-        where [
-            value.encode_to : value, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, [])),
-        ]
-    json_response_with_status = |status, value| {
-        response = Response.from_status(status)
-        response_with_headers =
-            Response.with_headers(
-                response,
-                [{ name: "Content-Type", value: "application/json; charset=utf-8" }],
-            )
-        Response.with_body(response_with_headers, json_bytes(value))
-    }
+		decode_json_response(response)
+	}
 }
 
-## `body_json` decodes a typed JSON request body.
-expect {
-    request =
-        Request.from_method(POST)
-            .with_body(Str.to_utf8("{\"foo\":\"bar\",\"count\":7}"))
+# Send a request whose URI was constructed from a validated Url. Keeping this
+# private prevents get!/get_utf8! from exposing an impossible InvalidUrl error.
+send_validated! : Request.Request => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
+send_validated! = |request| {
+	host_response =
+		match Host.http_send_request!(InternalHttp.to_host_request(request)) {
+			Ok(response) => response
+			Err(InvalidRequest(detail)) => return Err(InvalidRequest(detail))
+			Err(Transport(err)) => return Err(HttpErr(err))
+		}
 
-    decoded : { foo : Str, count : U64 }
-    decoded = Http.body_json(request)?
-
-    decoded == { foo: "bar", count: 7 }
+	Ok(InternalHttp.from_host_response(host_response))
 }
-
-## `body_json` reports JSON parser failures.
-expect {
-    request =
-        Request.from_method(POST)
-            .with_body(Str.to_utf8("{"))
-
-    result : Try({ foo : Str }, _)
-    result = Http.body_json(request)
-
-    match result {
-        Err(JsonErr(_)) => Bool.True
-        _ => Bool.False
-    }
-}
-
-InternalJsonOutput : {
-    output : Str,
-    field_counts : List(U64),
-}
-
-InternalJsonFormat := [Default].{
-    rename_field : InternalJsonFormat, Str -> Str
-    rename_field = |_, name| name
-
-    begin_record : InternalJsonOutput -> Try(InternalJsonOutput, [])
-    begin_record = |state|
-        Ok(
-            {
-                output: Str.concat(state.output, "{"),
-                field_counts: List.append(state.field_counts, 0),
-            },
-        )
-
-    encode_record_field : Str, InternalJsonOutput -> Try(InternalJsonOutput, [])
-    encode_record_field = |name, state| {
-        count = current_field_count(state.field_counts)
-        prefix = if count == 0 { "" } else { "," }
-
-        Ok(
-            {
-                output: Str.concat(
-                    state.output,
-                    Str.concat(prefix, Str.concat(quote_json_string(name), ":")),
-                ),
-                field_counts: List.append(List.drop_last(state.field_counts, 1), count + 1),
-            },
-        )
-    }
-
-    end_record : InternalJsonOutput -> Try(InternalJsonOutput, [])
-    end_record = |state|
-        Ok(
-            {
-                output: Str.concat(state.output, "}"),
-                field_counts: List.drop_last(state.field_counts, 1),
-            },
-        )
-
-    encode_str : Str, InternalJsonOutput -> Try(InternalJsonOutput, [])
-    encode_str = |value, state|
-        Ok({ ..state, output: Str.concat(state.output, quote_json_string(value)) })
-
-    encode_u64 : U64, InternalJsonOutput -> Try(InternalJsonOutput, [])
-    encode_u64 = |value, state|
-        Ok({ ..state, output: Str.concat(state.output, U64.to_str(value)) })
-}
-
-encode_json_string : value -> Str
-    where [
-        value.encode_to : value, InternalJsonFormat -> (InternalJsonOutput -> Try(InternalJsonOutput, [])),
-    ]
-encode_json_string = |value| {
-    encode_value = value.encode_to(InternalJsonFormat.Default)
-    match encode_value({ output: "", field_counts: [] }) {
-        Ok(final) => final.output
-    }
-}
-
-encode_json_value : Http.JsonValue, InternalJsonOutput -> Try(InternalJsonOutput, [])
-encode_json_value = |value, state|
-    match value {
-        Http.JsonValue.Null => Ok(append_json("null", state))
-        Http.JsonValue.Boolean(bool) => Ok(append_json(if bool { "true" } else { "false" }, state))
-        Http.JsonValue.String(str) => Ok(append_json(quote_json_string(str), state))
-        Http.JsonValue.Unsigned(num) => Ok(append_json(U64.to_str(num), state))
-        Http.JsonValue.Signed(num) => Ok(append_json(I64.to_str(num), state))
-        Http.JsonValue.Array(values) => encode_json_array(values, state)
-        Http.JsonValue.Object(fields) => encode_json_object(fields, state)
-    }
-
-encode_json_array : List(Http.JsonValue), InternalJsonOutput -> Try(InternalJsonOutput, [])
-encode_json_array = |values, state| {
-    initial = append_json("[", state)
-    after_values = encode_json_array_items(values, initial, 0)?
-    Ok(append_json("]", after_values))
-}
-
-encode_json_array_items : List(Http.JsonValue), InternalJsonOutput, U64 -> Try(InternalJsonOutput, [])
-encode_json_array_items = |values, state, index| {
-    if index >= values.len() {
-        Ok(state)
-    } else {
-        match List.get(values, index) {
-            Ok(value) => {
-                with_prefix = if index == 0 { state } else { append_json(",", state) }
-                after_value = encode_json_value(value, with_prefix)?
-                encode_json_array_items(values, after_value, index + 1)
-            }
-            Err(_) => Ok(state)
-        }
-    }
-}
-
-encode_json_object : List({ name : Str, value : Http.JsonValue }), InternalJsonOutput -> Try(InternalJsonOutput, [])
-encode_json_object = |fields, state| {
-    initial = append_json("{", state)
-    after_fields = encode_json_object_fields(fields, initial, 0)?
-    Ok(append_json("}", after_fields))
-}
-
-encode_json_object_fields : List({ name : Str, value : Http.JsonValue }), InternalJsonOutput, U64 -> Try(InternalJsonOutput, [])
-encode_json_object_fields = |fields, state, index| {
-    if index >= fields.len() {
-        Ok(state)
-    } else {
-        match List.get(fields, index) {
-            Ok(field) => {
-                prefix = if index == 0 { "" } else { "," }
-                with_name = append_json(Str.concat(prefix, Str.concat(quote_json_string(field.name), ":")), state)
-                after_value = encode_json_value(field.value, with_name)?
-                encode_json_object_fields(fields, after_value, index + 1)
-            }
-            Err(_) => Ok(state)
-        }
-    }
-}
-
-append_json : Str, InternalJsonOutput -> InternalJsonOutput
-append_json = |chunk, state| { ..state, output: Str.concat(state.output, chunk) }
-
-current_field_count : List(U64) -> U64
-current_field_count = |counts|
-    match List.last(counts) {
-        Ok(count) => count
-        Err(_) => 0
-    }
-
-quote_json_string : Str -> Str
-quote_json_string = |value| Str.concat(Str.concat("\"", escape_json_string(value)), "\"")
-
-escape_json_string : Str -> Str
-escape_json_string = |value| {
-    escaped_bytes =
-        List.fold(
-            Str.to_utf8(value),
-            [],
-            |bytes, byte| {
-                if byte == 34 {
-                    List.concat(bytes, [92, 34])
-                } else if byte == 92 {
-                    List.concat(bytes, [92, 92])
-                } else if byte == 8 {
-                    List.concat(bytes, [92, 98])
-                } else if byte == 12 {
-                    List.concat(bytes, [92, 102])
-                } else if byte == 10 {
-                    List.concat(bytes, [92, 110])
-                } else if byte == 13 {
-                    List.concat(bytes, [92, 114])
-                } else if byte == 9 {
-                    List.concat(bytes, [92, 116])
-                } else if byte < 32 {
-                    List.concat(bytes, [92, 117, 48, 48, hex_digit(byte / 16), hex_digit(byte % 16)])
-                } else {
-                    List.append(bytes, byte)
-                }
-            },
-        )
-
-    match Str.from_utf8(escaped_bytes) {
-        Ok(str) => str
-        Err(_) => ""
-    }
-}
-
-hex_digit : U8 -> U8
-hex_digit = |n|
-    if n < 10 {
-        n + 48
-    } else {
-        n + 55
-    }

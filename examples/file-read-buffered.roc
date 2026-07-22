@@ -5,35 +5,45 @@ app [Model, program] {
 
 import pf.File
 import pf.Path
-import pf.Http
+import pf.Server
 import http.Response
 
 # To run this example: check the root README.md
 
 Model : ReadSummary
+Action : [GetSummary]
+Result : [Summary(ReadSummary)]
 
 ReadSummary : {
     lines_read : U64,
     bytes_read : U64,
 }
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = || {
     reader = File.open_reader!(Path.utf8("LICENSE")) ? |_| Exit(1)
     summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |_| Exit(1)
 
-    Ok(summary)
+    Ok({ config: Server.default_config, model: summary })
 }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, model|
+transition : Action, Model -> { model : Model, result : Result }
+transition = |GetSummary, model| { model, result: Summary(model) }
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, state| {
+    Summary(model) = state.apply!(GetSummary) ? |_| ServerErr("Server is stopping")
     Ok(
-        Response.from_status(200).with_body(
+        Server.respond(Response.from_status(200).with_body(
             Str.to_utf8("{bytes_read: ${model.bytes_read.to_str()}, lines_read: ${model.lines_read.to_str()}}"),
-        ),
+        )),
     )
+}
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})
 
 ## Count the number of lines and bytes read.
 process_line! : File.Reader, ReadSummary => Try(ReadSummary, _)

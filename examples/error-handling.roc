@@ -6,16 +6,21 @@ app [Model, program] {
 
 import pf.Stdout
 import pf.Http
+import pf.OsStr
+import pf.Server
+import pf.Url
 import pf.Env
 import pf.Utc
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, model: {} })
 
 AppError : [
     EnvVarNotSet(Str),
@@ -24,10 +29,12 @@ AppError : [
 ]
 
 # Here we use AppError to ensure all errors must be handled within our application.
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |req, _|
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, _state|
     match handle_req!(req) {
-        Ok(response) => Ok(response)
+        Ok(response) => Ok(Server.respond(response))
         Err(app_err) => Err(map_app_err(app_err))
     }
 
@@ -39,7 +46,7 @@ map_app_err = |app_err|
         StdoutErr(err) => ServerErr("Stdout error logging request:\n\t${err}")
     }
 
-handle_req! : Http.Request => Try(Http.Response, AppError)
+handle_req! : Server.Request => Try(Response.Response, AppError)
 handle_req! = |req| {
     # Log the method and url to stdout
     log_request!(req)?
@@ -54,22 +61,27 @@ handle_req! = |req| {
     Ok(response_with_code(200, content))
 }
 
-log_request! : Http.Request => Try({}, [StdoutErr(Str), ..])
+log_request! : Server.Request => Try({}, [StdoutErr(Str), ..])
 log_request! = |req| {
     datetime = Utc.to_iso_8601(Utc.now!())
 
-    Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.uri()}") ? |err| StdoutErr(Str.inspect(err)))
+    Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}") ? |err| StdoutErr(Str.inspect(err)))
 }
 
 read_env_var! : Str => Try(Str, [EnvVarNotSet(Str), ..])
 read_env_var! = |env_var_name|
-    Ok(Env.var!(env_var_name) ? |_| EnvVarNotSet(env_var_name))
+    Ok(Env.var_str!(OsStr.from_str(env_var_name)) ? |_| EnvVarNotSet(env_var_name))
 
 fetch_content! : Str => Try(Str, [FetchErr(Str), ..])
-fetch_content! = |url|
+fetch_content! = |url_str| {
+    url = Url.parse(url_str) ? |err| FetchErr("Invalid URL: ${Str.inspect(err)}")
     Ok(Http.get_utf8!(url) ? |err| FetchErr(Str.inspect(err)))
+}
 
 # Respond with the given status code and body
-response_with_code : U16, Str -> Http.Response
+response_with_code : U16, Str -> Response.Response
 response_with_code = |code, body|
     Response.from_status(code).with_body(Str.to_utf8(body))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

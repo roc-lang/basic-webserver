@@ -1,17 +1,54 @@
-# Host-ABI types and conversions shared between the host and the Http module.
-# The `*ToAndFromHost` records map 1:1 to the generated Rust glue types in
-# src/roc_platform_abi.rs.
 import http.Header
 import http.Method
 import http.Request
 import http.Response
 
+## Host-ABI types for outbound HTTP. Inbound server requests have a distinct
+## streaming representation in InternalServer.
 InternalHttp :: [].{
+    ConnectReason : [
+        ConnectionAborted,
+        ConnectionRefused,
+        ConnectionReset,
+        HostUnreachable,
+        NetworkUnreachable,
+        AddressNotAvailable,
+        PermissionDenied,
+        TimedOut,
+        Other,
+    ]
+
+    ## A failure to exchange an HTTP request with its destination. These tags
+    ## are stable programmatic categories; detail strings are diagnostic only.
+    ## ExchangeFailed covers the indivisible Client::request stage (writing the
+    ## request and waiting for response headers). ResponseBodyFailed occurs only
+    ## after valid response headers have been received.
+    TransportErr : [
+        Timeout,
+        DnsFailed({ host : Str, detail : Str }),
+        ConnectFailed({
+            host : Str,
+            port : U16,
+            reason : ConnectReason,
+            detail : Str,
+        }),
+        TlsFailed({ host : Str, detail : Str }),
+        ConnectionClosed,
+        ExchangeFailed(Str),
+        ResponseBodyFailed(Str),
+        InvalidResponse(Str),
+        Cancelled,
+        Other(Str),
+    ]
+
+    SendErr : [
+        InvalidRequest(Str),
+        Transport(TransportErr),
+    ]
+
     HostHeader : { name : Str, value : Str }
 
-    # FOR HOST
-
-    RequestToAndFromHost : {
+    OutboundRequestToHost : {
         method : U8,
         method_ext : Str,
         headers : List(HostHeader),
@@ -20,20 +57,13 @@ InternalHttp :: [].{
         timeout_ms : U64,
     }
 
-    ResponseToAndFromHost : {
+    OutboundResponseFromHost : {
         status : U16,
         headers : List(HostHeader),
         body : List(U8),
     }
 
-    to_host_response : Response.Response -> ResponseToAndFromHost
-    to_host_response = |response| {
-        status: Response.status(response),
-        headers: Response.headers(response).map(to_host_header),
-        body: Response.body(response),
-    }
-
-    to_host_request : Request.Request -> RequestToAndFromHost
+    to_host_request : Request.Request -> OutboundRequestToHost
     to_host_request = |request| {
         method = Request.method(request)
 
@@ -47,6 +77,12 @@ InternalHttp :: [].{
         }
     }
 
+    from_host_response : OutboundResponseFromHost -> Response.Response
+    from_host_response = |response|
+        Response.from_status(response.status)
+            .with_headers(response.headers.map(from_host_header))
+            .with_body(response.body)
+
     to_host_method : Method.Method -> U8
     to_host_method = |method|
         match method {
@@ -59,13 +95,14 @@ InternalHttp :: [].{
             TRACE => 9
             CONNECT => 0
             PATCH => 6
-            QUERY => 10
+            QUERY => 2
             Unknown(_) => 2
         }
 
     to_host_method_ext : Method.Method -> Str
     to_host_method_ext = |method|
         match method {
+            QUERY => "QUERY"
             Unknown(ext) => ext
             _ => ""
         }
@@ -76,46 +113,6 @@ InternalHttp :: [].{
             TimeoutMilliseconds(ms) => ms
             NoTimeout => 0
         }
-
-    from_host_request : RequestToAndFromHost -> Request.Request
-    from_host_request = |{ method, method_ext, headers, uri, body, timeout_ms }|
-        Request.from_method(from_host_method(method, method_ext))
-            .with_headers(headers.map(from_host_header))
-            .with_uri(uri)
-            .with_body(body)
-            .with_timeout(from_host_timeout(timeout_ms))
-
-    from_host_method : U8, Str -> Method.Method
-    from_host_method = |tag, ext|
-        match tag {
-            5 => OPTIONS
-            3 => GET
-            7 => POST
-            8 => PUT
-            1 => DELETE
-            4 => HEAD
-            9 => TRACE
-            0 => CONNECT
-            6 => PATCH
-            10 => QUERY
-            2 => Unknown(ext)
-            _ => {
-                crash "invalid method tag from host"
-            }
-        }
-
-    from_host_timeout : U64 -> [TimeoutMilliseconds(U64), NoTimeout]
-    from_host_timeout = |timeout|
-        match timeout {
-            0 => NoTimeout
-            _ => TimeoutMilliseconds(timeout)
-        }
-
-    from_host_response : ResponseToAndFromHost -> Response.Response
-    from_host_response = |{ status, headers, body }|
-        Response.from_status(status)
-            .with_headers(headers.map(from_host_header))
-            .with_body(body)
 
     to_host_header : Header.Header -> HostHeader
     to_host_header = |header| { name: header.name, value: header.value }

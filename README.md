@@ -35,20 +35,36 @@ server:
 
 - The server accepts HTTP/1 connections only. It does not terminate TLS; put a
   reverse proxy or load balancer in front when HTTPS is required.
-- Each complete request body is buffered in memory before Roc is called, with
-  no configurable body-size limit. Responses are also returned as complete
-  in-memory bodies; request or response streaming is not yet available.
-- Each Roc request handler runs on Tokio's blocking thread pool. There is no
-  graceful-shutdown API, so deployments should treat process termination as an
-  abrupt stop and drain traffic externally.
-- `init!` runs once. Its model is shared read-only by all request handlers for
-  the lifetime of the process; request handlers cannot return an updated model.
+- Request bodies are bounded streams. The defaults allow at most 1 MiB per
+  request, deliver chunks no larger than 64 KiB, and buffer one chunk between
+  Hyper and Roc. Applications can narrow a request's limit with
+  `request.body().with_limit(...)`. Responses are currently complete in-memory
+  bodies; response streaming is not yet available.
+- Request handlers run concurrently on Tokio's blocking thread pool. They can
+  apply typed actions through `Server.State`; a dedicated coordinator applies
+  `transition` calls one at a time, giving state updates a linearizable order
+  without serializing request I/O.
+- `init!` returns the server configuration and initial model. On SIGINT,
+  SIGTERM, or an application `StopAfter` outcome, the host stops accepting new
+  connections, drains active work up to the configured timeout, cancels
+  outstanding body streams when that timeout expires, and calls `shutdown!`
+  once with the final model after a successful drain. If the drain deadline or
+  shutdown-hook deadline expires, the host forces exit with status 1; a drain
+  timeout cannot safely run `shutdown!` while a Roc handler may still be using
+  the model. A second OS termination signal also forces exit.
+- Outbound requests require validated `Url` values in the convenience APIs and
+  report typed DNS, connection, TLS, exchange, response-body, cancellation,
+  timeout, and invalid-response failures. A shared client preserves connection
+  pooling and HTTP keep-alive across calls. HTTPS uses WebPKI roots; custom trust
+  stores are not currently configurable.
 - A Roc `crash` exits the entire server process. Ordinary `ServerErr` values are
   logged and converted to an HTTP 500 response.
 
 ## Example
 
-Run this example server with `roc examples/hello-web.roc` and go to `http://localhost:8000` in your browser. You can change the port and host with `ROC_BASIC_WEBSERVER_PORT` and `ROC_BASIC_WEBSERVER_HOST`.
+Run this example server with `roc examples/hello-web.roc` and go to
+`http://localhost:8000` in your browser. Set `Server.Config.listen` in `init!`
+to choose another interface or port.
 
 ```roc
 app [Model, program] {
@@ -56,32 +72,44 @@ app [Model, program] {
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http
+import pf.Server
 import pf.Utc
 import pf.Stdout
 import http.Response
 
-Model : {}
+Model : U64
+Action : [Visited]
+Result : U64
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
-init! = || Ok({})
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, model: 0 })
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |req, _model| {
+transition : Action, Model -> { model : Model, result : Result }
+transition = |Visited, model| {
+	visits = model + 1
+	{ model: visits, result: visits }
+}
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, state| {
     millis = Utc.to_millis_since_epoch(Utc.now!())
+    visits = state.apply!(Visited) ? |_| ServerErr("Server is stopping")
 
-    Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.uri()}")
+    Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.target()}")
         ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
     response =
         Response.from_status(200)
         .with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
-        .with_body(Str.to_utf8("<b>Hello from server</b></br>"))
+        .with_body(Str.to_utf8("<b>Hello from server, visit ${visits.to_str()}</b>"))
 
-    Ok(response)
+    Ok(Server.respond(response))
 }
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _final_model| Ok({})
 ```
 
 

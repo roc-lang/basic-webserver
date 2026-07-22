@@ -1,258 +1,470 @@
-//! The webserver event loop.
-//!
-//! `start()` calls the app's `roc_init_for_host` once, stashes the boxed model
-//! (promoted to a constant refcount so it is shared across worker threads and
-//! never freed), then runs a tokio/hyper accept loop that calls
-//! `roc_respond_for_host(request, model)` for each request.
+//! Tokio/Hyper server lifecycle and the provided Roc application entrypoints.
 
-use crate::abi::{decref_response, roc_host, Header, RequestToAndFromHost, ResponseToAndFromHost};
+use crate::abi::{
+    decref_server_response, roc_host, ServerConfig, ServerHeader, ServerRequest, ServerResponse,
+    ServerShutdownReason,
+};
+use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
 use crate::roc_platform_abi::*;
+use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
+use crate::state::{clear_roc_state_client, start_roc_state, RocValueBox};
 use bytes::Bytes;
-use futures::{Future, FutureExt};
+use futures::{Future, FutureExt, StreamExt};
 use http_body_util::{BodyExt, Full};
-use hyper::header::{HeaderName, HeaderValue};
+use hyper::header::CONTENT_LENGTH;
 use std::convert::Infallible;
-use std::env;
-use std::mem::ManuallyDrop;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
-use std::sync::OnceLock;
-use tokio::task::spawn_blocking;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::task::{spawn_blocking, JoinSet};
 
-const DEFAULT_PORT: u16 = 8000;
-const HOST_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_HOST";
-const PORT_ENV_NAME: &str = "ROC_BASIC_WEBSERVER_PORT";
+#[derive(Clone, Debug)]
+struct RuntimeConfig {
+    host: String,
+    port: u16,
+    body_max_bytes: u64,
+    body_chunk_bytes: usize,
+    body_buffered_chunks: usize,
+    state_queue_capacity: usize,
+    drain_timeout: Duration,
+    hook_timeout: Duration,
+}
 
-/// The boxed Roc model returned by `init!`. It has a constant refcount, so the
-/// raw pointer is shared (read-only) across all worker threads.
-struct RocModel(RocBox);
-unsafe impl Send for RocModel {}
-unsafe impl Sync for RocModel {}
+impl RuntimeConfig {
+    fn from_roc(config: ServerConfig) -> Result<Self, String> {
+        let host = config.host.as_str().to_owned();
+        unsafe { config.host.decref(roc_host()) };
 
-static ROC_MODEL: OnceLock<RocModel> = OnceLock::new();
+        if config.body_chunk_bytes == 0 {
+            return Err("request body chunk size must be non-zero".to_owned());
+        }
+        if config.body_buffered_chunks == 0 {
+            return Err("request body buffered chunk count must be non-zero".to_owned());
+        }
+        if config.state_queue_capacity == 0 {
+            return Err("state queue capacity must be non-zero".to_owned());
+        }
 
-/// Mark a boxed value as static data (refcount 0) so the generated
-/// `incref_box`/`decref_box` helpers leave it alone: it is never freed and is
-/// safe to share between threads. This mirrors the model lifetime of the old
-/// host (the model lives for the whole process and is immutable).
-unsafe fn promote_box_to_constant(boxed: RocBox) {
-    if boxed.is_null() {
-        return;
+        Ok(Self {
+            host,
+            port: config.port,
+            body_max_bytes: config.body_max_bytes,
+            body_chunk_bytes: config.body_chunk_bytes as usize,
+            body_buffered_chunks: config.body_buffered_chunks as usize,
+            state_queue_capacity: config.state_queue_capacity as usize,
+            drain_timeout: Duration::from_millis(config.drain_timeout_ms),
+            hook_timeout: Duration::from_millis(config.hook_timeout_ms),
+        })
     }
-    let rc = (boxed as *mut u8).sub(core::mem::size_of::<isize>()) as *mut isize;
-    *rc = 0;
+}
+
+#[derive(Clone)]
+struct ServerContext {
+    config: Arc<RuntimeConfig>,
+    bodies: Arc<BodyRegistry>,
+    requests: RequestTracker,
+    shutdown: ShutdownController,
 }
 
 pub fn start() -> i32 {
-    // Run `init!` once at startup.
-    let init_result: InitForHostResult = unsafe { roc_init_for_host() };
-    let model = match init_result.tag {
-        InitForHostResultTag::Ok => unsafe { ManuallyDrop::into_inner(init_result.payload.ok) },
-        InitForHostResultTag::Err => {
-            let code = unsafe { ManuallyDrop::into_inner(init_result.payload.err) };
-            std::process::exit(code as i32);
+    let init_result = unsafe { roc_init_for_host() };
+    let initialized = match init_result.tag {
+        InitForHostResultTag::Ok => init_result.payload_ok(),
+        InitForHostResultTag::Err => return exit_code_to_i32(init_result.payload_err()),
+    };
+
+    let model = initialized.model;
+    let config = match RuntimeConfig::from_roc(initialized.config) {
+        Ok(config) => config,
+        Err(detail) => {
+            return finish_shutdown(
+                ShutdownReason::StartupFailed(detail),
+                model,
+                Duration::from_secs(10),
+            );
         }
     };
 
-    unsafe { promote_box_to_constant(model) };
-    ROC_MODEL
-        .set(RocModel(model))
-        .unwrap_or_else(|_| panic!("Model is only initialized once at startup"));
+    let state = start_roc_state(model, config.state_queue_capacity);
+    let bodies = install_registry(config.body_buffered_chunks);
+    let shutdown = ShutdownController::new();
+    let context = ServerContext {
+        config: Arc::new(config.clone()),
+        bodies,
+        requests: RequestTracker::new(),
+        shutdown: shutdown.clone(),
+    };
 
-    match tokio::runtime::Builder::new_multi_thread()
+    let reason = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(async { run_server().await }),
-        Err(err) => {
-            eprintln!("Error initializing tokio multithreaded runtime: {}", err);
-            1
+        Ok(runtime) => runtime.block_on(run_server(context)),
+        Err(error) => {
+            ShutdownReason::RuntimeFailed(format!("failed to initialize Tokio runtime: {error}"))
         }
-    }
-}
-
-/// Map a hyper method to the host-ABI method tag used by InternalHttp.roc.
-/// Canonical mapping (must match InternalHttp.from_host_method):
-/// CONNECT=0, DELETE=1, Unknown=2, GET=3, HEAD=4, OPTIONS=5, PATCH=6, POST=7,
-/// PUT=8, TRACE=9, QUERY=10.
-fn method_to_tag(method: &hyper::Method) -> (u8, &'static str) {
-    match *method {
-        hyper::Method::CONNECT => (0, ""),
-        hyper::Method::DELETE => (1, ""),
-        hyper::Method::GET => (3, ""),
-        hyper::Method::HEAD => (4, ""),
-        hyper::Method::OPTIONS => (5, ""),
-        hyper::Method::PATCH => (6, ""),
-        hyper::Method::POST => (7, ""),
-        hyper::Method::PUT => (8, ""),
-        hyper::Method::TRACE => (9, ""),
-        _ if method.as_str() == "QUERY" => (10, ""),
-        _ => (2, "EXTENSION"),
-    }
-}
-
-fn call_roc<'a>(
-    method: hyper::Method,
-    url: hyper::Uri,
-    headers: impl Iterator<Item = (&'a HeaderName, &'a HeaderValue)>,
-    body: Bytes,
-) -> hyper::Response<Full<Bytes>> {
-    let roc_host = roc_host();
-
-    let (method_tag, method_ext_str) = method_to_tag(&method);
-    let method_ext = if method_ext_str.is_empty() {
-        RocStr::empty()
-    } else {
-        RocStr::from_str(method.as_str(), roc_host)
     };
 
-    let header_vec: Vec<Header> = headers
-        .map(|(name, value)| Header {
+    clear_roc_state_client();
+    let RocValueBox(final_model) = state.stop();
+    clear_registry();
+    finish_shutdown(reason, final_model, config.hook_timeout)
+}
+
+fn finish_shutdown(reason: ShutdownReason, model: RocBox, hook_timeout: Duration) -> i32 {
+    let default_exit_code = reason.default_exit_code();
+    let (tag, detail) = shutdown_reason_to_host(&reason);
+    let raw_reason = ServerShutdownReason {
+        detail: RocStr::from_str(detail, roc_host()),
+        tag,
+    };
+
+    let (finished_sender, finished_receiver) = std::sync::mpsc::sync_channel(1);
+    let watchdog = std::thread::Builder::new()
+        .name("roc-shutdown-watchdog".to_owned())
+        .spawn(move || {
+            if finished_receiver.recv_timeout(hook_timeout).is_err() {
+                eprintln!(
+                    "Roc shutdown hook exceeded its {:?} timeout; forcing process exit",
+                    hook_timeout
+                );
+                std::process::exit(1);
+            }
+        })
+        .expect("failed to start shutdown watchdog");
+
+    let result = unsafe { roc_shutdown_for_host(raw_reason, model) };
+    let _ = finished_sender.send(());
+    let _ = watchdog.join();
+
+    match result.tag {
+        ShutdownForHostResultTag::Ok => default_exit_code,
+        ShutdownForHostResultTag::Err => exit_code_to_i32(result.payload_err()),
+    }
+}
+
+fn shutdown_reason_to_host(reason: &ShutdownReason) -> (u8, &str) {
+    match reason {
+        ShutdownReason::ApplicationRequested { .. } => (0, ""),
+        ShutdownReason::Interrupt => (1, ""),
+        ShutdownReason::Terminate => (2, ""),
+        ShutdownReason::StartupFailed(detail) => (3, detail),
+        ShutdownReason::RuntimeFailed(detail) => (4, detail),
+    }
+}
+
+fn exit_code_to_i32(code: i64) -> i32 {
+    i32::try_from(code).unwrap_or(if code < 0 { i32::MIN } else { i32::MAX })
+}
+
+/// Canonical mapping shared with InternalServer.from_host_method.
+fn method_to_tag(method: &hyper::Method) -> u8 {
+    match *method {
+        hyper::Method::CONNECT => 0,
+        hyper::Method::DELETE => 1,
+        hyper::Method::GET => 3,
+        hyper::Method::HEAD => 4,
+        hyper::Method::OPTIONS => 5,
+        hyper::Method::PATCH => 6,
+        hyper::Method::POST => 7,
+        hyper::Method::PUT => 8,
+        hyper::Method::TRACE => 9,
+        _ if method.as_str() == "QUERY" => 10,
+        _ => 2,
+    }
+}
+
+fn content_length(headers: &hyper::HeaderMap) -> Option<u64> {
+    headers
+        .get(CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+}
+
+fn request_body_error(error: hyper::Error) -> PumpError {
+    if error.is_canceled() || error.is_closed() || error.is_incomplete_message() {
+        PumpError::ClientDisconnected
+    } else {
+        PumpError::InvalidBody(error.to_string())
+    }
+}
+
+fn request_to_roc(
+    parts: hyper::http::request::Parts,
+    body_id: u64,
+    body_limit: u64,
+    declared_length: Option<u64>,
+) -> ServerRequest {
+    let roc_host = roc_host();
+    let method_tag = method_to_tag(&parts.method);
+    let method_ext = if method_tag == 2 {
+        RocStr::from_str(parts.method.as_str(), roc_host)
+    } else {
+        RocStr::empty()
+    };
+    let headers: Vec<ServerHeader> = parts
+        .headers
+        .iter()
+        .map(|(name, value)| ServerHeader {
             name: RocStr::from_str(name.as_str(), roc_host),
             value: RocStr::from_str(value.to_str().unwrap_or_default(), roc_host),
         })
         .collect();
-    // SAFETY: the Roc list owns copied header records; their strings were
-    // freshly allocated for this request and ownership transfers to Roc.
-    let roc_headers = unsafe { RocList::<Header>::from_slice(&header_vec, roc_host) };
 
-    let roc_uri = RocStr::from_str(&url.to_string(), roc_host);
-    // SAFETY: the returned Roc list owns a copy of the request body.
-    let roc_body = unsafe { RocListWith::<u8, false>::from_slice(&body, roc_host) };
-
-    let roc_request = RequestToAndFromHost {
-        body: roc_body,
-        headers: roc_headers,
-        method: method_tag,
+    ServerRequest {
+        body_id,
+        body_limit_bytes: body_limit,
+        content_length: declared_length.unwrap_or_default(),
+        headers: unsafe { RocList::<ServerHeader>::from_slice(&headers, roc_host) },
         method_ext,
-        timeout_ms: 0,
-        uri: roc_uri,
-    };
-
-    // `roc_respond_for_host` takes ownership of `roc_request` (Roc decrefs it),
-    // and reads `model` (constant refcount, so its Box.unbox is a no-op decref).
-    let model = ROC_MODEL.get().expect("Model initialized at startup").0;
-    let roc_response = unsafe { roc_respond_for_host(roc_request, model) };
-
-    response_to_hyper(roc_response, roc_host)
+        target: RocStr::from_str(&parts.uri.to_string(), roc_host),
+        content_length_known: declared_length.is_some(),
+        method: method_tag,
+    }
 }
 
-fn response_to_hyper(
-    response: ResponseToAndFromHost,
-    roc_host: &RocHost,
-) -> hyper::Response<Full<Bytes>> {
-    let mut builder = hyper::Response::builder().status(response.status);
+fn call_roc(request: ServerRequest) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
+    let response = unsafe { roc_respond_for_host(request) };
+    response_to_hyper(response)
+}
 
+fn response_to_hyper(response: ServerResponse) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
+    let stop_code = response.stop.then_some(response.exit_code);
+    let mut builder = hyper::Response::builder().status(response.status);
     for header in response.headers.as_slice() {
         builder = builder.header(header.name.as_str(), header.value.as_str());
     }
-
     let body = Bytes::copy_from_slice(response.body.as_slice());
-
     let hyper_response = builder
         .body(Full::new(body))
         .unwrap_or_else(|_| internal_server_error("Failed to build response"));
-
-    // Now that the response data has been copied into owned Rust types, release
-    // the Roc-owned heap allocations.
-    decref_response(response, roc_host);
-
-    hyper_response
+    decref_server_response(response, roc_host());
+    (hyper_response, stop_code)
 }
 
 fn internal_server_error(message: &str) -> hyper::Response<Full<Bytes>> {
     hyper::Response::builder()
         .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
         .body(Full::new(Bytes::copy_from_slice(message.as_bytes())))
-        .expect("static 500 response is always valid")
+        .expect("static 500 response is valid")
 }
 
-async fn handle_req(req: hyper::Request<hyper::body::Incoming>) -> hyper::Response<Full<Bytes>> {
-    let (parts, body) = req.into_parts();
+fn service_unavailable() -> hyper::Response<Full<Bytes>> {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
+        .header(hyper::header::CONNECTION, "close")
+        .body(Full::new(Bytes::from_static(b"Server is shutting down")))
+        .expect("static 503 response is valid")
+}
 
-    match body.collect().await.map(|collected| collected.to_bytes()) {
-        Ok(body_bytes) => {
-            spawn_blocking(move || {
-                call_roc(parts.method, parts.uri, parts.headers.iter(), body_bytes)
-            })
-            .then(|resp| async {
-                match resp {
-                    Ok(resp) => resp,
-                    Err(err) => {
-                        eprintln!("Recovered from calling roc:\n\t{:?}", err);
-                        internal_server_error("500 Internal Server Error")
-                    }
-                }
-            })
-            .await
+fn payload_too_large(limit: u64) -> hyper::Response<Full<Bytes>> {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::PAYLOAD_TOO_LARGE)
+        .body(Full::new(Bytes::from(format!(
+            "Request body exceeds the {limit}-byte limit"
+        ))))
+        .expect("static 413 response is valid")
+}
+
+async fn handle_req(
+    request: hyper::Request<hyper::body::Incoming>,
+    context: ServerContext,
+) -> hyper::Response<Full<Bytes>> {
+    let active_request = match context.requests.begin() {
+        Some(active) => active,
+        None => return service_unavailable(),
+    };
+
+    let declared_length = content_length(request.headers());
+    if declared_length.is_some_and(|length| length > context.config.body_max_bytes) {
+        return payload_too_large(context.config.body_max_bytes);
+    }
+
+    let (parts, body) = request.into_parts();
+    let registration = context.bodies.register(context.config.body_max_bytes);
+    let body_id = registration.id;
+    let stream = body
+        .into_data_stream()
+        .map(|frame| frame.map_err(request_body_error));
+    let chunk_bytes = context.config.body_chunk_bytes;
+    tokio::spawn(async move { registration.pump.run(stream, chunk_bytes).await });
+
+    let body_limit = context.config.body_max_bytes;
+    let bodies = Arc::clone(&context.bodies);
+    let handled = spawn_blocking(move || {
+        // These guards intentionally live in the non-cancellable blocking task.
+        // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
+        // stopped using its body or state capability.
+        let _active_request = active_request;
+        let roc_request = request_to_roc(parts, body_id, body_limit, declared_length);
+        let result = call_roc(roc_request);
+        bodies.expire(body_id);
+        result
+    })
+    .await;
+
+    match handled {
+        Ok((response, Some(exit_code))) => {
+            context
+                .shutdown
+                .request(ShutdownReason::ApplicationRequested { exit_code });
+            response
         }
-        Err(err) => {
-            eprintln!("Failed to receive HTTP request body:\n\t{:?}", err);
-            hyper::Response::builder()
-                .status(hyper::StatusCode::BAD_REQUEST)
-                .body(Full::new(Bytes::from_static(
-                    b"Failed to receive HTTP request body",
-                )))
-                .expect("static 400 response is always valid")
+        Ok((response, None)) => response,
+        Err(error) => {
+            context.bodies.expire(body_id);
+            eprintln!("Recovered from calling Roc: {error:?}");
+            internal_server_error("500 Internal Server Error")
         }
     }
 }
 
-/// Translate Rust panics in the given future into 500 errors.
 async fn handle_panics(
-    fut: impl Future<Output = hyper::Response<Full<Bytes>>>,
+    future: impl Future<Output = hyper::Response<Full<Bytes>>>,
 ) -> Result<hyper::Response<Full<Bytes>>, Infallible> {
-    match AssertUnwindSafe(fut).catch_unwind().await {
+    match AssertUnwindSafe(future).catch_unwind().await {
         Ok(response) => Ok(response),
-        Err(_panic) => Ok(internal_server_error("Panic detected!")),
+        Err(_) => Ok(internal_server_error("Panic detected")),
     }
 }
 
-async fn run_server() -> i32 {
-    let host = env::var(HOST_ENV_NAME).unwrap_or("127.0.0.1".to_string());
-    let port = env::var(PORT_ENV_NAME).unwrap_or(DEFAULT_PORT.to_string());
-    let addr = match format!("{}:{}", host, port).parse::<SocketAddr>() {
-        Ok(addr) => addr,
-        Err(err) => {
-            eprintln!(
-                "Failed to parse host '{}' and port '{}': {}",
-                host, port, err
-            );
-            return 1;
+async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
+    let io = hyper_util::rt::TokioIo::new(stream);
+    let service_context = context.clone();
+    let connection = hyper::server::conn::http1::Builder::new().serve_connection(
+        io,
+        hyper::service::service_fn(move |request| {
+            handle_panics(handle_req(request, service_context.clone()))
+        }),
+    );
+    tokio::pin!(connection);
+
+    tokio::select! {
+        result = &mut connection => {
+            if let Err(error) = result {
+                eprintln!("Error serving connection: {error:?}");
+            }
+        }
+        _ = context.shutdown.requested() => {
+            connection.as_mut().graceful_shutdown();
+            if let Err(error) = connection.await {
+                eprintln!("Error draining connection: {error:?}");
+            }
+        }
+    }
+}
+
+async fn run_server(context: ServerContext) -> ShutdownReason {
+    let listener =
+        match tokio::net::TcpListener::bind((context.config.host.as_str(), context.config.port))
+            .await
+        {
+            Ok(listener) => listener,
+            Err(error) => {
+                return ShutdownReason::StartupFailed(format!(
+                    "failed to bind {}:{}: {error}",
+                    context.config.host, context.config.port
+                ));
+            }
+        };
+    let address = listener
+        .local_addr()
+        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], context.config.port)));
+    println!("Listening on <http://{address}>");
+
+    let signal_shutdown = context.shutdown.clone();
+    let signal_task = tokio::spawn(async move { watch_signals(signal_shutdown).await });
+    let mut connections = JoinSet::new();
+
+    let reason = loop {
+        tokio::select! {
+            reason = context.shutdown.requested() => break reason,
+            accepted = listener.accept() => match accepted {
+                Ok((stream, _)) => {
+                    let connection_context = context.clone();
+                    connections.spawn(async move {
+                        serve_connection(stream, connection_context).await
+                    });
+                }
+                Err(error) => eprintln!("Failed to accept incoming connection: {error}"),
+            }
         }
     };
 
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(listener) => listener,
-        Err(err) => {
-            eprintln!("Failed to bind TCP listener to {}: {}", addr, err);
-            return 1;
-        }
-    };
+    context.requests.begin_draining();
+    let drained = tokio::time::timeout(context.config.drain_timeout, async {
+        context.requests.wait_for_idle().await;
+        while connections.join_next().await.is_some() {}
+    })
+    .await;
 
-    println!("Listening on <http://{addr}>");
+    if drained.is_err() {
+        context.bodies.cancel_all();
+        connections.abort_all();
+        eprintln!(
+            "Graceful drain exceeded {:?}; request bodies were cancelled and connections aborted; forcing process exit without running the Roc shutdown hook",
+            context.config.drain_timeout
+        );
 
+        // spawn_blocking Roc handlers cannot be safely preempted. Running the
+        // shutdown hook or dropping the model while one may still use state
+        // would be unsound, so the configured drain deadline is a hard process
+        // deadline and intentionally skips application shutdown cleanup.
+        std::process::exit(1);
+    }
+
+    signal_task.abort();
+    reason
+}
+
+#[derive(Default)]
+struct TerminationSignals {
+    seen_one: bool,
+}
+
+impl TerminationSignals {
+    /// Return true only after a previous OS termination signal was observed.
+    fn should_force_exit(&mut self) -> bool {
+        std::mem::replace(&mut self.seen_one, true)
+    }
+}
+
+#[cfg(unix)]
+async fn watch_signals(shutdown: ShutdownController) {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut interrupt = signal(SignalKind::interrupt()).expect("failed to register SIGINT");
+    let mut terminate = signal(SignalKind::terminate()).expect("failed to register SIGTERM");
+    let mut signals = TerminationSignals::default();
     loop {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                let io = hyper_util::rt::TokioIo::new(stream);
-
-                tokio::task::spawn(async move {
-                    if let Err(err) = hyper::server::conn::http1::Builder::new()
-                        .serve_connection(
-                            io,
-                            hyper::service::service_fn(|req| handle_panics(handle_req(req))),
-                        )
-                        .await
-                    {
-                        eprintln!("Error serving connection:\n\t{:?}", err);
-                    }
-                });
-            }
-            Err(err) => {
-                eprintln!("Failed to accept incoming connection: {}", err);
-            }
+        let reason = tokio::select! {
+            _ = interrupt.recv() => ShutdownReason::Interrupt,
+            _ = terminate.recv() => ShutdownReason::Terminate,
+        };
+        if signals.should_force_exit() {
+            eprintln!("Second termination signal received; forcing process exit");
+            std::process::exit(1);
         }
+        shutdown.request(reason);
+    }
+}
+
+#[cfg(not(unix))]
+async fn watch_signals(shutdown: ShutdownController) {
+    let mut signals = TerminationSignals::default();
+    loop {
+        if tokio::signal::ctrl_c().await.is_err() {
+            shutdown.request(ShutdownReason::RuntimeFailed(
+                "failed to listen for Ctrl-C".to_owned(),
+            ));
+            return;
+        }
+        if signals.should_force_exit() {
+            eprintln!("Second termination signal received; forcing process exit");
+            std::process::exit(1);
+        }
+        shutdown.request(ShutdownReason::Interrupt);
     }
 }
 
@@ -261,27 +473,67 @@ mod tests {
     use super::*;
 
     #[test]
-    fn method_to_tag_matches_internal_http_contract() {
-        assert_eq!(method_to_tag(&hyper::Method::CONNECT), (0, ""));
-        assert_eq!(method_to_tag(&hyper::Method::DELETE), (1, ""));
-        assert_eq!(method_to_tag(&hyper::Method::GET), (3, ""));
-        assert_eq!(method_to_tag(&hyper::Method::HEAD), (4, ""));
-        assert_eq!(method_to_tag(&hyper::Method::OPTIONS), (5, ""));
-        assert_eq!(method_to_tag(&hyper::Method::PATCH), (6, ""));
-        assert_eq!(method_to_tag(&hyper::Method::POST), (7, ""));
-        assert_eq!(method_to_tag(&hyper::Method::PUT), (8, ""));
-        assert_eq!(method_to_tag(&hyper::Method::TRACE), (9, ""));
+    fn method_tags_match_internal_server_contract() {
+        assert_eq!(method_to_tag(&hyper::Method::CONNECT), 0);
+        assert_eq!(method_to_tag(&hyper::Method::DELETE), 1);
+        assert_eq!(method_to_tag(&hyper::Method::GET), 3);
+        assert_eq!(method_to_tag(&hyper::Method::HEAD), 4);
+        assert_eq!(method_to_tag(&hyper::Method::OPTIONS), 5);
+        assert_eq!(method_to_tag(&hyper::Method::PATCH), 6);
+        assert_eq!(method_to_tag(&hyper::Method::POST), 7);
+        assert_eq!(method_to_tag(&hyper::Method::PUT), 8);
+        assert_eq!(method_to_tag(&hyper::Method::TRACE), 9);
         assert_eq!(
             method_to_tag(&hyper::Method::from_bytes(b"QUERY").unwrap()),
-            (10, "")
+            10
+        );
+        assert_eq!(
+            method_to_tag(&hyper::Method::from_bytes(b"PROPFIND").unwrap()),
+            2
         );
     }
 
     #[test]
-    fn method_to_tag_marks_extensions_as_unknown() {
+    fn parses_only_valid_content_length() {
+        let mut headers = hyper::HeaderMap::new();
+        assert_eq!(content_length(&headers), None);
+        headers.insert(CONTENT_LENGTH, "123".parse().unwrap());
+        assert_eq!(content_length(&headers), Some(123));
+        headers.insert(CONTENT_LENGTH, "not-a-number".parse().unwrap());
+        assert_eq!(content_length(&headers), None);
+    }
+
+    #[test]
+    fn shutdown_reason_tags_match_internal_server_contract() {
         assert_eq!(
-            method_to_tag(&hyper::Method::from_bytes(b"PROPFIND").unwrap()),
-            (2, "EXTENSION")
+            shutdown_reason_to_host(&ShutdownReason::ApplicationRequested { exit_code: 0 }).0,
+            0
         );
+        assert_eq!(shutdown_reason_to_host(&ShutdownReason::Interrupt).0, 1);
+        assert_eq!(shutdown_reason_to_host(&ShutdownReason::Terminate).0, 2);
+        assert_eq!(
+            shutdown_reason_to_host(&ShutdownReason::StartupFailed("x".to_owned())).0,
+            3
+        );
+        assert_eq!(
+            shutdown_reason_to_host(&ShutdownReason::RuntimeFailed("x".to_owned())).0,
+            4
+        );
+    }
+
+    #[test]
+    fn app_shutdown_then_first_os_signal_does_not_force_exit() {
+        let shutdown = ShutdownController::new();
+        shutdown.request(ShutdownReason::ApplicationRequested { exit_code: 0 });
+
+        let mut signals = TerminationSignals::default();
+        assert!(!signals.should_force_exit());
+        shutdown.request(ShutdownReason::Terminate);
+        assert_eq!(
+            shutdown.reason(),
+            Some(ShutdownReason::ApplicationRequested { exit_code: 0 })
+        );
+
+        assert!(signals.should_force_exit());
     }
 }

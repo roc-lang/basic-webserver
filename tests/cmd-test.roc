@@ -4,16 +4,20 @@ app [Model, program] {
 }
 
 import pf.Cmd
-import pf.Http
+import pf.Env
+import pf.Server
+import pf.OsStr
 import pf.Stderr
 import pf.Stdout
 import http.Response
 
 Model : {}
+Action : {}
+Result : {}
 
-program = { init!, respond! }
+program = { init!, transition, respond!, shutdown! }
 
-init! : () => Try(Model, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -29,6 +33,7 @@ init! = ||
 run_tests! : () => Try({}, _)
 run_tests! = || {
     Cmd.exec!("true", [])?
+    Cmd.exec_str!("true", [])?
     Cmd.new("true").exec_cmd!()?
 
     output = Cmd.new("printf").arg("hello").exec_output!()?
@@ -36,6 +41,8 @@ run_tests! = || {
 
     bytes = Cmd.new("printf").arg("bytes").exec_output_bytes!()?
     expect_true(bytes.stdout_bytes == Str.to_utf8("bytes"), "printf stdout should be captured as bytes")?
+
+    test_native_strings!()?
 
     _ = Cmd.new("cat").arg("non_existent.txt").exec_exit_code!()?
     _ = Cmd.new("cat").arg("non_existent.txt").exec_exit_code!()?
@@ -48,6 +55,30 @@ run_tests! = || {
     Ok({})
 }
 
+test_native_strings! : () => Try({}, _)
+test_native_strings! = ||
+    match (Env.platform!()).os {
+        WINDOWS => {
+            foreign_result = Cmd.new(OsStr.unix_bytes([255])).exec_exit_code!()
+            expect_true(Try.is_err(foreign_result), "Windows must reject UnixBytes command values")
+        }
+        _ => {
+            arg_output = Cmd.new("printf")
+                .arg(OsStr.unix_bytes([255]))
+                .exec_output_bytes!()?
+            expect_true(arg_output.stdout_bytes == [255], "command arguments must preserve non-UTF-8 Unix bytes")?
+
+            env_output = Cmd.new("/usr/bin/env")
+                .clear_envs()
+                .env(OsStr.unix_bytes([75, 255]), OsStr.unix_bytes([86, 254]))
+                .exec_output_bytes!()?
+            expect_true(env_output.stdout_bytes == [75, 255, 61, 86, 254, 10], "command environment must preserve non-UTF-8 Unix bytes")?
+
+            foreign_result = Cmd.new(OsStr.windows_u16s([0xD800])).exec_exit_code!()
+            expect_true(Try.is_err(foreign_result), "Unix must reject WindowsU16s command values")
+        }
+	}
+
 expect_true = |condition, message|
     if condition {
         Ok({})
@@ -55,6 +86,11 @@ expect_true = |condition, message|
         Err(FailedExpectation(message))
     }
 
-respond! : Http.Request, Model => Try(Http.Response, [ServerErr(Str), ..])
-respond! = |_, _|
-    Ok(Response.from_status(200).with_body(Str.to_utf8("I am a test.")))
+transition = Server.no_transition
+
+respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, _state|
+    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
+
+shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! = |_, _| Ok({})

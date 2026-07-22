@@ -1,12 +1,17 @@
 ## Represent operating-system strings without losing non-Unicode data.
 ##
-## Native Unix bytes and Windows UTF-16 units roundtrip through host effects;
-## use [`display`](#display) only when a lossy representation is acceptable.
+## Values that are valid Unicode use one canonical UTF-8 representation.
+## Native Unix bytes and Windows UTF-16 units that cannot be represented as
+## Unicode still roundtrip exactly through host effects; use [`display`](#display)
+## only when a lossy representation is acceptable.
 OsStr := [
 	Utf8(Str),
 	UnixBytes(List(U8)),
 	WindowsU16s(List(U16)),
 ].{
+	## The structural representation used only at native host boundaries.
+	## `OsStr` remains the single public operating-system string abstraction.
+	Raw : [Utf8(Str), UnixBytes(List(U8)), WindowsU16s(List(U16))]
 
 	## Create an OS string from UTF-8 text.
 	## The host lowers this text to the active OS representation.
@@ -17,21 +22,31 @@ OsStr := [
 	utf8 : Str -> OsStr
 	utf8 = |str| Utf8(str)
 
-	## Create a Unix OS string from a Roc string by storing its UTF-8 bytes.
+	## Create a Unix-compatible OS string from Unicode text.
 	unix : Str -> OsStr
-	unix = |str| UnixBytes(Str.to_utf8(str))
+	unix = |str| Utf8(str)
 
-	## Create a Unix OS string from raw bytes without validating UTF-8.
+	## Create a Unix OS string from raw bytes. Valid UTF-8 is canonicalized;
+	## otherwise the bytes are preserved exactly.
 	unix_bytes : List(U8) -> OsStr
-	unix_bytes = |bytes| UnixBytes(bytes)
+	unix_bytes = |bytes|
+		match Str.from_utf8(bytes) {
+			Ok(str) => Utf8(str)
+			Err(_) => UnixBytes(bytes)
+		}
 
-	## Create a Windows OS string from a Roc string by storing its UTF-16 code units.
+	## Create a Windows-compatible OS string from Unicode text.
 	windows : Str -> OsStr
-	windows = |str| from_raw(WindowsU16s(str_to_utf16(str)))
+	windows = |str| Utf8(str)
 
-	## Create a Windows OS string from raw UTF-16 code units.
+	## Create a Windows OS string from raw UTF-16 units. Valid Unicode is
+	## canonicalized; otherwise the units are preserved exactly.
 	windows_u16s : List(U16) -> OsStr
-	windows_u16s = |u16s| WindowsU16s(u16s)
+	windows_u16s = |u16s|
+		match utf16_to_str(u16s) {
+			Ok(str) => Utf8(str)
+			Err(_) => WindowsU16s(u16s)
+		}
 
 	## Build an OS string from a quoted string literal.
 	from_quote : Str -> Try(OsStr, [BadQuotedBytes(Str)])
@@ -100,7 +115,7 @@ OsStr := [
 		}
 
 	## Expose the host ABI representation.
-	to_raw : OsStr -> [Utf8(Str), UnixBytes(List(U8)), WindowsU16s(List(U16))]
+	to_raw : OsStr -> Raw
 	to_raw = |os_str|
 		match os_str {
 			Utf8(str) => Utf8(str)
@@ -109,12 +124,12 @@ OsStr := [
 		}
 
 	## Build an OS string from the host ABI representation.
-	from_raw : [Utf8(Str), UnixBytes(List(U8)), WindowsU16s(List(U16))] -> OsStr
+	from_raw : Raw -> OsStr
 	from_raw = |raw|
 		match raw {
 			Utf8(str) => Utf8(str)
-			UnixBytes(bytes) => UnixBytes(bytes)
-			WindowsU16s(u16s) => WindowsU16s(u16s)
+			UnixBytes(bytes) => unix_bytes(bytes)
+			WindowsU16s(u16s) => windows_u16s(u16s)
 		}
 
 }
@@ -229,9 +244,9 @@ is_surrogate = |unit| unit >= 0xD800 and unit <= 0xDFFF
 
 ## Inspection identifies the representation and preserves invalid raw units.
 expect Str.inspect(OsStr.utf8("a\nb")) == "OsStr.utf8(\"a\\nb\")"
-expect Str.inspect(OsStr.unix("abc")) == "OsStr.unix(\"abc\")"
+expect Str.inspect(OsStr.unix("abc")) == "OsStr.utf8(\"abc\")"
 expect Str.inspect(OsStr.unix_bytes([97, 255, 98])) == "OsStr.unix_bytes([97, 255, 98])"
-expect Str.inspect(OsStr.windows("abc")) == "OsStr.windows(\"abc\")"
+expect Str.inspect(OsStr.windows("abc")) == "OsStr.utf8(\"abc\")"
 expect Str.inspect(OsStr.windows_u16s([0xD800, 97])) == "OsStr.windows_u16s([55296, 97])"
 
 ## Interpolation creates a UTF-8 representation.
@@ -242,6 +257,7 @@ expect {
 	value == OsStr.utf8("config.toml")
 }
 
-## Equality and hashing preserve representation identity.
-expect OsStr.utf8("abc") != OsStr.unix("abc")
+## Equality and hashing agree for losslessly equivalent constructors.
+expect OsStr.utf8("abc") == OsStr.unix("abc")
+expect OsStr.utf8("abc") == OsStr.windows_u16s([97, 98, 99])
 expect Dict.single(OsStr.unix_bytes([97, 255]), "found").get(OsStr.unix_bytes([97, 255])) == Ok("found")

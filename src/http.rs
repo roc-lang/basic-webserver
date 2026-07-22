@@ -1,15 +1,105 @@
 use crate::abi::roc_host;
+use crate::http_error::{
+    classify_client_error, classify_response_error, DnsError, Endpoint, TransportError,
+};
 use crate::roc_platform_abi::*;
+use std::future::Future;
+use std::mem::ManuallyDrop;
+use std::pin::Pin;
+use std::sync::OnceLock;
+use std::task::{Context, Poll};
+use tower_service::Service;
 
-type HttpResponse = HostHttpSendRequest;
+type HttpResponse = HostHttpSendRequestOk;
 type HttpHeader = HostHttpSendRequestArg0Headers;
+type AbiConnectReason = AddressNotAvailableOrConnectionAbortedOrConnectionRefusedOrConnectionResetOrHostUnreachableOrNetworkUnreachableOrOtherOrPermissionDeniedOrTimedOut;
+type OutboundBody = http_body_util::Full<bytes::Bytes>;
+type OutboundConnector = hyper_rustls::HttpsConnector<
+    hyper_util::client::legacy::connect::HttpConnector<TypedDnsResolver>,
+>;
+type OutboundClient = hyper_util::client::legacy::Client<OutboundConnector, OutboundBody>;
 
-thread_local! {
-    static TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("failed to build tokio runtime");
+#[derive(Debug)]
+struct RequestBuildError {
+    detail: String,
+}
+
+struct InternalResponse {
+    status: u16,
+    headers: Vec<(String, String)>,
+    body: bytes::Bytes,
+}
+
+/// Preserve the DNS phase in the source chain while retaining Hyper's default
+/// blocking `getaddrinfo` implementation.
+#[derive(Clone)]
+struct TypedDnsResolver {
+    inner: hyper_util::client::legacy::connect::dns::GaiResolver,
+}
+
+impl TypedDnsResolver {
+    fn new() -> Self {
+        Self {
+            inner: hyper_util::client::legacy::connect::dns::GaiResolver::new(),
+        }
+    }
+}
+
+impl Service<hyper_util::client::legacy::connect::dns::Name> for TypedDnsResolver {
+    type Response = hyper_util::client::legacy::connect::dns::GaiAddrs;
+    type Error = DnsError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, context: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        match self.inner.poll_ready(context) {
+            Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
+            Poll::Ready(Err(error)) => Poll::Ready(Err(DnsError::new(error.to_string()))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn call(&mut self, name: hyper_util::client::legacy::connect::dns::Name) -> Self::Future {
+        let future = self.inner.call(name);
+        Box::pin(async move {
+            future
+                .await
+                .map_err(|error| DnsError::new(error.to_string()))
+        })
+    }
+}
+
+struct OutboundHttp {
+    runtime: tokio::runtime::Runtime,
+    client: OutboundClient,
+}
+
+static OUTBOUND_HTTP: OnceLock<OutboundHttp> = OnceLock::new();
+
+fn outbound_http() -> &'static OutboundHttp {
+    OUTBOUND_HTTP.get_or_init(|| {
+        use hyper_rustls::HttpsConnectorBuilder;
+        use hyper_util::client::legacy::connect::HttpConnector;
+        use hyper_util::client::legacy::Client;
+        use hyper_util::rt::TokioExecutor;
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .thread_name("roc-outbound-http")
+            .enable_io()
+            .enable_time()
+            .build()
+            .expect("failed to build outbound HTTP runtime");
+
+        let mut http = HttpConnector::new_with_resolver(TypedDnsResolver::new());
+        http.enforce_http(false);
+        let https = HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_or_http()
+            .enable_http1()
+            .wrap_connector(http);
+        let client = Client::builder(TokioExecutor::new()).build(https);
+
+        OutboundHttp { runtime, client }
+    })
 }
 
 // Numeric method tags must match `to_host_method` in platform/InternalHttp.roc.
@@ -25,17 +115,7 @@ fn as_hyper_method(method: u8, method_ext: &str) -> Option<hyper::Method> {
         7 => Some(hyper::Method::POST),
         8 => Some(hyper::Method::PUT),
         9 => Some(hyper::Method::TRACE),
-        10 => hyper::Method::from_bytes(b"QUERY").ok(),
         _ => None,
-    }
-}
-
-fn http_sentinel_response(status: u16, body: &[u8], roc_host: &RocHost) -> HttpResponse {
-    HttpResponse {
-        // SAFETY: the returned list owns a copy of `body`.
-        body: unsafe { RocListWith::<u8, false>::from_slice(body, roc_host) },
-        headers: RocList::empty(),
-        status,
     }
 }
 
@@ -45,30 +125,31 @@ fn build_hyper_request_from_parts<'a>(
     uri: &str,
     headers: impl IntoIterator<Item = (&'a str, &'a str)>,
     body: &[u8],
-) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, String> {
-    let method =
-        as_hyper_method(method, method_ext).ok_or_else(|| "invalid HTTP method".to_string())?;
+) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, RequestBuildError> {
+    let method = as_hyper_method(method, method_ext).ok_or_else(|| RequestBuildError {
+        detail: "invalid HTTP method".into(),
+    })?;
     let mut builder = hyper::Request::builder().method(method).uri(uri);
 
-    // Default to text/plain unless the caller already set a Content-Type.
-    let mut has_content_type = false;
     for (name, value) in headers {
         builder = builder.header(name, value);
-        if name.eq_ignore_ascii_case("Content-Type") {
-            has_content_type = true;
-        }
-    }
-    if !has_content_type {
-        builder = builder.header("Content-Type", "text/plain");
     }
 
     let body = http_body_util::Full::new(bytes::Bytes::from(body.to_vec()));
-    builder.body(body).map_err(|err| err.to_string())
+    builder.body(body).map_err(|error| RequestBuildError {
+        detail: error.to_string(),
+    })
+}
+
+fn endpoint_for_request<B>(request: &hyper::Request<B>) -> Result<Endpoint, RequestBuildError> {
+    Endpoint::from_uri(request.uri()).ok_or_else(|| RequestBuildError {
+        detail: "outbound HTTP request must have an absolute http or https URL".into(),
+    })
 }
 
 fn build_hyper_request(
     args: &HostHttpSendRequestArgs,
-) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, String> {
+) -> Result<hyper::Request<http_body_util::Full<bytes::Bytes>>, RequestBuildError> {
     build_hyper_request_from_parts(
         args.method,
         args.method_ext.as_str(),
@@ -96,60 +177,265 @@ fn build_roc_headers(pairs: &[(String, String)], roc_host: &RocHost) -> RocList<
     list
 }
 
+fn response_headers_to_strings(
+    headers: &hyper::HeaderMap,
+) -> Result<Vec<(String, String)>, TransportError> {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            let value = value
+                .to_str()
+                .map_err(|_| TransportError::InvalidResponse {
+                    detail: format!("response header '{}' is not valid UTF-8", name.as_str()),
+                })?;
+            Ok((name.as_str().to_string(), value.to_string()))
+        })
+        .collect()
+}
+
 async fn async_send_request(
     request: hyper::Request<http_body_util::Full<bytes::Bytes>>,
-    roc_host: &RocHost,
-) -> HttpResponse {
+    endpoint: Endpoint,
+    client: &OutboundClient,
+) -> Result<InternalResponse, TransportError> {
     use http_body_util::BodyExt;
-    use hyper_rustls::HttpsConnectorBuilder;
-    use hyper_util::client::legacy::Client;
-    use hyper_util::rt::TokioExecutor;
 
-    let https = HttpsConnectorBuilder::new()
-        .with_webpki_roots()
-        .https_or_http()
-        .enable_http1()
-        .build();
+    let response = client
+        .request(request)
+        .await
+        .map_err(|error| classify_client_error(&error, &endpoint))?;
+    let status = response.status().as_u16();
+    let headers = response_headers_to_strings(response.headers())?;
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .map_err(|error| classify_response_error(&error, &endpoint))?
+        .to_bytes();
 
-    let client: Client<_, http_body_util::Full<bytes::Bytes>> =
-        Client::builder(TokioExecutor::new()).build(https);
+    Ok(InternalResponse {
+        status,
+        headers,
+        body,
+    })
+}
 
-    match client.request(request).await {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            let pairs: Vec<(String, String)> = response
-                .headers()
-                .iter()
-                .map(|(name, value)| {
-                    (
-                        name.as_str().to_string(),
-                        value.to_str().unwrap_or_default().to_string(),
-                    )
-                })
-                .collect();
-
-            match response.into_body().collect().await {
-                Ok(collected) => {
-                    let bytes = collected.to_bytes();
-                    HttpResponse {
-                        // SAFETY: the returned list owns a copy of the body.
-                        body: unsafe { RocListWith::<u8, false>::from_slice(&bytes, roc_host) },
-                        headers: build_roc_headers(&pairs, roc_host),
-                        status,
-                    }
-                }
-                Err(_) => http_sentinel_response(500, b"BadBody", roc_host),
-            }
-        }
-        Err(err) => {
-            let detail = format!("OTHER ERROR\n{}", err);
-            http_sentinel_response(500, detail.as_bytes(), roc_host)
-        }
+fn internal_response_to_roc(response: InternalResponse, roc_host: &RocHost) -> HttpResponse {
+    HttpResponse {
+        // SAFETY: the returned list owns a copy of the body.
+        body: unsafe { RocListWith::<u8, false>::from_slice(&response.body, roc_host) },
+        headers: build_roc_headers(&response.headers, roc_host),
+        status: response.status,
     }
 }
 
+#[cfg(not(target_pointer_width = "32"))]
+fn make_http_result(
+    payload: HostHttpSendRequestResultPayload,
+    tag: HostHttpSendRequestResultTag,
+) -> HostHttpSendRequestResult {
+    HostHttpSendRequestResult { payload, tag }
+}
+
+#[cfg(target_pointer_width = "32")]
+fn make_http_result(
+    payload: HostHttpSendRequestResultPayload,
+    tag: HostHttpSendRequestResultTag,
+) -> HostHttpSendRequestResult {
+    let mut result = HostHttpSendRequestResult {
+        _payload_alignment: [],
+        payload: [0; core::mem::size_of::<HostHttpSendRequestResultPayload>()],
+        tag,
+    };
+    unsafe {
+        (result.payload.as_mut_ptr() as *mut HostHttpSendRequestResultPayload).write(payload);
+    }
+    result
+}
+
+#[cfg(not(target_pointer_width = "32"))]
+fn make_http_error(
+    payload: HostHttpSendRequestErrPayload,
+    tag: HostHttpSendRequestErrTag,
+) -> HostHttpSendRequestErr {
+    HostHttpSendRequestErr { payload, tag }
+}
+
+#[cfg(target_pointer_width = "32")]
+fn make_http_error(
+    payload: HostHttpSendRequestErrPayload,
+    tag: HostHttpSendRequestErrTag,
+) -> HostHttpSendRequestErr {
+    let mut error = HostHttpSendRequestErr {
+        _payload_alignment: [],
+        payload: [0; core::mem::size_of::<HostHttpSendRequestErrPayload>()],
+        tag,
+    };
+    unsafe {
+        (error.payload.as_mut_ptr() as *mut HostHttpSendRequestErrPayload).write(payload);
+    }
+    error
+}
+
+#[cfg(not(target_pointer_width = "32"))]
+fn make_transport(
+    payload: HostHttpSendRequestErrTransportPayload,
+    tag: HostHttpSendRequestErrTransportTag,
+) -> HostHttpSendRequestErrTransport {
+    HostHttpSendRequestErrTransport { payload, tag }
+}
+
+#[cfg(target_pointer_width = "32")]
+fn make_transport(
+    payload: HostHttpSendRequestErrTransportPayload,
+    tag: HostHttpSendRequestErrTransportTag,
+) -> HostHttpSendRequestErrTransport {
+    let mut transport = HostHttpSendRequestErrTransport {
+        _payload_alignment: [],
+        payload: [0; core::mem::size_of::<HostHttpSendRequestErrTransportPayload>()],
+        tag,
+    };
+    unsafe {
+        (transport.payload.as_mut_ptr() as *mut HostHttpSendRequestErrTransportPayload)
+            .write(payload);
+    }
+    transport
+}
+
+fn try_http_ok(response: HttpResponse) -> HostHttpSendRequestResult {
+    make_http_result(
+        HostHttpSendRequestResultPayload {
+            ok: ManuallyDrop::new(response),
+        },
+        HostHttpSendRequestResultTag::Ok,
+    )
+}
+
+fn try_http_err(error: HostHttpSendRequestErr) -> HostHttpSendRequestResult {
+    make_http_result(
+        HostHttpSendRequestResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        HostHttpSendRequestResultTag::Err,
+    )
+}
+
+fn invalid_request_error(detail: &str, roc_host: &RocHost) -> HostHttpSendRequestResult {
+    try_http_err(make_http_error(
+        HostHttpSendRequestErrPayload {
+            invalid_request: ManuallyDrop::new(RocStr::from_str(detail, roc_host)),
+        },
+        HostHttpSendRequestErrTag::InvalidRequest,
+    ))
+}
+
+fn connect_reason_to_abi(reason: crate::http_error::ConnectReason) -> AbiConnectReason {
+    use crate::http_error::ConnectReason;
+    match reason {
+        ConnectReason::AddressNotAvailable => AbiConnectReason::AddressNotAvailable,
+        ConnectReason::ConnectionAborted => AbiConnectReason::ConnectionAborted,
+        ConnectReason::ConnectionRefused => AbiConnectReason::ConnectionRefused,
+        ConnectReason::ConnectionReset => AbiConnectReason::ConnectionReset,
+        ConnectReason::NetworkUnreachable => AbiConnectReason::NetworkUnreachable,
+        ConnectReason::HostUnreachable => AbiConnectReason::HostUnreachable,
+        ConnectReason::PermissionDenied => AbiConnectReason::PermissionDenied,
+        ConnectReason::TimedOut => AbiConnectReason::TimedOut,
+        ConnectReason::Other => AbiConnectReason::Other,
+    }
+}
+
+fn transport_to_abi(error: TransportError, roc_host: &RocHost) -> HostHttpSendRequestErrTransport {
+    let (payload, tag) = match error {
+        TransportError::Timeout => (
+            HostHttpSendRequestErrTransportPayload { timeout: [] },
+            HostHttpSendRequestErrTransportTag::Timeout,
+        ),
+        TransportError::DnsFailed { host, detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                dns_failed: ManuallyDrop::new(HostHttpSendRequestErrTransportDnsFailed {
+                    detail: RocStr::from_str(&detail, roc_host),
+                    host: RocStr::from_str(&host, roc_host),
+                }),
+            },
+            HostHttpSendRequestErrTransportTag::DnsFailed,
+        ),
+        TransportError::ConnectFailed {
+            host,
+            port,
+            reason,
+            detail,
+        } => (
+            HostHttpSendRequestErrTransportPayload {
+                connect_failed: ManuallyDrop::new(HostHttpSendRequestErrTransportConnectFailed {
+                    detail: RocStr::from_str(&detail, roc_host),
+                    host: RocStr::from_str(&host, roc_host),
+                    port,
+                    reason: connect_reason_to_abi(reason),
+                }),
+            },
+            HostHttpSendRequestErrTransportTag::ConnectFailed,
+        ),
+        TransportError::TlsFailed { host, detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                tls_failed: ManuallyDrop::new(HostHttpSendRequestErrTransportTlsFailed {
+                    detail: RocStr::from_str(&detail, roc_host),
+                    host: RocStr::from_str(&host, roc_host),
+                }),
+            },
+            HostHttpSendRequestErrTransportTag::TlsFailed,
+        ),
+        TransportError::ConnectionClosed => (
+            HostHttpSendRequestErrTransportPayload {
+                connection_closed: [],
+            },
+            HostHttpSendRequestErrTransportTag::ConnectionClosed,
+        ),
+        TransportError::ExchangeFailed { detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                exchange_failed: ManuallyDrop::new(RocStr::from_str(&detail, roc_host)),
+            },
+            HostHttpSendRequestErrTransportTag::ExchangeFailed,
+        ),
+        TransportError::ResponseBodyFailed { detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                response_body_failed: ManuallyDrop::new(RocStr::from_str(&detail, roc_host)),
+            },
+            HostHttpSendRequestErrTransportTag::ResponseBodyFailed,
+        ),
+        TransportError::InvalidResponse { detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                invalid_response: ManuallyDrop::new(RocStr::from_str(&detail, roc_host)),
+            },
+            HostHttpSendRequestErrTransportTag::InvalidResponse,
+        ),
+        TransportError::Cancelled => (
+            HostHttpSendRequestErrTransportPayload { cancelled: [] },
+            HostHttpSendRequestErrTransportTag::Cancelled,
+        ),
+        TransportError::Other { detail } => (
+            HostHttpSendRequestErrTransportPayload {
+                other: ManuallyDrop::new(RocStr::from_str(&detail, roc_host)),
+            },
+            HostHttpSendRequestErrTransportTag::Other,
+        ),
+    };
+
+    make_transport(payload, tag)
+}
+
+fn transport_error(error: TransportError, roc_host: &RocHost) -> HostHttpSendRequestResult {
+    try_http_err(make_http_error(
+        HostHttpSendRequestErrPayload {
+            transport: ManuallyDrop::new(transport_to_abi(error, roc_host)),
+        },
+        HostHttpSendRequestErrTag::Transport,
+    ))
+}
+
 #[no_mangle]
-pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> HttpResponse {
+pub extern "C" fn hosted_http_send_request(
+    args: HostHttpSendRequestArgs,
+) -> HostHttpSendRequestResult {
     let roc_host = roc_host();
     let timeout_ms = args.timeout_ms;
 
@@ -166,32 +452,36 @@ pub extern "C" fn hosted_http_send_request(args: HostHttpSendRequestArgs) -> Htt
 
     let request = match request_result {
         Ok(request) => request,
-        Err(err) => {
-            return http_sentinel_response(
-                500,
-                format!("OTHER ERROR\n{}", err).as_bytes(),
-                roc_host,
-            )
-        }
+        Err(error) => return invalid_request_error(&error.detail, roc_host),
+    };
+    let endpoint = match endpoint_for_request(&request) {
+        Ok(endpoint) => endpoint,
+        Err(error) => return invalid_request_error(&error.detail, roc_host),
     };
 
-    TOKIO_RUNTIME.with(|rt| {
-        if timeout_ms > 0 {
-            rt.block_on(async {
-                match tokio::time::timeout(
-                    std::time::Duration::from_millis(timeout_ms),
-                    async_send_request(request, roc_host),
-                )
-                .await
-                {
-                    Ok(response) => response,
-                    Err(_) => http_sentinel_response(408, b"Timeout", roc_host),
-                }
-            })
-        } else {
-            rt.block_on(async_send_request(request, roc_host))
-        }
-    })
+    let outbound = outbound_http();
+    let result = if timeout_ms > 0 {
+        outbound.runtime.block_on(async {
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(timeout_ms),
+                async_send_request(request, endpoint, &outbound.client),
+            )
+            .await
+            {
+                Ok(response) => response,
+                Err(_) => Err(TransportError::Timeout),
+            }
+        })
+    } else {
+        outbound
+            .runtime
+            .block_on(async_send_request(request, endpoint, &outbound.client))
+    };
+
+    match result {
+        Ok(response) => try_http_ok(internal_response_to_roc(response, roc_host)),
+        Err(error) => transport_error(error, roc_host),
+    }
 }
 
 #[cfg(test)]
@@ -203,18 +493,19 @@ mod tests {
         assert_eq!(as_hyper_method(3, ""), Some(hyper::Method::GET));
         assert_eq!(as_hyper_method(7, ""), Some(hyper::Method::POST));
         assert_eq!(
-            as_hyper_method(10, ""),
+            as_hyper_method(2, "QUERY"),
             Some(hyper::Method::from_bytes(b"QUERY").unwrap())
         );
         assert_eq!(
             as_hyper_method(2, "PROPFIND"),
             Some(hyper::Method::from_bytes(b"PROPFIND").unwrap())
         );
+        assert_eq!(as_hyper_method(10, ""), None);
         assert_eq!(as_hyper_method(255, ""), None);
     }
 
     #[test]
-    fn build_request_defaults_content_type_to_text_plain() {
+    fn build_request_does_not_fabricate_content_type() {
         let request = build_hyper_request_from_parts(
             7,
             "",
@@ -225,7 +516,19 @@ mod tests {
         .unwrap();
 
         assert_eq!(request.method(), hyper::Method::POST);
-        assert_eq!(request.headers()["content-type"], "text/plain");
+        assert!(!request.headers().contains_key("content-type"));
+    }
+
+    #[test]
+    fn outbound_runtime_and_client_are_shared_and_multithreaded() {
+        let first = outbound_http();
+        let second = outbound_http();
+
+        assert!(core::ptr::eq(first, second));
+        assert_eq!(
+            first.runtime.handle().runtime_flavor(),
+            tokio::runtime::RuntimeFlavor::MultiThread
+        );
     }
 
     #[test]
@@ -241,5 +544,83 @@ mod tests {
 
         assert_eq!(request.headers()["content-type"], "application/json");
         assert_eq!(request.headers().get_all("content-type").iter().count(), 1);
+    }
+
+    #[test]
+    fn invalid_request_construction_is_separate_from_transport_errors() {
+        let request =
+            build_hyper_request_from_parts(7, "", "/relative", std::iter::empty(), b"").unwrap();
+        assert_eq!(
+            endpoint_for_request(&request).unwrap_err().detail,
+            "outbound HTTP request must have an absolute http or https URL"
+        );
+
+        assert_eq!(
+            build_hyper_request_from_parts(
+                255,
+                "",
+                "https://example.test/",
+                std::iter::empty(),
+                b"",
+            )
+            .unwrap_err()
+            .detail,
+            "invalid HTTP method"
+        );
+    }
+
+    #[test]
+    fn non_utf8_response_headers_are_invalid_responses() {
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(
+            "x-binary",
+            hyper::header::HeaderValue::from_bytes(&[0xff]).unwrap(),
+        );
+        assert_eq!(
+            response_headers_to_strings(&headers),
+            Err(TransportError::InvalidResponse {
+                detail: "response header 'x-binary' is not valid UTF-8".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn connect_reasons_match_the_roc_transport_union() {
+        use crate::http_error::ConnectReason;
+        let cases = [
+            (
+                ConnectReason::AddressNotAvailable,
+                AbiConnectReason::AddressNotAvailable,
+            ),
+            (
+                ConnectReason::ConnectionAborted,
+                AbiConnectReason::ConnectionAborted,
+            ),
+            (
+                ConnectReason::ConnectionRefused,
+                AbiConnectReason::ConnectionRefused,
+            ),
+            (
+                ConnectReason::ConnectionReset,
+                AbiConnectReason::ConnectionReset,
+            ),
+            (
+                ConnectReason::HostUnreachable,
+                AbiConnectReason::HostUnreachable,
+            ),
+            (
+                ConnectReason::NetworkUnreachable,
+                AbiConnectReason::NetworkUnreachable,
+            ),
+            (
+                ConnectReason::PermissionDenied,
+                AbiConnectReason::PermissionDenied,
+            ),
+            (ConnectReason::TimedOut, AbiConnectReason::TimedOut),
+            (ConnectReason::Other, AbiConnectReason::Other),
+        ];
+        for (internal, abi) in cases {
+            assert_eq!(connect_reason_to_abi(internal), abi);
+        }
     }
 }
