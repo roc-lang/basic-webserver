@@ -18,6 +18,7 @@ Http :: [].{
 	default_timeout_ms : U64
 	default_timeout_ms = 30_000
 
+	## Default maximum response body retained in memory: 8 MiB.
 	default_max_response_bytes : U64
 	default_max_response_bytes = 8 * 1024 * 1024
 
@@ -29,15 +30,9 @@ Http :: [].{
 				max_response_bytes : U64,
 			},
 		),
-	].{
+	]
 
-		timeout_millis : Config -> U64
-		timeout_millis = |Config(config)| config.timeout_ms
-
-		max_response_bytes : Config -> U64
-		max_response_bytes = |Config(config)| config.max_response_bytes
-	}
-
+	## The finite timeout and response-size policy used by [`send!`](#Http.send!).
 	default_config : Config
 	default_config = Config({
 		timeout_ms: default_timeout_ms,
@@ -57,6 +52,7 @@ Http :: [].{
 			},
 		})
 
+	## Set the maximum response body retained in memory.
 	with_max_response_bytes : Config, U64 -> Config
 	with_max_response_bytes = |Config(config), max_response_bytes|
 		Config({ ..config, max_response_bytes })
@@ -162,7 +158,13 @@ Http :: [].{
 send_validated! : Request.Request, Http.Config => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
 send_validated! = |request, config| {
 	host_response = 
-		match Host.http_send_request!(InternalHttp.to_host_request(request, config.timeout_millis(), config.max_response_bytes())) {
+		match Host.http_send_request!(
+			InternalHttp.to_host_request(
+				request,
+				config_timeout_millis(config),
+				config_max_response_bytes(config),
+			),
+		) {
 			Ok(response) => response
 			Err(InvalidRequest(detail)) => return Err(InvalidRequest(detail))
 			Err(Transport(err)) => return Err(HttpErr(err))
@@ -170,3 +172,9 @@ send_validated! = |request, config| {
 
 	Ok(InternalHttp.from_host_response(host_response))
 }
+
+config_timeout_millis : Http.Config -> U64
+config_timeout_millis = |Config(config)| config.timeout_ms
+
+config_max_response_bytes : Http.Config -> U64
+config_max_response_bytes = |Config(config)| config.max_response_bytes

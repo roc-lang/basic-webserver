@@ -2,7 +2,8 @@
 ##
 ## Values that are valid Unicode use one canonical UTF-8 representation.
 ## Native Unix bytes and Windows UTF-16 units that cannot be represented as
-## Unicode still roundtrip exactly through host effects; use [`display`](#display)
+## Unicode still roundtrip exactly through host effects; use
+## [`display`](#OsStr.display)
 ## only when a lossy representation is acceptable.
 OsStr := [
 	Utf8(Str),

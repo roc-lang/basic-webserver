@@ -1,12 +1,20 @@
-import IOErr exposing [IOErr]
+import IOErr
 import Host
-import OsStr exposing [OsStr]
+import OsStr
 
 ## Build and run finite child processes with native-safe programs, arguments,
 ## and environment values. Programs execute directly without a shell. Commands
 ## inherit the host working directory and, unless clear_envs is used, the host
 ## environment. exec!/exec_cmd! inherit standard streams; exec_output! captures
 ## both streams with finite limits.
+##
+## ```roc
+## output = Cmd.new_str("git")
+##     .args_str(["status", "--short"])
+##     .with_timeout_millis(5_000)
+##     .with_output_limits({ stdout_bytes: 256 * 1024, stderr_bytes: 64 * 1024 })
+##     .exec_output!()?
+## ```
 Cmd := [
 	Cmd(
 		{
@@ -20,9 +28,12 @@ Cmd := [
 		},
 	),
 ].{
+
+	## Default deadline for command execution, including admission wait.
 	default_timeout_ms : U64
 	default_timeout_ms = 30_000
 
+	## Default finite limit applied independently to captured stdout and stderr.
 	default_output_limit_bytes : U64
 	default_output_limit_bytes = 1024 * 1024
 
@@ -140,12 +151,15 @@ Cmd := [
 			},
 		})
 
+	## Set the maximum captured stdout size in bytes.
 	with_stdout_limit : Cmd, U64 -> Cmd
 	with_stdout_limit = |Cmd(cmd), limit_bytes| Cmd({ ..cmd, stdout_limit_bytes: limit_bytes })
 
+	## Set the maximum captured stderr size in bytes.
 	with_stderr_limit : Cmd, U64 -> Cmd
 	with_stderr_limit = |Cmd(cmd), limit_bytes| Cmd({ ..cmd, stderr_limit_bytes: limit_bytes })
 
+	## Set independent finite limits for captured stdout and stderr.
 	with_output_limits : Cmd, { stdout_bytes : U64, stderr_bytes : U64 } -> Cmd
 	with_output_limits = |Cmd(cmd), limits| Cmd({
 		..cmd,
@@ -209,6 +223,7 @@ Cmd := [
 	to_str = |Cmd(cmd)|
 		"Cmd({ program: ${Str.inspect(cmd.program)}, args: ${Str.inspect(cmd.args)}, envs: ${Str.inspect(cmd.envs)}, clear_envs: ${Str.inspect(cmd.clear_envs)} })"
 
+	## Use [`to_str`](#Cmd.to_str) when this command is inspected.
 	to_inspect : Cmd -> Str
 	to_inspect = |cmd| to_str(cmd)
 }

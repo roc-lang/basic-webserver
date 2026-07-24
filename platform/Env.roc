@@ -1,12 +1,16 @@
 import Host
 import InternalPath
-import IOErr exposing [IOErr]
-import OsStr exposing [OsStr]
-import Path exposing [Path]
+import IOErr
+import OsStr
+import Path
 
 ## Read process environment data without losing native operating-system strings.
 Env := [].{
+
+	## CPU architecture reported for the current platform build.
 	ARCH : [X86, X64, ARM, AARCH64, OTHER(Str)]
+
+	## Operating system reported for the current platform build.
 	OS : [LINUX, MACOS, WINDOWS, OTHER(Str)]
 
 	## Read an environment variable using an exact native name and value.

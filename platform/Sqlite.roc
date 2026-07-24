@@ -30,6 +30,21 @@ import Path
 ## `INSERT ... RETURNING` when a result must come from the same operation;
 ## `last_insert_rowid()` in a later call does not refer to the earlier call.
 ## Multi-statement transactions are not yet exposed by this module.
+##
+## ```roc
+## decode_todo = |columns| |statement| {
+##     id = Sqlite.i64("id")(columns)(statement)?
+##     task = Sqlite.str("task")(columns)(statement)?
+##     Ok({ id, task })
+## }
+##
+## todos = Sqlite.query_many!({
+##     path: db_path,
+##     query: "SELECT id, task FROM todos WHERE status = :status",
+##     bindings: [{ name: ":status", value: String("open") }],
+##     rows: decode_todo,
+## })?
+## ```
 Sqlite :: [].{
 
 	## A value accepted by a SQLite binding or returned from a column.

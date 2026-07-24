@@ -4,7 +4,8 @@ import Path
 
 ## Open files for incremental, buffered reading.
 ##
-## Whole-file operations and filesystem metadata are available on [`Path`](Path).
+## Whole-file operations and filesystem metadata are available on
+## [`Path`](../Path/).
 ## The host retains at most 64 readers. Opening another returns
 ## `FileErr(Other("file reader capacity is exhausted"))`.
 File :: [].{

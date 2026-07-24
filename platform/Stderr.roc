@@ -1,6 +1,7 @@
-import IOErr exposing [IOErr]
+import IOErr
 import Host
 
+## Write diagnostics to the process standard-error stream.
 Stderr := [].{
 
 	## Write the given string to [standard error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)),

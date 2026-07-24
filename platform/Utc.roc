@@ -2,6 +2,8 @@ import Host
 
 DateTime : { year : I128, month : I128, day : I128, hours : I128, minutes : I128, seconds : I128 }
 
+## Read and manipulate UTC timestamps represented as nanoseconds since the Unix
+## epoch.
 Utc := [].{
 
 	## Get the current UTC time as nanoseconds since the Unix epoch (January 1, 1970).

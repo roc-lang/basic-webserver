@@ -22,7 +22,6 @@ platform "webserver"
 		Html,
 		Http,
 		IOErr,
-		InternalSqlite,
 		MultipartFormData,
 		OsStr,
 		Path,

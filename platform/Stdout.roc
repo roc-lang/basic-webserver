@@ -1,6 +1,7 @@
-import IOErr exposing [IOErr]
+import IOErr
 import Host
 
+## Write text or bytes to the process standard-output stream.
 Stdout := [].{
 
 	## Write the given string to [standard output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)),
