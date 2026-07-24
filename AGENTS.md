@@ -1,3 +1,21 @@
+# Design
+
+- Read `design.md` before making code changes. It is the authoritative,
+  forward-looking reference for the platform's desired architecture, scope,
+  ownership boundaries, and invariants.
+- The current implementation may differ from `design.md`. Move the
+  implementation toward the design; do not treat existing code as evidence
+  that a conflicting architecture is intended.
+- Evaluate changes against the goals and non-goals in `design.md`. If requested
+  work conflicts with them, identify the conflict explicitly rather than
+  silently adding a workaround or expanding the platform's scope.
+- Do not update `design.md` merely to justify an implementation decision. It
+  should change only when new information invalidates an assumption, exposes a
+  conflict between its goals, or the desired architecture or scope is
+  deliberately changed.
+- Keep implementation plans, migration status, and temporary constraints out
+  of `design.md`. It records enduring WHAT and WHY; implementation-specific HOW
+  belongs in code, focused documentation, issues, or pull requests.
 
 # General Info
 
