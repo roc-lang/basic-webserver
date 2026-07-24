@@ -103,9 +103,13 @@ pub extern "C" fn hosted_dir_list(path: HostDirListArgs) -> DirListResult {
     };
     match fs::read_dir(path) {
         Ok(read_dir) => {
-            let entries: Vec<std::path::PathBuf> = read_dir
-                .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-                .collect();
+            let entries: Vec<std::path::PathBuf> = match read_dir
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect()
+            {
+                Ok(entries) => entries,
+                Err(error) => return try_dir_list_err(io_err_from_io(&error, roc_host)),
+            };
             // SAFETY: every allocated element is initialized below before the
             // list is returned to Roc.
             let list = unsafe { RocList::<RawPath>::allocate(entries.len(), roc_host) };
