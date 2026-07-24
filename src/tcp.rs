@@ -1,8 +1,9 @@
 use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::{Mutex, OnceLock};
+use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::sync::{mpsc, Mutex, OnceLock};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::abi::{
@@ -11,6 +12,7 @@ use crate::abi::{
     TcpHostReadUpToResultPayload, TcpHostReadUpToResultTag, TcpHostWriteResult,
     TcpHostWriteResultPayload, TcpHostWriteResultTag,
 };
+use crate::bounded_gate::{AcquireError, BoundedGate};
 use crate::capability::{try_lock, CapabilityLockError};
 use crate::host_resource::{
     DeallocRoute, HostResourceHeap, LookupError, ReserveError, ResourceReservation,
@@ -24,6 +26,8 @@ const MAX_OPEN_TCP_STREAMS: usize = 64;
 type TcpResource = Mutex<BufReader<TcpStream>>;
 
 static TCP_STREAMS: OnceLock<HostResourceHeap<TcpResource>> = OnceLock::new();
+static TCP_RESOLUTION_GATE: BoundedGate =
+    BoundedGate::new(MAX_OPEN_TCP_STREAMS, MAX_OPEN_TCP_STREAMS);
 
 fn tcp_streams() -> &'static HostResourceHeap<TcpResource> {
     TCP_STREAMS.get_or_init(|| HostResourceHeap::new(MAX_OPEN_TCP_STREAMS))
@@ -238,9 +242,54 @@ fn remaining_timeout(deadline: Instant) -> io::Result<Duration> {
     }
 }
 
+fn run_resolver_with_deadline(
+    deadline: Instant,
+    resolve: impl FnOnce() -> io::Result<Vec<SocketAddr>> + Send + 'static,
+) -> io::Result<Vec<SocketAddr>> {
+    let permit = TCP_RESOLUTION_GATE.acquire(deadline).map_err(|error| {
+        let message = match error {
+            AcquireError::Saturated => "TCP name resolver capacity exhausted",
+            AcquireError::TimedOut => "TCP name resolution deadline exceeded",
+        };
+        io::Error::new(io::ErrorKind::TimedOut, message)
+    })?;
+    let (sender, receiver) = mpsc::sync_channel(1);
+    thread::Builder::new()
+        .name("roc-tcp-resolver".to_owned())
+        .spawn(move || {
+            let result = resolve();
+            let _ = sender.send(result);
+            drop(permit);
+        })?;
+
+    match receiver.recv_timeout(remaining_timeout(deadline)?) {
+        Ok(result) => result,
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "TCP name resolution deadline exceeded",
+        )),
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err(io::Error::other("TCP name resolver stopped unexpectedly"))
+        }
+    }
+}
+
+fn resolve_addresses(host: &str, port: u16, deadline: Instant) -> io::Result<Vec<SocketAddr>> {
+    if let Ok(address) = host.parse::<IpAddr>() {
+        return Ok(vec![SocketAddr::new(address, port)]);
+    }
+
+    let host = host.to_owned();
+    run_resolver_with_deadline(deadline, move || {
+        (host.as_str(), port)
+            .to_socket_addrs()
+            .map(|addresses| addresses.collect())
+    })
+}
+
 fn connect_with_timeout(host: &str, port: u16) -> io::Result<TcpStream> {
-    let addresses = (host, port).to_socket_addrs()?;
     let deadline = Instant::now() + TCP_OPERATION_TIMEOUT;
+    let addresses = resolve_addresses(host, port, deadline)?;
     let mut last_error = None;
     for address in addresses {
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -508,5 +557,15 @@ mod tests {
             reader.get_ref().read_timeout().unwrap(),
             Some(TCP_OPERATION_TIMEOUT)
         );
+    }
+
+    #[test]
+    fn name_resolution_honors_its_deadline() {
+        let result = run_resolver_with_deadline(Instant::now() + Duration::from_millis(10), || {
+            thread::sleep(Duration::from_millis(100));
+            Ok(Vec::new())
+        });
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
     }
 }
