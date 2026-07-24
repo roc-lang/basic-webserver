@@ -13,10 +13,10 @@ from pathlib import Path
 
 
 # Glue provenance: the committed Rust glue is generated with the compiler and
-# RustGlue.roc shipped together in nightly-2026-July-23-fdd77c3. Compiler and
+# RustGlue.roc shipped together in nightly-2026-July-23-306abd6. Compiler and
 # glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "fdd77c3969722edb53033c0847bdb3fd05609e47"
+KNOWN_GOOD_REVISION = "306abd6d8b5fe5c3c0967976a5da2e7568b02a37"
 
 
 def rooted_path(value: str) -> Path:
@@ -93,7 +93,14 @@ def find_glue_spec(roc: str) -> Path:
 def run_glue(roc: str, glue_spec: Path, platform_file: Path, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        [roc, "glue", str(glue_spec), str(out_dir), str(platform_file)],
+        [
+            roc,
+            "glue",
+            "--no-cache",
+            str(glue_spec),
+            str(out_dir),
+            str(platform_file),
+        ],
         cwd=ROOT,
         check=False,
     )

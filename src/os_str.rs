@@ -18,6 +18,7 @@ fn unsupported_native_variant(expected: &str, got: &str) -> io::Error {
     )
 }
 
+#[cfg(unix)]
 fn u8_list(slice: &[u8], roc_host: &RocHost) -> RocListWith<u8, false> {
     // SAFETY: the returned Roc list owns a copy of `slice`.
     unsafe { RocListWith::<u8, false>::from_slice(slice, roc_host) }
