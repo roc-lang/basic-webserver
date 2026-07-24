@@ -1,4 +1,4 @@
-# This example demonstrates error handling and fetching content from another website.
+## Demonstrates typed error handling while fetching content from a configured URL.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -41,13 +41,10 @@ respond! = |req, target_url| {
 ## the details to the client.
 handle_req! : Server.Request, Url => Try(Response, [FailedToFetch(_), FailedToLogRequest(_), ..])
 handle_req! = |req, target_url| {
-	# Log the method and url to stdout
+	# `?` returns early when an effect is `Err`, preserving its typed error tag.
 	log_request!(req)?
-
-	# Fetch content of url
 	content = fetch_content!(target_url)?
 
-	# Respond with the website content
 	Ok(response_with_code(200, content))
 }
 
@@ -63,7 +60,7 @@ log_request! = |req| {
 fetch_content! : Url => Try(Str, [FailedToFetch(_), ..])
 fetch_content! = |url| Http.get_utf8!(url).map_err(|err| FailedToFetch(err))
 
-# Respond with the given status code and body
+## Build an in-memory response with the given status and UTF-8 body.
 response_with_code : U16, Str -> Response
 response_with_code = |code, body|
 	Response.from_status(code).with_body(Str.to_utf8(body))

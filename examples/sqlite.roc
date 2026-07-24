@@ -1,3 +1,4 @@
+## Queries completed todos from SQLite and serves their inspected records.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -9,17 +10,16 @@ import pf.Env
 import pf.Path
 import http.Response
 
-# To run this example: check the root README.md and set
-# `export DB_PATH=./examples/todos.db`
-
-# Sql to create the table:
+# Set `DB_PATH` to choose a database; otherwise this uses
+# `./examples/todos.db`. The database must already contain this table:
+#
 # CREATE TABLE todos (
 #     id INTEGER PRIMARY KEY AUTOINCREMENT,
 #     task TEXT NOT NULL,
 #     status TEXT NOT NULL
 # );
 
-# The database path is resolved once at startup and stored in the Context.
+# The path is resolved once during `init!` and stored as immutable context.
 Context : { db_path : Path }
 
 program = { init!, respond!, shutdown! }

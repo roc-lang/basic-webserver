@@ -1,3 +1,4 @@
+## Demonstrates command execution, captured output, environment variables, timeouts, and output limits.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -9,8 +10,6 @@ import pf.Env
 import pf.Utc
 import pf.Stdout
 import http.Response
-
-# To run this example: check the root README.md
 
 Context : { helper : Str, python : Str }
 
@@ -34,14 +33,14 @@ init! = || {
 
 	# To run a command with environment variables.
 	Cmd.new_str(python)
-		.clear_envs() # You probably don't need to clear all other environment variables, this is just an example.
+		.clear_envs() # Start the child with an empty environment.
 		.env("FOO", "BAR")
 		.envs_str([{ name: "BAZ", value: "DUCK" }, { name: "XYZ", value: "ABC" }]) # Set multiple UTF-8 environment variables at once.
 		.args_str([helper, "env"])
 		.exec_cmd!()?
 
-	# To execute and just get the exit code (prints to your terminal).
-	# Prefer using `exec!` or `exec_cmd!`.
+	# `exec_exit_code!` returns nonzero exit codes as values. Most callers should
+	# use `exec!` or `exec_cmd!`, which turn nonzero codes into typed errors.
 	exit_code = 
 		Cmd.new_str(python)
 			.args_str([helper, "fail"])
@@ -49,8 +48,8 @@ init! = || {
 
 	Stdout.line!("Exit code: ${exit_code.to_str()}")?
 
-	# To execute and capture the output (stdout and stderr) in the original form as bytes without inheriting your terminal.
-	# Prefer using `exec_output!`.
+	# Capture exact stdout and stderr bytes when output may not be valid UTF-8.
+	# Prefer `exec_output!` when textual output is expected.
 	cmd_output_bytes = 
 		Cmd.new_str(python)
 			.args_str([helper, "echo", "Hi"])

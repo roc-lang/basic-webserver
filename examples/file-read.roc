@@ -1,3 +1,4 @@
+## Reads this example's UTF-8 source during initialization and serves it over HTTP.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -6,8 +7,6 @@ app [Context, program] {
 import pf.Path
 import pf.Server
 import http.Response
-
-# To run this example: check the root README.md
 
 Context : Str
 

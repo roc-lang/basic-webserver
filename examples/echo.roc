@@ -1,3 +1,4 @@
+## Echo server: logs the request method and target, then replies with the request body.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -7,10 +8,6 @@ import pf.Server
 import pf.Stdout
 import pf.Utc
 import http.Response
-
-# To run this example: check the root README.md
-
-# Echo server: logs the request method/URI and replies with the request body.
 
 Context : {}
 

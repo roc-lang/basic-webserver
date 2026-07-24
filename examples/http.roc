@@ -1,4 +1,5 @@
-# Demo of the basic-webserver outbound HTTP client (Http.send! / Http.get_utf8! / Http.get!).
+## Demonstrates outbound HTTP decoding, response inspection, headers, timeouts,
+## and response-size limits.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -15,9 +16,8 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-# Fetch some content at startup to demonstrate the outbound HTTP client. To
-# exercise it, run a server on localhost:9000 (see the root README); otherwise the
-# requests simply report a failure and the webserver still starts.
+# These startup calls target an HTTP service on localhost:9000. Connection
+# failures are logged instead of aborting initialization.
 init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
 	demo!()?
@@ -41,7 +41,7 @@ demo! = || {
 		Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
 	}
 
-	# Getting a Response record.
+	# Build a request explicitly and inspect the complete `Response` record.
 	html_url : Url
 	html_url = "http://localhost:9000/htmltest"
 

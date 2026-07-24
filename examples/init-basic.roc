@@ -1,3 +1,4 @@
+## Initializes shared context once and uses it while logging and responding to requests.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -8,22 +9,18 @@ import pf.Server
 import pf.Utc
 import http.Response
 
-# To run this example: check the root README.md
-
-# Context is produced by `init!` and shared with every request.
+# `init!` produces this immutable context once, and every request receives it.
 Context : Str
 
 program = { init!, respond!, shutdown! }
 
-# With `init!` you can set up a database connection once at server startup,
-# generate css by running `tailwindcss`,...
-# In this example it is just `Ok("🎁")`.
+# `init!` can validate configuration, run migrations, or prepare immutable
+# startup data. Here it stores a gift string in the context.
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || Ok({ config: Server.default_config, context: "🎁" })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, gift| {
-	# Log request datetime, method and url
 	datetime = Utc.to_iso_8601(Utc.now!())
 
 	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")

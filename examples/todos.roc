@@ -1,4 +1,4 @@
-# Web app for todos using a SQLite 3 database.
+## Implements a todo web application backed by a SQLite database.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -14,7 +14,6 @@ import pf.Utc
 import http.Response
 import "todos.html" as todo_html : List(U8)
 
-# To run this example: check the root README.md.
 # Set `DB_PATH` to override the default database path (`./examples/todos.db`).
 
 Context : Path
@@ -29,7 +28,7 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToEnsureSchema(_), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
@@ -78,7 +77,7 @@ route_todos! = |db_path, req|
 
 list_todos! : Path => Try(Response, _)
 list_todos! = |db_path| {
-	todos = 
+	todos =
 		Sqlite.query_many!({
 			path: db_path,
 			query: "SELECT id, task, status FROM todos ORDER BY id;",
@@ -94,7 +93,7 @@ create_todo_from_request! : Path, Server.Request => Try(Response, _)
 create_todo_from_request! = |db_path, req| {
 	body = req.body().with_limit(16 * 1024).read_all!()
 		? |err| RequestErr(Str.inspect(err))
-	json = 
+	json =
 		match Str.from_utf8(body) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Request body must be valid UTF-8 JSON."))
@@ -102,12 +101,12 @@ create_todo_from_request! = |db_path, req| {
 
 	decoded_result : Try(CreateTodoBody, [InvalidJson(Str), MissingRequiredField(Str)])
 	decoded_result = Json.parse(json)
-	decoded = 
+	decoded =
 		match decoded_result {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Expected JSON with string fields \"task\" and \"status\"."))
 		}
-	status = 
+	status =
 		match parse_todo_status(decoded.status) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Status must be \"todo\", \"planned\", \"completed\", or \"in-progress\"."))
@@ -122,7 +121,7 @@ create_todo_from_request! = |db_path, req| {
 
 create_todo! : Path, { task : Str, status : TodoStatus } => Try(Response, _)
 create_todo! = |db_path, params| {
-	todo = 
+	todo =
 		Sqlite.query!({
 			path: db_path,
 			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",

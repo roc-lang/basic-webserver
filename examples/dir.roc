@@ -1,3 +1,4 @@
+## Lists the entries in the examples directory and serves the listing over HTTP.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -8,8 +9,6 @@ import pf.Server
 import pf.Path
 import http.Response
 
-# To run this example: check the root README.md
-
 Context : Str
 
 program = { init!, respond!, shutdown! }
@@ -19,8 +18,10 @@ init! : () => Try(
 	[Exit(I64), FailedToListExamples(_), FailedToPrintExamples(_), ..],
 )
 init! = || {
+
 	paths = Path.list!(Path.utf8("examples")) ? |err| FailedToListExamples(err)
 	paths_str = Str.join_with(paths.map(Path.display), "\n")
+
 	Stdout.line!("Entries in examples/:\n${paths_str}") ? |err| FailedToPrintExamples(err)
 
 	Ok({ config: Server.default_config, context: paths_str })

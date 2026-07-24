@@ -1,3 +1,4 @@
+## Parses a bounded multipart form upload and previews an uploaded PNG image.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -6,8 +7,6 @@ app [Context, program] {
 import pf.Server
 import pf.MultipartFormData
 import http.Response
-
-# To run this example: check the root README.md
 
 Context : {}
 
@@ -164,7 +163,8 @@ base64_quad = |a, b, c, byte_count| {
 base64_byte : U64 -> U8
 base64_byte = |index| base64_alphabet.get(index) ?? 'A'
 
-# `base64_encode` handles padding.
+# These expectations cover empty input and the one- and two-byte tails that
+# require Base64 padding.
 expect {
 	base64_encode(Str.to_utf8("")) == ""
 		and base64_encode(Str.to_utf8("f")) == "Zg=="

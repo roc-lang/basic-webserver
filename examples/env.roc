@@ -1,3 +1,7 @@
+## Demonstrates reading environment variables during initialization.
+##
+## With `DEBUG=1`, this serves the entire process environment. Do not expose
+## this example publicly because environment values may contain secrets.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -6,8 +10,6 @@ app [Context, program] {
 import pf.Env
 import pf.Server
 import http.Response
-
-# To run this example: check the root README.md
 
 Context : [DebugPrintMode, NonDebugMode]
 

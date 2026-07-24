@@ -1,3 +1,4 @@
+## Bridges bounded HTTP request bodies to a local TCP echo service.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -7,9 +8,8 @@ import pf.Server
 import pf.Tcp
 import http.Response
 
-# A small HTTP-to-TCP bridge. Run a TCP echo service on localhost:8085, start
-# this application, then POST bytes to the HTTP server to receive the echoed
-# bytes as its response.
+# This example requires a TCP echo service on localhost:8085. POST bytes to the
+# HTTP server to receive the bytes returned by that service.
 
 Context : {}
 

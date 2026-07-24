@@ -1,3 +1,4 @@
+## Serves an HTML form and parses bounded URL-encoded form submissions.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -8,10 +9,6 @@ import pf.Attribute
 import pf.Html
 import pf.MultipartFormData
 import http.Response
-
-# To run this example: check the root README.md
-
-# Demonstrates how to handle URL-encoded form data.
 
 Context : {}
 

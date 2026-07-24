@@ -1,3 +1,4 @@
+## Reads `LICENSE` incrementally and serves its line and byte counts.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -7,8 +8,6 @@ import pf.File
 import pf.Path
 import pf.Server
 import http.Response
-
-# To run this example: check the root README.md
 
 Context : ReadSummary
 
@@ -43,7 +42,7 @@ respond! = |_, summary|
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})
 
-## Count the number of lines and bytes read.
+## Recursively read one bounded line at a time, accumulating line and byte counts.
 process_line! : File.Reader, ReadSummary => Try(ReadSummary, _)
 process_line! = |reader, { lines_read, bytes_read }|
 	match reader.read_line!() {

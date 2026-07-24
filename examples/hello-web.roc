@@ -1,3 +1,4 @@
+## Logs each request and responds with a simple HTML greeting.
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
@@ -8,16 +9,13 @@ import pf.Stdout
 import pf.Utc
 import http.Response
 
-# To run this example: check the root README.md
-
-# Context is produced by `init!` and shared with every request.
+# `init!` produces this immutable context once, and every request receives it.
 Context : {}
 
 program = { init!, respond!, shutdown! }
 
-# With `init!` you can set up a database connection once at server startup,
-# generate css by running `tailwindcss`, etc.
-# In this case we don't have anything to initialize, so it is just `Ok({})`.
+# `init!` can validate configuration, run migrations, or prepare immutable
+# startup data. This example has no startup data, so its context is `{}`.
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || Ok({ config: Server.default_config, context: {} })
 
