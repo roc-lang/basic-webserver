@@ -15,8 +15,10 @@ InternalSqlite :: [].{
 	]
 
 	SqliteState : [
-		Row,
 		Done,
+		ResultTooLarge,
+		Row({ bytes : U64, values : List(SqliteValue) }),
+		RowLimitExceeded,
 	]
 
 	SqliteBindings : {

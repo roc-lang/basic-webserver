@@ -18,9 +18,23 @@ import "todos.html" as todo_html : List(U8)
 
 Context : Path
 
-TodoStatus : [Todo, Planned, Completed, InProgress]
+TodoStatus := [Todo, Planned, Completed, InProgress].{
+	encoder_for : encoding -> (TodoStatus, state -> Try(state, err))
+		where [
+			encoding.encode_str : Str, state -> Try(state, err),
+		]
+	encoder_for = |_encoding| {
+		Encoding : encoding
+
+		|status, state| Encoding.encode_str(todo_status_to_str(status), state)
+	}
+}
 
 Todo : { id : I64, task : Str, status : TodoStatus }
+
+# TODO: Decode `Todo` directly once application-defined `parser_for` methods
+# compose their validation errors through a platform-derived record parser.
+StoredTodo : { id : I64, task : Str, status : Str }
 
 CreateTodoBody : { task : Str, status : Str }
 
@@ -28,7 +42,7 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToEnsureSchema(_), ..])
 init! = || {
-	db_path =
+	db_path = 
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
@@ -77,14 +91,17 @@ route_todos! = |db_path, req|
 
 list_todos! : Path => Try(Response, _)
 list_todos! = |db_path| {
-	todos =
+	stored : List(StoredTodo)
+	stored = 
 		Sqlite.query_many!({
 			path: db_path,
 			query: "SELECT id, task, status FROM todos ORDER BY id;",
-			bindings: [],
-			rows: decode_todo,
+			params: {},
+			limits: Sqlite.default_query_limits,
 		})
 			? |err| DbErr(Str.inspect(err))
+	todos = stored.map_try(decode_stored_todo)
+		? |err| DbErr(Str.inspect(err))
 
 	Ok(json_response(todos))
 }
@@ -93,7 +110,7 @@ create_todo_from_request! : Path, Server.Request => Try(Response, _)
 create_todo_from_request! = |db_path, req| {
 	body = req.body().with_limit(16 * 1024).read_all!()
 		? |err| RequestErr(Str.inspect(err))
-	json =
+	json = 
 		match Str.from_utf8(body) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Request body must be valid UTF-8 JSON."))
@@ -101,17 +118,16 @@ create_todo_from_request! = |db_path, req| {
 
 	decoded_result : Try(CreateTodoBody, [InvalidJson(Str), MissingRequiredField(Str)])
 	decoded_result = Json.parse(json)
-	decoded =
+	decoded = 
 		match decoded_result {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Expected JSON with string fields \"task\" and \"status\"."))
 		}
-	status =
+	status = 
 		match parse_todo_status(decoded.status) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Status must be \"todo\", \"planned\", \"completed\", or \"in-progress\"."))
 		}
-
 	if Str.is_empty(decoded.task) {
 		Ok(text_response(400, "Task must not be empty."))
 	} else {
@@ -121,31 +137,32 @@ create_todo_from_request! = |db_path, req| {
 
 create_todo! : Path, { task : Str, status : TodoStatus } => Try(Response, _)
 create_todo! = |db_path, params| {
-	todo =
+	stored : StoredTodo
+	stored = 
 		Sqlite.query!({
 			path: db_path,
 			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",
-			bindings: [
-				{ name: ":task", value: String(params.task) },
-				{ name: ":status", value: String(todo_status_to_str(params.status)) },
-			],
-			row: decode_todo,
+			params: {
+				task: params.task,
+				# TODO: Pass `params.status` directly once a nested
+				# application-defined `encoder_for` receives the field state
+				# across the platform boundary.
+				status: todo_status_to_str(params.status),
+			},
+			limits: Sqlite.default_query_limits,
 		})
 			? |err| DbErr(Str.inspect(err))
+	todo = decode_stored_todo(stored)
+		? |err| DbErr(Str.inspect(err))
 
 	Ok(json_response([todo]))
 }
 
-# The statement type supplied to row decoders is host-internal, so this top-level
-# decoder cannot name its inferred type from application code.
-decode_todo = |cols|
-	|stmt| {
-		id = Sqlite.i64("id")(cols)(stmt)?
-		task = Sqlite.str("task")(cols)(stmt)?
-		status_str = Sqlite.str("status")(cols)(stmt)?
-		status = parse_todo_status(status_str) ? |_| InvalidStoredStatus(status_str)
-
-		Ok({ id, task, status })
+decode_stored_todo : StoredTodo -> Try(Todo, Sqlite.QueryError)
+decode_stored_todo = |stored|
+	match parse_todo_status(stored.status) {
+		Ok(status) => Ok({ id: stored.id, task: stored.task, status })
+		Err(_) => Err(InvalidValue({ column: "status" }))
 	}
 
 parse_todo_status : Str -> Try(TodoStatus, [InvalidTodoStatus])
@@ -172,7 +189,7 @@ ensure_schema! = |db_path|
 	Sqlite.execute!({
 		path: db_path,
 		query: "CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, task TEXT NOT NULL, status TEXT NOT NULL);",
-		bindings: [],
+		params: {},
 	})
 
 log_request! : Server.Request => Try({}, _)
@@ -184,19 +201,10 @@ log_request! = |req| {
 }
 
 json_response : List(Todo) -> Response
-json_response = |todos| {
-	json_todos = todos.map(
-		|todo| {
-			id: todo.id,
-			task: todo.task,
-			status: todo_status_to_str(todo.status),
-		},
-	)
-
+json_response = |todos|
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "application/json; charset=utf-8" }])
-		.with_body(Str.to_utf8(Json.to_str(json_todos)))
-}
+		.with_body(Str.to_utf8(Json.to_str(todos)))
 
 html_response : U16, List(U8) -> Response
 html_response = |status, bytes|

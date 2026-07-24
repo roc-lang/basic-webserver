@@ -122,8 +122,7 @@ Host := [].{
 	sqlite_prepare! : RawPath, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
 	sqlite_bind! : SqliteStmt, List(InternalSqlite.SqliteBindings) => Try({}, InternalSqlite.SqliteError)
 	sqlite_columns! : SqliteStmt => Try(List(Str), InternalSqlite.SqliteError)
-	sqlite_column_value! : SqliteStmt, U64 => Try(InternalSqlite.SqliteValue, InternalSqlite.SqliteError)
-	sqlite_step! : SqliteStmt => Try(Bool, InternalSqlite.SqliteError)
+	sqlite_next_row! : SqliteStmt, U64, Bool => Try(InternalSqlite.SqliteState, InternalSqlite.SqliteError)
 	sqlite_reset! : SqliteStmt => Try({}, InternalSqlite.SqliteError)
 
 	stdout_line! : Str => Try({}, [StdoutErr(IOErr)])

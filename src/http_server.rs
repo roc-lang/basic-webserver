@@ -644,6 +644,10 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
             }
             accepted = listener.accept(), if next_connection_slot.is_some() => match accepted {
                 Ok((stream, _)) => {
+                    if let Err(error) = stream.set_nodelay(true) {
+                        eprintln!("Failed to disable Nagle's algorithm: {error}");
+                        continue;
+                    }
                     let connection_slot = next_connection_slot
                         .take()
                         .expect("accept is polled only with a reserved connection slot");

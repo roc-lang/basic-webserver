@@ -12,6 +12,14 @@ description = "Host implementation for the basic-webserver Roc platform (direct-
 name = "host"
 crate-type = ["staticlib"]
 
+[features]
+local-load-test = []
+
+[[bin]]
+name = "local-load"
+path = "scripts/perf/load.rs"
+required-features = ["local-load-test"]
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(no_roc_std_helpers)"] }
 

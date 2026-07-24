@@ -6,11 +6,11 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use crate::abi::{
     roc_host, SqliteHostBindResult, SqliteHostBindResultPayload, SqliteHostBindResultTag,
-    SqliteHostColumnValueResult, SqliteHostColumnValueResultPayload,
-    SqliteHostColumnValueResultTag, SqliteHostColumnsResult, SqliteHostColumnsResultPayload,
-    SqliteHostColumnsResultTag, SqliteHostPrepareResult, SqliteHostPrepareResultPayload,
-    SqliteHostPrepareResultTag, SqliteHostStepResult, SqliteHostStepResultPayload,
-    SqliteHostStepResultTag,
+    SqliteHostColumnsResult, SqliteHostColumnsResultPayload, SqliteHostColumnsResultTag,
+    SqliteHostNextRow, SqliteHostNextRowResult, SqliteHostNextRowResultPayload,
+    SqliteHostNextRowResultTag, SqliteHostNextRowState, SqliteHostNextRowStatePayload,
+    SqliteHostNextRowStateTag, SqliteHostPrepareResult, SqliteHostPrepareResultPayload,
+    SqliteHostPrepareResultTag,
 };
 use crate::capability::{try_lock, CapabilityLockError};
 use crate::host_resource::{
@@ -369,6 +369,75 @@ fn sqlite_value_null() -> SqliteValue {
     }
 }
 
+unsafe fn sqlite_column_materialized_size(
+    stmt: *mut libsqlite3_sys::sqlite3_stmt,
+    index: c_int,
+) -> u64 {
+    let value_storage = core::mem::size_of::<SqliteValue>() as u64;
+    let variable_storage = match unsafe { libsqlite3_sys::sqlite3_column_type(stmt, index) } {
+        libsqlite3_sys::SQLITE_TEXT => unsafe {
+            let text = libsqlite3_sys::sqlite3_column_text(stmt, index);
+            let len = libsqlite3_sys::sqlite3_column_bytes(stmt, index).max(0) as usize;
+            if text.is_null() {
+                0
+            } else {
+                let bytes = std::slice::from_raw_parts(text, len);
+                if std::str::from_utf8(bytes).is_ok() {
+                    len as u64
+                } else {
+                    // from_utf8_lossy can replace each invalid byte with the
+                    // three-byte UTF-8 replacement character.
+                    (len as u64).saturating_mul(3)
+                }
+            }
+        },
+        libsqlite3_sys::SQLITE_BLOB => unsafe {
+            libsqlite3_sys::sqlite3_column_bytes(stmt, index).max(0) as u64
+        },
+        _ => 0,
+    };
+    value_storage.saturating_add(variable_storage)
+}
+
+unsafe fn materialize_sqlite_column(
+    stmt: *mut libsqlite3_sys::sqlite3_stmt,
+    index: c_int,
+    roc_host: &RocHost,
+) -> SqliteValue {
+    match unsafe { libsqlite3_sys::sqlite3_column_type(stmt, index) } {
+        libsqlite3_sys::SQLITE_INTEGER => {
+            sqlite_value_integer(unsafe { libsqlite3_sys::sqlite3_column_int64(stmt, index) })
+        }
+        libsqlite3_sys::SQLITE_FLOAT => {
+            sqlite_value_real(unsafe { libsqlite3_sys::sqlite3_column_double(stmt, index) })
+        }
+        libsqlite3_sys::SQLITE_TEXT => {
+            let text = unsafe { libsqlite3_sys::sqlite3_column_text(stmt, index) };
+            let len = unsafe { libsqlite3_sys::sqlite3_column_bytes(stmt, index) }.max(0) as usize;
+            let slice = if text.is_null() {
+                &[][..]
+            } else {
+                unsafe { std::slice::from_raw_parts(text, len) }
+            };
+            sqlite_value_string(RocStr::from_str(
+                String::from_utf8_lossy(slice).as_ref(),
+                roc_host,
+            ))
+        }
+        libsqlite3_sys::SQLITE_BLOB => {
+            let blob = unsafe { libsqlite3_sys::sqlite3_column_blob(stmt, index) } as *const u8;
+            let len = unsafe { libsqlite3_sys::sqlite3_column_bytes(stmt, index) }.max(0) as usize;
+            let slice = if blob.is_null() {
+                &[][..]
+            } else {
+                unsafe { std::slice::from_raw_parts(blob, len) }
+            };
+            sqlite_value_bytes(RocListWith::<u8, false>::from_slice(slice, roc_host))
+        }
+        _ => sqlite_value_null(),
+    }
+}
+
 fn try_sqlite_prepare_ok(handle: *mut u64) -> SqliteHostPrepareResult {
     SqliteHostPrepareResult {
         payload: SqliteHostPrepareResultPayload {
@@ -421,42 +490,56 @@ fn try_sqlite_columns_err(error: SqliteError) -> SqliteHostColumnsResult {
     }
 }
 
-fn try_sqlite_value_ok(value: SqliteValue) -> SqliteHostColumnValueResult {
-    SqliteHostColumnValueResult {
-        payload: SqliteHostColumnValueResultPayload {
-            ok: ManuallyDrop::new(value),
+fn try_sqlite_next_ok(state: SqliteHostNextRowState) -> SqliteHostNextRowResult {
+    SqliteHostNextRowResult {
+        payload: SqliteHostNextRowResultPayload {
+            ok: ManuallyDrop::new(state),
         },
-        tag: SqliteHostColumnValueResultTag::Ok,
+        tag: SqliteHostNextRowResultTag::Ok,
     }
 }
 
-fn try_sqlite_value_err(error: SqliteError) -> SqliteHostColumnValueResult {
-    SqliteHostColumnValueResult {
-        payload: SqliteHostColumnValueResultPayload {
+fn try_sqlite_next_err(error: SqliteError) -> SqliteHostNextRowResult {
+    SqliteHostNextRowResult {
+        payload: SqliteHostNextRowResultPayload {
             err: ManuallyDrop::new(error),
         },
-        tag: SqliteHostColumnValueResultTag::Err,
+        tag: SqliteHostNextRowResultTag::Err,
     }
 }
 
-// `host_step!` marshals a Bool: true => a row is ready (SQLITE_ROW),
-// false => the statement is done (SQLITE_DONE).
-fn try_sqlite_step_ok(has_row: bool) -> SqliteHostStepResult {
-    SqliteHostStepResult {
-        payload: SqliteHostStepResultPayload {
-            ok: ManuallyDrop::new(has_row),
-        },
-        tag: SqliteHostStepResultTag::Ok,
-    }
+fn sqlite_next_done() -> SqliteHostNextRowResult {
+    try_sqlite_next_ok(SqliteHostNextRowState {
+        payload: SqliteHostNextRowStatePayload { done: [] },
+        tag: SqliteHostNextRowStateTag::Done,
+    })
 }
 
-fn try_sqlite_step_err(error: SqliteError) -> SqliteHostStepResult {
-    SqliteHostStepResult {
-        payload: SqliteHostStepResultPayload {
-            err: ManuallyDrop::new(error),
+fn sqlite_next_result_too_large() -> SqliteHostNextRowResult {
+    try_sqlite_next_ok(SqliteHostNextRowState {
+        payload: SqliteHostNextRowStatePayload {
+            result_too_large: [],
         },
-        tag: SqliteHostStepResultTag::Err,
-    }
+        tag: SqliteHostNextRowStateTag::ResultTooLarge,
+    })
+}
+
+fn sqlite_next_row_limit_exceeded() -> SqliteHostNextRowResult {
+    try_sqlite_next_ok(SqliteHostNextRowState {
+        payload: SqliteHostNextRowStatePayload {
+            row_limit_exceeded: [],
+        },
+        tag: SqliteHostNextRowStateTag::RowLimitExceeded,
+    })
+}
+
+fn sqlite_next_row(values: RocList<SqliteValue>, bytes: u64) -> SqliteHostNextRowResult {
+    try_sqlite_next_ok(SqliteHostNextRowState {
+        payload: SqliteHostNextRowStatePayload {
+            row: ManuallyDrop::new(SqliteHostNextRow { bytes, values }),
+        },
+        tag: SqliteHostNextRowStateTag::Row,
+    })
 }
 
 unsafe fn sqlite_bind_one(
@@ -758,35 +841,30 @@ pub extern "C" fn hosted_sqlite_columns(handle: *mut u64) -> SqliteHostColumnsRe
     let result = {
         match unsafe { sqlite_stmt_ref(handle) } {
             Ok(statement) => match try_lock_sqlite_statement(statement, roc_host) {
-                Ok(statement) => match statement_owned_by_current_handler(&statement, roc_host) {
-                    Ok(()) => {
-                        let count = unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }
-                            .max(0) as usize;
-                        // SAFETY: every allocated element is initialized below before return.
-                        let list = unsafe { RocList::<RocStr>::allocate(count, roc_host) };
-                        for index in 0..count {
-                            let name = unsafe {
-                                let raw = libsqlite3_sys::sqlite3_column_name(
-                                    statement.stmt,
-                                    index as c_int,
-                                );
-                                if raw.is_null() {
-                                    RocStr::from_str("", roc_host)
-                                } else {
-                                    RocStr::from_str(
-                                        CStr::from_ptr(raw).to_string_lossy().as_ref(),
-                                        roc_host,
-                                    )
-                                }
-                            };
-                            unsafe {
-                                list.elements.add(index).write(name);
+                Ok(statement) => {
+                    let count = unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }
+                        .max(0) as usize;
+                    // SAFETY: every allocated element is initialized below before return.
+                    let list = unsafe { RocList::<RocStr>::allocate(count, roc_host) };
+                    for index in 0..count {
+                        let name = unsafe {
+                            let raw =
+                                libsqlite3_sys::sqlite3_column_name(statement.stmt, index as c_int);
+                            if raw.is_null() {
+                                RocStr::from_str("", roc_host)
+                            } else {
+                                RocStr::from_str(
+                                    CStr::from_ptr(raw).to_string_lossy().as_ref(),
+                                    roc_host,
+                                )
                             }
+                        };
+                        unsafe {
+                            list.elements.add(index).write(name);
                         }
-                        try_sqlite_columns_ok(list)
                     }
-                    Err(error) => try_sqlite_columns_err(error),
-                },
+                    try_sqlite_columns_ok(list)
+                }
                 Err(error) => try_sqlite_columns_err(error),
             },
             Err(_) => try_sqlite_columns_err(sqlite_statement_unavailable(roc_host)),
@@ -797,118 +875,70 @@ pub extern "C" fn hosted_sqlite_columns(handle: *mut u64) -> SqliteHostColumnsRe
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_sqlite_column_value(
+pub extern "C" fn hosted_sqlite_next_row(
     handle: *mut u64,
-    i: u64,
-) -> SqliteHostColumnValueResult {
+    max_bytes: u64,
+    allow_row: bool,
+) -> SqliteHostNextRowResult {
     let roc_host = roc_host();
     let result = {
         match unsafe { sqlite_stmt_ref(handle) } {
             Ok(statement) => match try_lock_sqlite_statement(statement, roc_host) {
                 Ok(statement) => match statement_owned_by_current_handler(&statement, roc_host) {
-                    Err(error) => try_sqlite_value_err(error),
+                    Err(error) => try_sqlite_next_err(error),
                     Ok(()) => {
-                        let count = unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }
-                            .max(0) as u64;
-                        if i >= count {
-                            try_sqlite_value_err(sqlite_error(
-                                libsqlite3_sys::SQLITE_ERROR,
-                                &format!("column index out of range: {} of {}", i, count),
-                                roc_host,
-                            ))
+                        let step = unsafe { libsqlite3_sys::sqlite3_step(statement.stmt) };
+                        if step == libsqlite3_sys::SQLITE_DONE {
+                            sqlite_next_done()
+                        } else if step != libsqlite3_sys::SQLITE_ROW {
+                            try_sqlite_next_err(sqlite_err_from_stmt(&statement, step, roc_host))
+                        } else if !allow_row {
+                            sqlite_next_row_limit_exceeded()
                         } else {
-                            let index = i as c_int;
-                            let value = unsafe {
-                                match libsqlite3_sys::sqlite3_column_type(statement.stmt, index) {
-                                    libsqlite3_sys::SQLITE_INTEGER => sqlite_value_integer(
-                                        libsqlite3_sys::sqlite3_column_int64(statement.stmt, index),
-                                    ),
-                                    libsqlite3_sys::SQLITE_FLOAT => {
-                                        sqlite_value_real(libsqlite3_sys::sqlite3_column_double(
-                                            statement.stmt,
-                                            index,
-                                        ))
+                            let count =
+                                unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }
+                                    .max(0) as usize;
+                            let mut bytes = 0u64;
+                            let mut result_too_large = false;
+                            for index in 0..count {
+                                let column_bytes = unsafe {
+                                    sqlite_column_materialized_size(statement.stmt, index as c_int)
+                                };
+                                match bytes.checked_add(column_bytes) {
+                                    Some(total) if total <= max_bytes => bytes = total,
+                                    _ => {
+                                        result_too_large = true;
+                                        break;
                                     }
-                                    libsqlite3_sys::SQLITE_TEXT => {
-                                        let text = libsqlite3_sys::sqlite3_column_text(
-                                            statement.stmt,
-                                            index,
-                                        );
-                                        let len = libsqlite3_sys::sqlite3_column_bytes(
-                                            statement.stmt,
-                                            index,
-                                        )
-                                        .max(0)
-                                            as usize;
-                                        let slice = if text.is_null() {
-                                            &[][..]
-                                        } else {
-                                            std::slice::from_raw_parts(text, len)
-                                        };
-                                        sqlite_value_string(RocStr::from_str(
-                                            String::from_utf8_lossy(slice).as_ref(),
-                                            roc_host,
-                                        ))
-                                    }
-                                    libsqlite3_sys::SQLITE_BLOB => {
-                                        let blob = libsqlite3_sys::sqlite3_column_blob(
-                                            statement.stmt,
-                                            index,
-                                        )
-                                            as *const u8;
-                                        let len = libsqlite3_sys::sqlite3_column_bytes(
-                                            statement.stmt,
-                                            index,
-                                        )
-                                        .max(0)
-                                            as usize;
-                                        let slice = if blob.is_null() {
-                                            &[][..]
-                                        } else {
-                                            std::slice::from_raw_parts(blob, len)
-                                        };
-                                        sqlite_value_bytes(RocListWith::<u8, false>::from_slice(
-                                            slice, roc_host,
-                                        ))
-                                    }
-                                    _ => sqlite_value_null(),
                                 }
-                            };
-                            try_sqlite_value_ok(value)
-                        }
-                    }
-                },
-                Err(error) => try_sqlite_value_err(error),
-            },
-            Err(_) => try_sqlite_value_err(sqlite_statement_unavailable(roc_host)),
-        }
-    };
-    release_sqlite_stmt(handle, roc_host);
-    result
-}
+                            }
 
-#[no_mangle]
-pub extern "C" fn hosted_sqlite_step(handle: *mut u64) -> SqliteHostStepResult {
-    let roc_host = roc_host();
-    let result = {
-        match unsafe { sqlite_stmt_ref(handle) } {
-            Ok(statement) => match try_lock_sqlite_statement(statement, roc_host) {
-                Ok(statement) => match statement_owned_by_current_handler(&statement, roc_host) {
-                    Err(error) => try_sqlite_step_err(error),
-                    Ok(()) => {
-                        let err = unsafe { libsqlite3_sys::sqlite3_step(statement.stmt) };
-                        if err == libsqlite3_sys::SQLITE_ROW {
-                            try_sqlite_step_ok(true)
-                        } else if err == libsqlite3_sys::SQLITE_DONE {
-                            try_sqlite_step_ok(false)
-                        } else {
-                            try_sqlite_step_err(sqlite_err_from_stmt(&statement, err, roc_host))
+                            if result_too_large {
+                                sqlite_next_result_too_large()
+                            } else {
+                                // SAFETY: every allocated element is initialized below before return.
+                                let values =
+                                    unsafe { RocList::<SqliteValue>::allocate(count, roc_host) };
+                                for index in 0..count {
+                                    let value = unsafe {
+                                        materialize_sqlite_column(
+                                            statement.stmt,
+                                            index as c_int,
+                                            roc_host,
+                                        )
+                                    };
+                                    unsafe {
+                                        values.elements.add(index).write(value);
+                                    }
+                                }
+                                sqlite_next_row(values, bytes)
+                            }
                         }
                     }
                 },
-                Err(error) => try_sqlite_step_err(error),
+                Err(error) => try_sqlite_next_err(error),
             },
-            Err(_) => try_sqlite_step_err(sqlite_statement_unavailable(roc_host)),
+            Err(_) => try_sqlite_next_err(sqlite_statement_unavailable(roc_host)),
         }
     };
     release_sqlite_stmt(handle, roc_host);

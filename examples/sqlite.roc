@@ -55,25 +55,32 @@ shutdown! = |_reason, _context| Ok({})
 
 Todo : { id : I64, status : TodoStatus, task : Str }
 
-query_todos_by_status! : Path, TodoStatus => Try(List(Todo), _)
-query_todos_by_status! = |db_path, status|
-	Sqlite.query_many!({
+# TODO: Decode `Todo` directly once application-defined `parser_for` methods
+# compose their validation errors through a platform-derived record parser.
+StoredTodo : { id : I64, status : Str, task : Str }
+
+query_todos_by_status! : Path, TodoStatus => Try(List(Todo), Sqlite.QueryError)
+query_todos_by_status! = |db_path, status| {
+	stored : List(StoredTodo)
+	stored = Sqlite.query_many!({
 		path: db_path,
 		query: "SELECT id, task, status FROM todos WHERE status = :status;",
-		bindings: [{ name: ":status", value: String(todo_status_to_str(status)) }],
-		rows: decode_todo,
-	})
+		# TODO: Pass `status` directly once a nested application-defined
+		# `encoder_for` receives the field state across the platform boundary.
+		params: { status: todo_status_to_str(status) },
+		limits: Sqlite.default_query_limits,
+	})?
 
-decode_todo = |cols|
-	|stmt| {
-		id = Sqlite.i64("id")(cols)(stmt)?
-		task = Sqlite.str("task")(cols)(stmt)?
-		status_str = Sqlite.str("status")(cols)(stmt)?
-		status = decode_todo_status(status_str)?
-		Ok({ id, task, status })
-	}
+	stored.map_try(
+		|todo|
+			match parse_todo_status(todo.status) {
+				Ok(decoded_status) => Ok({ id: todo.id, status: decoded_status, task: todo.task })
+				Err(_) => Err(InvalidValue({ column: "status" }))
+			},
+	)
+}
 
-TodoStatus : [Todo, Planned, Completed, InProgress]
+TodoStatus := [Todo, Planned, Completed, InProgress].{}
 
 todo_status_to_str : TodoStatus -> Str
 todo_status_to_str = |status|
@@ -84,12 +91,12 @@ todo_status_to_str = |status|
 		InProgress => "in-progress"
 	}
 
-decode_todo_status : Str -> Try(TodoStatus, [ParseError(Str), ..])
-decode_todo_status = |status_str|
+parse_todo_status : Str -> Try(TodoStatus, [InvalidTodoStatus])
+parse_todo_status = |status_str|
 	match status_str {
 		"todo" => Ok(Todo)
 		"planned" => Ok(Planned)
 		"completed" => Ok(Completed)
 		"in-progress" => Ok(InProgress)
-		_ => Err(ParseError("Unknown status str: ${status_str}"))
+		_ => Err(InvalidTodoStatus)
 	}

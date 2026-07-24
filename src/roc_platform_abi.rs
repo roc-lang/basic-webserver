@@ -1264,6 +1264,33 @@ const _: () = assert!(core::mem::size_of::<AnonStruct2782504baf739389>() == 32, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct2782504baf739389>() == 8, "AnonStruct2782504baf739389 alignment mismatch");
 
+/// Element type for __AnonStruct_6020798da82f3849
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct6020798da82f3849 {
+    pub bytes: u64,
+    pub values: RocList<BytesOrIntegerOrNullOrRealOrString>,
+}
+
+/// Element type for __AnonStruct_6020798da82f3849
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct6020798da82f3849 {
+    pub bytes: u64,
+    pub values: RocList<BytesOrIntegerOrNullOrRealOrString>,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct6020798da82f3849>() == 32, "AnonStruct6020798da82f3849 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct6020798da82f3849>() == 8, "AnonStruct6020798da82f3849 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct6020798da82f3849>() == 24, "AnonStruct6020798da82f3849 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct6020798da82f3849>() == 8, "AnonStruct6020798da82f3849 alignment mismatch");
+
 /// Element type for __AnonStruct_1f12a65955b54fe1
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -4064,43 +4091,43 @@ const _: () = assert!(core::mem::offset_of!(HostSqliteColumnsResult, tag) == 24,
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostSqliteColumnValueResultTag {
+pub enum HostSqliteNextRowResultTag {
     Err = 0,
     Ok = 1,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union HostSqliteColumnValueResultPayload {
+pub union HostSqliteNextRowResultPayload {
     pub err: core::mem::ManuallyDrop<AnonStruct22cf486058afc711>,
-    pub ok: core::mem::ManuallyDrop<BytesOrIntegerOrNullOrRealOrString>,
+    pub ok: core::mem::ManuallyDrop<DoneOrResultTooLargeOrRowOrRowLimitExceeded>,
 }
 
 #[cfg(target_pointer_width = "32")]
 #[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct HostSqliteColumnValueResultPayloadAlignment;
+pub struct HostSqliteNextRowResultPayloadAlignment;
 
 /// Tag union: Try
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HostSqliteColumnValueResult {
-    pub _payload_alignment: [HostSqliteColumnValueResultPayloadAlignment; 0],
-    pub payload: [u8; 24],
-    pub tag: HostSqliteColumnValueResultTag,
+pub struct HostSqliteNextRowResult {
+    pub _payload_alignment: [HostSqliteNextRowResultPayloadAlignment; 0],
+    pub payload: [u8; 32],
+    pub tag: HostSqliteNextRowResultTag,
 }
 
 /// Tag union: Try
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HostSqliteColumnValueResult {
-    pub payload: HostSqliteColumnValueResultPayload,
-    pub tag: HostSqliteColumnValueResultTag,
+pub struct HostSqliteNextRowResult {
+    pub payload: HostSqliteNextRowResultPayload,
+    pub tag: HostSqliteNextRowResultTag,
 }
 
-impl HostSqliteColumnValueResult {
+impl HostSqliteNextRowResult {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
@@ -4112,104 +4139,98 @@ impl HostSqliteColumnValueResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> BytesOrIntegerOrNullOrRealOrString {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const BytesOrIntegerOrNullOrRealOrString) }
+    pub fn payload_ok(&self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const DoneOrResultTooLargeOrRowOrRowLimitExceeded) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> BytesOrIntegerOrNullOrRealOrString {
+    pub fn payload_ok(&self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostSqliteColumnValueResult>() == 40, "HostSqliteColumnValueResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostSqliteNextRowResult>() == 48, "HostSqliteNextRowResult size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostSqliteColumnValueResult>() == 8, "HostSqliteColumnValueResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostSqliteNextRowResult>() == 8, "HostSqliteNextRowResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostSqliteColumnValueResult, tag) == 32, "HostSqliteColumnValueResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(HostSqliteNextRowResult, tag) == 40, "HostSqliteNextRowResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostSqliteColumnValueResult>() == 32, "HostSqliteColumnValueResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostSqliteNextRowResult>() == 40, "HostSqliteNextRowResult size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostSqliteColumnValueResult>() == 8, "HostSqliteColumnValueResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostSqliteNextRowResult>() == 8, "HostSqliteNextRowResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostSqliteColumnValueResult, tag) == 24, "HostSqliteColumnValueResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(HostSqliteNextRowResult, tag) == 32, "HostSqliteNextRowResult tag offset mismatch");
 
-/// Tag discriminant for Try.
+/// Tag discriminant for DoneOrResultTooLargeOrRowOrRowLimitExceeded.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostSqliteStepResultTag {
-    Err = 0,
-    Ok = 1,
+pub enum DoneOrResultTooLargeOrRowOrRowLimitExceededTag {
+    Done = 0,
+    ResultTooLarge = 1,
+    Row = 2,
+    RowLimitExceeded = 3,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union HostSqliteStepResultPayload {
-    pub err: core::mem::ManuallyDrop<AnonStruct22cf486058afc711>,
-    pub ok: core::mem::ManuallyDrop<bool>,
+pub union DoneOrResultTooLargeOrRowOrRowLimitExceededPayload {
+    pub done: [u8; 0],
+    pub result_too_large: [u8; 0],
+    pub row: core::mem::ManuallyDrop<AnonStruct6020798da82f3849>,
+    pub row_limit_exceeded: [u8; 0],
 }
 
 #[cfg(target_pointer_width = "32")]
 #[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct HostSqliteStepResultPayloadAlignment;
+pub struct DoneOrResultTooLargeOrRowOrRowLimitExceededPayloadAlignment;
 
-/// Tag union: Try
+/// Tag union: DoneOrResultTooLargeOrRowOrRowLimitExceeded
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HostSqliteStepResult {
-    pub _payload_alignment: [HostSqliteStepResultPayloadAlignment; 0],
+pub struct DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+    pub _payload_alignment: [DoneOrResultTooLargeOrRowOrRowLimitExceededPayloadAlignment; 0],
     pub payload: [u8; 24],
-    pub tag: HostSqliteStepResultTag,
+    pub tag: DoneOrResultTooLargeOrRowOrRowLimitExceededTag,
 }
 
-/// Tag union: Try
+/// Tag union: DoneOrResultTooLargeOrRowOrRowLimitExceeded
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HostSqliteStepResult {
-    pub payload: HostSqliteStepResultPayload,
-    pub tag: HostSqliteStepResultTag,
+pub struct DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+    pub payload: DoneOrResultTooLargeOrRowOrRowLimitExceededPayload,
+    pub tag: DoneOrResultTooLargeOrRowOrRowLimitExceededTag,
 }
 
-impl HostSqliteStepResult {
+impl DoneOrResultTooLargeOrRowOrRowLimitExceeded {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    pub fn payload_row(&self) -> AnonStruct6020798da82f3849 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct6020798da82f3849) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
-    }
-
-    #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> bool {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const bool) }
-    }
-
-    #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> bool {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub fn payload_row(&self) -> AnonStruct6020798da82f3849 {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.row) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostSqliteStepResult>() == 40, "HostSqliteStepResult size mismatch");
+const _: () = assert!(core::mem::size_of::<DoneOrResultTooLargeOrRowOrRowLimitExceeded>() == 40, "DoneOrResultTooLargeOrRowOrRowLimitExceeded size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostSqliteStepResult>() == 8, "HostSqliteStepResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<DoneOrResultTooLargeOrRowOrRowLimitExceeded>() == 8, "DoneOrResultTooLargeOrRowOrRowLimitExceeded alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostSqliteStepResult, tag) == 32, "HostSqliteStepResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(DoneOrResultTooLargeOrRowOrRowLimitExceeded, tag) == 32, "DoneOrResultTooLargeOrRowOrRowLimitExceeded tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostSqliteStepResult>() == 32, "HostSqliteStepResult size mismatch");
+const _: () = assert!(core::mem::size_of::<DoneOrResultTooLargeOrRowOrRowLimitExceeded>() == 32, "DoneOrResultTooLargeOrRowOrRowLimitExceeded size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostSqliteStepResult>() == 8, "HostSqliteStepResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<DoneOrResultTooLargeOrRowOrRowLimitExceeded>() == 8, "DoneOrResultTooLargeOrRowOrRowLimitExceeded alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostSqliteStepResult, tag) == 24, "HostSqliteStepResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(DoneOrResultTooLargeOrRowOrRowLimitExceeded, tag) == 24, "DoneOrResultTooLargeOrRowOrRowLimitExceeded tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -5610,16 +5631,6 @@ pub struct HostSqliteBindArgs {
     pub arg1: RocList<AnonStruct2782504baf739389>,
 }
 
-/// Arguments for Host.sqlite_column_value!
-/// Roc signature: Host.SqliteStmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
-/// Refcounted fields are owned by the hosted function.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostSqliteColumnValueArgs {
-    pub arg0: *mut u64,
-    pub arg1: u64,
-}
-
 /// Arguments for Host.sqlite_columns!
 /// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
@@ -5627,6 +5638,17 @@ pub struct HostSqliteColumnValueArgs {
 #[derive(Clone, Copy)]
 pub struct HostSqliteColumnsArgs {
     pub arg0: *mut u64,
+}
+
+/// Arguments for Host.sqlite_next_row!
+/// Roc signature: Host.SqliteStmt, U64, Bool => Try([Done, ResultTooLarge, Row({ bytes : U64, values : List([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)]) }), RowLimitExceeded], { code : I64, message : Str })
+/// Refcounted fields are owned by the hosted function.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostSqliteNextRowArgs {
+    pub arg0: *mut u64,
+    pub arg1: u64,
+    pub arg2: bool,
 }
 
 /// Arguments for Host.sqlite_prepare!
@@ -5645,15 +5667,6 @@ pub struct HostSqlitePrepareArgs {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostSqliteResetArgs {
-    pub arg0: *mut u64,
-}
-
-/// Arguments for Host.sqlite_step!
-/// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
-/// Refcounted fields are owned by the hosted function.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostSqliteStepArgs {
     pub arg0: *mut u64,
 }
 
@@ -5908,18 +5921,22 @@ pub type HostRequestBodyReadAllErrTag = CancelledOrClientDisconnectedOrConcurren
 pub type HostRequestBodyReadAllErrTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostSqliteBindArg1 = AnonStruct2782504baf739389;
 pub type HostSqliteBindErr = AnonStruct22cf486058afc711;
-pub type HostSqliteColumnValueErr = AnonStruct22cf486058afc711;
-pub type HostSqliteColumnValueOk = BytesOrIntegerOrNullOrRealOrString;
-pub type HostSqliteColumnValueOkPayload = BytesOrIntegerOrNullOrRealOrStringPayload;
-pub type HostSqliteColumnValueOkTag = BytesOrIntegerOrNullOrRealOrStringTag;
 pub type HostSqliteColumnsErr = AnonStruct22cf486058afc711;
+pub type HostSqliteNextRowErr = AnonStruct22cf486058afc711;
+pub type HostSqliteNextRowOk = DoneOrResultTooLargeOrRowOrRowLimitExceeded;
+pub type HostSqliteNextRowOkPayload = DoneOrResultTooLargeOrRowOrRowLimitExceededPayload;
+pub type HostSqliteNextRowOkTag = DoneOrResultTooLargeOrRowOrRowLimitExceededTag;
+pub type HostSqliteNextRowOkRow = AnonStruct6020798da82f3849;
+pub type DoneOrResultTooLargeOrRowOrRowLimitExceededRow = AnonStruct6020798da82f3849;
+pub type DoneOrResultTooLargeOrRowOrRowLimitExceededRowValues = BytesOrIntegerOrNullOrRealOrString;
+pub type DoneOrResultTooLargeOrRowOrRowLimitExceededRowValuesPayload = BytesOrIntegerOrNullOrRealOrStringPayload;
+pub type DoneOrResultTooLargeOrRowOrRowLimitExceededRowValuesTag = BytesOrIntegerOrNullOrRealOrStringTag;
 pub type HostSqlitePrepareArg0 = AnonStruct2e21b53659f79626;
 pub type HostSqlitePrepareErr = AnonStruct22cf486058afc711;
 pub type HostSqliteResetResult = HostSqliteBindResult;
 pub type HostSqliteResetResultPayload = HostSqliteBindResultPayload;
 pub type HostSqliteResetResultTag = HostSqliteBindResultTag;
 pub type HostSqliteResetErr = AnonStruct22cf486058afc711;
-pub type HostSqliteStepErr = AnonStruct22cf486058afc711;
 pub type HostStderrWriteResult = HostStderrLineResult;
 pub type HostStderrWriteResultPayload = HostStderrLineResultPayload;
 pub type HostStderrWriteResultTag = HostStderrLineResultTag;
@@ -7779,7 +7796,7 @@ impl HostSqliteColumnsResult {
     }
 }
 
-impl HostSqliteColumnValueResult {
+impl HostSqliteNextRowResult {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -7788,11 +7805,11 @@ impl HostSqliteColumnValueResult {
         let value = self;
         let _ = roc_host;
         match value.tag {
-            HostSqliteColumnValueResultTag::Err => {
+            HostSqliteNextRowResultTag::Err => {
                 let payload = value.payload_err();
                 unsafe { payload.decref(roc_host); }
             },
-            HostSqliteColumnValueResultTag::Ok => {
+            HostSqliteNextRowResultTag::Ok => {
                 let payload = value.payload_ok();
                 unsafe { payload.decref(roc_host); }
             },
@@ -7808,11 +7825,11 @@ impl HostSqliteColumnValueResult {
         let value = self;
         let _ = amount;
         match value.tag {
-            HostSqliteColumnValueResultTag::Err => {
+            HostSqliteNextRowResultTag::Err => {
                 let payload = value.payload_err();
                 unsafe { payload.incref(amount); }
             },
-            HostSqliteColumnValueResultTag::Ok => {
+            HostSqliteNextRowResultTag::Ok => {
                 let payload = value.payload_ok();
                 unsafe { payload.incref(amount); }
             },
@@ -7820,7 +7837,7 @@ impl HostSqliteColumnValueResult {
     }
 }
 
-impl HostSqliteStepResult {
+impl DoneOrResultTooLargeOrRowOrRowLimitExceeded {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -7829,11 +7846,13 @@ impl HostSqliteStepResult {
         let value = self;
         let _ = roc_host;
         match value.tag {
-            HostSqliteStepResultTag::Err => {
-                let payload = value.payload_err();
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Done => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::ResultTooLarge => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row => {
+                let payload = value.payload_row();
                 unsafe { payload.decref(roc_host); }
             },
-            HostSqliteStepResultTag::Ok => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::RowLimitExceeded => {},
         }
     }
 
@@ -7846,12 +7865,44 @@ impl HostSqliteStepResult {
         let value = self;
         let _ = amount;
         match value.tag {
-            HostSqliteStepResultTag::Err => {
-                let payload = value.payload_err();
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Done => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::ResultTooLarge => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row => {
+                let payload = value.payload_row();
                 unsafe { payload.incref(amount); }
             },
-            HostSqliteStepResultTag::Ok => {},
+            DoneOrResultTooLargeOrRowOrRowLimitExceededTag::RowLimitExceeded => {},
         }
+    }
+}
+
+impl AnonStruct6020798da82f3849 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        {
+            let list = value.values;
+            if list.has_one_ref() {
+                for item_ref in list.allocation_items() {
+                    let item = *item_ref;
+                        unsafe { item.decref(roc_host); }
+                }
+            }
+            unsafe { list.decref(roc_host); }
+        }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.values.incref(amount); }
     }
 }
 
@@ -8438,13 +8489,13 @@ unsafe extern "C" {
     /// Roc signature: Host.SqliteStmt, List({ name : Str, value : [Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)] }) => Try({}, { code : I64, message : Str })
     pub fn hosted_sqlite_bind(arg0: *mut u64, arg1: RocList<AnonStruct2782504baf739389>) -> HostSqliteBindResult;
 
-    /// Hosted symbol for Host.sqlite_column_value!
-    /// Roc signature: Host.SqliteStmt, U64 => Try([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)], { code : I64, message : Str })
-    pub fn hosted_sqlite_column_value(arg0: *mut u64, arg1: u64) -> HostSqliteColumnValueResult;
-
     /// Hosted symbol for Host.sqlite_columns!
     /// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
     pub fn hosted_sqlite_columns(arg0: *mut u64) -> HostSqliteColumnsResult;
+
+    /// Hosted symbol for Host.sqlite_next_row!
+    /// Roc signature: Host.SqliteStmt, U64, Bool => Try([Done, ResultTooLarge, Row({ bytes : U64, values : List([Bytes(List(U8)), Integer(I64), Null, Real(F64), String(Str)]) }), RowLimitExceeded], { code : I64, message : Str })
+    pub fn hosted_sqlite_next_row(arg0: *mut u64, arg1: u64, arg2: bool) -> HostSqliteNextRowResult;
 
     /// Hosted symbol for Host.sqlite_prepare!
     /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) }, Str => Try(Host.SqliteStmt, { code : I64, message : Str })
@@ -8453,10 +8504,6 @@ unsafe extern "C" {
     /// Hosted symbol for Host.sqlite_reset!
     /// Roc signature: Host.SqliteStmt => Try({}, { code : I64, message : Str })
     pub fn hosted_sqlite_reset(arg0: *mut u64) -> HostSqliteBindResult;
-
-    /// Hosted symbol for Host.sqlite_step!
-    /// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
-    pub fn hosted_sqlite_step(arg0: *mut u64) -> HostSqliteStepResult;
 
     /// Hosted symbol for Host.stderr_line!
     /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
