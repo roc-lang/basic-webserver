@@ -83,6 +83,9 @@ pub(crate) type SqliteHostPrepareResultTag = HostSqlitePrepareResultTag;
 pub(crate) type SqliteHostBindResult = HostSqliteBindResult;
 pub(crate) type SqliteHostBindResultPayload = HostSqliteBindResultPayload;
 pub(crate) type SqliteHostBindResultTag = HostSqliteBindResultTag;
+pub(crate) type SqliteHostColumnsResult = HostSqliteColumnsResult;
+pub(crate) type SqliteHostColumnsResultPayload = HostSqliteColumnsResultPayload;
+pub(crate) type SqliteHostColumnsResultTag = HostSqliteColumnsResultTag;
 pub(crate) type SqliteHostColumnValueResult = HostSqliteColumnValueResult;
 pub(crate) type SqliteHostColumnValueResultPayload = HostSqliteColumnValueResultPayload;
 pub(crate) type SqliteHostColumnValueResultTag = HostSqliteColumnValueResultTag;
@@ -139,8 +142,14 @@ unsafe impl Sync for SharedRocHost {}
 static ROC_HOST: OnceLock<SharedRocHost> = OnceLock::new();
 
 pub(crate) fn initialize_roc_host() {
+    let mut host = make_roc_host(core::ptr::null_mut());
+    // Generated Rust helpers release Roc allocations through this vtable,
+    // while compiled Roc calls the exported symbols below. Both paths must
+    // route opaque resource boxes through the same finalizer heaps.
+    host.roc_dealloc = routed_roc_dealloc;
+    host.roc_realloc = routed_roc_realloc;
     ROC_HOST
-        .set(SharedRocHost(make_roc_host(core::ptr::null_mut())))
+        .set(SharedRocHost(host))
         .unwrap_or_else(|_| panic!("RocHost initialized more than once"));
 }
 
@@ -163,9 +172,53 @@ pub extern "C" fn roc_alloc(length: usize, alignment: usize) -> *mut c_void {
     DefaultAllocators::roc_alloc(roc_host_ptr(), length, alignment)
 }
 
+pub(crate) extern "C" fn routed_roc_dealloc(
+    roc_host: *mut RocHost,
+    ptr: *mut c_void,
+    alignment: usize,
+) {
+    use crate::host_resource::DeallocRoute;
+
+    for route_resource in [
+        crate::sqlite::route_resource_dealloc,
+        crate::file::route_resource_dealloc,
+        crate::tcp::route_resource_dealloc,
+    ] {
+        let route = route_resource(ptr);
+        match route {
+            DeallocRoute::NotOwned => {}
+            DeallocRoute::Deallocated => return,
+            DeallocRoute::Corrupt => {
+                eprintln!("fatal: invalid or duplicate host resource deallocation");
+                std::process::abort();
+            }
+        }
+    }
+    DefaultAllocators::roc_dealloc(roc_host, ptr, alignment);
+}
+
 #[no_mangle]
 pub extern "C" fn roc_dealloc(ptr: *mut c_void, alignment: usize) {
-    DefaultAllocators::roc_dealloc(roc_host_ptr(), ptr, alignment);
+    routed_roc_dealloc(roc_host_ptr(), ptr, alignment);
+}
+
+fn is_host_resource_address(ptr: *const c_void) -> bool {
+    crate::sqlite::contains_resource_address(ptr)
+        || crate::file::contains_resource_address(ptr)
+        || crate::tcp::contains_resource_address(ptr)
+}
+
+pub(crate) extern "C" fn routed_roc_realloc(
+    roc_host: *mut RocHost,
+    ptr: *mut c_void,
+    new_length: usize,
+    alignment: usize,
+) -> *mut c_void {
+    if is_host_resource_address(ptr) {
+        eprintln!("fatal: Roc attempted to reallocate an opaque host resource");
+        std::process::abort();
+    }
+    DefaultAllocators::roc_realloc(roc_host, ptr, new_length, alignment)
 }
 
 #[no_mangle]
@@ -174,7 +227,7 @@ pub extern "C" fn roc_realloc(
     new_length: usize,
     alignment: usize,
 ) -> *mut c_void {
-    DefaultAllocators::roc_realloc(roc_host_ptr(), ptr, new_length, alignment)
+    routed_roc_realloc(roc_host_ptr(), ptr, new_length, alignment)
 }
 
 #[no_mangle]

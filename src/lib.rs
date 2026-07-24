@@ -14,6 +14,7 @@ mod cmd;
 mod dir;
 mod env;
 mod file;
+mod host_resource;
 mod http;
 mod http_error;
 mod http_server;
@@ -35,5 +36,19 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 
 pub fn rust_main() -> i32 {
     abi::initialize_roc_host();
-    http_server::start()
+    let exit_code = http_server::start();
+    let live_resources =
+        sqlite::active_resources() + file::active_resources() + tcp::active_resources();
+    if live_resources != 0 {
+        eprintln!(
+            "host resource lifecycle error: {live_resources} opaque resources remained after \
+             shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={})",
+            sqlite::resource_high_water(),
+            file::resource_high_water(),
+            tcp::resource_high_water(),
+        );
+        1
+    } else {
+        exit_code
+    }
 }

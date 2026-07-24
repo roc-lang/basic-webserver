@@ -224,6 +224,43 @@ configured per-connection, per-handler, per-transfer, and per-subsystem
 budgets. Configuration controls resources that applications have a meaningful
 reason to tune; finite defaults remain safe under overload.
 
+### Host resource handles
+
+Long-lived native resources exposed to Roc, such as SQLite statements, buffered
+file readers, and TCP streams, are represented by opaque refcounted handles.
+The handle payload contains a host lifecycle token rather than a native
+pointer. Its identity is valid only while the caller owns a live Roc ARC
+reference. The host owns the native resource in a bounded, type-specific,
+concurrency-safe resource heap and validates the live handle before every
+operation.
+
+Roc ARC defines the handle lifetime. At the host allocator boundary, the
+deallocator recognizes each resource heap's handle-allocation range, and the
+final Roc reference release routes through the owning heap to close and destroy
+the native resource exactly once.
+
+This applies equally to handles retained in application context and to
+request-local handles; correctness does not depend on application code calling
+`close`. The public API does not expose an explicit close operation; final Roc
+ARC release and orderly shutdown are the resource lifecycle.
+
+Each resource heap has a finite capacity, reports a typed saturation error, and
+tracks active and high-water counts. A live ARC handle pins its stable slot,
+which is never reused while any valid reference exists. Final release
+invalidates the handle, closes the native resource, and only then permits slot
+reuse. Using its raw payload pointer after final release is invalid ABI
+behaviour, not a supported stale-capability lookup. Cross-type and structurally
+invalid live handles are rejected.
+
+Resource-specific synchronization protects concurrent operations without
+serializing unrelated resources.
+
+Graceful shutdown first drains handlers, then runs the Roc shutdown hook and
+releases application context. Final ARC release closes resources retained by
+that context before host teardown completes. Resource heap backing storage
+remains valid until no Roc code can run; hard process termination relies on the
+operating system only after safe in-process teardown is no longer possible.
+
 ### Host/Roc byte ownership
 
 The host calls Roc and controls the complete lifecycle of a request. Byte
@@ -441,15 +478,6 @@ They must:
 - have deterministic lifetime and shutdown behaviour;
 - enforce their own resource and concurrency limits;
 - expose typed operations and failures.
-
-Opaque capability values contain unforgeable host registry identifiers, never
-native pointers. Roc's ordinary value destruction is not a native-resource
-finalizer, so a resource whose useful lifetime can end before server shutdown
-has an explicit, idempotent close operation. One-shot platform operations close
-their resources before returning, end-of-stream closes readers where
-appropriate, and host shutdown closes every remaining registered resource.
-Resource limits count registry entries and closed identifiers are rejected as
-stale.
 
 Internally mutable resources must be synchronized at the level at which
 concurrent access can occur. Per-object locking is insufficient when several

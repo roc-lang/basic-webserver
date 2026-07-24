@@ -3989,6 +3989,81 @@ const _: () = assert!(core::mem::offset_of!(BytesOrIntegerOrNullOrRealOrString, 
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostSqliteColumnsResultTag {
+    Err = 0,
+    Ok = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union HostSqliteColumnsResultPayload {
+    pub err: core::mem::ManuallyDrop<AnonStruct22cf486058afc711>,
+    pub ok: core::mem::ManuallyDrop<RocList<RocStr>>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResultPayloadAlignment;
+
+/// Tag union: Try
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResult {
+    pub _payload_alignment: [HostSqliteColumnsResultPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: HostSqliteColumnsResultTag,
+}
+
+/// Tag union: Try
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResult {
+    pub payload: HostSqliteColumnsResultPayload,
+    pub tag: HostSqliteColumnsResultTag,
+}
+
+impl HostSqliteColumnsResult {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_ok(&self) -> RocList<RocStr> {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocList<RocStr>) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_ok(&self) -> RocList<RocStr> {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<HostSqliteColumnsResult>() == 40, "HostSqliteColumnsResult size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<HostSqliteColumnsResult>() == 8, "HostSqliteColumnsResult alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(HostSqliteColumnsResult, tag) == 32, "HostSqliteColumnsResult tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<HostSqliteColumnsResult>() == 32, "HostSqliteColumnsResult size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<HostSqliteColumnsResult>() == 8, "HostSqliteColumnsResult alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(HostSqliteColumnsResult, tag) == 24, "HostSqliteColumnsResult tag offset mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostSqliteColumnValueResultTag {
     Err = 0,
     Ok = 1,
@@ -5546,7 +5621,7 @@ pub struct HostSqliteColumnValueArgs {
 }
 
 /// Arguments for Host.sqlite_columns!
-/// Roc signature: Host.SqliteStmt => List(Str)
+/// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -5837,6 +5912,7 @@ pub type HostSqliteColumnValueErr = AnonStruct22cf486058afc711;
 pub type HostSqliteColumnValueOk = BytesOrIntegerOrNullOrRealOrString;
 pub type HostSqliteColumnValueOkPayload = BytesOrIntegerOrNullOrRealOrStringPayload;
 pub type HostSqliteColumnValueOkTag = BytesOrIntegerOrNullOrRealOrStringTag;
+pub type HostSqliteColumnsErr = AnonStruct22cf486058afc711;
 pub type HostSqlitePrepareArg0 = AnonStruct2e21b53659f79626;
 pub type HostSqlitePrepareErr = AnonStruct22cf486058afc711;
 pub type HostSqliteResetResult = HostSqliteBindResult;
@@ -7653,6 +7729,56 @@ impl BytesOrIntegerOrNullOrRealOrString {
     }
 }
 
+impl HostSqliteColumnsResult {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            HostSqliteColumnsResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.decref(roc_host); }
+            },
+            HostSqliteColumnsResultTag::Ok => {
+                let payload = value.payload_ok();
+                {
+                    let list = payload;
+                    if list.has_one_ref() {
+                        for item_ref in list.allocation_items() {
+                            let item = *item_ref;
+                                unsafe { item.decref(roc_host); }
+                        }
+                    }
+                    unsafe { list.decref(roc_host); }
+                }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            HostSqliteColumnsResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.incref(amount); }
+            },
+            HostSqliteColumnsResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
 impl HostSqliteColumnValueResult {
     /// Recursively decrement Roc-owned payloads.
     ///
@@ -8317,8 +8443,8 @@ unsafe extern "C" {
     pub fn hosted_sqlite_column_value(arg0: *mut u64, arg1: u64) -> HostSqliteColumnValueResult;
 
     /// Hosted symbol for Host.sqlite_columns!
-    /// Roc signature: Host.SqliteStmt => List(Str)
-    pub fn hosted_sqlite_columns(arg0: *mut u64) -> RocList<RocStr>;
+    /// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
+    pub fn hosted_sqlite_columns(arg0: *mut u64) -> HostSqliteColumnsResult;
 
     /// Hosted symbol for Host.sqlite_prepare!
     /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) }, Str => Try(Host.SqliteStmt, { code : I64, message : Str })

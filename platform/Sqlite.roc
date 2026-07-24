@@ -22,10 +22,9 @@ import Path
 ## Database paths use basic-cli's byte-preserving `Path` type.
 ##
 ## Each prepared statement owns one host connection. The connection has a
-## one-second lock wait. Reusable statements must be closed explicitly; the
-## one-shot APIs do this automatically and server shutdown closes any remaining
-## statements. At most 64 statements may be open in one process; preparing
-## beyond that limit returns `SqliteErr(Busy, ...)`.
+## one-second lock wait and is closed when the statement's last reference is
+## dropped. At most 64 statements may be open in one process; preparing beyond
+## that limit returns `SqliteErr(Busy, ...)`.
 ##
 ## Separate statements never have implicit connection affinity. Use SQL such as
 ## `INSERT ... RETURNING` when a result must come from the same operation;
@@ -92,10 +91,6 @@ Sqlite :: [].{
 			res
 		}
 
-		## Close this statement and its connection. Closing it again is harmless.
-		## Other copies of this value become stale and return `SqliteErr(Misuse, ...)`.
-		close! : Stmt => {}
-		close! = |stmt| Host.sqlite_close!(stmt.host)
 	}
 
 	## Represents various error codes that can be returned by Sqlite.
@@ -158,27 +153,21 @@ Sqlite :: [].{
 	execute! : { path : Path.Path, query : Str, bindings : List(Binding) } => Try({}, [RowsReturnedUseQueryInstead, SqliteErr(ErrCode, Str), ..])
 	execute! = |{ path, query: q, bindings }| {
 		stmt = prepare!({ path, query: q })?
-		result = stmt.execute!(bindings)
-		stmt.close!()
-		result
+		stmt.execute!(bindings)
 	}
 
 	## Execute a SQL query and decode exactly one row into a value. `bindings`
 	## is a `List(Binding)` and `row` is a decoder built from the functions below.
 	query! = |{ path, query: q, bindings, row }| {
 		stmt = prepare!({ path, query: q })?
-		result = stmt.query!(bindings, row)
-		stmt.close!()
-		result
+		stmt.query!(bindings, row)
 	}
 
 	## Execute a SQL query and decode multiple rows into a list of values.
 	## `bindings` is a `List(Binding)` and `rows` is a row decoder.
 	query_many! = |{ path, query: q, bindings, rows }| {
 		stmt = prepare!({ path, query: q })?
-		result = stmt.query_many!(bindings, rows)
-		stmt.close!()
-		result
+		stmt.query_many!(bindings, rows)
 	}
 
 	# ---- Row decoding combinators ----------------------------------------------
@@ -371,7 +360,9 @@ sqlite_bind! = |stmt, bindings|
 	Host.sqlite_bind!(stmt, bindings)
 		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
 
-sqlite_columns! = |stmt| Host.sqlite_columns!(stmt)
+sqlite_columns! = |stmt|
+	Host.sqlite_columns!(stmt)
+		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
 
 sqlite_column_value! = |stmt, index|
 	Host.sqlite_column_value!(stmt, index)
@@ -394,7 +385,7 @@ sqlite_reset! = |stmt|
 		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
 
 decode_exactly_one_row! = |stmt, gen_decode| {
-	cols = sqlite_columns!(stmt)
+	cols = sqlite_columns!(stmt)?
 	decode_row! = gen_decode(cols)
 	match sqlite_step!(stmt)? {
 		Row => {
@@ -409,7 +400,7 @@ decode_exactly_one_row! = |stmt, gen_decode| {
 }
 
 decode_rows! = |stmt, gen_decode| {
-	cols = sqlite_columns!(stmt)
+	cols = sqlite_columns!(stmt)?
 	decode_row! = gen_decode(cols)
 	helper! = |out|
 		match sqlite_step!(stmt)? {

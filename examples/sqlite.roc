@@ -20,7 +20,9 @@ import http.Response
 # );
 
 # The database path is resolved once at startup and stored in the Context.
-Context : { db_path : Path.Path }
+# A retained statement also exercises automatic finalization at shutdown; normal
+# requests use independent statements so concurrent handlers do not contend on it.
+Context : { db_path : Path.Path, shutdown_lifecycle : Sqlite.Stmt }
 
 program = { init!, respond!, shutdown! }
 
@@ -31,11 +33,15 @@ init! = || {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
 		}
-	Ok({ config: Server.default_config, context: { db_path: db_path } })
+	shutdown_lifecycle = prepare_shutdown_lifecycle!(db_path) ? |_| Exit(1)
+	Ok({
+		config: Server.default_config,
+		context: { db_path: db_path, shutdown_lifecycle: shutdown_lifecycle },
+	})
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, { db_path }| {
+respond! = |_request, { db_path, shutdown_lifecycle: _ }| {
 	match query_todos_by_status!(db_path, "completed") {
 		Ok(todos) => {
 			lines = todos.map(|todo| Str.inspect(todo))
@@ -54,6 +60,12 @@ shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})
 
 Todo : { id : Str, status : TodoStatus, task : Str }
+
+prepare_shutdown_lifecycle! = |db_path|
+	Sqlite.prepare!({
+		path: db_path,
+		query: "SELECT 1;",
+	})
 
 query_todos_by_status! : Path.Path, Str => Try(List(Todo), _)
 query_todos_by_status! = |db_path, status|

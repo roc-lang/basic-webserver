@@ -9,9 +9,9 @@ Tcp :: [].{
 
 	## Represents a TCP stream.
 	##
-	## Close it explicitly when finished; server shutdown closes any remaining
-	## streams. The host synchronizes stream access, so it is safe to retain in
-	## application context. A concurrent operation returns
+	## The connection is automatically closed when the last reference to the
+	## stream is dropped. The host synchronizes stream access, so it is safe to
+	## retain in application context. A concurrent operation returns
 	## `TcpReadErr(StreamBusy)` or `TcpWriteErr(StreamBusy)`.
 	Stream :: { host : Host.TcpStream }.{
 
@@ -65,14 +65,13 @@ Tcp :: [].{
 		## Write a string to this TCP stream, encoded as UTF-8.
 		write_utf8! : Stream, Str => Try({}, _)
 		write_utf8! = |stream, str| write!(stream, Str.to_utf8(str))
-
-		## Close this stream. Closing an already closed stream is harmless.
-		close! : Stream => {}
-		close! = |stream| Host.tcp_close!(stream.host)
 	}
 
 	## Represents errors that can occur when connecting to a remote host.
 	ConnectErr : [
+
+		## The host already retains its maximum of 64 TCP streams.
+		CapacityExhausted,
 		PermissionDenied,
 		AddrInUse,
 		AddrNotAvailable,
@@ -118,6 +117,7 @@ Tcp :: [].{
 	## Convert a `ConnectErr` to a `Str` you can print.
 	connect_err_to_str = |err|
 		match err {
+			CapacityExhausted => "CapacityExhausted"
 			PermissionDenied => "PermissionDenied"
 			AddrInUse => "AddrInUse"
 			AddrNotAvailable => "AddrNotAvailable"
@@ -150,6 +150,7 @@ Tcp :: [].{
 parse_connect_err : Str -> Tcp.ConnectErr
 parse_connect_err = |err|
 	match err {
+		"StreamCapacityExhausted" => CapacityExhausted
 		"ErrorKind::PermissionDenied" => PermissionDenied
 		"ErrorKind::AddrInUse" => AddrInUse
 		"ErrorKind::AddrNotAvailable" => AddrNotAvailable
