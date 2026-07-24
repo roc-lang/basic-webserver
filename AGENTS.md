@@ -49,6 +49,14 @@ cross-platform HTTP specification suite:
 ./ci/all_tests.sh
 ```
 
+CI splits this into reusable phases so it tests the uploaded cross-target
+artifacts rather than rebuilding before execution:
+```
+./scripts/test.py --operation validate
+./scripts/test.py --operation build --target x64musl --artifact-dir dist/example-binaries
+./scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
+```
+
 Regenerate the committed Rust glue after changing `platform/main.roc`'s
 `hosted`/`provides` blocks (needs a roc source checkout for `RustGlue.roc`):
 ```

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import http.client
 import json
 import os
@@ -29,9 +30,11 @@ from typing import Iterator
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "scripts" / "test_spec.json"
-OUTPUT_ROOT = ROOT / "target" / "spec"
+VALIDATION_ROOT = ROOT / "target" / "spec"
+DEFAULT_ARTIFACT_DIR = ROOT / "dist" / "example-binaries"
 STAGES = ("fmt", "check", "test", "build", "run")
 PLATFORMS = {"linux", "darwin", "windows"}
+TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
 
@@ -65,6 +68,42 @@ def active_sources() -> set[str]:
         for directory in (ROOT / "examples",)
         for path in directory.glob("*.roc")
     }
+
+
+def declared_targets() -> tuple[str, ...]:
+    source = (ROOT / "platform" / "main.roc").read_text(encoding="utf-8")
+    match = re.search(r"(?ms)^\s*targets:\s*\{(.*?)^\s*\}", source)
+    if match is None:
+        fail("platform/main.roc: targets block was not found")
+    targets = tuple(
+        re.findall(r"(?m)^\s*([A-Za-z0-9_]+):\s*\{\s*inputs:", match.group(1))
+    )
+    if set(targets) != set(TARGETS):
+        fail(
+            f"Platform/test target mismatch; "
+            f"missing={sorted(set(TARGETS) - set(targets))}, "
+            f"extra={sorted(set(targets) - set(TARGETS))}"
+        )
+    return targets
+
+
+def detect_native_target() -> str:
+    system = platform.system()
+    machine = platform.machine().lower()
+    if system == "Windows" and machine in {"amd64", "x86_64"}:
+        return "x64win"
+    if system == "Darwin":
+        if machine in {"arm64", "aarch64"}:
+            return "arm64mac"
+        if machine in {"amd64", "x86_64"}:
+            return "x64mac"
+    if system == "Linux":
+        if machine in {"arm64", "aarch64"}:
+            return "arm64musl"
+        if machine in {"amd64", "x86_64"}:
+            return "x64musl"
+    fail(f"Unsupported native platform: {system} {machine}")
+    raise AssertionError
 
 
 def validate_skip(owner: str, value: object) -> None:
@@ -224,33 +263,27 @@ def skip_for_current(value: dict[str, object]) -> tuple[str, str] | None:
     return str(skip["reason"]), str(skip["issue"])
 
 
-def executable_suffix() -> str:
-    return ".exe" if os.name == "nt" else ""
+def executable_suffix(target: str) -> str:
+    return ".exe" if target == "x64win" else ""
 
 
-def output_path(source: Path) -> Path:
-    directory = OUTPUT_ROOT / source.parent.name
-    return directory / f"{source.stem}{executable_suffix()}"
+def output_path(source: Path, target: str, artifact_dir: Path) -> Path:
+    return artifact_dir / target / f"{source.stem}{executable_suffix(target)}"
 
 
-def prepare_output() -> None:
-    if OUTPUT_ROOT.exists():
-        shutil.rmtree(OUTPUT_ROOT)
-    for name in ("examples",):
-        source_dir = ROOT / name
-        output_dir = OUTPUT_ROOT / name
-        output_dir.mkdir(parents=True)
-        for source in source_dir.iterdir():
-            if source.is_file() and source.suffix not in (".roc", ".todoroc"):
-                shutil.copy2(source, output_dir / source.name)
+def prepare_artifact_output(target: str, artifact_dir: Path) -> None:
+    output_dir = artifact_dir / target
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
 
 
-def check_readme_example(roc: str) -> None:
+def readme_example() -> Path:
     source = (ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(r"(?ms)^```roc\n(.*?)^```$", source)
     if match is None:
         fail("README example check failed: no Roc code block found")
-    directory = OUTPUT_ROOT / "readme"
+    directory = VALIDATION_ROOT / "readme"
     directory.mkdir(parents=True, exist_ok=True)
     local_platform = os.path.relpath(ROOT / "platform" / "main.roc", directory).replace(
         os.sep, "/"
@@ -263,9 +296,7 @@ def check_readme_example(roc: str) -> None:
     )
     path = directory / "readme.roc"
     path.write_text(rewritten, encoding="utf-8", newline="\n")
-    command(roc, "check", path)
-    command(roc, "test", path)
-    command(roc, "build", f"--output={directory / ('readme' + executable_suffix())}", path)
+    return path
 
 
 class Capture:
@@ -692,13 +723,18 @@ def run_server_case(binary: Path, source: Path, case: dict[str, object], owner: 
 
 
 def run_cases(
-    defaults: dict[str, bool], apps: list[dict[str, object]], results: list[dict[str, object]]
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+    binaries: dict[str, Path],
+    results: list[dict[str, object]],
 ) -> None:
     for app in apps:
         if not stage_enabled(defaults, app, "run"):
             continue
         source = ROOT / str(app["path"])
-        binary = output_path(source)
+        binary = binaries.get(str(app["path"]))
+        if binary is None:
+            fail(f"{app['path']}: run is enabled but its binary is missing")
         app_skip = skip_for_current(app)
         cases = app["cases"]
         assert isinstance(cases, list)
@@ -726,14 +762,156 @@ def run_cases(
             results.append({"app": app["path"], "case": raw_case["name"], "status": "passed"})
 
 
-def write_results(results: list[dict[str, object]]) -> None:
-    path = OUTPUT_ROOT / f"results-{current_platform()}.json"
+def write_results(target: str, results: list[dict[str, object]]) -> None:
+    VALIDATION_ROOT.mkdir(parents=True, exist_ok=True)
+    path = VALIDATION_ROOT / f"results-{target}.json"
     path.write_text(
-        json.dumps({"platform": current_platform(), "cases": results}, indent=2) + "\n",
+        json.dumps(
+            {"platform": current_platform(), "target": target, "cases": results},
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
         newline="\n",
     )
     print(f"Results: {path.relative_to(ROOT)}")
+
+
+def spec_hash() -> str:
+    return hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest()
+
+
+def examples_hash() -> str:
+    digest = hashlib.sha256()
+    for path in sorted(
+        item
+        for item in (ROOT / "examples").iterdir()
+        if item.is_file() and item.suffix != ".todoroc"
+    ):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def write_manifest(
+    target: str, binaries: dict[str, Path], artifact_dir: Path
+) -> None:
+    manifest = {
+        "target": target,
+        "spec_sha256": spec_hash(),
+        "examples_sha256": examples_hash(),
+        "binaries": {
+            source: str(path.relative_to(artifact_dir).as_posix())
+            for source, path in sorted(binaries.items())
+        },
+    }
+    path = artifact_dir / target / "manifest.json"
+    path.write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
+def load_artifact_binaries(
+    target: str,
+    artifact_dir: Path,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+) -> dict[str, Path]:
+    manifest_path = artifact_dir / target / "manifest.json"
+    if not manifest_path.is_file():
+        fail(f"Missing artifact manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("target") != target:
+        fail(f"{manifest_path}: target does not match {target}")
+    if manifest.get("spec_sha256") != spec_hash():
+        fail(f"{manifest_path}: binaries were built from a different test spec")
+    if manifest.get("examples_sha256") != examples_hash():
+        fail(f"{manifest_path}: binaries were built from different example sources")
+    entries = manifest.get("binaries")
+    if not isinstance(entries, dict):
+        fail(f"{manifest_path}: binaries must be an object")
+    expected = {
+        str(app["path"])
+        for app in apps
+        if stage_enabled(defaults, app, "build")
+    }
+    if set(entries) != expected:
+        fail(
+            f"{manifest_path}: binary mismatch; "
+            f"missing={sorted(expected - set(entries))}, "
+            f"extra={sorted(set(entries) - expected)}"
+        )
+    binaries = {
+        source: artifact_dir / str(relative) for source, relative in entries.items()
+    }
+    missing = sorted(
+        source for source, binary in binaries.items() if not binary.is_file()
+    )
+    if missing:
+        fail(f"{manifest_path}: missing binary files for {missing}")
+    if os.name == "posix":
+        for binary in binaries.values():
+            binary.chmod(binary.stat().st_mode | 0o111)
+    return binaries
+
+
+def validate_sources(
+    roc: str, defaults: dict[str, bool], apps: list[dict[str, object]]
+) -> None:
+    if VALIDATION_ROOT.exists():
+        shutil.rmtree(VALIDATION_ROOT)
+    for stage in ("fmt", "check", "test"):
+        for app in apps:
+            if not stage_enabled(defaults, app, stage):
+                continue
+            source = ROOT / str(app["path"])
+            print(f"==> {stage} {app['path']}", flush=True)
+            if stage == "fmt":
+                command(roc, "fmt", "--check", source)
+            else:
+                command(roc, stage, source)
+
+    readme = readme_example()
+    command(roc, "check", readme)
+    command(roc, "test", readme)
+
+
+def build_artifacts(
+    roc: str,
+    target: str,
+    artifact_dir: Path,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+) -> dict[str, Path]:
+    prepare_artifact_output(target, artifact_dir)
+    binaries: dict[str, Path] = {}
+    for app in apps:
+        if not stage_enabled(defaults, app, "build"):
+            continue
+        source = ROOT / str(app["path"])
+        binary = output_path(source, target, artifact_dir)
+        print(f"==> build {app['path']} ({target})", flush=True)
+        command(
+            roc,
+            "build",
+            source,
+            f"--target={target}",
+            f"--output={binary}",
+        )
+        binaries[str(app["path"])] = binary
+
+    readme = readme_example()
+    command(
+        roc,
+        "build",
+        readme,
+        f"--target={target}",
+        f"--output={artifact_dir / target / ('readme' + executable_suffix(target))}",
+    )
+    write_manifest(target, binaries, artifact_dir)
+    return binaries
 
 
 def main() -> None:
@@ -745,43 +923,45 @@ def main() -> None:
         help="run the complete suite or one reusable phase",
     )
     parser.add_argument("--roc", default=os.environ.get("ROC", "roc"))
+    parser.add_argument("--target", choices=declared_targets())
+    parser.add_argument(
+        "--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR
+    )
     args = parser.parse_args()
 
     defaults, apps = load_spec()
+    target = args.target or detect_native_target()
+    artifact_dir = args.artifact_dir.resolve()
+
+    if args.operation == "run" and target != detect_native_target():
+        fail(
+            f"Cannot run {target} binaries on native target "
+            f"{detect_native_target()}"
+        )
+
     if args.operation in ("all", "validate"):
         command(sys.executable, "-m", "unittest", "scripts.test_harness_test")
-    if args.operation == "validate":
-        print(f"Validated {len(apps)} applications in {SPEC_PATH.relative_to(ROOT)}")
-        return
+        validate_sources(args.roc, defaults, apps)
+        if args.operation == "validate":
+            print(f"\nValidated {len(apps)} applications.")
+            return
 
     if args.operation in ("all", "build"):
-        prepare_output()
-        for stage in ("fmt", "check", "test", "build"):
-            for app in apps:
-                if not stage_enabled(defaults, app, stage):
-                    continue
-                source = ROOT / str(app["path"])
-                print(f"==> {stage} {app['path']}", flush=True)
-                if stage == "fmt":
-                    command(args.roc, "fmt", "--check", source)
-                elif stage == "check":
-                    command(args.roc, "check", source)
-                elif stage == "test":
-                    command(args.roc, "test", source)
-                else:
-                    command(args.roc, "build", f"--output={output_path(source)}", source)
-        check_readme_example(args.roc)
+        binaries = build_artifacts(
+            args.roc, target, artifact_dir, defaults, apps
+        )
         if args.operation == "build":
+            print(f"\nBuilt {len(binaries)} applications for {target}.")
             return
-    elif not OUTPUT_ROOT.is_dir():
-        fail(f"{OUTPUT_ROOT}: build artifacts not found; run --operation build first")
+        binaries = load_artifact_binaries(target, artifact_dir, defaults, apps)
+    else:
+        binaries = load_artifact_binaries(target, artifact_dir, defaults, apps)
 
     results: list[dict[str, object]] = []
     try:
-        run_cases(defaults, apps, results)
+        run_cases(defaults, apps, binaries, results)
     finally:
-        OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-        write_results(results)
+        write_results(target, results)
     print(f"\nAll {len(results)} runtime cases passed.")
 
 
