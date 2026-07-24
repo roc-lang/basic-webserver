@@ -34,6 +34,7 @@ VALIDATION_ROOT = ROOT / "target" / "spec"
 DEFAULT_ARTIFACT_DIR = ROOT / "dist" / "example-binaries"
 MEMCHECK_ROOT = ROOT / "target" / "memcheck-spec"
 STAGES = ("fmt", "check", "test", "build", "run")
+BUILD_OPTIMIZATIONS = {"speed", "dev"}
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
 PORTABLE_TEXT_SUFFIXES = {".html", ".json", ".py", ".roc"}
@@ -282,6 +283,11 @@ def load_spec() -> tuple[dict[str, bool], list[dict[str, object]]]:
             fail(f"{path}: stages contains an unknown stage")
         if not all(isinstance(value, bool) for value in overrides.values()):
             fail(f"{path}: stage overrides must be booleans")
+        if app.get("build_opt", "speed") not in BUILD_OPTIMIZATIONS:
+            fail(
+                f"{path}: build_opt must be one of "
+                f"{sorted(BUILD_OPTIMIZATIONS)}"
+            )
         cases = app.get("cases")
         if not isinstance(cases, list) or not cases:
             fail(f"{path}: cases must be a non-empty array")
@@ -307,6 +313,14 @@ def stage_enabled(defaults: dict[str, bool], app: dict[str, object], stage: str)
     assert isinstance(overrides, dict)
     value = overrides.get(stage, defaults[stage])
     assert isinstance(value, bool)
+    return value
+
+
+# TODO: Investigate the Roc compiler bug that makes the LLVM speed backend use
+# several GiB for form-url-encoded. Remove its per-app dev override once fixed.
+def build_optimization(app: dict[str, object]) -> str:
+    value = app.get("build_opt", "speed")
+    assert isinstance(value, str) and value in BUILD_OPTIMIZATIONS
     return value
 
 
@@ -1653,6 +1667,7 @@ def build_artifacts(
             "build",
             source,
             f"--target={target}",
+            f"--opt={build_optimization(app)}",
             f"--output={binary}",
         )
         binaries[str(app["path"])] = binary

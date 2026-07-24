@@ -106,6 +106,19 @@ class SpecValidationTests(unittest.TestCase):
         _, apps = test.load_spec()
         self.assertEqual({str(app["path"]) for app in apps}, test.active_sources())
 
+    def test_build_optimization_defaults_to_speed(self) -> None:
+        _, apps = test.load_spec()
+        by_path = {str(app["path"]): app for app in apps}
+
+        self.assertEqual(
+            test.build_optimization(by_path["examples/form-url-encoded.roc"]),
+            "dev",
+        )
+        self.assertEqual(
+            test.build_optimization(by_path["examples/hello-web.roc"]),
+            "speed",
+        )
+
     def test_skip_requires_a_reason(self) -> None:
         with self.assertRaisesRegex(test.TestFailure, "non-empty reason"):
             test.validate_skip(

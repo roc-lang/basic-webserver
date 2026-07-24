@@ -296,6 +296,7 @@
     {
       "path": "examples/form-url-encoded.roc",
       "mode": "server",
+      "build_opt": "dev",
       "cases": [
         {
           "name": "get-post-and-method-rejection",
