@@ -12,11 +12,11 @@ import tempfile
 from pathlib import Path
 
 
-# Glue provenance (2026-07-22): the committed Rust glue is generated with Roc
-# 2988994af7 and the RustGlue.roc from that same checkout. Compiler and
+# Glue provenance: the committed Rust glue is generated with the compiler and
+# RustGlue.roc shipped together in nightly-2026-July-23-fdd77c3. Compiler and
 # glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "2988994af7"
+KNOWN_GOOD_REVISION = "fdd77c3969722edb53033c0847bdb3fd05609e47"
 
 
 def rooted_path(value: str) -> Path:
@@ -36,8 +36,24 @@ def roc_executable(value: str) -> str:
     return resolved
 
 
+def require_known_roc(roc: str) -> None:
+    result = subprocess.run(
+        [roc, "version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    version = f"{result.stdout}\n{result.stderr}"
+    if KNOWN_GOOD_REVISION[:7] not in version:
+        raise SystemExit(
+            "Rust glue must be generated with the pinned Roc compiler "
+            f"{KNOWN_GOOD_REVISION[:7]}, but `roc version` reported:\n"
+            f"{version.strip()}"
+        )
+
+
 def find_glue_spec(roc: str) -> Path:
-    explicit = os.environ.get("ROC_GLUE_SPEC")
+    explicit = os.environ.get("ROC_GLUE_SPEC") or os.environ.get("ROC_RUST_GLUE")
     if explicit:
         path = rooted_path(explicit)
         if not path.is_file():
@@ -125,6 +141,7 @@ def main() -> None:
     args = parser.parse_args()
 
     roc = roc_executable(os.environ.get("ROC", "roc"))
+    require_known_roc(roc)
     glue_spec = find_glue_spec(roc)
     platform_file = rooted_path(os.environ.get("PLATFORM_FILE", "platform/main.roc"))
     out_dir = rooted_path(os.environ.get("GLUE_OUT_DIR", "src"))
