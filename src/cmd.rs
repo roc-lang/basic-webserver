@@ -377,11 +377,13 @@ fn run_captured(
             }
         }
 
-        if status.is_some() && stdout.is_some() && stderr.is_some() {
+        if let (Some(completed), Some(stdout), Some(stderr)) =
+            (status.as_ref(), stdout.as_mut(), stderr.as_mut())
+        {
             break Ok(CapturedOutput {
-                status: status.unwrap(),
-                stdout: stdout.take().unwrap(),
-                stderr: stderr.take().unwrap(),
+                status: *completed,
+                stdout: core::mem::take(stdout),
+                stderr: core::mem::take(stderr),
             });
         }
 

@@ -503,7 +503,7 @@ pub extern "C" fn hosted_file_is_writable(path: HostFileIsWritableArgs) -> FileB
 fn nanos_since_epoch(time: std::time::SystemTime) -> io::Result<u128> {
     time.duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
-        .map_err(|error| io::Error::new(io::ErrorKind::Other, error.to_string()))
+        .map_err(|error| io::Error::other(error.to_string()))
 }
 
 fn file_time(
