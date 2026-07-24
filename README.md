@@ -133,11 +133,12 @@ active example, then drives its real HTTP listener using the cases in
 `scripts/test_spec.json`. The same cases and expected results run on Linux,
 macOS, and Windows; it does not require Expect or curl.
 
-CI validates sources once, builds and uploads every example for each supported
-Roc target, then downloads those artifacts into fresh native runner jobs for
-execution. Artifact manifests bind each binary set to its target, example
-sources, and test specification, ensuring the runtime tests exercise the
-cross-target build outputs rather than silently rebuilding them.
+CI first builds the host inputs for every supported Roc target. Every supported
+compiler host then cross-builds all active examples for every target. Fresh
+native runner jobs download and execute every independently produced binary set
+for their target. Artifact manifests bind each set to its compiler host, target,
+example sources, and test specification, ensuring the runtime suite exercises
+all uploaded cross-build outputs rather than silently rebuilding them.
 
 To build a release-format package after assembling all target inputs, run
 `python scripts/bundle.py --output-dir dist`. Windows inputs must be built on a

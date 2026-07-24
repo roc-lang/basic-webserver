@@ -62,8 +62,8 @@ jobs:
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate
 
-  build-examples:
-    name: build examples (${{ matrix.target }})
+  build-hosts:
+    name: build host inputs (${{ matrix.target }})
     needs: [rust-version, validate]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -89,11 +89,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install the Zig-based Roc compiler
-        uses: ./.github/actions/setup-roc
-
-      - run: roc version
-
       - name: Install Zig
         if: endsWith(matrix.target, 'musl')
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # ratchet:mlugg/setup-zig@v2.0.5
@@ -112,19 +107,68 @@ jobs:
       - name: Build host static library
         run: python scripts/build.py --target "${{ matrix.target }}"
 
-      - name: Cross-compile every Roc example
-        run: python scripts/test.py --operation build --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
-
-      - name: Upload example binaries
+      - name: Upload target host inputs
         uses: actions/upload-artifact@v7
         with:
-          name: basic-webserver-example-binaries-${{ matrix.target }}
+          name: basic-webserver-host-inputs-${{ matrix.target }}
+          path: platform/targets/${{ matrix.target }}
+          if-no-files-found: error
+
+  cross-compile-examples:
+    name: build ${{ matrix.target }} examples on ${{ matrix.builder.id }}
+    needs: [validate, build-hosts]
+    runs-on: ${{ matrix.builder.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        builder:
+          - id: linux-x64
+            os: ubuntu-24.04
+          - id: linux-arm64
+            os: ubuntu-24.04-arm
+          - id: macos-x64
+            os: macos-26-intel
+          - id: macos-arm64
+            os: macos-26
+          - id: windows-x64
+            os: windows-2025
+        target:
+          - x64musl
+          - arm64musl
+          - x64mac
+          - arm64mac
+          - x64win
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Zig-based Roc compiler
+        uses: ./.github/actions/setup-roc
+
+      - name: Download target host inputs
+        uses: actions/download-artifact@v8
+        with:
+          name: basic-webserver-host-inputs-${{ matrix.target }}
+          path: platform/targets/${{ matrix.target }}
+
+      - name: Cross-compile every Roc example
+        run: >-
+          python scripts/test.py
+          --operation build
+          --target "${{ matrix.target }}"
+          --build-id "${{ matrix.builder.id }}"
+          --artifact-dir dist/example-binaries
+
+      - name: Upload cross-compiled example binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-${{ matrix.target }}
           path: dist/example-binaries/${{ matrix.target }}
           if-no-files-found: error
 
   run-examples:
     name: run examples (${{ matrix.target }})
-    needs: build-examples
+    needs: cross-compile-examples
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -144,13 +188,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download native example binaries
+      - name: Download every build of the native example binaries
         uses: actions/download-artifact@v8
         with:
-          name: basic-webserver-example-binaries-${{ matrix.target }}
-          path: dist/example-binaries/${{ matrix.target }}
+          pattern: basic-webserver-example-binaries-*-${{ matrix.target }}
+          path: dist/example-binaries
 
-      - name: Run native spec cases
+      - name: Run every independently built native binary set
         run: python scripts/test.py --operation run --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
 
       - name: Upload runtime conformance results

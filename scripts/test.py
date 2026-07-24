@@ -285,22 +285,24 @@ def prepare_artifact_output(target: str, artifact_dir: Path) -> None:
     output_dir.mkdir(parents=True)
 
 
-def readme_example() -> Path:
+def readme_example(*, use_local_platform: bool = True) -> Path:
     source = (ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(r"(?ms)^```roc\n(.*?)^```$", source)
     if match is None:
         fail("README example check failed: no Roc code block found")
     directory = VALIDATION_ROOT / "readme"
     directory.mkdir(parents=True, exist_ok=True)
-    local_platform = os.path.relpath(ROOT / "platform" / "main.roc", directory).replace(
-        os.sep, "/"
-    )
-    rewritten = re.sub(
-        r'(?m)^(\s*pf:\s*platform\s+)"[^"]+"',
-        lambda dependency: f'{dependency.group(1)}"{local_platform}"',
-        match.group(1),
-        count=1,
-    )
+    rewritten = match.group(1)
+    if use_local_platform:
+        local_platform = os.path.relpath(
+            ROOT / "platform" / "main.roc", directory
+        ).replace(os.sep, "/")
+        rewritten = re.sub(
+            r'(?m)^(\s*pf:\s*platform\s+)"[^"]+"',
+            lambda dependency: f'{dependency.group(1)}"{local_platform}"',
+            rewritten,
+            count=1,
+        )
     path = directory / "readme.roc"
     path.write_text(rewritten, encoding="utf-8", newline="\n")
     return path
@@ -731,48 +733,55 @@ def run_server_case(binary: Path, source: Path, case: dict[str, object], owner: 
             stderr = Capture(process.stderr)
             stdout.start()
             stderr.start()
+            interaction_error: BaseException | None = None
             try:
-                try:
-                    match = stdout.wait_for(LISTENING, process, timeout)
-                    port = int(match.group(1))
-                    exchanges = case.get("requests", [])
-                    if not isinstance(exchanges, list):
-                        fail(f"{owner}: requests must be an array")
-                    for index, exchange in enumerate(exchanges, 1):
-                        if not isinstance(exchange, dict):
-                            fail(f"{owner}: request {index} must be an object")
-                        exchange_owner = f"{owner} request {index}"
-                        if exchange.get("raw", False):
-                            run_raw_exchange(port, exchange, exchange_owner)
-                        else:
-                            run_http_exchange(port, exchange, exchange_owner)
-                    concurrent = case.get("concurrent_requests", [])
-                    if not isinstance(concurrent, list):
-                        fail(f"{owner}: concurrent_requests must be an array")
-                    run_concurrent_http_exchanges(port, concurrent, owner, timeout)
-                    if case.get("expect_exit", False):
-                        try:
-                            process.wait(timeout=timeout)
-                        except subprocess.TimeoutExpired:
-                            fail(f"{owner}: server did not exit after {timeout}s")
-                        expected_exit = int(case.get("exit_code", 0))
-                        if process.returncode != expected_exit:
-                            fail(f"{owner}: expected exit {expected_exit}, got {process.returncode}")
-                    wait_for = case.get("wait_for_stdout")
-                    if isinstance(wait_for, str):
-                        stdout.wait_for(re.compile(re.escape(wait_for)), process, timeout)
-                finally:
-                    stop_process(process)
-                    stdout.thread.join(timeout=2)
-                    stderr.thread.join(timeout=2)
-                stdout_text = stdout.text()
-                stderr_text = stderr.text()
-                assertion_text(owner, "stdout", stdout_text, case, "stdout_")
-                assertion_text(owner, "stderr", stderr_text, case, "stderr_")
-                assertion_text(owner, "combined output", stdout_text + stderr_text, case)
-            except BaseException:
+                match = stdout.wait_for(LISTENING, process, timeout)
+                port = int(match.group(1))
+                exchanges = case.get("requests", [])
+                if not isinstance(exchanges, list):
+                    fail(f"{owner}: requests must be an array")
+                for index, exchange in enumerate(exchanges, 1):
+                    if not isinstance(exchange, dict):
+                        fail(f"{owner}: request {index} must be an object")
+                    exchange_owner = f"{owner} request {index}"
+                    if exchange.get("raw", False):
+                        run_raw_exchange(port, exchange, exchange_owner)
+                    else:
+                        run_http_exchange(port, exchange, exchange_owner)
+                concurrent = case.get("concurrent_requests", [])
+                if not isinstance(concurrent, list):
+                    fail(f"{owner}: concurrent_requests must be an array")
+                run_concurrent_http_exchanges(port, concurrent, owner, timeout)
+                if case.get("expect_exit", False):
+                    try:
+                        process.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        fail(f"{owner}: server did not exit after {timeout}s")
+                    expected_exit = int(case.get("exit_code", 0))
+                    if process.returncode != expected_exit:
+                        fail(f"{owner}: expected exit {expected_exit}, got {process.returncode}")
+                wait_for = case.get("wait_for_stdout")
+                if isinstance(wait_for, str):
+                    stdout.wait_for(re.compile(re.escape(wait_for)), process, timeout)
+            except BaseException as error:
+                interaction_error = error
+            finally:
                 stop_process(process)
-                raise
+                stdout.thread.join(timeout=2)
+                stderr.thread.join(timeout=2)
+
+            stdout_text = stdout.text()
+            stderr_text = stderr.text()
+            if interaction_error is not None:
+                fail(
+                    f"{owner}: server interaction failed: {interaction_error}\n"
+                    f"process exit: {process.returncode}\n"
+                    f"--- stdout ---\n{stdout_text}"
+                    f"--- stderr ---\n{stderr_text}"
+                )
+            assertion_text(owner, "stdout", stdout_text, case, "stdout_")
+            assertion_text(owner, "stderr", stderr_text, case, "stderr_")
+            assertion_text(owner, "combined output", stdout_text + stderr_text, case)
 
 
 def run_cases(
@@ -815,12 +824,21 @@ def run_cases(
             results.append({"app": app["path"], "case": raw_case["name"], "status": "passed"})
 
 
-def write_results(target: str, results: list[dict[str, object]]) -> None:
+def write_results(
+    target: str, build_id: str, results: list[dict[str, object]]
+) -> None:
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", build_id) is None:
+        fail(f"Invalid build identity {build_id!r}")
     VALIDATION_ROOT.mkdir(parents=True, exist_ok=True)
-    path = VALIDATION_ROOT / f"results-{target}.json"
+    path = VALIDATION_ROOT / f"results-{target}-{build_id}.json"
     path.write_text(
         json.dumps(
-            {"platform": current_platform(), "target": target, "cases": results},
+            {
+                "platform": current_platform(),
+                "target": target,
+                "build_id": build_id,
+                "cases": results,
+            },
             indent=2,
         )
         + "\n",
@@ -841,15 +859,19 @@ def compare_results(directory: Path) -> None:
         )
 
     expected_cases: set[tuple[str, str]] | None = None
-    actual_targets: set[str] = set()
+    actual_builds: set[tuple[str, str]] = set()
+    builders_by_target: dict[str, set[str]] = {}
     for path in paths:
         data = json.loads(path.read_text(encoding="utf-8"))
         target = data.get("target")
         if target not in expected_targets:
             fail(f"{path}: unknown target {target!r}")
-        if target in actual_targets:
-            fail(f"{path}: duplicate results for {target}")
-        actual_targets.add(target)
+        build_id = str(data.get("build_id", "local"))
+        build = (str(target), build_id)
+        if build in actual_builds:
+            fail(f"{path}: duplicate results for {target} built by {build_id}")
+        actual_builds.add(build)
+        builders_by_target.setdefault(str(target), set()).add(build_id)
 
         expected_platform = TARGET_PLATFORMS[str(target)]
         if data.get("platform") != expected_platform:
@@ -885,10 +907,23 @@ def compare_results(directory: Path) -> None:
                 f"missing={sorted(expected_cases - identities)}, "
                 f"extra={sorted(identities - expected_cases)}"
             )
-        print(f"{path}: {target} accounted for {len(identities)} cases")
+        print(
+            f"{path}: {target} built by {build_id} "
+            f"accounted for {len(identities)} cases"
+        )
 
+    actual_targets = set(builders_by_target)
     if actual_targets != expected_targets:
         fail(f"Missing target results: {sorted(expected_targets - actual_targets)}")
+    expected_builders = builders_by_target[sorted(expected_targets)[0]]
+    for target in sorted(expected_targets):
+        builders = builders_by_target[target]
+        if builders != expected_builders:
+            fail(
+                f"{target}: compiler-host coverage mismatch; "
+                f"missing={sorted(expected_builders - builders)}, "
+                f"extra={sorted(builders - expected_builders)}"
+            )
 
 
 def spec_hash() -> str:
@@ -912,35 +947,42 @@ def examples_hash() -> str:
 
 
 def write_manifest(
-    target: str, binaries: dict[str, Path], artifact_dir: Path
+    target: str,
+    binaries: dict[str, Path],
+    artifact_dir: Path,
+    build_id: str = "local",
 ) -> None:
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", build_id) is None:
+        fail(f"Invalid build identity {build_id!r}")
+    target_dir = artifact_dir / target
     manifest = {
         "target": target,
+        "build_id": build_id,
         "spec_sha256": spec_hash(),
         "examples_sha256": examples_hash(),
         "binaries": {
-            source: str(path.relative_to(artifact_dir).as_posix())
+            source: str(path.relative_to(target_dir).as_posix())
             for source, path in sorted(binaries.items())
         },
     }
-    path = artifact_dir / target / "manifest.json"
+    path = target_dir / "manifest.json"
     path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
 
 
-def load_artifact_binaries(
+def load_artifact_manifest(
+    manifest_path: Path,
     target: str,
-    artifact_dir: Path,
     defaults: dict[str, bool],
     apps: list[dict[str, object]],
-) -> dict[str, Path]:
-    manifest_path = artifact_dir / target / "manifest.json"
-    if not manifest_path.is_file():
-        fail(f"Missing artifact manifest: {manifest_path}")
+) -> tuple[str, dict[str, Path]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("target") != target:
         fail(f"{manifest_path}: target does not match {target}")
+    build_id = str(manifest.get("build_id", "local"))
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", build_id) is None:
+        fail(f"{manifest_path}: invalid build identity {build_id!r}")
     if manifest.get("spec_sha256") != spec_hash():
         fail(f"{manifest_path}: binaries were built from a different test spec")
     if manifest.get("examples_sha256") != examples_hash():
@@ -960,7 +1002,8 @@ def load_artifact_binaries(
             f"extra={sorted(set(entries) - expected)}"
         )
     binaries = {
-        source: artifact_dir / str(relative) for source, relative in entries.items()
+        source: manifest_path.parent / str(relative)
+        for source, relative in entries.items()
     }
     missing = sorted(
         source for source, binary in binaries.items() if not binary.is_file()
@@ -970,11 +1013,58 @@ def load_artifact_binaries(
     if os.name == "posix":
         for binary in binaries.values():
             binary.chmod(binary.stat().st_mode | 0o111)
+    return build_id, binaries
+
+
+def load_artifact_binaries(
+    target: str,
+    artifact_dir: Path,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+) -> dict[str, Path]:
+    manifest_path = artifact_dir / target / "manifest.json"
+    if not manifest_path.is_file():
+        fail(f"Missing artifact manifest: {manifest_path}")
+    _, binaries = load_artifact_manifest(
+        manifest_path, target, defaults, apps
+    )
     return binaries
 
 
+def load_artifact_builds(
+    target: str,
+    artifact_dir: Path,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+) -> list[tuple[str, dict[str, Path]]]:
+    direct = artifact_dir / target / "manifest.json"
+    candidates = [direct] if direct.is_file() else sorted(
+        artifact_dir.rglob("manifest.json")
+    )
+    builds: list[tuple[str, dict[str, Path]]] = []
+    seen: set[str] = set()
+    for manifest_path in candidates:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("target") != target:
+            continue
+        build_id, binaries = load_artifact_manifest(
+            manifest_path, target, defaults, apps
+        )
+        if build_id in seen:
+            fail(f"Duplicate {target} artifact built by {build_id}")
+        seen.add(build_id)
+        builds.append((build_id, binaries))
+    if not builds:
+        fail(f"No {target} artifact manifests found under {artifact_dir}")
+    return builds
+
+
 def validate_sources(
-    roc: str, defaults: dict[str, bool], apps: list[dict[str, object]]
+    roc: str,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+    *,
+    use_local_readme_platform: bool = True,
 ) -> None:
     if VALIDATION_ROOT.exists():
         shutil.rmtree(VALIDATION_ROOT)
@@ -989,7 +1079,7 @@ def validate_sources(
             else:
                 command(roc, stage, source)
 
-    readme = readme_example()
+    readme = readme_example(use_local_platform=use_local_readme_platform)
     command(roc, "check", readme)
     command(roc, "test", readme)
 
@@ -1000,6 +1090,9 @@ def build_artifacts(
     artifact_dir: Path,
     defaults: dict[str, bool],
     apps: list[dict[str, object]],
+    *,
+    build_id: str = "local",
+    use_local_readme_platform: bool = True,
 ) -> dict[str, Path]:
     prepare_artifact_output(target, artifact_dir)
     binaries: dict[str, Path] = {}
@@ -1018,7 +1111,7 @@ def build_artifacts(
         )
         binaries[str(app["path"])] = binary
 
-    readme = readme_example()
+    readme = readme_example(use_local_platform=use_local_readme_platform)
     command(
         roc,
         "build",
@@ -1026,7 +1119,7 @@ def build_artifacts(
         f"--target={target}",
         f"--output={artifact_dir / target / ('readme' + executable_suffix(target))}",
     )
-    write_manifest(target, binaries, artifact_dir)
+    write_manifest(target, binaries, artifact_dir, build_id)
     return binaries
 
 
@@ -1040,6 +1133,17 @@ def main() -> None:
     )
     parser.add_argument("--roc", default=os.environ.get("ROC", "roc"))
     parser.add_argument("--target", choices=declared_targets())
+    parser.add_argument(
+        "--build-id",
+        default=os.environ.get("BASIC_WEBSERVER_BUILD_ID", "local"),
+        help="stable identity of the machine that produced a binary artifact",
+    )
+    parser.add_argument(
+        "--readme-platform",
+        choices=("local", "declared"),
+        default="local",
+        help="use the checkout platform or preserve the README platform URL",
+    )
     parser.add_argument(
         "--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR
     )
@@ -1058,6 +1162,7 @@ def main() -> None:
     defaults, apps = load_spec()
     target = args.target or detect_native_target()
     artifact_dir = args.artifact_dir.resolve()
+    use_local_readme_platform = args.readme_platform == "local"
 
     if args.operation == "run" and target != detect_native_target():
         fail(
@@ -1067,28 +1172,59 @@ def main() -> None:
 
     if args.operation in ("all", "validate"):
         command(sys.executable, "-m", "unittest", "scripts.test_harness_test")
-        validate_sources(args.roc, defaults, apps)
+        validate_sources(
+            args.roc,
+            defaults,
+            apps,
+            use_local_readme_platform=use_local_readme_platform,
+        )
         if args.operation == "validate":
             print(f"\nValidated {len(apps)} applications.")
             return
 
     if args.operation in ("all", "build"):
         binaries = build_artifacts(
-            args.roc, target, artifact_dir, defaults, apps
+            args.roc,
+            target,
+            artifact_dir,
+            defaults,
+            apps,
+            build_id=args.build_id,
+            use_local_readme_platform=use_local_readme_platform,
         )
         if args.operation == "build":
             print(f"\nBuilt {len(binaries)} applications for {target}.")
             return
-        binaries = load_artifact_binaries(target, artifact_dir, defaults, apps)
+        builds = load_artifact_builds(target, artifact_dir, defaults, apps)
     else:
-        binaries = load_artifact_binaries(target, artifact_dir, defaults, apps)
+        builds = load_artifact_builds(target, artifact_dir, defaults, apps)
 
-    results: list[dict[str, object]] = []
-    try:
-        run_cases(defaults, apps, binaries, results)
-    finally:
-        write_results(target, results)
-    print(f"\nAll {len(results)} runtime cases passed.")
+    total = 0
+    failed_builds: list[tuple[str, str]] = []
+    for build_id, binaries in builds:
+        print(f"\n==> execute {target} artifacts built by {build_id}", flush=True)
+        results: list[dict[str, object]] = []
+        try:
+            run_cases(defaults, apps, binaries, results)
+        except TestFailure as error:
+            failed_builds.append((build_id, str(error)))
+            print(
+                f"FAILED {target} artifacts built by {build_id}: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+        finally:
+            write_results(target, build_id, results)
+        total += len(results)
+    if failed_builds:
+        summary = "\n".join(
+            f"- {build_id}: {error}" for build_id, error in failed_builds
+        )
+        fail(
+            f"{len(failed_builds)} of {len(builds)} {target} artifact sets failed:\n"
+            f"{summary}"
+        )
+    print(f"\nAll {total} runtime cases passed across {len(builds)} builds.")
 
 
 if __name__ == "__main__":

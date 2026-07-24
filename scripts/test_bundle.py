@@ -82,7 +82,12 @@ def main() -> None:
             update_apps([ROOT / "examples"], bundle_url)
             update_readme(bundle_url)
             subprocess.run(
-                [sys.executable, str(ROOT / "scripts" / "test.py")],
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "test.py"),
+                    "--readme-platform",
+                    "declared",
+                ],
                 cwd=ROOT,
                 env=os.environ.copy(),
                 check=True,
