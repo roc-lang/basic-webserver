@@ -148,6 +148,19 @@ fn tcp_read_until_impl(
     })
 }
 
+fn tcp_read_up_to_impl(
+    stream: &mut BufReader<TcpStream>,
+    bytes_to_read: u64,
+) -> io::Result<Vec<u8>> {
+    stream
+        .get_mut()
+        .set_read_timeout(Some(TCP_OPERATION_TIMEOUT))?;
+    let mut chunk = stream.by_ref().take(bytes_to_read);
+    let received = chunk.fill_buf()?.to_vec();
+    stream.consume(received.len());
+    Ok(received)
+}
+
 fn try_tcp_connect_ok(handle: *mut u64) -> TcpHostConnectResult {
     TcpHostConnectResult {
         payload: TcpHostConnectResultPayload {
@@ -284,19 +297,12 @@ pub extern "C" fn hosted_tcp_read_up_to(
         } else {
             match unsafe { tcp_stream_ref(handle) } {
                 Ok(stream) => match try_lock(stream) {
-                    Ok(mut stream) => {
-                        let mut chunk = stream.by_ref().take(bytes_to_read);
-                        match chunk.fill_buf() {
-                            Ok(received) => {
-                                let received = received.to_vec();
-                                stream.consume(received.len());
-                                try_tcp_read_ok(unsafe {
-                                    RocListWith::<u8, false>::from_slice(&received, roc_host)
-                                })
-                            }
-                            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
-                        }
-                    }
+                    Ok(mut stream) => match tcp_read_up_to_impl(&mut stream, bytes_to_read) {
+                        Ok(received) => try_tcp_read_ok(unsafe {
+                            RocListWith::<u8, false>::from_slice(&received, roc_host)
+                        }),
+                        Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+                    },
                     Err(CapabilityLockError::Busy) => try_tcp_read_err(tcp_stream_busy(roc_host)),
                     Err(CapabilityLockError::Poisoned) => {
                         try_tcp_read_err(tcp_stream_unavailable(roc_host))
@@ -446,6 +452,7 @@ pub extern "C" fn hosted_tcp_write(
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::net::TcpListener;
 
     #[test]
     fn read_until_includes_delimiter() {
@@ -483,5 +490,23 @@ mod tests {
             Err(ReadUntilError::TooLarge)
         ));
         assert_eq!(reader.fill_buf().unwrap(), b"ef\n");
+    }
+
+    #[test]
+    fn read_up_to_resets_a_stale_socket_timeout() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let mut writer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (reader, _) = listener.accept().unwrap();
+        reader
+            .set_read_timeout(Some(Duration::from_millis(1)))
+            .unwrap();
+        writer.write_all(b"x").unwrap();
+
+        let mut reader = BufReader::new(reader);
+        assert_eq!(tcp_read_up_to_impl(&mut reader, 1).unwrap(), b"x");
+        assert_eq!(
+            reader.get_ref().read_timeout().unwrap(),
+            Some(TCP_OPERATION_TIMEOUT)
+        );
     }
 }
