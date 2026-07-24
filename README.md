@@ -129,8 +129,9 @@ python scripts/build.py
 Then run examples with `roc examples/hello-web.roc`.
 
 Use `python scripts/build.py --target <target>` to build a specific host library, or
-`python scripts/build.py --all` to build all macOS and Linux host libraries. Windows host
-inputs must be built on Windows. Release packages use `.tar.zst` assets.
+`python scripts/build.py --all` to build every target supported by the current host OS
+(the Linux targets on Linux; the macOS and Linux targets on macOS). Windows host inputs
+must be built on Windows. Release packages use `.tar.zst` assets.
 
 Run the complete local verification suite with:
 

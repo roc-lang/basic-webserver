@@ -88,6 +88,15 @@ def detect_native_target() -> str:
     raise SystemExit(f"Unsupported native platform: {system} {machine}")
 
 
+def all_targets_for_host() -> tuple[str, ...]:
+    system = platform.system()
+    if system == "Darwin":
+        return ALL_TARGETS
+    if system == "Linux":
+        return tuple(target for target in ALL_TARGETS if target.endswith("musl"))
+    raise SystemExit("--all requires a macOS or Linux host")
+
+
 def musl_build_env(rust_target: str) -> dict[str, str]:
     env = os.environ.copy()
     zig_targets = {
@@ -205,7 +214,7 @@ def main() -> None:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="cross-compile all macOS and Linux targets",
+        help="cross-compile every target buildable on this host OS",
     )
     parser.add_argument(
         "--target",
@@ -231,13 +240,15 @@ def main() -> None:
         return
 
     if args.all:
-        if platform.system() == "Windows":
-            parser.error("--all requires a macOS or Linux host")
-        print("Building for all macOS and Linux targets...\n")
-        for target_name in ALL_TARGETS:
+        try:
+            targets = all_targets_for_host()
+        except SystemExit as error:
+            parser.error(str(error))
+        print(f"Building for targets supported by this host: {', '.join(targets)}\n")
+        for target_name in targets:
             install_rust_target(TARGETS[target_name])
         print()
-        for target_name in ALL_TARGETS:
+        for target_name in targets:
             build_unix_target(target_name)
             print()
         print("All targets built successfully!")
