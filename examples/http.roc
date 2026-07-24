@@ -37,58 +37,57 @@ demo! = || {
 		json_result : Try({ foo : Str }, _)
 		json_result = Http.get!("http://localhost:9000")
 
-        match json_result {
-            Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")?
-            Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
-        }
-    }
+		match json_result {
+			Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")?
+			Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
+		}
+	}
 
-    # Getting a Response record.
-    html_url : Url.Url
-    html_url = "http://localhost:9000/htmltest"
+	# Getting a Response record.
+	html_url : Url.Url
+	html_url = "http://localhost:9000/htmltest"
 
-    request =
-        Request.from_method(GET)
-            .with_uri(Url.to_str(html_url))
-            .with_timeout(TimeoutMilliseconds(5000))
+	request = 
+		Request.from_method(GET)
+			.with_uri(Url.to_str(html_url))
+			.with_timeout(TimeoutMilliseconds(5000))
 
-    match Http.send!(request) {
-        Ok(response) => {
-            body_str = Str.from_utf8(response.body())?
-            Stdout.line!("Response body:\n\t${body_str}.\n")?
-        }
-        Err(err) => {
-            Stdout.line!("send! failed: ${Str.inspect(err)}")?
-        }
-    }
+	match Http.send!(request) {
+		Ok(response) => {
+			body_str = Str.from_utf8(response.body())?
+			Stdout.line!("Response body:\n\t${body_str}.\n")?
+		}
+		Err(err) => {
+			Stdout.line!("send! failed: ${Str.inspect(err)}")?
+		}
+	}
 
-    # Same request with a custom Accept header.
-    request_2 =
-        Request.from_method(GET)
-            .with_uri(Url.to_str(html_url))
-            .with_headers([{ name: "Accept", value: "text/html" }])
-            .with_timeout(TimeoutMilliseconds(5000))
+	# Same request with a custom Accept header.
+	request_2 = 
+		Request.from_method(GET)
+			.with_uri(Url.to_str(html_url))
+			.with_headers([{ name: "Accept", value: "text/html" }])
+			.with_timeout(TimeoutMilliseconds(5000))
 
-    match Http.send!(request_2) {
-        Ok(response_2) => {
-            body_str_2 = Str.from_utf8(response_2.body())?
-            Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
-            Ok({})
-        }
-        Err(err) => {
-            Stdout.line!("send! failed: ${Str.inspect(err)}")?
-            Ok({})
-        }
-    }
+	match Http.send!(request_2) {
+		Ok(response_2) => {
+			body_str_2 = Str.from_utf8(response_2.body())?
+			Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
+			Ok({})
+		}
+		Err(err) => {
+			Stdout.line!("send! failed: ${Str.inspect(err)}")?
+			Ok({})
+		}
+	}
 }
-
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_request, _state| {
-    response = Response.from_status(200)
-        .with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
-        .with_body(Str.to_utf8("See init! for the outbound HTTP example code."))
-    Ok(Server.respond(response))
+	response = Response.from_status(200)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8("See init! for the outbound HTTP example code."))
+	Ok(Server.respond(response))
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

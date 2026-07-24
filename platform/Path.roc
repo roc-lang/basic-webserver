@@ -118,15 +118,17 @@ Path := [
 	size_in_bytes! : Path => Try(U64, [PathErr(IOErr), ..])
 	size_in_bytes! = |path| map_file_result(Host.file_size_in_bytes!(to_host_raw!(path)))
 
-	## Check whether the file at this path has any executable bit set.
+	## Check whether the file is executable under the native platform's file
+	## conventions.
 	is_executable! : Path => Try(Bool, [PathErr(IOErr), ..])
 	is_executable! = |path| map_file_result(Host.file_is_executable!(to_host_raw!(path)))
 
-	## Check whether the file at this path has a readable owner permission bit set.
+	## Check whether the current process can open the file for reading.
 	is_readable! : Path => Try(Bool, [PathErr(IOErr), ..])
 	is_readable! = |path| map_file_result(Host.file_is_readable!(to_host_raw!(path)))
 
-	## Check whether the file at this path has a writable owner permission bit set.
+	## Check whether the current process can open the file for writing. The file
+	## is not modified.
 	is_writable! : Path => Try(Bool, [PathErr(IOErr), ..])
 	is_writable! = |path| map_file_result(Host.file_is_writable!(to_host_raw!(path)))
 

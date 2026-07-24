@@ -72,14 +72,13 @@ def main() -> None:
         raise SystemExit(f"Bundle does not exist: {bundle}")
 
     sources = sorted((ROOT / "examples").glob("*.roc"))
-    sources.extend(sorted((ROOT / "tests").glob("*.roc")))
     sources.append(ROOT / "README.md")
     backups = {path: path.read_bytes() for path in sources}
 
     try:
         with BundleServer(bundle) as bundle_url:
             print(f"Testing bundle: {bundle_url}")
-            update_apps([ROOT / "examples", ROOT / "tests"], bundle_url)
+            update_apps([ROOT / "examples"], bundle_url)
             update_readme(bundle_url)
             subprocess.run(
                 [str(ROOT / "ci" / "all_tests.sh")],

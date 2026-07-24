@@ -1,6 +1,6 @@
 app [Context, program] {
-    pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.File
@@ -13,27 +13,29 @@ import http.Response
 Context : ReadSummary
 
 ReadSummary : {
-    lines_read : U64,
-    bytes_read : U64,
+	lines_read : U64,
+	bytes_read : U64,
 }
 
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-    reader = File.open_reader!(Path.utf8("LICENSE")) ? |_| Exit(1)
-    summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |_| Exit(1)
+	reader = File.open_reader!(Path.utf8("LICENSE")) ? |_| Exit(1)
+	summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |_| Exit(1)
 
-    Ok({ config: Server.default_config, context: summary })
+	Ok({ config: Server.default_config, context: summary })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_, summary|
-    Ok(
-        Server.respond(Response.from_status(200).with_body(
-            Str.to_utf8("{bytes_read: ${summary.bytes_read.to_str()}, lines_read: ${summary.lines_read.to_str()}}"),
-        )),
-    )
+	Ok(
+		Server.respond(
+			Response.from_status(200).with_body(
+				Str.to_utf8("{bytes_read: ${summary.bytes_read.to_str()}, lines_read: ${summary.lines_read.to_str()}}"),
+			),
+		),
+	)
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})
@@ -41,18 +43,18 @@ shutdown! = |_, _| Ok({})
 ## Count the number of lines and bytes read.
 process_line! : File.Reader, ReadSummary => Try(ReadSummary, _)
 process_line! = |reader, { lines_read, bytes_read }|
-    match reader.read_line!() {
-        Ok(bytes) if bytes.len() == 0 =>
-            Ok({ lines_read, bytes_read })
+	match reader.read_line!() {
+		Ok(bytes) if bytes.len() == 0 =>
+			Ok({ lines_read, bytes_read })
 
-        Ok(bytes) =>
-            process_line!(
-                reader,
-                {
-                    lines_read: lines_read + 1,
-                    bytes_read: bytes_read + bytes.len(),
-                },
-            )
+		Ok(bytes) =>
+			process_line!(
+				reader,
+				{
+					lines_read: lines_read + 1,
+					bytes_read: bytes_read + bytes.len(),
+				},
+			)
 
-        Err(err) => Err(err)
-    }
+		Err(err) => Err(err)
+	}

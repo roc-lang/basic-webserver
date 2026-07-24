@@ -118,8 +118,6 @@ jobs:
         run: ./scripts/build.py --all
 
       - name: Validate package
-        env:
-          RUN_EXPECT_TESTS: "0"
         run: ./ci/all_tests.sh
 
       - name: Resolve previous release

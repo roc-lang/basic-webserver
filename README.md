@@ -128,6 +128,11 @@ Run the complete local verification suite with:
 ./ci/all_tests.sh
 ```
 
+The suite uses Python's standard library to format, check, test, and build each
+active example, then drives its real HTTP listener using the cases in
+`scripts/test_spec.json`. The same cases and expected results run on Linux,
+macOS, and Windows; it does not require Expect or curl.
+
 To build a release-format package after assembling all target inputs, run
 `./scripts/bundle.py --output-dir dist`. Windows inputs must be built on a
 Windows host; the release workflow combines them with the macOS and Linux

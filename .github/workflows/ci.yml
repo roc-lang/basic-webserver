@@ -39,31 +39,26 @@ jobs:
             target: x64musl
             rust_target: x86_64-unknown-linux-musl
             install_zig: true
-            run_expect_tests: true
             is_musl: true
           - os: ubuntu-24.04-arm
             target: arm64musl
             rust_target: aarch64-unknown-linux-musl
             install_zig: true
-            run_expect_tests: true
             is_musl: true
           - os: macos-26-intel
             target: x64mac
             rust_target: x86_64-apple-darwin
             install_zig: false
-            run_expect_tests: false
             is_musl: false
           - os: macos-26
             target: arm64mac
             rust_target: aarch64-apple-darwin
             install_zig: false
-            run_expect_tests: false
             is_musl: false
           - os: windows-2025
             target: x64win
             rust_target: x86_64-pc-windows-msvc
             install_zig: false
-            run_expect_tests: false
             is_musl: false
 
     steps:
@@ -91,10 +86,6 @@ jobs:
         if: matrix.is_musl
         run: rustup component add llvm-tools-preview
 
-      - name: Install expect test dependencies
-        if: matrix.run_expect_tests
-        run: sudo apt-get update && sudo apt-get install --yes expect curl
-
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
@@ -105,7 +96,28 @@ jobs:
         run: ./build.sh --target "${{ matrix.target }}"
 
       - name: Build and test Roc examples
-        env:
-          RUN_EXPECT_TESTS: ${{ matrix.run_expect_tests }}
-          IS_MUSL: ${{ matrix.is_musl }}
         run: ./ci/all_tests.sh
+
+      - name: Upload runtime conformance results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spec-results-${{ matrix.target }}
+          path: target/spec/results-*.json
+          if-no-files-found: error
+
+  cross-platform-conformance:
+    name: compare cross-platform runtime coverage
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download runtime results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spec-results-*
+          path: target/spec-results
+
+      - name: Verify every target ran the same cases
+        run: python3 scripts/check_test_results.py target/spec-results

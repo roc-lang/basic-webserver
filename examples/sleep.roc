@@ -1,6 +1,6 @@
 app [Context, program] {
-    pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Server
@@ -17,14 +17,13 @@ program = { init!, respond!, shutdown! }
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || Ok({ config: Server.default_config, context: {} })
 
-
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_, _state| {
-    Stdout.line!("Sleeping for 1 second...")
-        ? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
-    Sleep.millis!(1000)
+	Stdout.line!("Sleeping for 1 second...")
+		? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
+	Sleep.millis!(1000)
 
-    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Response delayed by 1 second"))))
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Response delayed by 1 second"))))
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

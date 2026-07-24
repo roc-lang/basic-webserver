@@ -43,7 +43,8 @@ Build the host static library for the native target (writes `libhost.a` or
 ./build.sh --all            # targets buildable from this host OS
 ```
 
-Check + build every active example and test, plus a server smoke test:
+Format, check, test, build, and run every active example through the
+cross-platform HTTP specification suite:
 ```
 ./ci/all_tests.sh
 ```
@@ -57,15 +58,23 @@ ROC_SRC=/path/to/roc ./ci/regenerate_glue.sh --check  # fail if stale
 
 # Tests
 
-Note that if something is tested in ./examples, it may not have another test in ./tests.
+Runtime coverage lives in `scripts/test_spec.json`. Every active
+`examples/*.roc` application must have exactly one spec entry, and normal
+server cases must exercise the real HTTP listener. Keep examples realistic:
+add cases to an existing example or add a useful example rather than creating
+test-only Roc applications.
 
-Build an individual example or test (the server binary lands in the repo root):
+Platform-specific skips are exceptional. Every skip must include both a
+concrete reason and a GitHub tracking issue URL; the spec validator rejects
+incomplete skips and platform-specific expected results.
+
+Build an individual example (the server binary lands in the repo root):
 ```
 roc build examples/hello-web.roc
 ```
 
 Files with a `.todoroc` extension are intentionally skipped migration backlog.
-Active `.roc` examples and tests should pass `./ci/all_tests.sh`.
+Active `.roc` examples should pass `./ci/all_tests.sh` on every supported OS.
 
 # Style
 

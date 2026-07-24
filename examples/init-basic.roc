@@ -1,6 +1,6 @@
 app [Context, program] {
-    pf: platform "../platform/main.roc",
-    http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
@@ -23,13 +23,13 @@ init! = || Ok({ config: Server.default_config, context: "🎁" })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, gift| {
-    # Log request datetime, method and url
-    datetime = Utc.to_iso_8601(Utc.now!())
+	# Log request datetime, method and url
+	datetime = Utc.to_iso_8601(Utc.now!())
 
-    Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
-        ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
-    Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>init gave me ${gift}</b>"))))
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>init gave me ${gift}</b>"))))
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

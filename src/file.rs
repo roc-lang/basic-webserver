@@ -383,28 +383,37 @@ pub extern "C" fn hosted_file_size_in_bytes(path: HostFileSizeInBytesArgs) -> Fi
     }
 }
 
-#[cfg(not(unix))]
-fn unsupported_file_permission_error() -> io::Error {
-    io::Error::new(
-        io::ErrorKind::Unsupported,
-        "file permission checks are not implemented on this platform",
-    )
-}
-
 fn file_permission_bit(path: impl IntoRawPath, roc_host: &RocHost, bit: u32) -> io::Result<bool> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let metadata = file_metadata(path, roc_host)?;
-        Ok(metadata.permissions().mode() & bit != 0)
+        let path = path_buf_from_raw_path(path, roc_host)?;
+        match bit {
+            0o111 => Ok(path.metadata()?.permissions().mode() & bit != 0),
+            0o400 => fs::File::open(path).map(|_| true),
+            0o200 => fs::OpenOptions::new().write(true).open(path).map(|_| true),
+            _ => unreachable!("permission query uses a known access kind"),
+        }
     }
 
     #[cfg(not(unix))]
     {
-        let _ = path_buf_from_raw_path(path, roc_host)?;
-        let _ = bit;
-        Err(unsupported_file_permission_error())
+        let path = path_buf_from_raw_path(path, roc_host)?;
+        match bit {
+            0o111 => {
+                let extension = path
+                    .extension()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .unwrap_or_default();
+                Ok(["exe", "com", "bat", "cmd"]
+                    .iter()
+                    .any(|candidate| extension.eq_ignore_ascii_case(candidate)))
+            }
+            0o400 => fs::File::open(path).map(|_| true),
+            0o200 => fs::OpenOptions::new().write(true).open(path).map(|_| true),
+            _ => unreachable!("permission query uses a known access kind"),
+        }
     }
 }
 
