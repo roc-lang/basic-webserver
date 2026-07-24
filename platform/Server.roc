@@ -20,9 +20,32 @@ Server :: [].{
 	default_buffered_body_chunks : U16
 	default_buffered_body_chunks = 1
 
+	default_max_connections : U32
+	default_max_connections = 256
+
+	default_max_handlers : U16
+	default_max_handlers = 32
+
+	default_max_queued_handlers : U16
+	default_max_queued_handlers = 64
+
 	## Runtime configuration returned from the application's `init!` function.
 	Config : {
 		listen : { host : Str, port : U16 },
+		limits : {
+
+			## The listener applies TCP accept backpressure while this many
+			## connections are active.
+			max_connections : U32,
+
+			## At most this many Roc request handlers execute concurrently.
+			max_handlers : U16,
+
+			## Requests beyond the active-handler limit may wait in this finite
+			## queue. Once it is full, new requests receive 503 and the
+			## connection is closed. Zero disables queueing.
+			max_queued_handlers : U16,
+		},
 		request_bodies : {
 			max_bytes : U64,
 			chunk_bytes : U32,
@@ -34,13 +57,19 @@ Server :: [].{
 		},
 	}
 
-	## Safe defaults: loopback-only, a 1 MiB request limit, one buffered 64 KiB
-	## chunk, and bounded graceful shutdown. Exceeding the drain deadline forces
-	## process exit without running the shutdown hook, because a request handler
-	## may still be using the application context.
+	## Safe defaults: loopback-only; finite connection, handler, and handler
+	## queue limits; a 1 MiB request limit; one buffered 64 KiB chunk; and
+	## bounded graceful shutdown. Exceeding the drain deadline forces process
+	## exit without running the shutdown hook, because a request handler may
+	## still be using the application context.
 	default_config : Config
 	default_config = {
 		listen: { host: "127.0.0.1", port: 8000 },
+		limits: {
+			max_connections: default_max_connections,
+			max_handlers: default_max_handlers,
+			max_queued_handlers: default_max_queued_handlers,
+		},
 		request_bodies: {
 			max_bytes: default_body_limit_bytes,
 			chunk_bytes: default_body_chunk_bytes,

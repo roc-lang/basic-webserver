@@ -74,6 +74,15 @@
               "target": "/binary",
               "body_hex": "00ff410a",
               "expect_body_hex": "00ff410a"
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request",
+                "Request header values must be valid UTF-8"
+              ]
             }
           ],
           "stdout_contains": [
@@ -383,6 +392,25 @@
             {
               "expect_body": "Response delayed by 1 second",
               "timeout": 3
+            }
+          ],
+          "concurrent_requests": [
+            {
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 4
+            },
+            {
+              "launch_after_ms": 150,
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 4
+            },
+            {
+              "launch_after_ms": 150,
+              "status": 503,
+              "response_headers": {
+                "Connection": "close"
+              },
+              "expect_body": "Server is overloaded"
             }
           ],
           "stdout_contains": ["Sleeping for 1 second..."]

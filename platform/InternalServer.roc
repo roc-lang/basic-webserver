@@ -35,6 +35,9 @@ InternalServer :: [].{
 		body_buffered_chunks : U16,
 		drain_timeout_ms : U64,
 		hook_timeout_ms : U64,
+		max_connections : U32,
+		max_handlers : U16,
+		max_queued_handlers : U16,
 	}
 
 	ShutdownReasonFromHost : {
@@ -80,6 +83,9 @@ InternalServer :: [].{
 		body_buffered_chunks: config.request_bodies.buffered_chunks,
 		drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
 		hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
+		max_connections: config.limits.max_connections,
+		max_handlers: config.limits.max_handlers,
+		max_queued_handlers: config.limits.max_queued_handlers,
 	}
 
 	from_host_shutdown_reason : ShutdownReasonFromHost -> Server.ShutdownReason

@@ -615,6 +615,48 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
     assertion_text(owner, "response body", body_text, request, "body_")
 
 
+def run_concurrent_http_exchanges(
+    port: int,
+    exchanges: list[object],
+    owner: str,
+    timeout: float,
+) -> None:
+    failures: list[BaseException] = []
+    failures_lock = threading.Lock()
+    threads: list[threading.Thread] = []
+
+    def run_one(exchange: dict[str, object], exchange_owner: str) -> None:
+        try:
+            run_http_exchange(port, exchange, exchange_owner)
+        except BaseException as error:
+            with failures_lock:
+                failures.append(error)
+
+    for index, exchange in enumerate(exchanges, 1):
+        if not isinstance(exchange, dict):
+            fail(f"{owner}: concurrent request {index} must be an object")
+        delay_ms = float(exchange.get("launch_after_ms", 0))
+        if delay_ms < 0:
+            fail(f"{owner}: concurrent request {index} launch_after_ms must be non-negative")
+        if delay_ms:
+            time.sleep(delay_ms / 1000)
+        thread = threading.Thread(
+            target=run_one,
+            args=(exchange, f"{owner} concurrent request {index}"),
+            daemon=True,
+        )
+        thread.start()
+        threads.append(thread)
+
+    deadline = time.monotonic() + timeout
+    for thread in threads:
+        thread.join(max(0, deadline - time.monotonic()))
+    if any(thread.is_alive() for thread in threads):
+        fail(f"{owner}: concurrent requests did not finish after {timeout}s")
+    if failures:
+        raise failures[0]
+
+
 def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
     fragments = request.get("fragments")
     if fragments is None:
@@ -704,6 +746,10 @@ def run_server_case(binary: Path, source: Path, case: dict[str, object], owner: 
                             run_raw_exchange(port, exchange, exchange_owner)
                         else:
                             run_http_exchange(port, exchange, exchange_owner)
+                    concurrent = case.get("concurrent_requests", [])
+                    if not isinstance(concurrent, list):
+                        fail(f"{owner}: concurrent_requests must be an array")
+                    run_concurrent_http_exchanges(port, concurrent, owner, timeout)
                     if case.get("expect_exit", False):
                         try:
                             process.wait(timeout=timeout)
