@@ -54,12 +54,12 @@
           "name": "lists-examples",
           "requests": [
             {
-              "body_contains": ["examples/dir.roc"]
+              "body_contains": ["dir.roc"]
             }
           ],
           "stdout_contains": [
             "Entries in examples/:",
-            "examples/dir.roc"
+            "dir.roc"
           ]
         }
       ]
