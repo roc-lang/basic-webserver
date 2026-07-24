@@ -552,13 +552,13 @@ ends_with_two_u16 = |list, first_suffix, second_suffix|
 after_index_u8 : List(U8), U64 -> List(U8)
 after_index_u8 = |list, index| {
 	start = index + 1
-	List.sublist(list, { start, len: List.len(list) - start })
+	list.sublist({ start, len: list.len() - start })
 }
 
 after_index_u16 : List(U16), U64 -> List(U16)
 after_index_u16 = |list, index| {
 	start = index + 1
-	List.sublist(list, { start, len: List.len(list) - start })
+	list.sublist({ start, len: list.len() - start })
 }
 
 ext_units_u8 : List(U8) -> List(U8)
@@ -566,7 +566,7 @@ ext_units_u8 = |units|
 	match List.find_first_index(units, |unit| unit == '.') {
 		Err(NotFound) => []
 		Ok(0) => {
-			rest = List.drop_first(units, 1)
+			rest = units.drop_first(1)
 
 			match List.find_first_index(rest, |unit| unit == '.') {
 				Err(NotFound) => []
@@ -581,7 +581,7 @@ ext_units_u16 = |units|
 	match List.find_first_index(units, |unit| unit == '.') {
 		Err(NotFound) => []
 		Ok(0) => {
-			rest = List.drop_first(units, 1)
+			rest = units.drop_first(1)
 
 			match List.find_first_index(rest, |unit| unit == '.') {
 				Err(NotFound) => []
@@ -599,14 +599,26 @@ path_identity = |path| path
 
 ## Constructors preserve Unix, Windows, and UTF-8 path representations.
 expect Path.unix("abc") == Unix([97, 98, 99])
+
+## Unix byte construction preserves every byte.
 expect Path.unix_bytes([97, 98, 99]) == Unix([97, 98, 99])
+
+## Windows text construction encodes UTF-16 units.
 expect Path.windows("abc") == Windows([97, 98, 99])
+
+## Windows unit construction preserves every unit.
 expect Path.windows_u16s([97, 98, 99]) == Windows([97, 98, 99])
+
+## UTF-8 construction preserves text.
 expect Path.utf8("abc") == Utf8("abc")
 
 ## Quoted literals dispatch to UTF-8 paths through `from_quote`.
 expect Path.from_quote("config.txt") == Ok(Path.utf8("config.txt"))
+
+## Quoted path literals construct UTF-8 paths.
 expect quoted_literal_path == Path.utf8("config.txt")
+
+## Quoted arguments dispatch through the path literal hook.
 expect path_identity("nested/config.txt") == Path.utf8("nested/config.txt")
 
 ## Interpolation creates a UTF-8 representation.
@@ -619,91 +631,207 @@ expect {
 
 ## Raw conversion roundtrips every representation without validating raw OS data.
 expect Path.to_raw(Path.unix_bytes([97, 255, 98])) == UnixBytes([97, 255, 98])
+
+## Raw conversion preserves invalid Windows units.
 expect Path.to_raw(Path.windows_u16s([0xD800, 97])) == WindowsU16s([0xD800, 97])
+
+## Raw conversion preserves UTF-8 text.
 expect Path.to_raw(Path.utf8("abc")) == Utf8("abc")
+
+## Raw Unix bytes reconstruct a Unix path.
 expect Path.from_raw(UnixBytes([97, 255, 98])) == Path.unix_bytes([97, 255, 98])
+
+## Raw Windows units reconstruct a Windows path.
 expect Path.from_raw(WindowsU16s([97, 98, 99])) == Path.windows("abc")
+
+## Raw UTF-8 text reconstructs a UTF-8 path.
 expect Path.from_raw(Utf8("abc")) == Path.utf8("abc")
 
 ## `to_str` succeeds for valid text and reports the first invalid raw unit.
 expect Path.to_str(Path.unix("abc")) == Ok("abc")
+
+## `to_str` reports the first invalid Unix byte.
 expect Path.to_str(Path.unix_bytes([97, 255, 98])) == Err(InvalidStr(1))
+
+## `to_str` decodes valid Windows text.
 expect Path.to_str(Path.windows("abc")) == Ok("abc")
+
+## `to_str` reports the first invalid Windows unit.
 expect Path.to_str(Path.windows_u16s([0xD800])) == Err(InvalidStr(0))
+
+## `to_str` returns UTF-8 paths unchanged.
 expect Path.to_str(Path.utf8("abc")) == Ok("abc")
+
+## `to_str` combines a valid UTF-16 surrogate pair.
 expect Path.to_str(Path.windows_u16s([0xD83D, 0xDC26])) == Ok(Str.from_utf8_lossy([0xF0, 0x9F, 0x90, 0xA6]))
 
 ## `display` preserves valid text and replaces invalid raw units.
 expect Path.display(Path.unix("abc")) == "abc"
+
+## Unix display replaces invalid UTF-8.
 expect Path.display(Path.unix_bytes([97, 255, 98])) == Str.from_utf8_lossy([97, 255, 98])
+
+## Windows display preserves valid text.
 expect Path.display(Path.windows("abc")) == "abc"
+
+## Windows display replaces invalid UTF-16.
 expect Path.display(Path.windows_u16s([0xD800, 97])) == Str.from_utf8_lossy([0xEF, 0xBF, 0xBD, 97])
+
+## UTF-8 display preserves text.
 expect Path.display(Path.utf8("abc")) == "abc"
 
 ## Inspection identifies the representation and preserves invalid raw units.
 expect Str.inspect(Path.utf8("a\nb")) == "Path.utf8(\"a\\nb\")"
+
+## Unix text inspection identifies its representation.
 expect Str.inspect(Path.unix("abc")) == "Path.unix(\"abc\")"
+
+## Unix byte inspection preserves invalid UTF-8.
 expect Str.inspect(Path.unix_bytes([97, 255, 98])) == "Path.unix_bytes([97, 255, 98])"
+
+## Windows text inspection identifies its representation.
 expect Str.inspect(Path.windows("abc")) == "Path.windows(\"abc\")"
+
+## Windows unit inspection preserves invalid UTF-16.
 expect Str.inspect(Path.windows_u16s([0xD800, 97])) == "Path.windows_u16s([55296, 97])"
 
 ## Equality and hashing preserve representation identity.
 expect Path.utf8("abc") != Path.unix("abc")
+
+## Equal raw paths produce matching dictionary hashes.
 expect Dict.single(Path.unix_bytes([97, 255]), "found").get(Path.unix_bytes([97, 255])) == Ok("found")
 
 ## `filename` returns everything after the last separator.
 expect Path.filename(Path.unix("foo/bar.txt")) == Ok(Path.unix("bar.txt"))
+
+## Unix filenames may omit an extension.
 expect Path.filename(Path.unix("foo/bar")) == Ok(Path.unix("bar"))
+
+## A bare Unix path is its own filename.
 expect Path.filename(Path.unix("foo")) == Ok(Path.unix("foo"))
+
+## An empty Unix path has an empty filename.
 expect Path.filename(Path.unix("")) == Ok(Path.unix(""))
+
+## Windows backslashes delimit filenames.
 expect Path.filename(Path.windows("foo\\bar.txt")) == Ok(Path.windows("bar.txt"))
+
+## Windows paths also accept forward-slash separators.
 expect Path.filename(Path.windows("foo/bar.txt")) == Ok(Path.windows("bar.txt"))
+
+## A bare Windows path is its own filename.
 expect Path.filename(Path.windows("foo")) == Ok(Path.windows("foo"))
+
+## An empty Windows path has an empty filename.
 expect Path.filename(Path.windows("")) == Ok(Path.windows(""))
+
+## UTF-8 paths use forward-slash separators.
 expect Path.filename(Path.utf8("foo/bar.txt")) == Ok(Path.utf8("bar.txt"))
+
+## A bare UTF-8 path is its own filename.
 expect Path.filename(Path.utf8("foo")) == Ok(Path.utf8("foo"))
+
+## An empty UTF-8 path has an empty filename.
 expect Path.filename(Path.utf8("")) == Ok(Path.utf8(""))
 
 ## `filename` rejects directory paths and filenames ending in two dots.
 expect Path.filename(Path.unix("foo/bar/")) == Err(IsDirPath)
+
+## Unix filenames cannot end in two dots.
 expect Path.filename(Path.unix("foo/bar..")) == Err(EndsInDots)
+
+## Windows directory paths have no filename.
 expect Path.filename(Path.windows("foo\\bar\\")) == Err(IsDirPath)
+
+## Windows filenames cannot end in two dots.
 expect Path.filename(Path.windows("foo/bar..")) == Err(EndsInDots)
+
+## UTF-8 directory paths have no filename.
 expect Path.filename(Path.utf8("foo/bar/")) == Err(IsDirPath)
+
+## UTF-8 filenames cannot end in two dots.
 expect Path.filename(Path.utf8("foo/bar..")) == Err(EndsInDots)
 
 ## `ext` returns the filename extension without the leading dot.
 expect Path.ext(Path.unix("foo/bar.txt")) == Ok(Path.unix("txt"))
+
+## A trailing Unix dot produces an empty extension.
 expect Path.ext(Path.unix("foo/bar.")) == Ok(Path.unix(""))
+
+## A dotted Unix filename returns text after the final dot.
 expect Path.ext(Path.unix("foo/.bar.txt")) == Ok(Path.unix("txt"))
+
+## A Unix filename without a dot has no extension.
 expect Path.ext(Path.unix("foo/bar")) == Ok(Path.unix(""))
+
+## A Unix dotfile without another dot has no extension.
 expect Path.ext(Path.unix("foo/.bar")) == Ok(Path.unix(""))
+
+## Unix extensions retain text after the first filename dot.
 expect Path.ext(Path.unix("foo/bar.baz.txt")) == Ok(Path.unix("baz.txt"))
+
+## Unix dotfile extensions retain text after the first filename dot.
 expect Path.ext(Path.unix("foo/.bar.baz.txt")) == Ok(Path.unix("baz.txt"))
+
+## An empty Unix path has no extension.
 expect Path.ext(Path.unix("")) == Ok(Path.unix(""))
+
+## Windows extensions use the filename after a backslash.
 expect Path.ext(Path.windows("foo\\bar.txt")) == Ok(Path.windows("txt"))
+
+## A Windows filename without a dot has no extension.
 expect Path.ext(Path.windows("foo\\bar")) == Ok(Path.windows(""))
+
+## An empty Windows path has no extension.
 expect Path.ext(Path.windows("")) == Ok(Path.windows(""))
+
+## UTF-8 extensions omit the leading dot.
 expect Path.ext(Path.utf8("foo/bar.txt")) == Ok(Path.utf8("txt"))
+
+## A UTF-8 dotfile without another dot has no extension.
 expect Path.ext(Path.utf8("foo/.bar")) == Ok(Path.utf8(""))
+
+## UTF-8 extensions retain text after the first filename dot.
 expect Path.ext(Path.utf8("foo/bar.baz.txt")) == Ok(Path.utf8("baz.txt"))
+
+## An empty UTF-8 path has no extension.
 expect Path.ext(Path.utf8("")) == Ok(Path.utf8(""))
 
 ## `ext` forwards filename errors for directory paths and dot endings.
 expect Path.ext(Path.unix("foo/bar/")) == Err(IsDirPath)
+
+## Unix extension lookup rejects filenames ending in two dots.
 expect Path.ext(Path.unix("foo/bar..")) == Err(EndsInDots)
+
+## Windows extension lookup rejects directory paths.
 expect Path.ext(Path.windows("foo\\bar\\")) == Err(IsDirPath)
+
+## Windows extension lookup rejects filenames ending in two dots.
 expect Path.ext(Path.windows("foo\\bar..")) == Err(EndsInDots)
+
+## UTF-8 extension lookup rejects directory paths.
 expect Path.ext(Path.utf8("foo/bar/")) == Err(IsDirPath)
+
+## UTF-8 extension lookup rejects filenames ending in two dots.
 expect Path.ext(Path.utf8("foo/bar..")) == Err(EndsInDots)
 
 ## Host path types map exhaustively to the public API.
 expect path_type_from_host({ is_file: Bool.True, is_dir: Bool.False, is_sym_link: Bool.False }) == IsFile
+
+## Host directories map to `IsDir`.
 expect path_type_from_host({ is_file: Bool.False, is_dir: Bool.True, is_sym_link: Bool.False }) == IsDir
+
+## Host symbolic links map to `IsSymLink`.
 expect path_type_from_host({ is_file: Bool.False, is_dir: Bool.False, is_sym_link: Bool.True }) == IsSymLink
+
+## Unknown host path types map to `IsOther`.
 expect path_type_from_host({ is_file: Bool.False, is_dir: Bool.False, is_sym_link: Bool.False }) == IsOther
 
 ## `join` appends a representation-specific separator and text component.
 expect Path.join(Path.unix("foo"), "bar") == Path.unix("foo/bar")
+
+## Windows joins use backslash separators.
 expect Path.join(Path.windows("foo"), "bar") == Path.windows("foo\\bar")
+
+## UTF-8 joins use forward-slash separators.
 expect Path.join(Path.utf8("foo"), "bar") == Path.utf8("foo/bar")

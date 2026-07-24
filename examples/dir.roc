@@ -4,7 +4,6 @@ app [Context, program] {
 }
 
 import pf.Stdout
-import pf.Stderr
 import pf.Env
 import pf.Server
 import pf.Path
@@ -16,29 +15,19 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
-	result! = || {
-		cwd = Env.cwd!()?
-		Stdout.line!("The current working directory is ${Path.display(cwd)}")?
+	cwd = Env.cwd!()?
+	Stdout.line!("The current working directory is ${Path.display(cwd)}")?
 
-		Env.set_cwd!(Path.utf8("examples/"))?
-		Stdout.line!("Set cwd to examples/")?
+	Env.set_cwd!(Path.utf8("examples/"))?
+	Stdout.line!("Set cwd to examples/")?
 
-		paths = Path.list!(Path.utf8("./"))?
-		paths_str = Str.join_with(paths.map(Path.display), "\n")
-		Stdout.line!("The paths are;\n${paths_str}")?
+	paths = Path.list!(Path.utf8("./"))?
+	paths_str = Str.join_with(paths.map(Path.display), "\n")
+	Stdout.line!("The paths are;\n${paths_str}")?
 
-		Ok({})
-	}
-
-	match result!() {
-		Ok(_) => Ok({ config: Server.default_config, context: {} })
-		Err(err) => {
-			Stderr.line!("Error during directory operations: ${Str.inspect(err)}") ?? {}
-			Err(Exit(1))
-		}
-	}
+	Ok({ config: Server.default_config, context: {} })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])

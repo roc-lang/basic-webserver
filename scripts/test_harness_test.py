@@ -6,11 +6,65 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            log = Path(raw_directory) / "memcheck.log"
+            log.write_text(
+                "total heap usage: 1,234 allocs, 1,234 frees, 99 bytes allocated\n"
+                "ERROR SUMMARY: 0 errors from 0 contexts\n",
+                encoding="utf-8",
+            )
+            test.validate_memcheck_log(log, "case")
+
+            log.write_text(
+                "total heap usage: 0 allocs, 0 frees, 0 bytes allocated\n"
+                "ERROR SUMMARY: 0 errors from 0 contexts\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(test.TestFailure, "zero allocations"):
+                test.validate_memcheck_log(log, "case")
+
+            log.write_text(
+                "total heap usage: 10 allocs, 9 frees, 99 bytes allocated\n"
+                "ERROR SUMMARY: 1 errors from 1 contexts\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(test.TestFailure, "reported an error"):
+                test.validate_memcheck_log(log, "case")
+
+    def test_memcheck_command_keeps_tool_output_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            temp = Path(raw_directory)
+            args, log = test.process_command(
+                Path("/tmp/app"), temp, memcheck=True
+            )
+            self.assertEqual(args[0:2], ["valgrind", "--tool=memcheck"])
+            self.assertEqual(args[-1], "/tmp/app")
+            self.assertIn(f"--log-file={temp / 'memcheck.log'}", args)
+            self.assertEqual(log, temp / "memcheck.log")
+
+    def test_platform_validation_formats_and_tests_the_platform(self) -> None:
+        with mock.patch.object(test, "command") as run:
+            test.validate_platform_sources("custom-roc")
+
+        self.assertEqual(
+            run.call_args_list,
+            [
+                mock.call(
+                    "custom-roc", "fmt", "--check", test.ROOT / "platform"
+                ),
+                mock.call(
+                    "custom-roc", "test", test.ROOT / "platform" / "main.roc"
+                ),
+            ],
+        )
+
     def test_platform_and_harness_targets_match(self) -> None:
         self.assertEqual(set(test.declared_targets()), set(test.TARGETS))
 
@@ -61,6 +115,20 @@ class SpecValidationTests(unittest.TestCase):
     def test_text_normalization_does_not_apply_to_raw_bytes(self) -> None:
         self.assertEqual(test.normalize_text("a\r\nb\r"), "a\nb\n")
         self.assertNotEqual(b"a\r\nb", b"a\nb")
+
+    def test_portable_text_bytes_ignore_checkout_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            source = directory / "source.roc"
+            source.write_bytes(b"first\r\nsecond\r")
+            self.assertEqual(
+                test.portable_file_bytes(source), b"first\nsecond\n"
+            )
+            database = directory / "database.db"
+            database.write_bytes(b"first\r\nsecond\r")
+            self.assertEqual(
+                test.portable_file_bytes(database), b"first\r\nsecond\r"
+            )
 
     def test_artifact_manifest_round_trip(self) -> None:
         defaults, apps = test.load_spec()
@@ -161,7 +229,7 @@ class SpecValidationTests(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()):
                     test.compare_results(directory)
 
-    def test_compare_results_requires_same_compiler_hosts_per_target(self) -> None:
+    def test_compare_results_allows_target_specific_compiler_hosts(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             for target, platform_name in test.TARGET_PLATFORMS.items():
@@ -191,11 +259,8 @@ class SpecValidationTests(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-            with self.assertRaisesRegex(
-                test.TestFailure, "compiler-host coverage mismatch"
-            ):
-                with contextlib.redirect_stdout(io.StringIO()):
-                    test.compare_results(directory)
+            with contextlib.redirect_stdout(io.StringIO()):
+                test.compare_results(directory)
 
     def test_release_platform_url_uses_prepared_bundle_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

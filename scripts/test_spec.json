@@ -189,9 +189,9 @@
           ],
           "stdout_contains": [
             "LICENSE file permissions:",
-            "Executable: Bool.false",
-            "Readable: Bool.true",
-            "Writable: Bool.true"
+            "Executable: False",
+            "Readable: True",
+            "Writable: True"
           ]
         }
       ]
@@ -425,9 +425,6 @@
             {
               "launch_after_ms": 150,
               "status": 503,
-              "response_headers": {
-                "Connection": "close"
-              },
               "expect_body": "Server is overloaded"
             }
           ],

@@ -61,3 +61,27 @@ jobs:
 
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate
+
+  memcheck:
+    name: Linux examples under Memcheck
+    needs: rust-version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Zig-based Roc compiler
+        uses: ./.github/actions/setup-roc
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
+          rustup default "${{ needs.rust-version.outputs.version }}"
+
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes valgrind
+
+      - name: Run every Linux example under Memcheck
+        run: python scripts/test.py --operation memcheck

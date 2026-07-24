@@ -54,7 +54,11 @@ InternalServer :: [].{
 			Server.Body.from_host(
 				body_id,
 				body_limit_bytes,
-				if content_length_known { Known(content_length) } else { Unknown },
+				if content_length_known {
+					Known(content_length)
+				} else {
+					Unknown
+				},
 			),
 		)
 

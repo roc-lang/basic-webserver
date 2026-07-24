@@ -4,7 +4,6 @@ app [Context, program] {
 }
 
 import pf.Stdout
-import pf.Stderr
 import pf.Server
 import pf.Path
 import http.Response
@@ -13,36 +12,19 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
-	result! = || {
-		file = Path.utf8("LICENSE")
+	file = Path.utf8("LICENSE")
 
-		is_executable = Path.is_executable!(file)?
+	is_executable = Path.is_executable!(file)?
 
-		is_readable = Path.is_readable!(file)?
+	is_readable = Path.is_readable!(file)?
 
-		is_writable = Path.is_writable!(file)?
+	is_writable = Path.is_writable!(file)?
 
-		Stdout.line!("${Path.display(file)} file permissions:\n    Executable: ${bool_to_str(is_executable)}\n    Readable: ${bool_to_str(is_readable)}\n    Writable: ${bool_to_str(is_writable)}")?
+	Stdout.line!("${Path.display(file)} file permissions:\n    Executable: ${Str.inspect(is_executable)}\n    Readable: ${Str.inspect(is_readable)}\n    Writable: ${Str.inspect(is_writable)}")?
 
-		Ok({})
-	}
-
-	match result!() {
-		Ok(_) => Ok({ config: Server.default_config, context: {} })
-		Err(err) => {
-			Stderr.line!("Error reading file permissions: ${Str.inspect(err)}") ?? {}
-			Err(Exit(1))
-		}
-	}
-}
-
-bool_to_str : Bool -> Str
-bool_to_str = |value| if value {
-	"Bool.true"
-} else {
-	"Bool.false"
+	Ok({ config: Server.default_config, context: {} })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])

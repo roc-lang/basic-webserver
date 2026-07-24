@@ -16,12 +16,12 @@
 ##
 ## **Other** - A custom error that does not fall under any other I/O error kind.
 IOErr := [
-    AlreadyExists,
-    BrokenPipe,
-    Interrupted,
-    NotFound,
-    Other(Str),
-    OutOfMemory,
-    PermissionDenied,
-    Unsupported,
+	AlreadyExists,
+	BrokenPipe,
+	Interrupted,
+	NotFound,
+	Other(Str),
+	OutOfMemory,
+	PermissionDenied,
+	Unsupported,
 ]

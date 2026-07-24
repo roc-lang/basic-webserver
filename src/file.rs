@@ -2,7 +2,7 @@ use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use crate::abi::{
     io_err_from_io, roc_host, FileBoolResult, FileBoolResultPayload, FileBoolResultTag,
@@ -16,6 +16,9 @@ use crate::abi::{
     FileWriteUtf8ResultTag,
 };
 use crate::capability::{try_lock, CapabilityLockError};
+use crate::host_resource::{
+    DeallocRoute, HostResourceHeap, LookupError, ReserveError, ResourceReservation,
+};
 use crate::path::{path_buf_from_raw_path, IntoRawPath};
 use crate::roc_platform_abi::*;
 
@@ -315,51 +318,49 @@ pub extern "C" fn hosted_file_read_utf8(path: HostFileReadUtf8Args) -> FileStrRe
     }
 }
 
-const FILE_READER_BOX_ALIGN: usize = core::mem::align_of::<u64>();
+const MAX_OPEN_FILE_READERS: usize = 64;
 
-fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 {
-    let raw: *mut Mutex<BufReader<fs::File>> = Box::into_raw(Box::new(Mutex::new(reader)));
-    // SAFETY: the payload is initialized immediately below as a u64 containing
-    // the owned reader pointer, matching the requested layout.
-    let boxed = unsafe {
-        allocate_box(
-            core::mem::size_of::<u64>(),
-            FILE_READER_BOX_ALIGN,
-            false,
-            roc_host,
-        )
-    };
-    unsafe {
-        *(boxed as *mut u64) = raw as u64;
-    }
-    boxed as *mut u64
+type FileReaderResource = Mutex<BufReader<fs::File>>;
+
+static FILE_READERS: OnceLock<HostResourceHeap<FileReaderResource>> = OnceLock::new();
+
+fn file_readers() -> &'static HostResourceHeap<FileReaderResource> {
+    FILE_READERS.get_or_init(|| HostResourceHeap::new(MAX_OPEN_FILE_READERS))
 }
 
-unsafe fn file_reader_ref<'a>(handle: *mut u64) -> &'a Mutex<BufReader<fs::File>> {
-    &*(*handle as *const Mutex<BufReader<fs::File>>)
+fn reserve_file_reader() -> Result<ResourceReservation<'static, FileReaderResource>, ReserveError> {
+    file_readers().reserve()
 }
 
-extern "C" fn drop_file_reader(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
-    unsafe {
-        let raw = *(data_ptr as *mut u64) as *mut Mutex<BufReader<fs::File>>;
-        if !raw.is_null() {
-            drop(Box::from_raw(raw));
-        }
-    }
+unsafe fn file_reader_ref(handle: *mut u64) -> Result<&'static FileReaderResource, LookupError> {
+    unsafe { file_readers().get(handle) }
 }
 
 fn release_file_reader(handle: *mut u64, roc_host: &RocHost) {
-    // SAFETY: the handle was allocated by `box_file_reader` with this exact
-    // layout and this function consumes its owned Roc reference.
-    unsafe {
-        decref_box_with(
-            handle as RocBox,
-            FILE_READER_BOX_ALIGN,
-            false,
-            Some(drop_file_reader),
-            roc_host,
-        )
-    };
+    // SAFETY: hosted arguments transfer one owned Roc reference. Final release
+    // routes through the resource heap and closes the file.
+    unsafe { decref_box(handle as RocBox, roc_host) };
+}
+
+pub(crate) fn route_resource_dealloc(ptr: *mut c_void) -> DeallocRoute {
+    match FILE_READERS.get() {
+        Some(heap) => heap.route_dealloc(ptr),
+        None => DeallocRoute::NotOwned,
+    }
+}
+
+pub(crate) fn contains_resource_address(ptr: *const c_void) -> bool {
+    FILE_READERS
+        .get()
+        .is_some_and(|heap| heap.contains_address(ptr))
+}
+
+pub(crate) fn active_resources() -> usize {
+    FILE_READERS.get().map_or(0, HostResourceHeap::active)
+}
+
+pub(crate) fn resource_high_water() -> usize {
+    FILE_READERS.get().map_or(0, HostResourceHeap::high_water)
 }
 
 #[no_mangle]
@@ -378,6 +379,15 @@ pub extern "C" fn hosted_file_open_reader(
             roc_host,
         ));
     }
+    let reservation = match reserve_file_reader() {
+        Ok(reservation) => reservation,
+        Err(ReserveError::Capacity) => {
+            return try_file_reader_err(crate::abi::io_err_other(
+                "file reader capacity is exhausted",
+                roc_host,
+            ));
+        }
+    };
     match fs::File::open(path) {
         Ok(file) => {
             let reader = if capacity == 0 {
@@ -385,7 +395,7 @@ pub extern "C" fn hosted_file_open_reader(
             } else {
                 BufReader::with_capacity(capacity as usize, file)
             };
-            try_file_reader_ok(box_file_reader(reader, roc_host))
+            try_file_reader_ok(reservation.insert(Mutex::new(reader)))
         }
         Err(error) => try_file_reader_err(io_err_from_io(&error, roc_host)),
     }
@@ -395,31 +405,37 @@ pub extern "C" fn hosted_file_open_reader(
 pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResult {
     let roc_host = roc_host();
     let result = {
-        let reader = unsafe { file_reader_ref(handle) };
-        match try_lock(reader) {
-            Ok(mut reader) => {
-                let mut buffer = Vec::new();
-                let read = reader
-                    .by_ref()
-                    .take(MAX_MATERIALIZED_FILE_BYTES + 1)
-                    .read_until(b'\n', &mut buffer);
-                match read {
-                    Ok(_) if buffer.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
-                        try_file_reader_line_ok(unsafe {
-                            RocListWith::<u8, false>::from_slice(&buffer, roc_host)
-                        })
+        match unsafe { file_reader_ref(handle) } {
+            Ok(reader) => match try_lock(reader) {
+                Ok(mut reader) => {
+                    let mut buffer = Vec::new();
+                    let read = reader
+                        .by_ref()
+                        .take(MAX_MATERIALIZED_FILE_BYTES + 1)
+                        .read_until(b'\n', &mut buffer);
+                    match read {
+                        Ok(_) if buffer.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
+                            try_file_reader_line_ok(unsafe {
+                                RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                            })
+                        }
+                        Ok(_) => {
+                            try_file_reader_line_err(file_materialization_limit_error(roc_host))
+                        }
+                        Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
                     }
-                    Ok(_) => try_file_reader_line_err(file_materialization_limit_error(roc_host)),
-                    Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
                 }
-            }
-            Err(CapabilityLockError::Busy) => try_file_reader_line_err(crate::abi::io_err_other(
-                "file reader is already in use",
+                Err(CapabilityLockError::Busy) => try_file_reader_line_err(
+                    crate::abi::io_err_other("file reader is already in use", roc_host),
+                ),
+                Err(CapabilityLockError::Poisoned) => try_file_reader_line_err(
+                    crate::abi::io_err_other("file reader is unavailable", roc_host),
+                ),
+            },
+            Err(_) => try_file_reader_line_err(crate::abi::io_err_other(
+                "file reader handle is stale or invalid",
                 roc_host,
             )),
-            Err(CapabilityLockError::Poisoned) => try_file_reader_line_err(
-                crate::abi::io_err_other("file reader is unavailable", roc_host),
-            ),
         }
     };
     release_file_reader(handle, roc_host);
@@ -632,5 +648,26 @@ mod tests {
             nanos_since_epoch(system_time_from_unix_parts(1, 2).unwrap()).unwrap(),
             1_000_000_002
         );
+    }
+
+    #[test]
+    fn roc_host_vtable_final_dealloc_releases_file_reader_slot() {
+        let baseline = active_resources();
+        let file = fs::File::open("Cargo.toml").unwrap();
+        let handle = reserve_file_reader()
+            .unwrap()
+            .insert(Mutex::new(BufReader::new(file)));
+        assert_eq!(active_resources(), baseline + 1);
+        assert_eq!(
+            (handle as usize) % core::mem::align_of::<u64>(),
+            0,
+            "Box(U64) payload must have its generated ABI alignment"
+        );
+
+        let mut host = make_roc_host(core::ptr::null_mut());
+        host.roc_dealloc = crate::abi::routed_roc_dealloc;
+        // SAFETY: the reservation returned one owned Roc Box reference.
+        unsafe { decref_box(handle as RocBox, &host) };
+        assert_eq!(active_resources(), baseline);
     }
 }

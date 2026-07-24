@@ -13,7 +13,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from update_app_platform_urls import update_apps
-from test import examples_hash
+from test import declared_targets, examples_hash
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,11 +73,22 @@ def main() -> None:
     )
     parser.add_argument("--build-id", default="local")
     parser.add_argument(
+        "--targets",
+        nargs="+",
+        choices=declared_targets(),
+        help=(
+            "targets to build with --operation build-all; defaults to every "
+            "declared target"
+        ),
+    )
+    parser.add_argument(
         "--artifact-dir",
         type=Path,
         default=ROOT / "dist" / "example-binaries",
     )
     args = parser.parse_args()
+    if args.targets is not None and args.operation != "build-all":
+        parser.error("--targets requires --operation build-all")
 
     bundle = args.bundle_path
     if args.bundle_dir is not None:
@@ -115,25 +126,33 @@ def main() -> None:
                 "declared",
             ]
             if args.operation == "build-all":
-                command.extend(
-                    [
-                        "--operation",
-                        "build",
-                        "--all-targets",
-                        "--build-id",
-                        args.build_id,
-                        "--examples-sha256",
-                        original_examples_sha256,
-                        "--artifact-dir",
-                        str(args.artifact_dir),
-                    ]
+                targets = args.targets or list(declared_targets())
+                for target in targets:
+                    subprocess.run(
+                        command
+                        + [
+                            "--operation",
+                            "build",
+                            "--target",
+                            target,
+                            "--build-id",
+                            args.build_id,
+                            "--examples-sha256",
+                            original_examples_sha256,
+                            "--artifact-dir",
+                            str(args.artifact_dir),
+                        ],
+                        cwd=ROOT,
+                        env=os.environ.copy(),
+                        check=True,
+                    )
+            else:
+                subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    env=os.environ.copy(),
+                    check=True,
                 )
-            subprocess.run(
-                command,
-                cwd=ROOT,
-                env=os.environ.copy(),
-                check=True,
-            )
     finally:
         for path, contents in backups.items():
             path.write_bytes(contents)

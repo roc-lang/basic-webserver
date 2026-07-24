@@ -18,9 +18,9 @@ program = { init!, respond!, shutdown! }
 # Fetch some content at startup to demonstrate the outbound HTTP client. To
 # exercise it, run a server on localhost:9000 (see the root README); otherwise the
 # requests simply report a failure and the webserver still starts.
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
-	demo!() ?? {}
+	demo!()?
 	Ok({ config: Server.default_config, context: {} })
 }
 

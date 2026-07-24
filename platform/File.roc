@@ -5,13 +5,16 @@ import Path
 ## Open files for incremental, buffered reading.
 ##
 ## Whole-file operations and filesystem metadata are available on [`Path`](Path).
+## The host retains at most 64 readers. Opening another returns
+## `FileErr(Other("file reader capacity is exhausted"))`.
 File :: [].{
 
 	## Represents a buffered file reader.
 	##
 	## The file is automatically closed when the last reference to the reader is
 	## dropped. The host synchronizes its cursor, so it is safe to retain in
-	## application context. Concurrent reads saturate with `FileErr(Other(...))`.
+	## application context. Concurrent reads saturate with
+	## `FileErr(Other(...))`.
 	Reader :: { host : Host.FileReader }.{
 
 		## Render the reader without exposing its host handle.
