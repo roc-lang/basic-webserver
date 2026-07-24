@@ -29,8 +29,10 @@ Server :: [].{
 	default_max_queued_handlers : U16
 	default_max_queued_handlers = 64
 
-	## Runtime configuration returned from the application's `init!` function.
-	Config : {
+	## Opaque runtime configuration returned from the application's `init!`
+	## function. Use the builders below so future server settings can be added
+	## without invalidating application record construction.
+	Config := [Config({
 		listen : { host : Str, port : U16 },
 		limits : {
 
@@ -55,6 +57,20 @@ Server :: [].{
 			drain_timeout_ms : U64,
 			hook_timeout_ms : U64,
 		},
+	})].{
+
+		## Accessors used by the platform's host conversion layer.
+		get_listen : Config -> { host : Str, port : U16 }
+		get_listen = |Config(config)| config.listen
+
+		get_limits : Config -> { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 }
+		get_limits = |Config(config)| config.limits
+
+		request_body_limits : Config -> { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 }
+		request_body_limits = |Config(config)| config.request_bodies
+
+		get_graceful_shutdown : Config -> { drain_timeout_ms : U64, hook_timeout_ms : U64 }
+		get_graceful_shutdown = |Config(config)| config.graceful_shutdown
 	}
 
 	## Safe defaults: loopback-only; finite connection, handler, and handler
@@ -63,7 +79,7 @@ Server :: [].{
 	## exit without running the shutdown hook, because a request handler may
 	## still be using the application context.
 	default_config : Config
-	default_config = {
+	default_config = Config({
 		listen: { host: "127.0.0.1", port: 8000 },
 		limits: {
 			max_connections: default_max_connections,
@@ -79,7 +95,23 @@ Server :: [].{
 			drain_timeout_ms: 30_000,
 			hook_timeout_ms: 10_000,
 		},
-	}
+	})
+
+	with_listen : Config, { host : Str, port : U16 } -> Config
+	with_listen = |Config(config), listen| Config({ ..config, listen })
+
+	with_limits : Config, { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 } -> Config
+	with_limits = |Config(config), limits| Config({ ..config, limits })
+
+	with_request_body_limits : Config, { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 } -> Config
+	with_request_body_limits = |Config(config), request_bodies| Config({ ..config, request_bodies })
+
+	with_request_body_limit : Config, U64 -> Config
+	with_request_body_limit = |Config(config), max_bytes|
+		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
+
+	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
+	with_graceful_shutdown = |Config(config), graceful_shutdown| Config({ ..config, graceful_shutdown })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
@@ -188,10 +220,19 @@ Server :: [].{
 
 	## A successful request outcome. StopAfter sends its response while beginning
 	## graceful shutdown; the first shutdown cause wins.
-	Outcome : [
+	Outcome := [
 		Respond(Response.Response),
 		StopAfter({ response : Response.Response, exit_code : I64 }),
-	]
+	].{
+
+		## Convert an outcome into the stable host response plan.
+		to_host : Outcome -> { response : Response.Response, stop : Bool, exit_code : I64 }
+		to_host = |outcome|
+			match outcome {
+				Respond(response) => { response, stop: Bool.False, exit_code: 0 }
+				StopAfter({ response, exit_code }) => { response, stop: Bool.True, exit_code }
+			}
+	}
 
 	respond : Response.Response -> Outcome
 	respond = |response| Respond(response)

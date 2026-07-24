@@ -59,11 +59,10 @@ InternalServer :: [].{
 		)
 
 	to_host_outcome : Server.Outcome -> OutcomeToHost
-	to_host_outcome = |outcome|
-		match outcome {
-			Respond(response) => response_to_host(response, False, 0)
-			StopAfter({ response, exit_code }) => response_to_host(response, True, exit_code)
-		}
+	to_host_outcome = |outcome| {
+		{ response, stop, exit_code } = Server.Outcome.to_host(outcome)
+		response_to_host(response, stop, exit_code)
+	}
 
 	response_to_host : Response.Response, Bool, I64 -> OutcomeToHost
 	response_to_host = |response, stop, exit_code| {
@@ -76,16 +75,23 @@ InternalServer :: [].{
 
 	to_host_config : Server.Config -> ConfigToHost
 	to_host_config = |config| {
-		host: config.listen.host,
-		port: config.listen.port,
-		body_max_bytes: config.request_bodies.max_bytes,
-		body_chunk_bytes: config.request_bodies.chunk_bytes,
-		body_buffered_chunks: config.request_bodies.buffered_chunks,
-		drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
-		hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
-		max_connections: config.limits.max_connections,
-		max_handlers: config.limits.max_handlers,
-		max_queued_handlers: config.limits.max_queued_handlers,
+		listen = Server.Config.get_listen(config)
+		request_bodies = Server.Config.request_body_limits(config)
+		graceful_shutdown = Server.Config.get_graceful_shutdown(config)
+		limits = Server.Config.get_limits(config)
+
+		{
+			host: listen.host,
+			port: listen.port,
+			body_max_bytes: request_bodies.max_bytes,
+			body_chunk_bytes: request_bodies.chunk_bytes,
+			body_buffered_chunks: request_bodies.buffered_chunks,
+			drain_timeout_ms: graceful_shutdown.drain_timeout_ms,
+			hook_timeout_ms: graceful_shutdown.hook_timeout_ms,
+			max_connections: limits.max_connections,
+			max_handlers: limits.max_handlers,
+			max_queued_handlers: limits.max_queued_handlers,
+		}
 	}
 
 	from_host_shutdown_reason : ShutdownReasonFromHost -> Server.ShutdownReason

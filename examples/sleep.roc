@@ -17,14 +17,14 @@ program = { init!, respond!, shutdown! }
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = ||
 	Ok({
-		config: {
-			..Server.default_config,
-			limits: {
+		config: Server.with_limits(
+			Server.default_config,
+			{
 				max_connections: 4,
 				max_handlers: 1,
 				max_queued_handlers: 1,
 			},
-		},
+		),
 		context: {},
 	})
 

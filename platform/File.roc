@@ -19,6 +19,9 @@ File :: [].{
 		to_inspect = |_| "File.Reader(<opaque>)"
 
 		## Read bytes up to and including the next newline from this buffered reader.
+		## A line larger than the platform's 8 MiB materialization limit fails
+		## with `FileErr(Other(_))`; process large records in a format with
+		## bounded delimiters.
 		##
 		## Returns an empty list at EOF.
 		read_line! : Reader => Try(List(U8), _)
@@ -38,7 +41,8 @@ File :: [].{
 			.map_ok(|reader| Reader.{ host: reader })
 			.map_err(|FileErr(err)| FileErr(err))
 
-	## Open a file for buffered reading using a specific buffer capacity.
+	## Open a file for buffered reading using a specific buffer capacity. The
+	## capacity must not exceed 1 MiB.
 	open_reader_with_capacity! = |path, capacity|
 		Host.file_open_reader!(InternalPath.to_host_raw!(path), capacity)
 			.map_ok(|reader| Reader.{ host: reader })

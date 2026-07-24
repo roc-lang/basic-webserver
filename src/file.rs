@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::fs;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read};
 use std::sync::Mutex;
 
 use crate::abi::{
@@ -18,6 +18,24 @@ use crate::abi::{
 use crate::capability::{try_lock, CapabilityLockError};
 use crate::path::{path_buf_from_raw_path, IntoRawPath};
 use crate::roc_platform_abi::*;
+
+const MAX_MATERIALIZED_FILE_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_FILE_READER_BUFFER_BYTES: u64 = 1024 * 1024;
+
+fn file_materialization_limit_error(roc_host: &RocHost) -> IOErr {
+    crate::abi::io_err_other(
+        "file read exceeded the 8 MiB materialization limit; use a buffered reader",
+        roc_host,
+    )
+}
+
+fn read_file_bounded(path: std::path::PathBuf) -> io::Result<Vec<u8>> {
+    let file = fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    file.take(MAX_MATERIALIZED_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
 
 fn try_file_bytes_ok(value: RocListWith<u8, false>) -> FileBytesResult {
     FileBytesResult {
@@ -263,11 +281,14 @@ pub extern "C" fn hosted_file_read_bytes(path: HostFileReadBytesArgs) -> FileByt
         Ok(path) => path,
         Err(error) => return try_file_bytes_err(io_err_from_io(&error, roc_host)),
     };
-    match fs::read(path) {
-        Ok(bytes) => try_file_bytes_ok(unsafe {
-            // SAFETY: the returned Roc list owns a copy of `bytes`.
-            RocListWith::<u8, false>::from_slice(&bytes, roc_host)
-        }),
+    match read_file_bounded(path) {
+        Ok(bytes) if bytes.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
+            try_file_bytes_ok(unsafe {
+                // SAFETY: the returned Roc list owns a copy of `bytes`.
+                RocListWith::<u8, false>::from_slice(&bytes, roc_host)
+            })
+        }
+        Ok(_) => try_file_bytes_err(file_materialization_limit_error(roc_host)),
         Err(error) => try_file_bytes_err(io_err_from_io(&error, roc_host)),
     }
 }
@@ -279,8 +300,17 @@ pub extern "C" fn hosted_file_read_utf8(path: HostFileReadUtf8Args) -> FileStrRe
         Ok(path) => path,
         Err(error) => return try_file_str_err(io_err_from_io(&error, roc_host)),
     };
-    match fs::read_to_string(path) {
-        Ok(content) => try_file_str_ok(RocStr::from_str(&content, roc_host)),
+    match read_file_bounded(path) {
+        Ok(bytes) if bytes.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
+            match String::from_utf8(bytes) {
+                Ok(content) => try_file_str_ok(RocStr::from_str(&content, roc_host)),
+                Err(error) => try_file_str_err(io_err_from_io(
+                    &io::Error::new(io::ErrorKind::InvalidData, error),
+                    roc_host,
+                )),
+            }
+        }
+        Ok(_) => try_file_str_err(file_materialization_limit_error(roc_host)),
         Err(error) => try_file_str_err(io_err_from_io(&error, roc_host)),
     }
 }
@@ -342,6 +372,12 @@ pub extern "C" fn hosted_file_open_reader(
         Ok(path) => path,
         Err(error) => return try_file_reader_err(io_err_from_io(&error, roc_host)),
     };
+    if capacity > MAX_FILE_READER_BUFFER_BYTES {
+        return try_file_reader_err(crate::abi::io_err_other(
+            "file reader buffer capacity cannot exceed 1 MiB",
+            roc_host,
+        ));
+    }
     match fs::File::open(path) {
         Ok(file) => {
             let reader = if capacity == 0 {
@@ -363,10 +399,17 @@ pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResul
         match try_lock(reader) {
             Ok(mut reader) => {
                 let mut buffer = Vec::new();
-                match reader.read_until(b'\n', &mut buffer) {
-                    Ok(_) => try_file_reader_line_ok(unsafe {
-                        RocListWith::<u8, false>::from_slice(&buffer, roc_host)
-                    }),
+                let read = reader
+                    .by_ref()
+                    .take(MAX_MATERIALIZED_FILE_BYTES + 1)
+                    .read_until(b'\n', &mut buffer);
+                match read {
+                    Ok(_) if buffer.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
+                        try_file_reader_line_ok(unsafe {
+                            RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                        })
+                    }
+                    Ok(_) => try_file_reader_line_err(file_materialization_limit_error(roc_host)),
                     Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
                 }
             }

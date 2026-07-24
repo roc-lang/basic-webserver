@@ -2,8 +2,9 @@ import Host
 
 ## Connect to TCP servers and exchange buffered byte streams.
 ##
-## See the [host runtime behavior](https://github.com/roc-lang/basic-webserver#host-runtime-behavior)
-## for current timeout and buffering limitations.
+## Connect, read, and write operations have a 30-second host timeout.
+## Materialized reads are limited to 8 MiB; callers should use repeated
+## `read_up_to!` operations for larger protocols.
 Tcp :: [].{
 
 	## Represents a TCP stream.
@@ -18,7 +19,8 @@ Tcp :: [].{
 		to_inspect : Stream -> Str
 		to_inspect = |_| "Tcp.Stream(<opaque>)"
 
-		## Read up to a number of bytes from this TCP stream.
+		## Read up to a number of bytes from this TCP stream. Requests larger
+		## than 8 MiB return `TcpReadErr(ReadLimitExceeded)`.
 		read_up_to! : Stream, U64 => Try(List(U8), _)
 		read_up_to! = |stream, bytes_to_read|
 			Host.tcp_read_up_to!(stream.host, bytes_to_read)
@@ -82,10 +84,13 @@ Tcp :: [].{
 		StreamNotFound,
 		## Another handler is currently reading from or writing to this stream.
 		StreamBusy,
+		## A materialized read requested or encountered more than 8 MiB.
+		ReadLimitExceeded,
 		PermissionDenied,
 		ConnectionRefused,
 		ConnectionReset,
 		Interrupted,
+		TimedOut,
 		OutOfMemory,
 		BrokenPipe,
 		Unrecognized(Str),
@@ -122,10 +127,12 @@ Tcp :: [].{
 		match err {
 			StreamNotFound => "StreamNotFound"
 			StreamBusy => "StreamBusy"
+			ReadLimitExceeded => "ReadLimitExceeded"
 			PermissionDenied => "PermissionDenied"
 			ConnectionRefused => "ConnectionRefused"
 			ConnectionReset => "ConnectionReset"
 			Interrupted => "Interrupted"
+			TimedOut => "TimedOut"
 			OutOfMemory => "OutOfMemory"
 			BrokenPipe => "BrokenPipe"
 			Unrecognized(message) => "Unrecognized Error: ${message}"
@@ -150,10 +157,12 @@ parse_stream_err = |err|
 	match err {
 		"StreamNotFound" => StreamNotFound
 		"StreamBusy" => StreamBusy
+		"ReadLimitExceeded" => ReadLimitExceeded
 		"ErrorKind::PermissionDenied" => PermissionDenied
 		"ErrorKind::ConnectionRefused" => ConnectionRefused
 		"ErrorKind::ConnectionReset" => ConnectionReset
 		"ErrorKind::Interrupted" => Interrupted
+		"ErrorKind::TimedOut" => TimedOut
 		"ErrorKind::OutOfMemory" => OutOfMemory
 		"ErrorKind::BrokenPipe" => BrokenPipe
 		other => Unrecognized(other)
