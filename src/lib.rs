@@ -8,6 +8,7 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+mod bounded_gate;
 mod capability;
 mod cmd;
 mod dir;

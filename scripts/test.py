@@ -410,13 +410,23 @@ class FixtureHttpHandler(BaseHTTPRequestHandler):
             body, content_type = b'{"foo":"Hello Json!"}', "application/json"
         elif self.path == "/example":
             body, content_type = b"<html><body>Example Domain</body></html>", "text/html"
+        elif self.path == "/large":
+            body, content_type = b"x" * 64, "application/octet-stream"
+        elif self.path == "/slow":
+            time.sleep(0.2)
+            body, content_type = b"late", "text/plain"
         else:
             body, content_type = b"<html>\n</html>\n", "text/html"
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # Timeout tests deliberately close before the delayed fixture
+            # response is written.
+            pass
 
     def log_message(self, _format: str, *_args: object) -> None:
         pass

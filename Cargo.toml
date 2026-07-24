@@ -30,6 +30,9 @@ rustls = { version = "=0.23.41", default-features = false }
 tokio = { version = "=1.45.0", features = ["rt", "rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tower-service = "=0.3.3"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.59.0", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
 [profile.release]
 lto = true
 strip = "debuginfo"

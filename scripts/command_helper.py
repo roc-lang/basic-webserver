@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 
 mode, *args = sys.argv[1:]
@@ -16,5 +17,9 @@ elif mode == "env":
 elif mode == "fail":
     sys.stderr.buffer.write(b"requested failure\n")
     raise SystemExit(1)
+elif mode == "bytes":
+    sys.stdout.buffer.write(b"x" * int(args[0]))
+elif mode == "sleep":
+    time.sleep(float(args[0]))
 else:
     raise SystemExit(f"unknown mode: {mode}")

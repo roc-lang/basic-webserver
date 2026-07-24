@@ -13,6 +13,54 @@ import http.Response
 ## for HTTP protocol, TLS trust-store, and timeout details.
 Http :: [].{
 
+	## Finite defaults for ordinary API calls. The host enforces the response
+	## limit before allocating the Roc response body.
+	default_timeout_ms : U64
+	default_timeout_ms = 30_000
+
+	default_max_response_bytes : U64
+	default_max_response_bytes = 8 * 1024 * 1024
+
+	## Opaque per-request resource policy.
+	Config := [
+		Config(
+			{
+				timeout_ms : U64,
+				max_response_bytes : U64,
+			},
+		),
+	].{
+
+		timeout_millis : Config -> U64
+		timeout_millis = |Config(config)| config.timeout_ms
+
+		max_response_bytes : Config -> U64
+		max_response_bytes = |Config(config)| config.max_response_bytes
+	}
+
+	default_config : Config
+	default_config = Config({
+		timeout_ms: default_timeout_ms,
+		max_response_bytes: default_max_response_bytes,
+	})
+
+	## Set the complete deadline, including bounded admission wait. Zero is
+	## normalized to one millisecond so every request remains finite.
+	with_timeout_millis : Config, U64 -> Config
+	with_timeout_millis = |Config(config), timeout_ms|
+		Config({
+			..config,
+			timeout_ms: if timeout_ms == 0 {
+				1
+			} else {
+				timeout_ms
+			},
+		})
+
+	with_max_response_bytes : Config, U64 -> Config
+	with_max_response_bytes = |Config(config), max_response_bytes|
+		Config({ ..config, max_response_bytes })
+
 	## Errors raised by the host while sending a request, before a real HTTP
 	## response is available.
 	TransportErr : InternalHttp.TransportErr
@@ -28,12 +76,17 @@ Http :: [].{
 	## response = Http.send!(request)?
 	## ```
 	send! : Request => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
-	send! = |request| {
+	send! = |request| send_with!(request, default_config)
+
+	## Send using an explicit finite resource policy. A timeout attached to the
+	## shared http Request takes precedence; NoTimeout uses this config.
+	send_with! : Request, Config => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send_with! = |request, config| {
 		url = Url.parse(Request.uri(request)) ? InvalidUrl
 		canonical_url = Url.without_fragment(url)
 		canonical_request = request.with_uri(Url.to_str(canonical_url))
 
-		send_validated!(canonical_request)
+		send_validated!(canonical_request, config)
 	}
 
 	## Encode a value as JSON and set it as the request body.
@@ -69,7 +122,7 @@ Http :: [].{
 	## ```
 	get_utf8! : Url.Url => Try(Str, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), ..])
 	get_utf8! = |url| {
-		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)))?
+		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)), default_config)?
 		body = Str.from_utf8(Response.body(response)) ? |_| BadBody("get_utf8!: response body was not valid UTF-8")
 
 		Ok(body)
@@ -98,7 +151,7 @@ Http :: [].{
 	## ```
 	get! : Url.Url => Try(_, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), JsonErr(_), ..])
 	get! = |url| {
-		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)))?
+		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)), default_config)?
 
 		decode_json_response(response)
 	}
@@ -106,10 +159,10 @@ Http :: [].{
 
 # Send a request whose URI was constructed from a validated Url. Keeping this
 # private prevents get!/get_utf8! from exposing an impossible InvalidUrl error.
-send_validated! : Request.Request => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
-send_validated! = |request| {
+send_validated! : Request.Request, Http.Config => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
+send_validated! = |request, config| {
 	host_response =
-		match Host.http_send_request!(InternalHttp.to_host_request(request)) {
+		match Host.http_send_request!(InternalHttp.to_host_request(request, config.timeout_millis(), config.max_response_bytes())) {
 			Ok(response) => response
 			Err(InvalidRequest(detail)) => return Err(InvalidRequest(detail))
 			Err(Transport(err)) => return Err(HttpErr(err))

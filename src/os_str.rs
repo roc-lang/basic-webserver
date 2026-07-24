@@ -104,6 +104,54 @@ pub(crate) fn os_string_from_raw(value: RawOsStr, roc_host: &RocHost) -> io::Res
     }
 }
 
+/// Copy a Roc native string without releasing its reference. This is used
+/// while walking a potentially shared Roc container; the container's generated
+/// recursive decref decides whether its element references are released.
+pub(crate) fn os_string_from_raw_borrowed(value: RawOsStr) -> io::Result<OsString> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+
+        match value.tag {
+            RawOsStrTag::UnixBytes => unsafe {
+                let bytes = ManuallyDrop::into_inner(value.payload.unix_bytes);
+                Ok(OsString::from_vec(bytes.as_slice().to_vec()))
+            },
+            RawOsStrTag::Utf8 => unsafe {
+                let text = ManuallyDrop::into_inner(value.payload.utf8);
+                Ok(OsString::from_vec(text.as_str().as_bytes().to_vec()))
+            },
+            RawOsStrTag::WindowsU16s => Err(unsupported_native_variant("UnixBytes", "WindowsU16s")),
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+
+        match value.tag {
+            RawOsStrTag::UnixBytes => Err(unsupported_native_variant("WindowsU16s", "UnixBytes")),
+            RawOsStrTag::Utf8 => unsafe {
+                let text = ManuallyDrop::into_inner(value.payload.utf8);
+                Ok(OsString::from(text.as_str()))
+            },
+            RawOsStrTag::WindowsU16s => unsafe {
+                let units = ManuallyDrop::into_inner(value.payload.windows_u16s);
+                Ok(OsString::from_wide(units.as_slice()))
+            },
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = value;
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "native OS strings are not implemented on this platform",
+        ))
+    }
+}
+
 /// Copy an operating-system string into Roc's exact native representation.
 pub(crate) fn raw_os_str_from_os_str(value: &OsStr, roc_host: &RocHost) -> RawOsStr {
     if let Some(text) = value.to_str() {

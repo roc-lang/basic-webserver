@@ -54,9 +54,19 @@ server:
   the context. A second OS termination signal also forces exit.
 - Outbound requests require validated `Url` values in the convenience APIs and
   report typed DNS, connection, TLS, exchange, response-body, cancellation,
-  timeout, and invalid-response failures. A shared client preserves connection
-  pooling and HTTP keep-alive across calls. HTTPS uses WebPKI roots; custom trust
+  timeout, saturation, response-limit, and invalid-response failures. Calls
+  default to a 30-second total deadline and an 8 MiB response body; `Http.Config`
+  can narrow or replace those values. At most 64 calls run and 256 wait for
+  admission. The shared client preserves connection pooling and HTTP keep-alive
+  but performs no hidden request retries. HTTPS uses WebPKI roots; custom trust
   stores are not currently configurable.
+- Commands run an exact executable with an argument list; no shell parsing or
+  expansion occurs. They inherit the working directory and environment unless
+  the command clears its environment. Calls default to a 30-second total
+  deadline, with 1 MiB each for captured stdout and stderr. At most eight child
+  processes run and 32 wait for admission. Timeout and output-limit cleanup
+  terminates the process tree (Unix process groups and Windows Job Objects),
+  waits for the direct child, and returns a typed error.
 - A Roc `crash` exits the entire server process. Ordinary `ServerErr` values are
   logged and converted to an HTTP 500 response.
 

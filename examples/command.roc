@@ -78,14 +78,37 @@ init! = || {
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, { python, helper }| {
-	time = Utc.to_iso_8601(Utc.now!())
+	if req.target() == "/timeout" {
+		cmd = Cmd.new_str(python)
+			.args_str([helper, "sleep", "5"])
+			.with_timeout_millis(20)
 
-	# Log request time, method and URL through the helper process.
-	match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${req.target()}"]) {
-		Ok(_) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Command succeeded."))))
-		Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
+		match cmd.exec_cmd!() {
+			Err(CommandTimedOut(_)) => Ok(text_response("Command timed out."))
+			other => Err(ServerErr("Expected CommandTimedOut, got ${Str.inspect(other)}"))
+		}
+	} else if req.target() == "/output-limit" {
+		cmd = Cmd.new_str(python)
+			.args_str([helper, "bytes", "64"])
+			.with_stdout_limit(8)
+
+		match cmd.exec_output!() {
+			Err(StdoutLimitExceeded(_)) => Ok(text_response("Command output was limited."))
+			other => Err(ServerErr("Expected StdoutLimitExceeded, got ${Str.inspect(other)}"))
+		}
+	} else {
+		time = Utc.to_iso_8601(Utc.now!())
+
+		# Log request time, method and URL through the helper process.
+		match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${req.target()}"]) {
+			Ok(_) => Ok(text_response("Command succeeded."))
+			Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
+		}
 	}
 }
+
+text_response : Str -> Server.Outcome
+text_response = |body| Server.respond(Response.from_status(200).with_body(Str.to_utf8(body)))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

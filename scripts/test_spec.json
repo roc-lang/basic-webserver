@@ -22,6 +22,16 @@
               "method": "GET",
               "target": "/",
               "expect_body": "Command succeeded."
+            },
+            {
+              "method": "GET",
+              "target": "/timeout",
+              "expect_body": "Command timed out."
+            },
+            {
+              "method": "GET",
+              "target": "/output-limit",
+              "expect_body": "Command output was limited."
             }
           ],
           "stdout_contains": [
@@ -340,6 +350,14 @@
           "requests": [
             {
               "expect_body": "See init! for the outbound HTTP example code."
+            },
+            {
+              "target": "/limit",
+              "expect_body": "Outbound response was limited."
+            },
+            {
+              "target": "/timeout",
+              "expect_body": "Outbound request timed out."
             }
           ],
           "stdout_contains": [
