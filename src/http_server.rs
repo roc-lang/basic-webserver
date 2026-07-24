@@ -488,13 +488,16 @@ async fn handle_panics(
     }
 }
 
+fn connection_builder(max_http2_streams: u32) -> auto::Builder<TokioExecutor> {
+    let mut builder = auto::Builder::new(TokioExecutor::new());
+    builder.http2().max_concurrent_streams(max_http2_streams);
+    builder
+}
+
 async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
     let io = TokioIo::new(stream);
     let service_context = context.clone();
-    let mut builder = auto::Builder::new(TokioExecutor::new());
-    builder
-        .http2()
-        .max_concurrent_streams(context.config.max_http2_streams_per_connection());
+    let builder = connection_builder(context.config.max_http2_streams_per_connection());
     let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request| {
@@ -817,5 +820,52 @@ mod tests {
             hook_timeout: Duration::from_secs(10),
         };
         assert_eq!(config.max_http2_streams_per_connection(), 96);
+    }
+
+    #[tokio::test]
+    async fn auto_server_accepts_an_http2_prior_knowledge_request() {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            connection_builder(8)
+                .serve_connection(
+                    TokioIo::new(server_io),
+                    hyper::service::service_fn(
+                        |request: hyper::Request<hyper::body::Incoming>| async move {
+                            assert_eq!(request.version(), hyper::Version::HTTP_2);
+                            Ok::<_, Infallible>(hyper::Response::new(Full::new(
+                                Bytes::from_static(b"http2"),
+                            )))
+                        },
+                    ),
+                )
+                .await
+                .expect("HTTP/2 server connection should complete without error");
+        });
+
+        let (mut sender, connection) = hyper::client::conn::http2::handshake::<_, _, Full<Bytes>>(
+            TokioExecutor::new(),
+            TokioIo::new(client_io),
+        )
+        .await
+        .expect("HTTP/2 prior-knowledge handshake should succeed");
+        let client = tokio::spawn(connection);
+        let request = hyper::Request::builder()
+            .uri("http://localhost/http2")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let response = sender
+            .send_request(request)
+            .await
+            .expect("HTTP/2 request should receive a response");
+
+        assert_eq!(response.version(), hyper::Version::HTTP_2);
+        assert_eq!(
+            response.into_body().collect().await.unwrap().to_bytes(),
+            Bytes::from_static(b"http2")
+        );
+
+        drop(sender);
+        client.abort();
+        server.abort();
     }
 }
