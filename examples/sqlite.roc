@@ -20,9 +20,7 @@ import http.Response
 # );
 
 # The database path is resolved once at startup and stored in the Context.
-# A retained statement also exercises automatic finalization at shutdown; normal
-# requests use independent statements so concurrent handlers do not contend on it.
-Context : { db_path : Path.Path, shutdown_lifecycle : Sqlite.Stmt }
+Context : { db_path : Path }
 
 program = { init!, respond!, shutdown! }
 
@@ -33,16 +31,12 @@ init! = || {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
 		}
-	shutdown_lifecycle = prepare_shutdown_lifecycle!(db_path) ? |_| Exit(1)
-	Ok({
-		config: Server.default_config,
-		context: { db_path: db_path, shutdown_lifecycle: shutdown_lifecycle },
-	})
+	Ok({ config: Server.default_config, context: { db_path: db_path } })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, { db_path, shutdown_lifecycle: _ }| {
-	match query_todos_by_status!(db_path, "completed") {
+respond! = |_request, { db_path }| {
+	match query_todos_by_status!(db_path, Completed) {
 		Ok(todos) => {
 			lines = todos.map(|todo| Str.inspect(todo))
 			body = Str.join_with(lines, "\n")
@@ -57,44 +51,44 @@ respond! = |_request, { db_path, shutdown_lifecycle: _ }| {
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})
 
-Todo : { id : Str, status : TodoStatus, task : Str }
+Todo : { id : I64, status : TodoStatus, task : Str }
 
-prepare_shutdown_lifecycle! = |db_path|
-	Sqlite.prepare!({
-		path: db_path,
-		query: "SELECT 1;",
-	})
-
-query_todos_by_status! : Path.Path, Str => Try(List(Todo), _)
+query_todos_by_status! : Path, TodoStatus => Try(List(Todo), _)
 query_todos_by_status! = |db_path, status|
 	Sqlite.query_many!({
 		path: db_path,
 		query: "SELECT id, task, status FROM todos WHERE status = :status;",
-		bindings: [{ name: ":status", value: String(status) }],
+		bindings: [{ name: ":status", value: String(todo_status_to_str(status)) }],
 		rows: decode_todo,
 	})
 
-# A row decoder is `List(Str) -> (Stmt => Try(a, err))`; the new compiler does not
-# support the record-builder (`<-`) sugar, so we combine the leaf decoders by hand.
-# The statement type in this callback is host-internal and is intentionally not
-# exposed by the platform, so this top-level decoder cannot name its inferred type.
 decode_todo = |cols|
 	|stmt| {
 		id = Sqlite.i64("id")(cols)(stmt)?
 		task = Sqlite.str("task")(cols)(stmt)?
 		status_str = Sqlite.str("status")(cols)(stmt)?
 		status = decode_todo_status(status_str)?
-		Ok({ id: I64.to_str(id), task, status })
+		Ok({ id, task, status })
 	}
 
-TodoStatus : [Todo, Completed, InProgress]
+TodoStatus : [Todo, Planned, Completed, InProgress]
+
+todo_status_to_str : TodoStatus -> Str
+todo_status_to_str = |status|
+	match status {
+		Todo => "todo"
+		Planned => "planned"
+		Completed => "completed"
+		InProgress => "in-progress"
+	}
 
 decode_todo_status : Str -> Try(TodoStatus, [ParseError(Str), ..])
 decode_todo_status = |status_str|
 	match status_str {
 		"todo" => Ok(Todo)
+		"planned" => Ok(Planned)
 		"completed" => Ok(Completed)
 		"in-progress" => Ok(InProgress)
 		_ => Err(ParseError("Unknown status str: ${status_str}"))

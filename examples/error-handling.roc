@@ -6,22 +6,24 @@ app [Context, program] {
 
 import pf.Stdout
 import pf.Http
-import pf.OsStr
 import pf.Server
 import pf.Url
 import pf.Env
 import pf.Utc
 import http.Response
 
-Context : {}
+Context : Url
 
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, context: {} })
+init! = || {
+	target = Env.var_str!("TARGET_URL") ? |_| Exit(1)
+	target_url = Url.parse(target) ? |_| Exit(1)
+	Ok({ config: Server.default_config, context: target_url })
+}
 
 AppError : [
-	EnvVarNotSet(Str),
 	FetchErr(Str),
 	StdoutErr(Str),
 ]
@@ -29,30 +31,25 @@ AppError : [
 # Here we use AppError to ensure all errors must be handled within our application.
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, _state|
-	match handle_req!(req) {
-		Ok(response) => Ok(Server.respond(response))
-		Err(app_err) => Err(map_app_err(app_err))
-	}
+respond! = |req, target_url| {
+	response = handle_req!(req, target_url) ? map_app_err
+	Ok(Server.respond(response))
+}
 
 map_app_err : AppError -> [ServerErr(Str), ..]
 map_app_err = |app_err|
 	match app_err {
-		EnvVarNotSet(env_var_name) => ServerErr("Environment variable \"${env_var_name}\" was not set.")
 		FetchErr(err) => ServerErr("Failed to fetch content:\n\t${err}")
 		StdoutErr(err) => ServerErr("Stdout error logging request:\n\t${err}")
 	}
 
-handle_req! : Server.Request => Try(Response.Response, AppError)
-handle_req! = |req| {
+handle_req! : Server.Request, Url => Try(Response, AppError)
+handle_req! = |req, target_url| {
 	# Log the method and url to stdout
 	log_request!(req)?
 
-	# Read environment variable
-	url = read_env_var!("TARGET_URL")?
-
 	# Fetch content of url
-	content = fetch_content!(url)?
+	content = fetch_content!(target_url)?
 
 	# Respond with the website content
 	Ok(response_with_code(200, content))
@@ -62,23 +59,18 @@ log_request! : Server.Request => Try({}, [StdoutErr(Str), ..])
 log_request! = |req| {
 	datetime = Utc.to_iso_8601(Utc.now!())
 
-	Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}") ? |err| StdoutErr(Str.inspect(err)))
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+		? |err| StdoutErr(Str.inspect(err))
+	Ok({})
 }
 
-read_env_var! : Str => Try(Str, [EnvVarNotSet(Str), ..])
-read_env_var! = |env_var_name|
-	Ok(Env.var_str!(OsStr.from_str(env_var_name)) ? |_| EnvVarNotSet(env_var_name))
-
-fetch_content! : Str => Try(Str, [FetchErr(Str), ..])
-fetch_content! = |url_str| {
-	url = Url.parse(url_str) ? |err| FetchErr("Invalid URL: ${Str.inspect(err)}")
-	Ok(Http.get_utf8!(url) ? |err| FetchErr(Str.inspect(err)))
-}
+fetch_content! : Url => Try(Str, [FetchErr(Str), ..])
+fetch_content! = |url| Http.get_utf8!(url).map_err(|err| FetchErr(Str.inspect(err)))
 
 # Respond with the given status code and body
-response_with_code : U16, Str -> Response.Response
+response_with_code : U16, Str -> Response
 response_with_code = |code, body|
 	Response.from_status(code).with_body(Str.to_utf8(body))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

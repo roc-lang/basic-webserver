@@ -9,26 +9,27 @@ import pf.Path
 import pf.Utc
 import http.Response
 
-Context : {}
+Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, _)
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
 	file = Path.utf8("LICENSE")
 
-	time_modified = Utc.to_iso_8601(Path.time_modified!(file)?)
-	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file)?)
-	time_created = Utc.to_iso_8601(Path.time_created!(file)?)
+	time_modified = Utc.to_iso_8601(Path.time_modified!(file) ? |_| Exit(1))
+	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file) ? |_| Exit(1))
+	time_created = Utc.to_iso_8601(Path.time_created!(file) ? |_| Exit(1))
+	summary = "${Path.display(file)} file time metadata:\nModified: ${time_modified}\nAccessed: ${time_accessed}\nCreated: ${time_created}"
 
-	Stdout.line!("${Path.display(file)} file time metadata:\n    Modified: ${time_modified}\n    Accessed: ${time_accessed}\n    Created: ${time_created}")?
+	Stdout.line!(summary) ? |_| Exit(1)
 
-	Ok({ config: Server.default_config, context: {} })
+	Ok({ config: Server.default_config, context: summary })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, _state|
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("See example in init! function."))))
+respond! = |_request, summary|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(summary))))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

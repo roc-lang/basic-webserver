@@ -16,25 +16,29 @@ init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..]
 init! = || Ok({ config: Server.default_config, context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, _state|
-	match check_file!("good") {
+respond! = |request, _context| {
+	body = request.body().with_limit(1024).read_all!()
+		? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+	input = Str.from_utf8(body)
+		? |_| ServerErr("Request body must be valid UTF-8")
+
+	match classify(input) {
 		Ok(Good) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("GOOD"))))
 		Ok(Bad) => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("BAD"))))
-		Err(IOError) => Ok(Server.respond(Response.from_status(500).with_body(Str.to_utf8("ERROR: IoError when executing checkFile!."))))
+		Err(InvalidRating) => Ok(Server.respond(Response.from_status(400).with_body(Str.to_utf8("Expected \"good\" or \"bad\"."))))
 	}
+}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})
 
-# imagine this function does some IO operation
-# and returns a Try, succeeding with a tag either Good or Bad,
-# or failing with an IOError
-check_file! : Str => Try([Good, Bad], [IOError])
-check_file! = |str|
-	if str == "good" {
+# Parse a request value into a domain result, or return a typed error.
+classify : Str -> Try([Good, Bad], [InvalidRating])
+classify = |input|
+	if input == "good" {
 		Ok(Good)
-	} else if str == "bad" {
+	} else if input == "bad" {
 		Ok(Bad)
 	} else {
-		Err(IOError)
+		Err(InvalidRating)
 	}

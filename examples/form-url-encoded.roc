@@ -4,6 +4,8 @@ app [Context, program] {
 }
 
 import pf.Server
+import pf.Attribute
+import pf.Html
 import pf.MultipartFormData
 import http.Response
 
@@ -11,11 +13,18 @@ import http.Response
 
 # Demonstrates how to handle URL-encoded form data.
 
-form_page : Response.Response
+Context : {}
+
+program = { init!, respond!, shutdown! }
+
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, context: {} })
+
+form_page : Response
 form_page = {
 	response = 
 		Response.from_status(200)
-			.with_headers([{ name: "Content-Type", value: "text/html" }])
+			.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 
 	response.with_body(
 		Str.to_utf8(
@@ -45,67 +54,69 @@ form_page = {
 	)
 }
 
-display_form_data! : Server.Request => Try(Response.Response, [ServerErr(Str), ..])
+display_form_data! : Server.Request => Try(Response, [ServerErr(Str), ..])
 display_form_data! = |req| {
-	page = |form_data| {
-		entries = 
-			Str.join_with(
-				Dict.to_list(form_data).map(|(key, value)| "<li><strong>${key}:</strong> ${value}</li>"),
-				"",
-			)
-
-		Str.to_utf8(
-			\\<!DOCTYPE html>
-			\\<html lang="en">
-			\\    <head>
-			\\        <meta charset="UTF-8">
-			\\        <title>Form Data Received</title>
-			\\        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-			\\    </head>
-			\\    <body>
-			\\        <h1>Form Data Received:</h1>
-			\\        <ul>
-			\\            ${entries}
-			\\        </ul>
-			\\        <a href="/">Go back</a>
-			\\    </body>
-			\\</html>
-			,
-		)
-	}
-
 	body = req.body().with_limit(64 * 1024).read_all!()
 		? |err| ServerErr("Failed to read URL-encoded form: ${Str.inspect(err)}")
-	parsed_form = MultipartFormData.parse_form_url_encoded(body)
 
-	match parsed_form {
-		Ok(form_data) => {
-			response = 
-				Response.from_status(200)
-					.with_headers([{ name: "Content-Type", value: "text/html" }])
-					.with_body(page(form_data))
-			Ok(response)
-		}
-
-		Err(err) => Ok(Response.from_status(500).with_body(Str.to_utf8(Str.inspect(err))))
+	match MultipartFormData.parse_form_url_encoded(body) {
+		Ok(form_data) => Ok(html_response(200, form_data_page(form_data)))
+		Err(_) => Ok(text_response(400, "Malformed URL-encoded form data."))
 	}
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, _state|
+respond! = |req, _context|
 	match req.method() {
 		GET => Ok(Server.respond(form_page))
 		POST => Ok(Server.respond(display_form_data!(req)?))
 		_ => Ok(Server.respond(Response.from_status(405)))
 	}
 
-# Context is produced by `init!` and shared with every request.
-Context : {}
+form_data_page : Dict(Str, Str) -> List(U8)
+form_data_page = |form_data| {
+	entries = 
+		Dict.to_list(form_data).map(
+			|(key, value)|
+				Html.li(
+					[],
+					[
+						Html.element("strong", [], [Html.text("${key}:")]),
+						Html.text(" ${value}"),
+					],
+				),
+		)
 
-program = { init!, respond!, shutdown! }
+	page = 
+		Html.html(
+			[],
+			[
+				Html.head([], [Html.title([], [Html.text("Form Data Received")])]),
+				Html.body(
+					[],
+					[
+						Html.h1([], [Html.text("Form Data Received:")]),
+						Html.ul([], entries),
+						Html.a([Attribute.href("/")], [Html.text("Go back")]),
+					],
+				),
+			],
+		)
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, context: {} })
+	Str.to_utf8(Html.render(page))
+}
+
+html_response : U16, List(U8) -> Response
+html_response = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
+		.with_body(body)
+
+text_response : U16, Str -> Response
+text_response = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8(body))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

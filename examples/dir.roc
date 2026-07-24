@@ -4,35 +4,28 @@ app [Context, program] {
 }
 
 import pf.Stdout
-import pf.Env
 import pf.Server
 import pf.Path
 import http.Response
 
 # To run this example: check the root README.md
 
-Context : {}
+Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, _)
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	cwd = Env.cwd!()?
-	Stdout.line!("The current working directory is ${Path.display(cwd)}")?
-
-	Env.set_cwd!(Path.utf8("examples/"))?
-	Stdout.line!("Set cwd to examples/")?
-
-	paths = Path.list!(Path.utf8("./"))?
+	paths = Path.list!(Path.utf8("examples")) ? |_| Exit(1)
 	paths_str = Str.join_with(paths.map(Path.display), "\n")
-	Stdout.line!("The paths are;\n${paths_str}")?
+	Stdout.line!("Entries in examples/:\n${paths_str}") ? |_| Exit(1)
 
-	Ok({ config: Server.default_config, context: {} })
+	Ok({ config: Server.default_config, context: paths_str })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, _state|
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("See example in init! function."))))
+respond! = |_request, paths_str|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(paths_str))))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

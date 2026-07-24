@@ -14,15 +14,14 @@ Context : Str
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
-init! = ||
-	match Path.read_utf8!(Path.utf8("examples/file-read.roc")) {
-		Ok(contents) => Ok({ config: Server.default_config, context: "Source code of current program:\n\n${contents}" })
-		Err(_) => Err(Exit(1))
-	}
+init! = || {
+	contents = Path.read_utf8!(Path.utf8("examples/file-read.roc")) ? |_| Exit(1)
+	Ok({ config: Server.default_config, context: "Source code of current program:\n\n${contents}" })
+}
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_request, contents|
 	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(contents))))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

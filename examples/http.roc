@@ -33,18 +33,16 @@ demo! = || {
 	}
 
 	# GET a JSON body and decode it into a Roc record.
-	{
-		json_result : Try({ foo : Str }, _)
-		json_result = Http.get!("http://localhost:9000")
+	json_result : Try({ foo : Str }, _)
+	json_result = Http.get!("http://localhost:9000")
 
-		match json_result {
-			Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")?
-			Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
-		}
+	match json_result {
+		Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")?
+		Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
 	}
 
 	# Getting a Response record.
-	html_url : Url.Url
+	html_url : Url
 	html_url = "http://localhost:9000/htmltest"
 
 	request = 
@@ -63,16 +61,16 @@ demo! = || {
 	}
 
 	# Same request with a custom Accept header.
-	request_2 = 
+	html_request = 
 		Request.from_method(GET)
 			.with_uri(Url.to_str(html_url))
 			.with_headers([{ name: "Accept", value: "text/html" }])
 			.with_timeout(TimeoutMilliseconds(5000))
 
-	match Http.send!(request_2) {
-		Ok(response_2) => {
-			body_str_2 = Str.from_utf8(response_2.body())?
-			Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
+	match Http.send!(html_request) {
+		Ok(html_response) => {
+			html_body = Str.from_utf8(html_response.body())?
+			Stdout.line!("Response body 2:\n\t${html_body}.\n")?
 			Ok({})
 		}
 		Err(err) => {
@@ -83,7 +81,7 @@ demo! = || {
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |server_request, _state| {
+respond! = |server_request, _context| {
 	if server_request.target() == "/limit" {
 		request = Request.from_method(GET).with_uri("http://localhost:9000/large")
 		config = Http.default_config.with_max_response_bytes(8)
@@ -114,4 +112,4 @@ text_response = |body|
 	)
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

@@ -29,7 +29,7 @@ init! = ||
 	})
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |request, _state|
+respond! = |request, _context|
 	if request.target() == "/fast" {
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Immediate response"))))
 	} else {
@@ -41,4 +41,4 @@ respond! = |request, _state|
 	}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

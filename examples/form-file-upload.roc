@@ -19,7 +19,7 @@ init! = || {
 	Ok({ config, context: {} })
 }
 
-upload_form : Response.Response
+upload_form : Response
 upload_form = 
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
@@ -43,60 +43,60 @@ upload_form =
 			),
 		)
 
-display_uploaded_image! : Server.Request => Try(Response.Response, [ServerErr(Str), ..])
+display_uploaded_image! : Server.Request => Try(Response, [ServerErr(Str), ..])
 display_uploaded_image! = |req| {
 	body = req.body().with_limit(10 * 1024 * 1024).read_all!()
 		? |err| ServerErr("Failed to read multipart form-data: ${Str.inspect(err)}")
-	parts = 
-		MultipartFormData.parse_multipart_form_data({
-			headers: req.headers(),
-			body,
-		})
-			? |err| ServerErr("Failed to parse multipart form-data: ${Str.inspect(err)}")
 
-	match parts.first() {
-		Ok(part) => {
-			img = base64_encode(part.data)
-			page = 
-				Str.to_utf8(
-					\\<!DOCTYPE html>
-					\\<html lang="en">
-					\\    <head>
-					\\        <meta charset="UTF-8">
-					\\        <title>Embedded Image</title>
-					\\        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-					\\        <style>
-					\\            .image-container {
-					\\                height: 200px;
-					\\                background-image: url('data:image/png;base64,${img}');
-					\\                background-repeat: no-repeat;
-					\\                background-size: contain;
-					\\                background-position: center;
-					\\            }
-					\\        </style>
-					\\    </head>
-					\\    <body>
-					\\        <h1>You uploaded:</h1>
-					\\        <div class="image-container"></div>
-					\\    </body>
-					\\</html>
-					,
-				)
+	match MultipartFormData.parse_multipart_form_data({
+		headers: req.headers(),
+		body,
+	}) {
+		Err(_) => Ok(text_response(400, "Malformed multipart form data."))
+		Ok(parts) =>
+			match parts.find_first(is_png_upload) {
+				Ok(part) => {
+					img = base64_encode(part.data)
+					page = 
+						Str.to_utf8(
+							\\<!DOCTYPE html>
+							\\<html lang="en">
+							\\    <head>
+							\\        <meta charset="UTF-8">
+							\\        <title>Embedded Image</title>
+							\\        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+							\\        <style>
+							\\            .image-container {
+							\\                height: 200px;
+							\\                background-image: url('data:image/png;base64,${img}');
+							\\                background-repeat: no-repeat;
+							\\                background-size: contain;
+							\\                background-position: center;
+							\\            }
+							\\        </style>
+							\\    </head>
+							\\    <body>
+							\\        <h1>You uploaded:</h1>
+							\\        <div class="image-container"></div>
+							\\    </body>
+							\\</html>
+							,
+						)
 
-			Ok(
-				Response.from_status(200)
-					.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
-					.with_body(page),
-			)
-		}
+					Ok(
+						Response.from_status(200)
+							.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
+							.with_body(page),
+					)
+				}
 
-		Err(_) =>
-			Ok(Response.from_status(400).with_body(Str.to_utf8("No file part found.")))
+				Err(_) => Ok(text_response(400, "Expected a PNG in the fileToUpload field."))
+			}
 		}
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, _state|
+respond! = |req, _context|
 	match req.method() {
 		GET => Ok(Server.respond(upload_form))
 		POST => Ok(Server.respond(display_uploaded_image!(req)?))
@@ -104,14 +104,29 @@ respond! = |req, _state|
 	}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})
+
+png_signature : List(U8)
+png_signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+
+is_png_upload : MultipartFormData.FormData -> Bool
+is_png_upload = |part| {
+	disposition = Str.from_utf8(part.disposition) ?? ""
+	media_type = Str.from_utf8(part.type) ?? ""
+
+	Str.contains(disposition, "name=\"fileToUpload\"")
+		and media_type == " image/png"
+			and List.starts_with(part.data, png_signature)
+}
+
+text_response : U16, Str -> Response
+text_response = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8(body))
 
 base64_encode : List(U8) -> Str
-base64_encode = |bytes|
-	match Str.from_utf8(base64_bytes(bytes, [])) {
-		Ok(str) => str
-		Err(_) => ""
-	}
+base64_encode = |bytes| Str.from_utf8(base64_bytes(bytes, [])) ?? ""
 
 base64_alphabet : List(U8)
 base64_alphabet = Str.to_utf8("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
@@ -149,13 +164,9 @@ base64_quad = |a, b, c, byte_count| {
 }
 
 base64_byte : U64 -> U8
-base64_byte = |index|
-	match base64_alphabet.get(index) {
-		Ok(byte) => byte
-		Err(_) => 'A'
-	}
+base64_byte = |index| base64_alphabet.get(index) ?? 'A'
 
-## `base64_encode` handles padding.
+# `base64_encode` handles padding.
 expect {
 	base64_encode(Str.to_utf8("")) == ""
 		and base64_encode(Str.to_utf8("f")) == "Zg=="

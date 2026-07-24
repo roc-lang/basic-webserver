@@ -10,7 +10,7 @@ import http.Response
 
 # To run this example: check the root README.md
 
-## Echo server: logs the request method/uri and replies with the request body.
+# Echo server: logs the request method/URI and replies with the request body.
 
 Context : {}
 
@@ -20,7 +20,7 @@ init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..]
 init! = || Ok({ config: Server.default_config, context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, _state| {
+respond! = |req, _context| {
 	time = Utc.to_iso_8601(Utc.now!())
 
 	Stdout.line!("${time} ${Str.inspect(req.method())} ${req.target()}")
@@ -31,4 +31,4 @@ respond! = |req, _state| {
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

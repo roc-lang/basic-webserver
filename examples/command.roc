@@ -96,4 +96,4 @@ text_response : Str -> Server.Outcome
 text_response = |body| Server.respond(Response.from_status(200).with_body(Str.to_utf8(body)))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

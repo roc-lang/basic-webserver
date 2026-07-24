@@ -8,28 +8,27 @@ import pf.Server
 import pf.Path
 import http.Response
 
-Context : {}
+Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, _)
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
 	file = Path.utf8("LICENSE")
 
-	is_executable = Path.is_executable!(file)?
+	is_executable = Path.is_executable!(file) ? |_| Exit(1)
+	is_readable = Path.is_readable!(file) ? |_| Exit(1)
+	is_writable = Path.is_writable!(file) ? |_| Exit(1)
+	summary = "${Path.display(file)} file permissions:\nExecutable: ${Str.inspect(is_executable)}\nReadable: ${Str.inspect(is_readable)}\nWritable: ${Str.inspect(is_writable)}"
 
-	is_readable = Path.is_readable!(file)?
+	Stdout.line!(summary) ? |_| Exit(1)
 
-	is_writable = Path.is_writable!(file)?
-
-	Stdout.line!("${Path.display(file)} file permissions:\n    Executable: ${Str.inspect(is_executable)}\n    Readable: ${Str.inspect(is_readable)}\n    Writable: ${Str.inspect(is_writable)}")?
-
-	Ok({ config: Server.default_config, context: {} })
+	Ok({ config: Server.default_config, context: summary })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, _state|
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("See example in init! function."))))
+respond! = |_request, summary|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(summary))))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})

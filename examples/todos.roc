@@ -5,7 +5,6 @@ app [Context, program] {
 }
 
 import pf.Env
-import pf.MultipartFormData
 import pf.Path
 import pf.Server
 import pf.Sqlite
@@ -18,9 +17,13 @@ import "todos.html" as todo_html : List(U8)
 # To run this example: check the root README.md.
 # Set `DB_PATH` to override the default database path (`./examples/todos.db`).
 
-Context : Path.Path
+Context : Path
 
-Todo : { id : I64, task : Str, status : Str }
+TodoStatus : [Todo, Planned, Completed, InProgress]
+
+Todo : { id : I64, task : Str, status : TodoStatus }
+
+CreateTodoBody : { task : Str, status : Str }
 
 program = { init!, respond!, shutdown! }
 
@@ -44,7 +47,7 @@ respond! = |req, db_path|
 		Err(err) => Err(ServerErr(Str.inspect(err)))
 	}
 
-handle_req! : Server.Request, Path.Path => Try(Response.Response, _)
+handle_req! : Server.Request, Path => Try(Response, _)
 handle_req! = |req, db_path| {
 	log_request!(req)?
 
@@ -53,31 +56,27 @@ handle_req! = |req, db_path| {
 
 	match path_parts {
 		["", ""] => Ok(html_response(200, todo_html))
-		["", "todos"] => route_todos!(db_path, req, request_url)
-		["", "todos", ..] => route_todos!(db_path, req, request_url)
+		["", "todos"] => route_todos!(db_path, req)
+		["", "todos", ..] => route_todos!(db_path, req)
 		_ => Ok(text_response(404, "URL Not Found (404)"))
 	}
 }
 
-todo_origin : Url.Url
+todo_origin : Url
 todo_origin = "http://localhost"
 
-route_todos! : Path.Path, Server.Request, Url.Url => Try(Response.Response, _)
-route_todos! = |db_path, req, request_url|
+route_todos! : Path, Server.Request => Try(Response, _)
+route_todos! = |db_path, req|
 	match req.method() {
 		GET => list_todos!(db_path)
 
-		POST =>
-			match task_from_query(request_url) {
-				Ok(params) => create_todo!(db_path, params)
-				Err(_) => Ok(text_response(400, "Invalid query string; expected ?task=foo&status=bar"))
-			}
+		POST => create_todo_from_request!(db_path, req)
 
 		other_method =>
 			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${req.target()}"))
 		}
 
-list_todos! : Path.Path => Try(Response.Response, _)
+list_todos! : Path => Try(Response, _)
 list_todos! = |db_path| {
 	todos = 
 		Sqlite.query_many!({
@@ -91,7 +90,37 @@ list_todos! = |db_path| {
 	Ok(json_response(todos))
 }
 
-create_todo! : Path.Path, { task : Str, status : Str } => Try(Response.Response, _)
+create_todo_from_request! : Path, Server.Request => Try(Response, _)
+create_todo_from_request! = |db_path, req| {
+	body = req.body().with_limit(16 * 1024).read_all!()
+		? |err| RequestErr(Str.inspect(err))
+	json = 
+		match Str.from_utf8(body) {
+			Ok(value) => value
+			Err(_) => return Ok(text_response(400, "Request body must be valid UTF-8 JSON."))
+		}
+
+	decoded_result : Try(CreateTodoBody, [InvalidJson(Str), MissingRequiredField(Str)])
+	decoded_result = Json.parse(json)
+	decoded = 
+		match decoded_result {
+			Ok(value) => value
+			Err(_) => return Ok(text_response(400, "Expected JSON with string fields \"task\" and \"status\"."))
+		}
+	status = 
+		match parse_todo_status(decoded.status) {
+			Ok(value) => value
+			Err(_) => return Ok(text_response(400, "Status must be \"todo\", \"planned\", \"completed\", or \"in-progress\"."))
+		}
+
+	if Str.is_empty(decoded.task) {
+		Ok(text_response(400, "Task must not be empty."))
+	} else {
+		create_todo!(db_path, { task: decoded.task, status })
+	}
+}
+
+create_todo! : Path, { task : Str, status : TodoStatus } => Try(Response, _)
 create_todo! = |db_path, params| {
 	todo = 
 		Sqlite.query!({
@@ -99,7 +128,7 @@ create_todo! = |db_path, params| {
 			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",
 			bindings: [
 				{ name: ":task", value: String(params.task) },
-				{ name: ":status", value: String(params.status) },
+				{ name: ":status", value: String(todo_status_to_str(params.status)) },
 			],
 			row: decode_todo,
 		})
@@ -114,29 +143,32 @@ decode_todo = |cols|
 	|stmt| {
 		id = Sqlite.i64("id")(cols)(stmt)?
 		task = Sqlite.str("task")(cols)(stmt)?
-		status = Sqlite.str("status")(cols)(stmt)?
+		status_str = Sqlite.str("status")(cols)(stmt)?
+		status = parse_todo_status(status_str) ? |_| InvalidStoredStatus(status_str)
 
 		Ok({ id, task, status })
 	}
 
-task_from_query : Url.Url -> Try({ task : Str, status : Str }, [InvalidQuery])
-task_from_query = |url| {
-	query = 
-		match Url.query(url) {
-			None => return Err(InvalidQuery)
-			Some(value) => value
-		}
-	params = 
-		MultipartFormData.parse_form_url_encoded(Str.to_utf8(query))
-			? |_| InvalidQuery
+parse_todo_status : Str -> Try(TodoStatus, [InvalidTodoStatus])
+parse_todo_status = |status|
+	match status {
+		"todo" => Ok(Todo)
+		"planned" => Ok(Planned)
+		"completed" => Ok(Completed)
+		"in-progress" => Ok(InProgress)
+		_ => Err(InvalidTodoStatus)
+	}
 
-	task = Dict.get(params, "task") ? |_| InvalidQuery
-	status = Dict.get(params, "status") ? |_| InvalidQuery
+todo_status_to_str : TodoStatus -> Str
+todo_status_to_str = |status|
+	match status {
+		Todo => "todo"
+		Planned => "planned"
+		Completed => "completed"
+		InProgress => "in-progress"
+	}
 
-	Ok({ task, status })
-}
-
-ensure_schema! : Path.Path => Try({}, _)
+ensure_schema! : Path => Try({}, _)
 ensure_schema! = |db_path|
 	Sqlite.execute!({
 		path: db_path,
@@ -147,24 +179,37 @@ ensure_schema! = |db_path|
 log_request! : Server.Request => Try({}, _)
 log_request! = |req| {
 	datetime = Utc.to_iso_8601(Utc.now!())
-	Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}") ? |err| StdoutErr(Str.inspect(err)))
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+		? |err| StdoutErr(Str.inspect(err))
+	Ok({})
 }
 
-json_response : List(Todo) -> Response.Response
-json_response = |todos|
+json_response : List(Todo) -> Response
+json_response = |todos| {
+	json_todos = todos.map(
+		|todo| {
+			id: todo.id,
+			task: todo.task,
+			status: todo_status_to_str(todo.status),
+		},
+	)
+
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "application/json; charset=utf-8" }])
-		.with_body(Str.to_utf8(Json.to_str(todos)))
+		.with_body(Str.to_utf8(Json.to_str(json_todos)))
+}
 
-html_response : U16, List(U8) -> Response.Response
+html_response : U16, List(U8) -> Response
 html_response = |status, bytes|
 	Response.from_status(status)
 		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 		.with_body(bytes)
 
-text_response : U16, Str -> Response.Response
+text_response : U16, Str -> Response
 text_response = |status, body|
-	html_response(status, Str.to_utf8(body))
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8(body))
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
-shutdown! = |_, _| Ok({})
+shutdown! = |_reason, _context| Ok({})
