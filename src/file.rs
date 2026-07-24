@@ -2,6 +2,7 @@ use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::fs;
 use std::io::{self, BufRead, BufReader};
+use std::sync::Mutex;
 
 use crate::abi::{
     io_err_from_io, roc_host, FileBoolResult, FileBoolResultPayload, FileBoolResultTag,
@@ -14,6 +15,7 @@ use crate::abi::{
     FileWriteBytesResultTag, FileWriteUtf8Result, FileWriteUtf8ResultPayload,
     FileWriteUtf8ResultTag,
 };
+use crate::capability::{try_lock, CapabilityLockError};
 use crate::path::{path_buf_from_raw_path, IntoRawPath};
 use crate::roc_platform_abi::*;
 
@@ -286,7 +288,7 @@ pub extern "C" fn hosted_file_read_utf8(path: HostFileReadUtf8Args) -> FileStrRe
 const FILE_READER_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
 fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 {
-    let raw: *mut BufReader<fs::File> = Box::into_raw(Box::new(reader));
+    let raw: *mut Mutex<BufReader<fs::File>> = Box::into_raw(Box::new(Mutex::new(reader)));
     // SAFETY: the payload is initialized immediately below as a u64 containing
     // the owned reader pointer, matching the requested layout.
     let boxed = unsafe {
@@ -303,13 +305,13 @@ fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 
     boxed as *mut u64
 }
 
-unsafe fn file_reader_ref<'a>(handle: *mut u64) -> &'a mut BufReader<fs::File> {
-    &mut *(*handle as *mut BufReader<fs::File>)
+unsafe fn file_reader_ref<'a>(handle: *mut u64) -> &'a Mutex<BufReader<fs::File>> {
+    &*(*handle as *const Mutex<BufReader<fs::File>>)
 }
 
 extern "C" fn drop_file_reader(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
     unsafe {
-        let raw = *(data_ptr as *mut u64) as *mut BufReader<fs::File>;
+        let raw = *(data_ptr as *mut u64) as *mut Mutex<BufReader<fs::File>>;
         if !raw.is_null() {
             drop(Box::from_raw(raw));
         }
@@ -358,12 +360,23 @@ pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResul
     let roc_host = roc_host();
     let result = {
         let reader = unsafe { file_reader_ref(handle) };
-        let mut buffer = Vec::new();
-        match reader.read_until(b'\n', &mut buffer) {
-            Ok(_) => try_file_reader_line_ok(unsafe {
-                RocListWith::<u8, false>::from_slice(&buffer, roc_host)
-            }),
-            Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
+        match try_lock(reader) {
+            Ok(mut reader) => {
+                let mut buffer = Vec::new();
+                match reader.read_until(b'\n', &mut buffer) {
+                    Ok(_) => try_file_reader_line_ok(unsafe {
+                        RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                    }),
+                    Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
+                }
+            }
+            Err(CapabilityLockError::Busy) => try_file_reader_line_err(crate::abi::io_err_other(
+                "file reader is already in use",
+                roc_host,
+            )),
+            Err(CapabilityLockError::Poisoned) => try_file_reader_line_err(
+                crate::abi::io_err_other("file reader is unavailable", roc_host),
+            ),
         }
     };
     release_file_reader(handle, roc_host);

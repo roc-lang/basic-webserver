@@ -10,7 +10,8 @@ File :: [].{
 	## Represents a buffered file reader.
 	##
 	## The file is automatically closed when the last reference to the reader is
-	## dropped. It wraps an opaque host-side `BufReader<File>` handle.
+	## dropped. The host synchronizes its cursor, so it is safe to retain in
+	## application context. Concurrent reads saturate with `FileErr(Other(...))`.
 	Reader :: { host : Host.FileReader }.{
 
 		## Render the reader without exposing its host handle.

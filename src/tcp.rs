@@ -2,6 +2,7 @@ use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use std::sync::Mutex;
 
 use crate::abi::{
     roc_host, TcpHostConnectResult, TcpHostConnectResultPayload, TcpHostConnectResultTag,
@@ -9,12 +10,13 @@ use crate::abi::{
     TcpHostReadUpToResultPayload, TcpHostReadUpToResultTag, TcpHostWriteResult,
     TcpHostWriteResultPayload, TcpHostWriteResultTag,
 };
+use crate::capability::{try_lock, CapabilityLockError};
 use crate::roc_platform_abi::*;
 
 const TCP_STREAM_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
 fn box_tcp_stream(stream: BufReader<TcpStream>, roc_host: &RocHost) -> *mut u64 {
-    let raw: *mut BufReader<TcpStream> = Box::into_raw(Box::new(stream));
+    let raw: *mut Mutex<BufReader<TcpStream>> = Box::into_raw(Box::new(Mutex::new(stream)));
     // SAFETY: the payload is initialized immediately below as a u64 containing
     // the owned stream pointer, matching this layout.
     let boxed = unsafe {
@@ -31,13 +33,13 @@ fn box_tcp_stream(stream: BufReader<TcpStream>, roc_host: &RocHost) -> *mut u64 
     boxed as *mut u64
 }
 
-unsafe fn tcp_stream_ref<'a>(handle: *mut u64) -> &'a mut BufReader<TcpStream> {
-    &mut *(*handle as *mut BufReader<TcpStream>)
+unsafe fn tcp_stream_ref<'a>(handle: *mut u64) -> &'a Mutex<BufReader<TcpStream>> {
+    &*(*handle as *const Mutex<BufReader<TcpStream>>)
 }
 
 extern "C" fn drop_tcp_stream(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
     unsafe {
-        let raw = *(data_ptr as *mut u64) as *mut BufReader<TcpStream>;
+        let raw = *(data_ptr as *mut u64) as *mut Mutex<BufReader<TcpStream>>;
         if !raw.is_null() {
             drop(Box::from_raw(raw));
         }
@@ -171,6 +173,14 @@ fn try_tcp_write_err(error: RocStr) -> TcpHostWriteResult {
     }
 }
 
+fn tcp_stream_busy(roc_host: &RocHost) -> RocStr {
+    RocStr::from_str("StreamBusy", roc_host)
+}
+
+fn tcp_stream_unavailable(roc_host: &RocHost) -> RocStr {
+    RocStr::from_str("StreamNotFound", roc_host)
+}
+
 #[no_mangle]
 pub extern "C" fn hosted_tcp_connect(host: RocStr, port: u16) -> TcpHostConnectResult {
     let roc_host = roc_host();
@@ -194,16 +204,24 @@ pub extern "C" fn hosted_tcp_read_up_to(
     let roc_host = roc_host();
     let result = {
         let stream = unsafe { tcp_stream_ref(handle) };
-        let mut chunk = stream.take(bytes_to_read);
-        match chunk.fill_buf() {
-            Ok(received) => {
-                let received = received.to_vec();
-                stream.consume(received.len());
-                try_tcp_read_ok(unsafe {
-                    RocListWith::<u8, false>::from_slice(&received, roc_host)
-                })
+        match try_lock(stream) {
+            Ok(mut stream) => {
+                let mut chunk = stream.by_ref().take(bytes_to_read);
+                match chunk.fill_buf() {
+                    Ok(received) => {
+                        let received = received.to_vec();
+                        stream.consume(received.len());
+                        try_tcp_read_ok(unsafe {
+                            RocListWith::<u8, false>::from_slice(&received, roc_host)
+                        })
+                    }
+                    Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+                }
             }
-            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+            Err(CapabilityLockError::Busy) => try_tcp_read_err(tcp_stream_busy(roc_host)),
+            Err(CapabilityLockError::Poisoned) => {
+                try_tcp_read_err(tcp_stream_unavailable(roc_host))
+            }
         }
     };
     release_tcp_stream(handle, roc_host);
@@ -218,19 +236,27 @@ pub extern "C" fn hosted_tcp_read_exactly(
     let roc_host = roc_host();
     let result = {
         let stream = unsafe { tcp_stream_ref(handle) };
-        let mut buffer = Vec::with_capacity(bytes_to_read as usize);
-        let mut chunk = stream.take(bytes_to_read);
-        match chunk.read_to_end(&mut buffer) {
-            Ok(read) => {
-                if (read as u64) < bytes_to_read {
-                    try_tcp_read_err(RocStr::from_str("UnexpectedEof", roc_host))
-                } else {
-                    try_tcp_read_ok(unsafe {
-                        RocListWith::<u8, false>::from_slice(&buffer, roc_host)
-                    })
+        match try_lock(stream) {
+            Ok(mut stream) => {
+                let mut buffer = Vec::with_capacity(bytes_to_read as usize);
+                let mut chunk = stream.by_ref().take(bytes_to_read);
+                match chunk.read_to_end(&mut buffer) {
+                    Ok(read) => {
+                        if (read as u64) < bytes_to_read {
+                            try_tcp_read_err(RocStr::from_str("UnexpectedEof", roc_host))
+                        } else {
+                            try_tcp_read_ok(unsafe {
+                                RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                            })
+                        }
+                    }
+                    Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
                 }
             }
-            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+            Err(CapabilityLockError::Busy) => try_tcp_read_err(tcp_stream_busy(roc_host)),
+            Err(CapabilityLockError::Poisoned) => {
+                try_tcp_read_err(tcp_stream_unavailable(roc_host))
+            }
         }
     };
     release_tcp_stream(handle, roc_host);
@@ -242,11 +268,17 @@ pub extern "C" fn hosted_tcp_read_until(handle: *mut u64, byte: u8) -> TcpHostRe
     let roc_host = roc_host();
     let result = {
         let stream = unsafe { tcp_stream_ref(handle) };
-        match tcp_read_until_impl(stream, byte) {
-            Ok(buffer) => {
-                try_tcp_read_ok(unsafe { RocListWith::<u8, false>::from_slice(&buffer, roc_host) })
+        match try_lock(stream) {
+            Ok(mut stream) => match tcp_read_until_impl(&mut stream, byte) {
+                Ok(buffer) => try_tcp_read_ok(unsafe {
+                    RocListWith::<u8, false>::from_slice(&buffer, roc_host)
+                }),
+                Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
+            },
+            Err(CapabilityLockError::Busy) => try_tcp_read_err(tcp_stream_busy(roc_host)),
+            Err(CapabilityLockError::Poisoned) => {
+                try_tcp_read_err(tcp_stream_unavailable(roc_host))
             }
-            Err(err) => try_tcp_read_err(to_tcp_stream_err(err, roc_host)),
         }
     };
     release_tcp_stream(handle, roc_host);
@@ -261,9 +293,15 @@ pub extern "C" fn hosted_tcp_write(
     let roc_host = roc_host();
     let result = {
         let stream = unsafe { tcp_stream_ref(handle) };
-        match stream.get_mut().write_all(msg.as_slice()) {
-            Ok(()) => try_tcp_write_ok(),
-            Err(err) => try_tcp_write_err(to_tcp_stream_err(err, roc_host)),
+        match try_lock(stream) {
+            Ok(mut stream) => match stream.get_mut().write_all(msg.as_slice()) {
+                Ok(()) => try_tcp_write_ok(),
+                Err(err) => try_tcp_write_err(to_tcp_stream_err(err, roc_host)),
+            },
+            Err(CapabilityLockError::Busy) => try_tcp_write_err(tcp_stream_busy(roc_host)),
+            Err(CapabilityLockError::Poisoned) => {
+                try_tcp_write_err(tcp_stream_unavailable(roc_host))
+            }
         }
     };
     unsafe { msg.decref(roc_host) };

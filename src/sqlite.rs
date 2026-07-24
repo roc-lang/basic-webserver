@@ -1,7 +1,9 @@
 use core::ffi::c_void;
 use core::mem::ManuallyDrop;
-use std::cell::RefCell;
 use std::ffi::{c_char, c_int, CStr, CString};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard};
+use std::thread::ThreadId;
 
 use crate::abi::{
     roc_host, SqliteHostBindResult, SqliteHostBindResultPayload, SqliteHostBindResultTag,
@@ -10,6 +12,7 @@ use crate::abi::{
     SqliteHostPrepareResultTag, SqliteHostStepResult, SqliteHostStepResultPayload,
     SqliteHostStepResultTag,
 };
+use crate::capability::{try_lock, CapabilityLockError};
 use crate::roc_platform_abi::*;
 
 type SqliteValue = BytesOrIntegerOrNullOrRealOrString;
@@ -19,27 +22,88 @@ type SqliteError = HostSqlitePrepareErr;
 type SqliteBindings = HostSqliteBindArg1;
 
 const SQLITE_STMT_BOX_ALIGN: usize = core::mem::align_of::<u64>();
+const SQLITE_BUSY_TIMEOUT_MS: c_int = 1_000;
+const MAX_OPEN_SQLITE_STATEMENTS: usize = 64;
+
+static OPEN_SQLITE_STATEMENTS: AtomicUsize = AtomicUsize::new(0);
+
+struct SqliteStatementPermit;
+
+impl SqliteStatementPermit {
+    fn acquire() -> Option<Self> {
+        OPEN_SQLITE_STATEMENTS
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |open| {
+                (open < MAX_OPEN_SQLITE_STATEMENTS).then_some(open + 1)
+            })
+            .ok()
+            .map(|_| Self)
+    }
+}
+
+impl Drop for SqliteStatementPermit {
+    fn drop(&mut self) {
+        let previous = OPEN_SQLITE_STATEMENTS.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0, "SQLite statement accounting underflow");
+    }
+}
+
+#[derive(Default)]
+struct StatementLease {
+    owner: Option<ThreadId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatementLeaseError {
+    Busy,
+    NotStarted,
+}
+
+impl StatementLease {
+    fn begin(&mut self) -> Result<(), StatementLeaseError> {
+        if self.owner.is_some() {
+            Err(StatementLeaseError::Busy)
+        } else {
+            self.owner = Some(std::thread::current().id());
+            Ok(())
+        }
+    }
+
+    fn validate(&self) -> Result<(), StatementLeaseError> {
+        match self.owner {
+            Some(owner) if owner == std::thread::current().id() => Ok(()),
+            Some(_) => Err(StatementLeaseError::Busy),
+            None => Err(StatementLeaseError::NotStarted),
+        }
+    }
+
+    fn finish(&mut self) -> Result<(), StatementLeaseError> {
+        self.validate()?;
+        self.owner = None;
+        Ok(())
+    }
+}
 
 struct SqliteStatement {
     connection: *mut libsqlite3_sys::sqlite3,
     stmt: *mut libsqlite3_sys::sqlite3_stmt,
+    lease: StatementLease,
+    _permit: SqliteStatementPermit,
 }
+
+// The connection is opened in SQLite's serialized mode and every access to the
+// statement and connection is guarded by the containing Mutex.
+unsafe impl Send for SqliteStatement {}
 
 impl Drop for SqliteStatement {
     fn drop(&mut self) {
         unsafe {
             libsqlite3_sys::sqlite3_finalize(self.stmt);
+            let closed = libsqlite3_sys::sqlite3_close(self.connection);
+            debug_assert_eq!(closed, libsqlite3_sys::SQLITE_OK);
         }
     }
 }
 
-thread_local! {
-    // Connections are cached per database path and live until process exit.
-    static SQLITE_CONNECTIONS: RefCell<Vec<(SqlitePath, *mut libsqlite3_sys::sqlite3)>> =
-        const { RefCell::new(Vec::new()) };
-}
-
-#[derive(Clone, PartialEq, Eq)]
 enum SqlitePath {
     #[cfg(unix)]
     Unix(Vec<u8>),
@@ -48,7 +112,7 @@ enum SqlitePath {
 }
 
 fn box_sqlite_stmt(stmt: SqliteStatement, roc_host: &RocHost) -> *mut u64 {
-    let raw: *mut SqliteStatement = Box::into_raw(Box::new(stmt));
+    let raw: *mut Mutex<SqliteStatement> = Box::into_raw(Box::new(Mutex::new(stmt)));
     // SAFETY: the payload is initialized immediately below as a u64 containing
     // the owned statement pointer, matching this layout.
     let boxed = unsafe {
@@ -65,13 +129,13 @@ fn box_sqlite_stmt(stmt: SqliteStatement, roc_host: &RocHost) -> *mut u64 {
     boxed as *mut u64
 }
 
-unsafe fn sqlite_stmt_ref<'a>(handle: *mut u64) -> &'a mut SqliteStatement {
-    &mut *(*handle as *mut SqliteStatement)
+unsafe fn sqlite_stmt_ref<'a>(handle: *mut u64) -> &'a Mutex<SqliteStatement> {
+    &*(*handle as *const Mutex<SqliteStatement>)
 }
 
 extern "C" fn drop_sqlite_stmt(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
     unsafe {
-        let raw = *(data_ptr as *mut u64) as *mut SqliteStatement;
+        let raw = *(data_ptr as *mut u64) as *mut Mutex<SqliteStatement>;
         if !raw.is_null() {
             drop(Box::from_raw(raw));
         }
@@ -131,6 +195,48 @@ fn sqlite_err_from_stmt(stmt: &SqliteStatement, code: c_int, roc_host: &RocHost)
     sqlite_error(code, &message, roc_host)
 }
 
+fn sqlite_statement_busy(roc_host: &RocHost) -> SqliteError {
+    sqlite_error(
+        libsqlite3_sys::SQLITE_BUSY,
+        "prepared statement is already in use by another handler",
+        roc_host,
+    )
+}
+
+fn sqlite_statement_unavailable(roc_host: &RocHost) -> SqliteError {
+    sqlite_error(
+        libsqlite3_sys::SQLITE_MISUSE,
+        "prepared statement is unavailable",
+        roc_host,
+    )
+}
+
+fn try_lock_sqlite_statement<'a>(
+    statement: &'a Mutex<SqliteStatement>,
+    roc_host: &RocHost,
+) -> Result<MutexGuard<'a, SqliteStatement>, SqliteError> {
+    match try_lock(statement) {
+        Ok(statement) => Ok(statement),
+        Err(CapabilityLockError::Busy) => Err(sqlite_statement_busy(roc_host)),
+        Err(CapabilityLockError::Poisoned) => Err(sqlite_statement_unavailable(roc_host)),
+    }
+}
+
+fn statement_owned_by_current_handler(
+    statement: &SqliteStatement,
+    roc_host: &RocHost,
+) -> Result<(), SqliteError> {
+    match statement.lease.validate() {
+        Ok(()) => Ok(()),
+        Err(StatementLeaseError::Busy) => Err(sqlite_statement_busy(roc_host)),
+        Err(StatementLeaseError::NotStarted) => Err(sqlite_error(
+            libsqlite3_sys::SQLITE_MISUSE,
+            "prepared statement must be bound before use",
+            roc_host,
+        )),
+    }
+}
+
 fn sqlite_path_from_raw(
     path: HostSqlitePrepareArg0,
     roc_host: &RocHost,
@@ -185,7 +291,7 @@ fn sqlite_open_native(path: &SqlitePath) -> Result<*mut libsqlite3_sys::sqlite3,
             })?;
             let flags = libsqlite3_sys::SQLITE_OPEN_CREATE
                 | libsqlite3_sys::SQLITE_OPEN_READWRITE
-                | libsqlite3_sys::SQLITE_OPEN_NOMUTEX;
+                | libsqlite3_sys::SQLITE_OPEN_FULLMUTEX;
             unsafe {
                 libsqlite3_sys::sqlite3_open_v2(
                     cpath.as_ptr(),
@@ -216,24 +322,16 @@ fn sqlite_open_native(path: &SqlitePath) -> Result<*mut libsqlite3_sys::sqlite3,
         }
         Err((err, message))
     } else {
-        Ok(connection)
-    }
-}
-
-fn sqlite_get_connection(
-    path: SqlitePath,
-) -> Result<*mut libsqlite3_sys::sqlite3, (c_int, String)> {
-    SQLITE_CONNECTIONS.with(|cell| {
-        for (conn_path, connection) in cell.borrow().iter() {
-            if conn_path == &path {
-                return Ok(*connection);
-            }
+        let timeout_err =
+            unsafe { libsqlite3_sys::sqlite3_busy_timeout(connection, SQLITE_BUSY_TIMEOUT_MS) };
+        if timeout_err != libsqlite3_sys::SQLITE_OK {
+            let message = sqlite_errmsg(connection, timeout_err);
+            unsafe { libsqlite3_sys::sqlite3_close(connection) };
+            Err((timeout_err, message))
+        } else {
+            Ok(connection)
         }
-
-        let connection = sqlite_open_native(&path)?;
-        cell.borrow_mut().push((path, connection));
-        Ok(connection)
-    })
+    }
 }
 
 fn sqlite_value_integer(value: i64) -> SqliteValue {
@@ -525,7 +623,18 @@ pub extern "C" fn hosted_sqlite_prepare(
     let query_string = query.as_str().to_owned();
     unsafe { query.decref(roc_host) };
 
-    let connection = match sqlite_get_connection(path) {
+    let permit = match SqliteStatementPermit::acquire() {
+        Some(permit) => permit,
+        None => {
+            return try_sqlite_prepare_err(sqlite_error(
+                libsqlite3_sys::SQLITE_BUSY,
+                "SQLite statement capacity is exhausted",
+                roc_host,
+            ));
+        }
+    };
+
+    let connection = match sqlite_open_native(&path) {
         Ok(connection) => connection,
         Err((code, message)) => {
             return try_sqlite_prepare_err(sqlite_error(code, &message, roc_host));
@@ -551,9 +660,11 @@ pub extern "C" fn hosted_sqlite_prepare(
                 libsqlite3_sys::sqlite3_finalize(stmt);
             }
         }
+        unsafe { libsqlite3_sys::sqlite3_close(connection) };
         return try_sqlite_prepare_err(sqlite_error(err, &message, roc_host));
     }
     if stmt.is_null() {
+        unsafe { libsqlite3_sys::sqlite3_close(connection) };
         return try_sqlite_prepare_err(sqlite_error(
             libsqlite3_sys::SQLITE_ERROR,
             "query did not contain a SQL statement",
@@ -571,6 +682,7 @@ pub extern "C" fn hosted_sqlite_prepare(
             {
                 unsafe {
                     libsqlite3_sys::sqlite3_finalize(stmt);
+                    libsqlite3_sys::sqlite3_close(connection);
                 }
                 return try_sqlite_prepare_err(sqlite_error(
                     libsqlite3_sys::SQLITE_ERROR,
@@ -581,7 +693,15 @@ pub extern "C" fn hosted_sqlite_prepare(
         }
     }
 
-    let handle = box_sqlite_stmt(SqliteStatement { connection, stmt }, roc_host);
+    let handle = box_sqlite_stmt(
+        SqliteStatement {
+            connection,
+            stmt,
+            lease: StatementLease::default(),
+            _permit: permit,
+        },
+        roc_host,
+    );
     try_sqlite_prepare_ok(handle)
 }
 
@@ -592,8 +712,24 @@ pub extern "C" fn hosted_sqlite_bind(
 ) -> SqliteHostBindResult {
     let roc_host = roc_host();
     let result = {
-        let stmt = unsafe { sqlite_stmt_ref(handle) };
-        sqlite_bind_all(stmt, bindings.as_slice(), roc_host)
+        let statement = unsafe { sqlite_stmt_ref(handle) };
+        match try_lock_sqlite_statement(statement, roc_host) {
+            Ok(mut statement) => {
+                if statement.lease.begin().is_err() {
+                    try_sqlite_unit_err(sqlite_statement_busy(roc_host))
+                } else {
+                    let result = sqlite_bind_all(&mut statement, bindings.as_slice(), roc_host);
+                    if !matches!(result.tag, SqliteHostBindResultTag::Ok) {
+                        statement
+                            .lease
+                            .finish()
+                            .expect("newly acquired SQLite statement lease is owned");
+                    }
+                    result
+                }
+            }
+            Err(error) => try_sqlite_unit_err(error),
+        }
     };
     for binding in bindings.as_slice() {
         unsafe { binding.decref(roc_host) };
@@ -606,23 +742,36 @@ pub extern "C" fn hosted_sqlite_bind(
 #[no_mangle]
 pub extern "C" fn hosted_sqlite_columns(handle: *mut u64) -> RocList<RocStr> {
     let roc_host = roc_host();
-    let stmt = unsafe { sqlite_stmt_ref(handle) };
-    let count = unsafe { libsqlite3_sys::sqlite3_column_count(stmt.stmt) }.max(0) as usize;
-    // SAFETY: every allocated element is initialized below before return.
-    let list = unsafe { RocList::<RocStr>::allocate(count, roc_host) };
-    for index in 0..count {
-        let name = unsafe {
-            let raw = libsqlite3_sys::sqlite3_column_name(stmt.stmt, index as c_int);
-            if raw.is_null() {
-                RocStr::from_str("", roc_host)
-            } else {
-                RocStr::from_str(CStr::from_ptr(raw).to_string_lossy().as_ref(), roc_host)
+    let list = {
+        let statement = unsafe { sqlite_stmt_ref(handle) };
+        match try_lock_sqlite_statement(statement, roc_host) {
+            Ok(statement) if statement_owned_by_current_handler(&statement, roc_host).is_ok() => {
+                let count =
+                    unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }.max(0) as usize;
+                // SAFETY: every allocated element is initialized below before return.
+                let list = unsafe { RocList::<RocStr>::allocate(count, roc_host) };
+                for index in 0..count {
+                    let name = unsafe {
+                        let raw =
+                            libsqlite3_sys::sqlite3_column_name(statement.stmt, index as c_int);
+                        if raw.is_null() {
+                            RocStr::from_str("", roc_host)
+                        } else {
+                            RocStr::from_str(
+                                CStr::from_ptr(raw).to_string_lossy().as_ref(),
+                                roc_host,
+                            )
+                        }
+                    };
+                    unsafe {
+                        list.elements.add(index).write(name);
+                    }
+                }
+                list
             }
-        };
-        unsafe {
-            list.elements.add(index).write(name);
+            _ => unsafe { RocList::<RocStr>::allocate(0, roc_host) },
         }
-    }
+    };
     release_sqlite_stmt(handle, roc_host);
     list
 }
@@ -634,54 +783,71 @@ pub extern "C" fn hosted_sqlite_column_value(
 ) -> SqliteHostColumnValueResult {
     let roc_host = roc_host();
     let result = {
-        let stmt = unsafe { sqlite_stmt_ref(handle) };
-        let count = unsafe { libsqlite3_sys::sqlite3_column_count(stmt.stmt) }.max(0) as u64;
-        if i >= count {
-            try_sqlite_value_err(sqlite_error(
-                libsqlite3_sys::SQLITE_ERROR,
-                &format!("column index out of range: {} of {}", i, count),
-                roc_host,
-            ))
-        } else {
-            let index = i as c_int;
-            let value = unsafe {
-                match libsqlite3_sys::sqlite3_column_type(stmt.stmt, index) {
-                    libsqlite3_sys::SQLITE_INTEGER => {
-                        sqlite_value_integer(libsqlite3_sys::sqlite3_column_int64(stmt.stmt, index))
-                    }
-                    libsqlite3_sys::SQLITE_FLOAT => {
-                        sqlite_value_real(libsqlite3_sys::sqlite3_column_double(stmt.stmt, index))
-                    }
-                    libsqlite3_sys::SQLITE_TEXT => {
-                        let text = libsqlite3_sys::sqlite3_column_text(stmt.stmt, index);
-                        let len =
-                            libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0) as usize;
-                        let slice = if text.is_null() {
-                            &[][..]
-                        } else {
-                            std::slice::from_raw_parts(text, len)
-                        };
-                        sqlite_value_string(RocStr::from_str(
-                            String::from_utf8_lossy(slice).as_ref(),
+        let statement = unsafe { sqlite_stmt_ref(handle) };
+        match try_lock_sqlite_statement(statement, roc_host) {
+            Ok(statement) => match statement_owned_by_current_handler(&statement, roc_host) {
+                Err(error) => try_sqlite_value_err(error),
+                Ok(()) => {
+                    let count = unsafe { libsqlite3_sys::sqlite3_column_count(statement.stmt) }
+                        .max(0) as u64;
+                    if i >= count {
+                        try_sqlite_value_err(sqlite_error(
+                            libsqlite3_sys::SQLITE_ERROR,
+                            &format!("column index out of range: {} of {}", i, count),
                             roc_host,
                         ))
-                    }
-                    libsqlite3_sys::SQLITE_BLOB => {
-                        let blob =
-                            libsqlite3_sys::sqlite3_column_blob(stmt.stmt, index) as *const u8;
-                        let len =
-                            libsqlite3_sys::sqlite3_column_bytes(stmt.stmt, index).max(0) as usize;
-                        let slice = if blob.is_null() {
-                            &[][..]
-                        } else {
-                            std::slice::from_raw_parts(blob, len)
+                    } else {
+                        let index = i as c_int;
+                        let value = unsafe {
+                            match libsqlite3_sys::sqlite3_column_type(statement.stmt, index) {
+                                libsqlite3_sys::SQLITE_INTEGER => sqlite_value_integer(
+                                    libsqlite3_sys::sqlite3_column_int64(statement.stmt, index),
+                                ),
+                                libsqlite3_sys::SQLITE_FLOAT => sqlite_value_real(
+                                    libsqlite3_sys::sqlite3_column_double(statement.stmt, index),
+                                ),
+                                libsqlite3_sys::SQLITE_TEXT => {
+                                    let text =
+                                        libsqlite3_sys::sqlite3_column_text(statement.stmt, index);
+                                    let len =
+                                        libsqlite3_sys::sqlite3_column_bytes(statement.stmt, index)
+                                            .max(0)
+                                            as usize;
+                                    let slice = if text.is_null() {
+                                        &[][..]
+                                    } else {
+                                        std::slice::from_raw_parts(text, len)
+                                    };
+                                    sqlite_value_string(RocStr::from_str(
+                                        String::from_utf8_lossy(slice).as_ref(),
+                                        roc_host,
+                                    ))
+                                }
+                                libsqlite3_sys::SQLITE_BLOB => {
+                                    let blob =
+                                        libsqlite3_sys::sqlite3_column_blob(statement.stmt, index)
+                                            as *const u8;
+                                    let len =
+                                        libsqlite3_sys::sqlite3_column_bytes(statement.stmt, index)
+                                            .max(0)
+                                            as usize;
+                                    let slice = if blob.is_null() {
+                                        &[][..]
+                                    } else {
+                                        std::slice::from_raw_parts(blob, len)
+                                    };
+                                    sqlite_value_bytes(RocListWith::<u8, false>::from_slice(
+                                        slice, roc_host,
+                                    ))
+                                }
+                                _ => sqlite_value_null(),
+                            }
                         };
-                        sqlite_value_bytes(RocListWith::<u8, false>::from_slice(slice, roc_host))
+                        try_sqlite_value_ok(value)
                     }
-                    _ => sqlite_value_null(),
                 }
-            };
-            try_sqlite_value_ok(value)
+            },
+            Err(error) => try_sqlite_value_err(error),
         }
     };
     release_sqlite_stmt(handle, roc_host);
@@ -692,14 +858,22 @@ pub extern "C" fn hosted_sqlite_column_value(
 pub extern "C" fn hosted_sqlite_step(handle: *mut u64) -> SqliteHostStepResult {
     let roc_host = roc_host();
     let result = {
-        let stmt = unsafe { sqlite_stmt_ref(handle) };
-        let err = unsafe { libsqlite3_sys::sqlite3_step(stmt.stmt) };
-        if err == libsqlite3_sys::SQLITE_ROW {
-            try_sqlite_step_ok(true)
-        } else if err == libsqlite3_sys::SQLITE_DONE {
-            try_sqlite_step_ok(false)
-        } else {
-            try_sqlite_step_err(sqlite_err_from_stmt(stmt, err, roc_host))
+        let statement = unsafe { sqlite_stmt_ref(handle) };
+        match try_lock_sqlite_statement(statement, roc_host) {
+            Ok(statement) => match statement_owned_by_current_handler(&statement, roc_host) {
+                Err(error) => try_sqlite_step_err(error),
+                Ok(()) => {
+                    let err = unsafe { libsqlite3_sys::sqlite3_step(statement.stmt) };
+                    if err == libsqlite3_sys::SQLITE_ROW {
+                        try_sqlite_step_ok(true)
+                    } else if err == libsqlite3_sys::SQLITE_DONE {
+                        try_sqlite_step_ok(false)
+                    } else {
+                        try_sqlite_step_err(sqlite_err_from_stmt(&statement, err, roc_host))
+                    }
+                }
+            },
+            Err(error) => try_sqlite_step_err(error),
         }
     };
     release_sqlite_stmt(handle, roc_host);
@@ -710,12 +884,24 @@ pub extern "C" fn hosted_sqlite_step(handle: *mut u64) -> SqliteHostStepResult {
 pub extern "C" fn hosted_sqlite_reset(handle: *mut u64) -> SqliteHostBindResult {
     let roc_host = roc_host();
     let result = {
-        let stmt = unsafe { sqlite_stmt_ref(handle) };
-        let err = unsafe { libsqlite3_sys::sqlite3_reset(stmt.stmt) };
-        if err == libsqlite3_sys::SQLITE_OK {
-            try_sqlite_unit_ok()
-        } else {
-            try_sqlite_unit_err(sqlite_err_from_stmt(stmt, err, roc_host))
+        let statement = unsafe { sqlite_stmt_ref(handle) };
+        match try_lock_sqlite_statement(statement, roc_host) {
+            Ok(mut statement) => match statement_owned_by_current_handler(&statement, roc_host) {
+                Err(error) => try_sqlite_unit_err(error),
+                Ok(()) => {
+                    let err = unsafe { libsqlite3_sys::sqlite3_reset(statement.stmt) };
+                    statement
+                        .lease
+                        .finish()
+                        .expect("validated SQLite statement lease is owned");
+                    if err == libsqlite3_sys::SQLITE_OK {
+                        try_sqlite_unit_ok()
+                    } else {
+                        try_sqlite_unit_err(sqlite_err_from_stmt(&statement, err, roc_host))
+                    }
+                }
+            },
+            Err(error) => try_sqlite_unit_err(error),
         }
     };
     release_sqlite_stmt(handle, roc_host);
@@ -725,6 +911,7 @@ pub extern "C" fn hosted_sqlite_reset(handle: *mut u64) -> SqliteHostBindResult 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
 
     #[test]
     fn first_duplicate_name_returns_first_repeated_name() {
@@ -738,5 +925,62 @@ mod tests {
         let names = [":one", ":two", ":three"];
 
         assert_eq!(first_duplicate_name(names), None);
+    }
+
+    #[test]
+    fn statement_lease_rejects_a_competing_handler_until_finish() {
+        let lease = Arc::new(Mutex::new(StatementLease::default()));
+        lease.lock().unwrap().begin().unwrap();
+
+        let checked = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let worker_lease = Arc::clone(&lease);
+        let worker_checked = Arc::clone(&checked);
+        let worker_release = Arc::clone(&release);
+        let worker = std::thread::spawn(move || {
+            assert_eq!(
+                worker_lease.lock().unwrap().validate(),
+                Err(StatementLeaseError::Busy)
+            );
+            assert_eq!(
+                worker_lease.lock().unwrap().begin(),
+                Err(StatementLeaseError::Busy)
+            );
+            worker_checked.wait();
+            worker_release.wait();
+            worker_lease.lock().unwrap().begin().unwrap();
+            worker_lease.lock().unwrap().finish().unwrap();
+        });
+
+        checked.wait();
+        lease.lock().unwrap().finish().unwrap();
+        release.wait();
+        worker.join().unwrap();
+        assert_eq!(
+            lease.lock().unwrap().validate(),
+            Err(StatementLeaseError::NotStarted)
+        );
+    }
+
+    #[test]
+    fn statement_capacity_is_finite_and_permits_are_released() {
+        let baseline = OPEN_SQLITE_STATEMENTS.load(Ordering::Acquire);
+        let available = MAX_OPEN_SQLITE_STATEMENTS - baseline;
+        let permits = (0..available)
+            .map(|_| SqliteStatementPermit::acquire().expect("capacity should remain"))
+            .collect::<Vec<_>>();
+
+        assert!(SqliteStatementPermit::acquire().is_none());
+        assert_eq!(
+            OPEN_SQLITE_STATEMENTS.load(Ordering::Acquire),
+            MAX_OPEN_SQLITE_STATEMENTS
+        );
+
+        drop(permits);
+        assert_eq!(
+            OPEN_SQLITE_STATEMENTS.load(Ordering::Acquire),
+            baseline,
+            "dropping statement owners must return their capacity"
+        );
     }
 }

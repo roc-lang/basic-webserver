@@ -93,21 +93,14 @@ list_todos! = |db_path| {
 
 create_todo! : Path.Path, { task : Str, status : Str } => Try(Response.Response, _)
 create_todo! = |db_path, params| {
-	Sqlite.execute!({
-		path: db_path,
-		query: "INSERT INTO todos (task, status) VALUES (:task, :status);",
-		bindings: [
-			{ name: ":task", value: String(params.task) },
-			{ name: ":status", value: String(params.status) },
-		],
-	})
-		? |err| DbErr(Str.inspect(err))
-
 	todo = 
 		Sqlite.query!({
 			path: db_path,
-			query: "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();",
-			bindings: [],
+			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",
+			bindings: [
+				{ name: ":task", value: String(params.task) },
+				{ name: ":status", value: String(params.status) },
+			],
 			row: decode_todo,
 		})
 			? |err| DbErr(Str.inspect(err))

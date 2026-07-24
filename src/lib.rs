@@ -8,6 +8,7 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+mod capability;
 mod cmd;
 mod dir;
 mod env;

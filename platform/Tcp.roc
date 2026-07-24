@@ -9,8 +9,9 @@ Tcp :: [].{
 	## Represents a TCP stream.
 	##
 	## The connection is automatically closed when the last reference to the
-	## stream is dropped. It wraps an opaque host-side `BufReader<TcpStream>`
-	## handle.
+	## stream is dropped. The host synchronizes stream access, so it is safe to
+	## retain in application context. A concurrent operation returns
+	## `TcpReadErr(StreamBusy)` or `TcpWriteErr(StreamBusy)`.
 	Stream :: { host : Host.TcpStream }.{
 
 		## Render the stream without exposing its host handle.
@@ -79,6 +80,8 @@ Tcp :: [].{
 	## Represents errors that can occur when performing an effect with a `Stream`.
 	StreamErr : [
 		StreamNotFound,
+		## Another handler is currently reading from or writing to this stream.
+		StreamBusy,
 		PermissionDenied,
 		ConnectionRefused,
 		ConnectionReset,
@@ -118,6 +121,7 @@ Tcp :: [].{
 	stream_err_to_str = |err|
 		match err {
 			StreamNotFound => "StreamNotFound"
+			StreamBusy => "StreamBusy"
 			PermissionDenied => "PermissionDenied"
 			ConnectionRefused => "ConnectionRefused"
 			ConnectionReset => "ConnectionReset"
@@ -145,6 +149,7 @@ parse_connect_err = |err|
 parse_stream_err = |err|
 	match err {
 		"StreamNotFound" => StreamNotFound
+		"StreamBusy" => StreamBusy
 		"ErrorKind::PermissionDenied" => PermissionDenied
 		"ErrorKind::ConnectionRefused" => ConnectionRefused
 		"ErrorKind::ConnectionReset" => ConnectionReset

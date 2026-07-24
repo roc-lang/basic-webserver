@@ -17,8 +17,16 @@ import Path
 ## `Stmt`, and `ErrCode` types below; raw host ABI records remain internal.
 ##
 ## Database paths use basic-cli's byte-preserving `Path` type.
-## See the [host runtime behavior](https://github.com/roc-lang/basic-cli#host-runtime-behavior)
-## for connection caching and lifetime details.
+##
+## Each prepared statement owns one host connection. The connection has a
+## one-second lock wait and is closed when the statement's last reference is
+## dropped. At most 64 statements may be open in one process; preparing beyond
+## that limit returns `SqliteErr(Busy, ...)`.
+##
+## Separate statements never have implicit connection affinity. Use SQL such as
+## `INSERT ... RETURNING` when a result must come from the same operation;
+## `last_insert_rowid()` in a later call does not refer to the earlier call.
+## Multi-statement transactions are not yet exposed by this module.
 Sqlite :: [].{
 
 	## A value accepted by a SQLite binding or returned from a column.
@@ -38,6 +46,10 @@ Sqlite :: [].{
 	}
 
 	## Represents a prepared statement that can be executed many times.
+	##
+	## A statement is safe to retain in application context. One handler claims
+	## it from bind through reset; concurrent use returns `SqliteErr(Busy, ...)`
+	## instead of interleaving the two executions.
 	Stmt :: { host : Host.SqliteStmt }.{
 
 		## Render the statement without exposing its host handle.
