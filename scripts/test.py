@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "scripts" / "test_spec.json"
 VALIDATION_ROOT = ROOT / "target" / "spec"
 DEFAULT_ARTIFACT_DIR = ROOT / "dist" / "example-binaries"
+MEMCHECK_ROOT = ROOT / "target" / "memcheck-spec"
 STAGES = ("fmt", "check", "test", "build", "run")
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
@@ -296,6 +297,123 @@ def prepare_artifact_output(target: str, artifact_dir: Path) -> None:
     output_dir.mkdir(parents=True)
 
 
+def compiler_runtime_input(name: str) -> Path:
+    value = subprocess.check_output(
+        ["cc", f"-print-file-name={name}"], text=True
+    ).strip()
+    path = Path(value)
+    if value == name or not path.is_file():
+        fail(f"C compiler could not locate required x64glibc input {name}")
+    return path.resolve()
+
+
+def prepare_memcheck_binaries(
+    roc: str,
+    defaults: dict[str, bool],
+    apps: list[dict[str, object]],
+) -> dict[str, Path]:
+    if platform.system() != "Linux" or platform.machine().lower() not in {
+        "amd64",
+        "x86_64",
+    }:
+        fail("Memcheck validation currently requires x86-64 Linux")
+    if shutil.which("valgrind") is None:
+        fail("Valgrind is required for --operation memcheck")
+
+    command("cargo", "build", "--locked", "--lib", "--profile", "memcheck")
+
+    if MEMCHECK_ROOT.exists():
+        shutil.rmtree(MEMCHECK_ROOT)
+    platform_dir = MEMCHECK_ROOT / "platform"
+    target_dir = platform_dir / "targets" / "x64glibc"
+    app_dir = MEMCHECK_ROOT / "apps"
+    binary_dir = MEMCHECK_ROOT / "binaries"
+    target_dir.mkdir(parents=True)
+    app_dir.mkdir(parents=True)
+    binary_dir.mkdir(parents=True)
+
+    for source in sorted((ROOT / "platform").glob("*.roc")):
+        shutil.copy2(source, platform_dir / source.name)
+    for source in sorted((ROOT / "examples").iterdir()):
+        if source.is_file() and source.suffix != ".roc":
+            shutil.copy2(source, app_dir / source.name)
+
+    # Validation processes bind an ephemeral port so the complete suite can run
+    # alongside a developer's server and parallel CI jobs.
+    server_path = platform_dir / "Server.roc"
+    server_source = server_path.read_text(encoding="utf-8")
+    server_source, count = re.subn(
+        r'(?m)^(\s*listen:\s*\{\s*host:\s*"127\.0\.0\.1",\s*port:\s*)8000(\s*\},)$',
+        r"\g<1>0\2",
+        server_source,
+        count=1,
+    )
+    if count != 1:
+        fail("could not set the validation-only listener to an ephemeral port")
+    server_path.write_text(server_source, encoding="utf-8", newline="\n")
+
+    runtime_inputs = (
+        "Scrt1.o",
+        "crti.o",
+        "libgcc_s.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "crtn.o",
+    )
+    shutil.copy2(ROOT / "target" / "memcheck" / "libhost.a", target_dir)
+    for name in runtime_inputs:
+        shutil.copy2(compiler_runtime_input(name), target_dir / name)
+
+    main_path = platform_dir / "main.roc"
+    main_source = main_path.read_text(encoding="utf-8")
+    target_line = (
+        '\t\tx64glibc: { inputs: ["Scrt1.o", "crti.o", "libhost.a", app, '
+        '"libgcc_s.so.1", "libm.so.6", "libc.so.6", "crtn.o"] },'
+    )
+    main_source, count = re.subn(
+        r'(?m)^(\s*arm64mac:\s*\{[^\n]+\},)\s*$',
+        lambda match: f"{match.group(1)}\n{target_line}",
+        main_source,
+        count=1,
+    )
+    if count != 1:
+        fail("could not add the validation-only x64glibc platform target")
+    main_path.write_text(main_source, encoding="utf-8", newline="\n")
+
+    binaries: dict[str, Path] = {}
+    for app in apps:
+        if not stage_enabled(defaults, app, "build"):
+            continue
+        source = ROOT / str(app["path"])
+        copied_source = app_dir / source.name
+        app_source = source.read_text(encoding="utf-8")
+        app_source, count = re.subn(
+            r'(?m)(\bplatform\s+)"[^"]+"',
+            lambda match: f'{match.group(1)}"../platform/main.roc"',
+            app_source,
+            count=1,
+        )
+        if count != 1:
+            fail(f"{source}: expected exactly one platform dependency")
+        copied_source.write_text(app_source, encoding="utf-8", newline="\n")
+
+        binary = binary_dir / source.stem
+        print(f"==> memcheck build {app['path']} (x64glibc)", flush=True)
+        # Roc's current --debug DWARF is rejected by Valgrind 3.22. The host
+        # archive retains Rust debug information, which covers the native
+        # allocator, FFI, Hyper, and Tokio coordination under test.
+        command(
+            roc,
+            "build",
+            copied_source,
+            "--target=x64glibc",
+            "--opt=speed",
+            f"--output={binary}",
+        )
+        binaries[str(app["path"])] = binary
+    return binaries
+
+
 def readme_example(*, use_local_platform: bool = True) -> Path:
     source = (ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(r"(?ms)^```roc\n(.*?)^```$", source)
@@ -511,13 +629,75 @@ def process_cwd(case: dict[str, object], temp: Path) -> Path:
     raise AssertionError
 
 
-def run_process_case(binary: Path, source: Path, case: dict[str, object], owner: str) -> None:
+def case_timeout(case: dict[str, object], memcheck: bool) -> float:
     timeout = float(case.get("timeout", 10))
+    if memcheck:
+        return max(60, timeout * 10)
+    return timeout
+
+
+def process_command(
+    binary: Path, temp: Path, *, memcheck: bool
+) -> tuple[list[str], Path | None]:
+    if not memcheck:
+        return [str(binary)], None
+    log_path = temp / "memcheck.log"
+    return (
+        [
+            "valgrind",
+            "--tool=memcheck",
+            "--leak-check=full",
+            "--show-leak-kinds=definite,indirect,possible",
+            "--errors-for-leak-kinds=definite,indirect,possible",
+            "--track-origins=yes",
+            "--fair-sched=yes",
+            "--num-callers=40",
+            "--error-exitcode=97",
+            f"--log-file={log_path}",
+            str(binary),
+        ],
+        log_path,
+    )
+
+
+def validate_memcheck_log(log_path: Path | None, owner: str) -> None:
+    if log_path is None:
+        return
+    if not log_path.is_file():
+        fail(f"{owner}: Valgrind did not produce its Memcheck log")
+    log = log_path.read_text(encoding="utf-8", errors="replace")
+    allocation_match = re.search(
+        r"total heap usage:\s*([0-9,]+) allocs", log
+    )
+    if allocation_match is None:
+        fail(f"{owner}: Memcheck did not report allocator activity\n{log}")
+    allocation_count = int(allocation_match.group(1).replace(",", ""))
+    if allocation_count == 0:
+        fail(
+            f"{owner}: Memcheck observed zero allocations; allocator "
+            f"interception is not valid\n{log}"
+        )
+    if re.search(r"ERROR SUMMARY:\s*0 errors", log) is None:
+        fail(f"{owner}: Memcheck reported an error\n{log}")
+
+
+def run_process_case(
+    binary: Path,
+    source: Path,
+    case: dict[str, object],
+    owner: str,
+    *,
+    memcheck: bool,
+) -> None:
+    timeout = case_timeout(case, memcheck)
     with tempfile.TemporaryDirectory(prefix="basic-webserver-spec-") as raw_temp:
         temp = Path(raw_temp)
         install_fixtures(case, source, temp)
         env = case_environment(case, source, temp)
-        args = [str(binary), *[expanded(str(arg), source, temp) for arg in case.get("args", [])]]
+        args, memcheck_log = process_command(binary, temp, memcheck=memcheck)
+        args.extend(
+            expanded(str(arg), source, temp) for arg in case.get("args", [])
+        )
         with helper(case.get("helper")):
             try:
                 result = subprocess.run(
@@ -531,6 +711,7 @@ def run_process_case(binary: Path, source: Path, case: dict[str, object], owner:
                 )
             except subprocess.TimeoutExpired:
                 fail(f"{owner}: timed out after {timeout}s")
+        validate_memcheck_log(memcheck_log, owner)
         expected_exit = int(case.get("exit_code", 0))
         stdout = result.stdout.decode("utf-8", errors="replace")
         stderr = result.stderr.decode("utf-8", errors="replace")
@@ -735,15 +916,23 @@ def stop_process(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=3)
 
 
-def run_server_case(binary: Path, source: Path, case: dict[str, object], owner: str) -> None:
-    timeout = float(case.get("timeout", 10))
+def run_server_case(
+    binary: Path,
+    source: Path,
+    case: dict[str, object],
+    owner: str,
+    *,
+    memcheck: bool,
+) -> None:
+    timeout = case_timeout(case, memcheck)
     with tempfile.TemporaryDirectory(prefix="basic-webserver-spec-") as raw_temp:
         temp = Path(raw_temp)
         install_fixtures(case, source, temp)
         env = case_environment(case, source, temp)
+        args, memcheck_log = process_command(binary, temp, memcheck=memcheck)
         with helper(case.get("helper")):
             process = subprocess.Popen(
-                [str(binary)],
+                args,
                 cwd=process_cwd(case, temp),
                 env=env,
                 stdout=subprocess.PIPE,
@@ -793,6 +982,15 @@ def run_server_case(binary: Path, source: Path, case: dict[str, object], owner: 
 
             stdout_text = stdout.text()
             stderr_text = stderr.text()
+            try:
+                validate_memcheck_log(memcheck_log, owner)
+            except TestFailure as error:
+                if interaction_error is None:
+                    interaction_error = error
+                else:
+                    interaction_error = TestFailure(
+                        f"{interaction_error}\n{error}"
+                    )
             if interaction_error is not None:
                 fail(
                     f"{owner}: server interaction failed: {interaction_error}\n"
@@ -810,6 +1008,8 @@ def run_cases(
     apps: list[dict[str, object]],
     binaries: dict[str, Path],
     results: list[dict[str, object]],
+    *,
+    memcheck: bool = False,
 ) -> None:
     for app in apps:
         if not stage_enabled(defaults, app, "run"):
@@ -836,9 +1036,13 @@ def run_cases(
             print(f"==> run {owner}", flush=True)
             try:
                 if app["mode"] == "process":
-                    run_process_case(binary, source, raw_case, owner)
+                    run_process_case(
+                        binary, source, raw_case, owner, memcheck=memcheck
+                    )
                 else:
-                    run_server_case(binary, source, raw_case, owner)
+                    run_server_case(
+                        binary, source, raw_case, owner, memcheck=memcheck
+                    )
             except TestFailure:
                 results.append({"app": app["path"], "case": raw_case["name"], "status": "failed"})
                 raise
@@ -1157,7 +1361,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--operation",
-        choices=("all", "validate", "build", "run", "compare"),
+        choices=("all", "validate", "build", "run", "compare", "memcheck"),
         default="all",
         help="run the complete suite or one reusable phase",
     )
@@ -1201,6 +1405,16 @@ def main() -> None:
     defaults, apps = load_spec()
     artifact_dir = args.artifact_dir.resolve()
     use_local_readme_platform = args.readme_platform == "local"
+
+    if args.operation == "memcheck":
+        if args.target is not None or args.all_targets:
+            parser.error("--operation memcheck builds its validation-only x64glibc target")
+        command(sys.executable, "-m", "unittest", "scripts.test_harness_test")
+        binaries = prepare_memcheck_binaries(args.roc, defaults, apps)
+        results: list[dict[str, object]] = []
+        run_cases(defaults, apps, binaries, results, memcheck=True)
+        print(f"\nAll {len(results)} runtime cases passed under Memcheck.")
+        return
 
     if args.all_targets:
         if args.target is not None:

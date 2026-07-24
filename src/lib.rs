@@ -27,8 +27,6 @@ mod stdio;
 mod tcp;
 mod time;
 
-use crate::roc_platform_abi::make_roc_host;
-
 #[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32 {
@@ -36,10 +34,6 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 }
 
 pub fn rust_main() -> i32 {
-    // Leak the RocHost so the pointer stashed in ABI state stays valid for the
-    // whole life of the long-running server.
-    let roc_host = Box::leak(Box::new(make_roc_host(core::ptr::null_mut())));
-    abi::set_roc_host(roc_host);
-
+    abi::initialize_roc_host();
     http_server::start()
 }

@@ -101,6 +101,7 @@ Host := [].{
 	file_write_utf8! : RawPath, Str => Try({}, [FileErr(IOErr)])
 	file_open_reader! : RawPath, U64 => Try(FileReader, [FileErr(IOErr)])
 	file_read_line! : FileReader => Try(List(U8), [FileErr(IOErr)])
+	file_close_reader! : FileReader => {}
 	file_delete! : RawPath => Try({}, [FileErr(IOErr)])
 	file_hard_link! : RawPath, RawPath => Try({}, [FileErr(IOErr)])
 	file_rename! : RawPath, RawPath => Try({}, [FileErr(IOErr)])
@@ -125,6 +126,7 @@ Host := [].{
 	sqlite_column_value! : SqliteStmt, U64 => Try(InternalSqlite.SqliteValue, InternalSqlite.SqliteError)
 	sqlite_step! : SqliteStmt => Try(Bool, InternalSqlite.SqliteError)
 	sqlite_reset! : SqliteStmt => Try({}, InternalSqlite.SqliteError)
+	sqlite_close! : SqliteStmt => {}
 
 	stdout_line! : Str => Try({}, [StdoutErr(IOErr)])
 	stdout_write! : Str => Try({}, [StdoutErr(IOErr)])
@@ -139,6 +141,7 @@ Host := [].{
 	tcp_read_exactly! : TcpStream, U64 => Try(List(U8), Str)
 	tcp_read_until! : TcpStream, U8 => Try(List(U8), Str)
 	tcp_write! : TcpStream, List(U8) => Try({}, Str)
+	tcp_close! : TcpStream => {}
 
 	sleep_millis! : U64 => {}
 

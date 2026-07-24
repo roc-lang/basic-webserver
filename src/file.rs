@@ -1,8 +1,10 @@
 use core::ffi::c_void;
 use core::mem::ManuallyDrop;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::abi::{
     io_err_from_io, roc_host, FileBoolResult, FileBoolResultPayload, FileBoolResultTag,
@@ -21,6 +23,14 @@ use crate::roc_platform_abi::*;
 
 const MAX_MATERIALIZED_FILE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_FILE_READER_BUFFER_BYTES: u64 = 1024 * 1024;
+type SharedFileReader = Arc<Mutex<BufReader<fs::File>>>;
+type FileReaderRegistry = Mutex<HashMap<u64, SharedFileReader>>;
+static NEXT_FILE_READER_ID: AtomicU64 = AtomicU64::new(1);
+static FILE_READERS: OnceLock<FileReaderRegistry> = OnceLock::new();
+
+fn file_readers() -> &'static FileReaderRegistry {
+    FILE_READERS.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 fn file_materialization_limit_error(roc_host: &RocHost) -> IOErr {
     crate::abi::io_err_other(
@@ -318,9 +328,17 @@ pub extern "C" fn hosted_file_read_utf8(path: HostFileReadUtf8Args) -> FileStrRe
 const FILE_READER_BOX_ALIGN: usize = core::mem::align_of::<u64>();
 
 fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 {
-    let raw: *mut Mutex<BufReader<fs::File>> = Box::into_raw(Box::new(Mutex::new(reader)));
+    let id = NEXT_FILE_READER_ID
+        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |id| id.checked_add(1))
+        .expect("file reader ID space exhausted");
+    let previous = file_readers()
+        .lock()
+        .expect("file reader registry mutex poisoned")
+        .insert(id, Arc::new(Mutex::new(reader)));
+    debug_assert!(previous.is_none());
+
     // SAFETY: the payload is initialized immediately below as a u64 containing
-    // the owned reader pointer, matching the requested layout.
+    // the opaque reader ID, matching the requested layout.
     let boxed = unsafe {
         allocate_box(
             core::mem::size_of::<u64>(),
@@ -330,22 +348,32 @@ fn box_file_reader(reader: BufReader<fs::File>, roc_host: &RocHost) -> *mut u64 
         )
     };
     unsafe {
-        *(boxed as *mut u64) = raw as u64;
+        *(boxed as *mut u64) = id;
     }
     boxed as *mut u64
 }
 
-unsafe fn file_reader_ref<'a>(handle: *mut u64) -> &'a Mutex<BufReader<fs::File>> {
-    &*(*handle as *const Mutex<BufReader<fs::File>>)
+fn file_reader_id(handle: *mut u64) -> u64 {
+    unsafe { *handle }
+}
+
+fn file_reader(handle: *mut u64) -> Option<SharedFileReader> {
+    file_readers()
+        .lock()
+        .expect("file reader registry mutex poisoned")
+        .get(&file_reader_id(handle))
+        .cloned()
+}
+
+fn close_file_reader(handle: *mut u64) {
+    file_readers()
+        .lock()
+        .expect("file reader registry mutex poisoned")
+        .remove(&file_reader_id(handle));
 }
 
 extern "C" fn drop_file_reader(data_ptr: *mut c_void, _roc_host: *mut RocHost) {
-    unsafe {
-        let raw = *(data_ptr as *mut u64) as *mut Mutex<BufReader<fs::File>>;
-        if !raw.is_null() {
-            drop(Box::from_raw(raw));
-        }
-    }
+    close_file_reader(data_ptr as *mut u64);
 }
 
 fn release_file_reader(handle: *mut u64, roc_host: &RocHost) {
@@ -394,9 +422,19 @@ pub extern "C" fn hosted_file_open_reader(
 #[no_mangle]
 pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResult {
     let roc_host = roc_host();
-    let result = {
-        let reader = unsafe { file_reader_ref(handle) };
-        match try_lock(reader) {
+    let reader = match file_reader(handle) {
+        Some(reader) => reader,
+        None => {
+            let result = try_file_reader_line_err(crate::abi::io_err_other(
+                "file reader is closed",
+                roc_host,
+            ));
+            release_file_reader(handle, roc_host);
+            return result;
+        }
+    };
+    let (result, reached_eof) = {
+        match try_lock(&reader) {
             Ok(mut reader) => {
                 let mut buffer = Vec::new();
                 let read = reader
@@ -404,26 +442,51 @@ pub extern "C" fn hosted_file_read_line(handle: *mut u64) -> FileReaderLineResul
                     .take(MAX_MATERIALIZED_FILE_BYTES + 1)
                     .read_until(b'\n', &mut buffer);
                 match read {
-                    Ok(_) if buffer.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => {
+                    Ok(_) if buffer.len() as u64 <= MAX_MATERIALIZED_FILE_BYTES => (
                         try_file_reader_line_ok(unsafe {
                             RocListWith::<u8, false>::from_slice(&buffer, roc_host)
-                        })
-                    }
-                    Ok(_) => try_file_reader_line_err(file_materialization_limit_error(roc_host)),
-                    Err(error) => try_file_reader_line_err(io_err_from_io(&error, roc_host)),
+                        }),
+                        buffer.is_empty(),
+                    ),
+                    Ok(_) => (
+                        try_file_reader_line_err(file_materialization_limit_error(roc_host)),
+                        false,
+                    ),
+                    Err(error) => (
+                        try_file_reader_line_err(io_err_from_io(&error, roc_host)),
+                        false,
+                    ),
                 }
             }
-            Err(CapabilityLockError::Busy) => try_file_reader_line_err(crate::abi::io_err_other(
-                "file reader is already in use",
-                roc_host,
-            )),
-            Err(CapabilityLockError::Poisoned) => try_file_reader_line_err(
-                crate::abi::io_err_other("file reader is unavailable", roc_host),
+            Err(CapabilityLockError::Busy) => (
+                try_file_reader_line_err(crate::abi::io_err_other(
+                    "file reader is already in use",
+                    roc_host,
+                )),
+                false,
+            ),
+            Err(CapabilityLockError::Poisoned) => (
+                try_file_reader_line_err(crate::abi::io_err_other(
+                    "file reader is unavailable",
+                    roc_host,
+                )),
+                false,
             ),
         }
     };
+    if reached_eof {
+        close_file_reader(handle);
+    }
     release_file_reader(handle, roc_host);
     result
+}
+
+pub(crate) fn shutdown() {
+    if let Some(readers) = FILE_READERS.get() {
+        *readers
+            .lock()
+            .expect("file reader registry mutex poisoned") = HashMap::new();
+    }
 }
 
 fn file_metadata(path: impl IntoRawPath, roc_host: &RocHost) -> io::Result<fs::Metadata> {

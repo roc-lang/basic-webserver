@@ -159,6 +159,22 @@ pointer.
 `respond!` calls may execute concurrently. A handler receives only its request,
 immutable context, and explicitly invoked platform effects.
 
+The compiled Roc application is treated as a synchronous, reentrant native
+library rather than as an asynchronous executor. Each `respond!` invocation
+runs synchronously from entry through return on one host execution thread.
+Request-local Roc values, borrowed host views, and ABI call state remain
+confined to that invocation unless the ABI explicitly defines a safe ownership
+transfer. The platform does not expose thread identity or promise that the
+network lifecycle surrounding the invocation remains on that thread.
+
+Synchronous Roc execution must not block the host's asynchronous transport
+workers. The host admits Roc invocations to a distinct, bounded execution
+domain and waits for their results without preventing unrelated connections or
+HTTP/2 streams from making progress. The number of active invocations and the
+amount of queued work are explicit server resources with finite limits and
+documented saturation behaviour; an executor's implicit worker or blocking
+pool limits are not the server's capacity policy.
+
 There is no implicit ordering between handlers. Any ordering or atomicity
 required for domain state comes from a SQLite transaction or an external
 service. Any ordering required by a host subsystem is part of that subsystem's
@@ -305,6 +321,14 @@ shutdown. Tests that deliberately retain a seamless slice through a response
 or effect boundary verify that its backing allocation remains live until the
 last reference is released.
 
+On targets where dynamic native memory instrumentation is available, tests
+also execute complete compiled applications through their real HTTP listener
+under that instrumentation. Validation must cover the Rust host, generated ABI
+glue, Roc allocations, hosted callbacks, and shutdown cleanup. An
+instrumentation build is valid only when the tool can observe the allocator and
+executed request path; a run that silently observes no relevant allocation or
+memory activity is not accepted as evidence of safety.
+
 Debug assertions and diagnostic bookkeeping do not define correctness. The
 ownership protocol and release behaviour are identical in release builds, but
 expensive ledgers, canaries, repeated invariant checks, and diagnostic
@@ -320,6 +344,15 @@ request throughput. Relevant measures include allocations, retained bytes,
 payload bytes shared through seamless slices, payload bytes copied, active
 resource high-water marks, rejection counts, and tail latency at and beyond
 saturation.
+
+End-to-end load evaluation exercises a real compiled Roc application through
+the real listener. It covers HTTP/1.1 and HTTP/2, fast handlers, handlers that
+invoke hosted effects, sustained concurrency, and overload. Results distinguish
+request throughput from simultaneously active work and record enough
+configuration and resource data to explain coordination limits between the
+transport, Roc execution domain, and host subsystems. Indicative measurements
+from ordinary developer machines guide investigation but do not define a
+portable performance guarantee.
 
 ## Request path
 
@@ -409,6 +442,15 @@ They must:
 - enforce their own resource and concurrency limits;
 - expose typed operations and failures.
 
+Opaque capability values contain unforgeable host registry identifiers, never
+native pointers. Roc's ordinary value destruction is not a native-resource
+finalizer, so a resource whose useful lifetime can end before server shutdown
+has an explicit, idempotent close operation. One-shot platform operations close
+their resources before returning, end-of-stream closes readers where
+appropriate, and host shutdown closes every remaining registered resource.
+Resource limits count registry entries and closed identifiers are rejected as
+stale.
+
 Internally mutable resources must be synchronized at the level at which
 concurrent access can occur. Per-object locking is insufficient when several
 objects share an unsynchronized underlying connection or resource.
@@ -438,6 +480,14 @@ handler. The host owns the operating-system or transport resources used to
 perform it, while the handler remains responsible for application policy and
 waits for a typed result. Other handlers may continue concurrently within the
 server's limits.
+
+The hosted callback begins and returns on the calling Roc invocation's thread.
+It may delegate transport or operating-system work to an asynchronous host
+subsystem and synchronously wait for the typed result. Arguments retained by
+that work must first be converted to independently owned host data; asynchronous
+work must not retain borrowed Roc pointers or invocation-local ABI state. A
+hosted effect must not depend on admission to the same saturated Roc execution
+domain whose invocation is waiting for it.
 
 Request-scoped effects must:
 
@@ -616,24 +666,22 @@ semantics that would turn the platform into a broader asynchronous runtime.
 ## HTTP protocols and upgraded connections
 
 The application contract models conventional HTTP request/response semantics
-rather than a particular HTTP wire version. Supporting HTTP/2 request/response
-traffic is therefore a compatible host transport enhancement, not a change to
-the application architecture and not a requirement for the platform to satisfy
-its core scope.
+rather than a particular HTTP wire version. The host supports conventional
+request/response traffic over HTTP/1.1 and HTTP/2 through the same Roc
+application contract.
 
-If HTTP/2 is supported, the host owns multiplexing, header compression, flow
-control, stream cancellation, concurrent-stream limits, and connection
-draining. These responsibilities must preserve the same bounded body,
-concurrency, overload, and shutdown semantics exposed for other HTTP traffic.
-Protocol-specific details should not enter the Roc request API unless
-applications have a demonstrated policy decision that cannot be expressed
-through the common HTTP contract.
+The host owns HTTP/2 multiplexing, header compression, flow control, stream
+cancellation, concurrent-stream limits, and connection draining. These
+responsibilities preserve the same bounded body, handler admission, overload,
+and shutdown semantics exposed for HTTP/1.1 traffic. A synchronous Roc handler
+must not stall unrelated streams on its connection. Protocol-specific details
+do not enter the Roc request API unless applications have a demonstrated policy
+decision that cannot be expressed through the common HTTP contract.
 
 HTTP/2 server push is not a goal. Public TLS policy, certificate automation,
-and protocol negotiation such as ALPN normally remain responsibilities of an
-edge proxy. Supporting HTTP/2 on a trusted connection from that proxy, or
-otherwise behind the same application contract, remains compatible with this
-design.
+and public protocol negotiation such as ALPN normally remain responsibilities
+of an edge proxy. The platform accepts HTTP/2 on a trusted connection from that
+proxy without taking ownership of those edge responsibilities.
 
 Application-defined WebSockets and other upgraded, long-lived bidirectional
 protocols are outside the platform's scope. After an upgrade, processing

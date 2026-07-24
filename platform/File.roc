@@ -9,9 +9,10 @@ File :: [].{
 
 	## Represents a buffered file reader.
 	##
-	## The file is automatically closed when the last reference to the reader is
-	## dropped. The host synchronizes its cursor, so it is safe to retain in
-	## application context. Concurrent reads saturate with `FileErr(Other(...))`.
+	## Close it explicitly when reading stops before EOF. Reaching EOF also closes
+	## it, and server shutdown closes any remaining readers. The host synchronizes
+	## its cursor, so it is safe to retain in application context. Concurrent
+	## reads saturate with `FileErr(Other(...))`.
 	Reader :: { host : Host.FileReader }.{
 
 		## Render the reader without exposing its host handle.
@@ -28,6 +29,10 @@ File :: [].{
 		read_line! = |reader|
 			Host.file_read_line!(reader.host)
 				.map_err(|FileErr(err)| FileErr(err))
+
+		## Close this reader. Closing an already closed reader is harmless.
+		close! : Reader => {}
+		close! = |reader| Host.file_close_reader!(reader.host)
 	}
 
 	## Open a file for buffered reading using the default buffer capacity.

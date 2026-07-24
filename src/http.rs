@@ -8,7 +8,7 @@ use hyper::body::Body;
 use std::future::Future;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tower_service::Service;
@@ -76,11 +76,18 @@ struct OutboundHttp {
     client: OutboundClient,
 }
 
-static OUTBOUND_HTTP: OnceLock<OutboundHttp> = OnceLock::new();
+static OUTBOUND_HTTP: Mutex<Option<Arc<OutboundHttp>>> = Mutex::new(None);
 static OUTBOUND_GATE: BoundedGate = BoundedGate::new(64, 256);
 
-fn outbound_http() -> &'static OutboundHttp {
-    OUTBOUND_HTTP.get_or_init(|| {
+fn outbound_http() -> Arc<OutboundHttp> {
+    let mut shared = OUTBOUND_HTTP
+        .lock()
+        .expect("outbound HTTP global mutex poisoned");
+    if let Some(outbound) = shared.as_ref() {
+        return Arc::clone(outbound);
+    }
+
+    let outbound = {
         use hyper_rustls::HttpsConnectorBuilder;
         use hyper_util::client::legacy::connect::HttpConnector;
         use hyper_util::client::legacy::Client;
@@ -99,6 +106,7 @@ fn outbound_http() -> &'static OutboundHttp {
             .with_webpki_roots()
             .https_or_http()
             .enable_http1()
+            .enable_http2()
             .wrap_connector(http);
         let mut client_builder = Client::builder(TokioExecutor::new());
         // Even the legacy client's narrow "request was not transmitted" retry
@@ -107,7 +115,32 @@ fn outbound_http() -> &'static OutboundHttp {
         let client = client_builder.build(https);
 
         OutboundHttp { runtime, client }
-    })
+    };
+    let outbound = Arc::new(outbound);
+    *shared = Some(Arc::clone(&outbound));
+    outbound
+}
+
+/// Release the outbound client and join its runtime after all Roc callbacks and
+/// the application shutdown hook have completed.
+pub(crate) fn shutdown() {
+    let outbound = OUTBOUND_HTTP
+        .lock()
+        .expect("outbound HTTP global mutex poisoned")
+        .take();
+    let Some(outbound) = outbound else {
+        return;
+    };
+    let outbound = match Arc::try_unwrap(outbound) {
+        Ok(outbound) => outbound,
+        Err(_) => {
+            eprintln!("outbound HTTP runtime still has active users during shutdown");
+            return;
+        }
+    };
+    let OutboundHttp { runtime, client } = outbound;
+    drop(client);
+    runtime.shutdown_timeout(Duration::from_secs(1));
 }
 
 // Numeric method tags must match `to_host_method` in platform/InternalHttp.roc.
@@ -589,7 +622,7 @@ mod tests {
         let first = outbound_http();
         let second = outbound_http();
 
-        assert!(core::ptr::eq(first, second));
+        assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(
             first.runtime.handle().runtime_flavor(),
             tokio::runtime::RuntimeFlavor::MultiThread

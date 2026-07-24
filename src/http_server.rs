@@ -11,6 +11,8 @@ use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::{BodyExt, Full};
 use hyper::header::CONTENT_LENGTH;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
@@ -59,6 +61,17 @@ impl RuntimeConfig {
             hook_timeout: Duration::from_millis(config.hook_timeout_ms),
         })
     }
+
+    fn max_http2_streams_per_connection(&self) -> u32 {
+        // The Roc configuration fields are u16, so their sum always fits u32.
+        // A stream still passes through the global handler admission gate; the
+        // HTTP/2 setting prevents one connection from creating more service
+        // futures than the complete active-plus-queued handler budget.
+        (self.max_handlers + self.max_queued_handlers)
+            .max(1)
+            .try_into()
+            .expect("validated handler capacity fits in u32")
+    }
 }
 
 fn validate_concurrency_limits(
@@ -81,8 +94,12 @@ fn validate_concurrency_limits(
     Ok((max_connections, max_handlers as usize))
 }
 
-/// Bounds both the callbacks submitted to Tokio's blocking pool and the
-/// requests waiting to submit one.
+/// Bounds both the synchronous Roc invocations submitted to Tokio's blocking
+/// pool and the requests waiting to submit one.
+///
+/// An active permit is acquired before `spawn_blocking`, and the runtime's
+/// blocking thread limit is exactly `max_handlers`. Tokio's internal blocking
+/// queue is therefore not used as an implicit request queue.
 #[derive(Clone)]
 struct HandlerAdmission {
     active: Arc<Semaphore>,
@@ -128,14 +145,14 @@ struct RocContext {
 
 impl RocContext {
     fn new(root: RocBox) -> Self {
-        debug_assert!(!root.is_null(), "Roc initialized with a null context box");
         Self { root }
     }
 
     fn retain_for_request(&self) -> RocBox {
-        debug_assert!(!self.root.is_null(), "Roc context root must remain live");
         // SAFETY: `root` is the live reference returned by `init!`. Generated
         // Roc ARC uses atomic refcounts for a box shared across host threads.
+        // A null box is the valid zero-allocation representation of an empty
+        // context and `incref_box` deliberately treats it as static data.
         unsafe { incref_box(self.root, 1) };
         self.root
     }
@@ -158,6 +175,13 @@ struct ServerContext {
 }
 
 pub fn start() -> i32 {
+    let exit_code = start_inner();
+    crate::http::shutdown();
+    crate::file::shutdown();
+    exit_code
+}
+
+fn start_inner() -> i32 {
     let init_result = unsafe { roc_init_for_host() };
     let initialized = match init_result.tag {
         InitForHostResultTag::Ok => init_result.payload_ok(),
@@ -361,7 +385,6 @@ fn internal_server_error(message: &str) -> hyper::Response<Full<Bytes>> {
 fn service_unavailable() -> hyper::Response<Full<Bytes>> {
     hyper::Response::builder()
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
-        .header(hyper::header::CONNECTION, "close")
         .body(Full::new(Bytes::from_static(b"Server is shutting down")))
         .expect("static 503 response is valid")
 }
@@ -369,7 +392,6 @@ fn service_unavailable() -> hyper::Response<Full<Bytes>> {
 fn overloaded() -> hyper::Response<Full<Bytes>> {
     hyper::Response::builder()
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
-        .header(hyper::header::CONNECTION, "close")
         .body(Full::new(Bytes::from_static(b"Server is overloaded")))
         .expect("static 503 response is valid")
 }
@@ -377,7 +399,6 @@ fn overloaded() -> hyper::Response<Full<Bytes>> {
 fn invalid_request_headers() -> hyper::Response<Full<Bytes>> {
     hyper::Response::builder()
         .status(hyper::StatusCode::BAD_REQUEST)
-        .header(hyper::header::CONNECTION, "close")
         .body(Full::new(Bytes::from_static(
             b"Request header values must be valid UTF-8",
         )))
@@ -469,9 +490,13 @@ async fn handle_panics(
 }
 
 async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
-    let io = hyper_util::rt::TokioIo::new(stream);
+    let io = TokioIo::new(stream);
     let service_context = context.clone();
-    let connection = hyper::server::conn::http1::Builder::new().serve_connection(
+    let mut builder = auto::Builder::new(TokioExecutor::new());
+    builder
+        .http2()
+        .max_concurrent_streams(context.config.max_http2_streams_per_connection());
+    let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request| {
             handle_panics(handle_req(request, service_context.clone()))
@@ -765,22 +790,33 @@ mod tests {
     }
 
     #[test]
-    fn overload_response_is_explicit_and_closes_the_connection() {
+    fn overload_response_is_protocol_neutral() {
         let response = overloaded();
         assert_eq!(response.status(), hyper::StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(hyper::header::CONNECTION).unwrap(),
-            "close"
-        );
+        assert!(!response.headers().contains_key(hyper::header::CONNECTION));
     }
 
     #[test]
-    fn invalid_header_response_is_explicit_and_closes_the_connection() {
+    fn invalid_header_response_is_protocol_neutral() {
         let response = invalid_request_headers();
         assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
-        assert_eq!(
-            response.headers().get(hyper::header::CONNECTION).unwrap(),
-            "close"
-        );
+        assert!(!response.headers().contains_key(hyper::header::CONNECTION));
+    }
+
+    #[test]
+    fn http2_stream_limit_matches_the_complete_handler_budget() {
+        let config = RuntimeConfig {
+            host: "127.0.0.1".to_owned(),
+            port: 8000,
+            max_connections: 256,
+            max_handlers: 32,
+            max_queued_handlers: 64,
+            body_max_bytes: 1024,
+            body_chunk_bytes: 1024,
+            body_buffered_chunks: 1,
+            drain_timeout: Duration::from_secs(30),
+            hook_timeout: Duration::from_secs(10),
+        };
+        assert_eq!(config.max_http2_streams_per_connection(), 96);
     }
 }

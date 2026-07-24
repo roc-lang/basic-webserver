@@ -12,6 +12,43 @@ from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            log = Path(raw_directory) / "memcheck.log"
+            log.write_text(
+                "total heap usage: 1,234 allocs, 1,234 frees, 99 bytes allocated\n"
+                "ERROR SUMMARY: 0 errors from 0 contexts\n",
+                encoding="utf-8",
+            )
+            test.validate_memcheck_log(log, "case")
+
+            log.write_text(
+                "total heap usage: 0 allocs, 0 frees, 0 bytes allocated\n"
+                "ERROR SUMMARY: 0 errors from 0 contexts\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(test.TestFailure, "zero allocations"):
+                test.validate_memcheck_log(log, "case")
+
+            log.write_text(
+                "total heap usage: 10 allocs, 9 frees, 99 bytes allocated\n"
+                "ERROR SUMMARY: 1 errors from 1 contexts\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(test.TestFailure, "reported an error"):
+                test.validate_memcheck_log(log, "case")
+
+    def test_memcheck_command_keeps_tool_output_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            temp = Path(raw_directory)
+            args, log = test.process_command(
+                Path("/tmp/app"), temp, memcheck=True
+            )
+            self.assertEqual(args[0:2], ["valgrind", "--tool=memcheck"])
+            self.assertEqual(args[-1], "/tmp/app")
+            self.assertIn(f"--log-file={temp / 'memcheck.log'}", args)
+            self.assertEqual(log, temp / "memcheck.log")
+
     def test_platform_validation_formats_and_tests_the_platform(self) -> None:
         with mock.patch.object(test, "command") as run:
             test.validate_platform_sources("custom-roc")

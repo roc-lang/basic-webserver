@@ -1,6 +1,7 @@
 use core::ffi::c_void;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 use crate::roc_platform_abi::*;
 
@@ -126,21 +127,30 @@ pub(crate) type BodyReadErrorTag = HostRequestBodyReadErrTag;
 pub(crate) type BodyTooLarge = HostRequestBodyReadErrTooLarge;
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
-static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
 
-pub(crate) fn set_roc_host(roc_host: *mut RocHost) {
-    unsafe {
-        ROC_HOST = roc_host;
-    }
+struct SharedRocHost(RocHost);
+
+// SAFETY: the generated helper context is initialized once with a null
+// environment pointer and immutable function pointers. The callbacks provide
+// thread-safe allocation and diagnostics and do not mutate the RocHost value.
+unsafe impl Send for SharedRocHost {}
+unsafe impl Sync for SharedRocHost {}
+
+static ROC_HOST: OnceLock<SharedRocHost> = OnceLock::new();
+
+pub(crate) fn initialize_roc_host() {
+    ROC_HOST
+        .set(SharedRocHost(make_roc_host(core::ptr::null_mut())))
+        .unwrap_or_else(|_| panic!("RocHost initialized more than once"));
 }
 
 fn roc_host_ptr() -> *mut RocHost {
-    unsafe {
-        if ROC_HOST.is_null() {
+    match ROC_HOST.get() {
+        Some(host) => &host.0 as *const RocHost as *mut RocHost,
+        None => {
             eprintln!("roc host error: RocHost not initialized");
             std::process::exit(1);
         }
-        ROC_HOST
     }
 }
 

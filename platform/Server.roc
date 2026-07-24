@@ -46,8 +46,8 @@ Server :: [].{
 					max_handlers : U16,
 
 					## Requests beyond the active-handler limit may wait in this finite
-					## queue. Once it is full, new requests receive 503 and the
-					## connection is closed. Zero disables queueing.
+					## queue. Once it is full, new requests receive 503. Zero disables
+					## queueing.
 					max_queued_handlers : U16,
 				},
 				request_bodies : {
