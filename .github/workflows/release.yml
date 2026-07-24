@@ -161,7 +161,7 @@ jobs:
           retention-days: 7
 
   build-examples:
-    name: Build every target on ${{ matrix.builder.id }}
+    name: Build supported targets on ${{ matrix.builder.id }}
     needs: build
     runs-on: ${{ matrix.builder.os }}
     strategy:
@@ -170,14 +170,19 @@ jobs:
         builder:
           - id: linux-x64
             os: ubuntu-24.04
+            targets: x64mac arm64mac x64musl arm64musl
           - id: linux-arm64
             os: ubuntu-24.04-arm
+            targets: x64mac arm64mac x64musl arm64musl
           - id: macos-x64
             os: macos-26-intel
+            targets: x64mac arm64mac x64musl arm64musl
           - id: macos-arm64
             os: macos-26
+            targets: x64mac arm64mac x64musl arm64musl
           - id: windows-x64
             os: windows-2025
+            targets: x64mac arm64mac x64musl arm64musl x64win
 
     steps:
       - name: Checkout
@@ -192,13 +197,16 @@ jobs:
           name: release-bundles
           path: .release/bundles
 
-      - name: Cross-compile every example for every target
+      # Roc requires the native MSVC and Windows SDK directories when linking
+      # x64win. Mach-O and musl links are self-contained by the platform.
+      - name: Cross-compile every example for supported targets
         run: >-
           python scripts/test_bundle.py
           --operation build-all
           --bundle-dir .release/bundles
           --build-id "${{ matrix.builder.id }}"
           --artifact-dir dist/example-binaries
+          --targets ${{ matrix.builder.targets }}
 
       - name: Upload x64 Linux binaries
         uses: actions/upload-artifact@v7
@@ -229,6 +237,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload x64 Windows binaries
+        if: contains(matrix.builder.targets, 'x64win')
         uses: actions/upload-artifact@v7
         with:
           name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64win
@@ -290,7 +299,7 @@ jobs:
           pattern: spec-results-*
           path: target/spec-results
 
-      - name: Verify all 25 target/build combinations ran the same cases
+      - name: Verify every supported target/build combination ran the same cases
         run: python scripts/test.py --operation compare --results-dir target/spec-results
 
   build-docs:

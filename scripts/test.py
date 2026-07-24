@@ -925,15 +925,6 @@ def compare_results(directory: Path) -> None:
     actual_targets = set(builders_by_target)
     if actual_targets != expected_targets:
         fail(f"Missing target results: {sorted(expected_targets - actual_targets)}")
-    expected_builders = builders_by_target[sorted(expected_targets)[0]]
-    for target in sorted(expected_targets):
-        builders = builders_by_target[target]
-        if builders != expected_builders:
-            fail(
-                f"{target}: compiler-host coverage mismatch; "
-                f"missing={sorted(expected_builders - builders)}, "
-                f"extra={sorted(builders - expected_builders)}"
-            )
 
 
 def spec_hash() -> str:

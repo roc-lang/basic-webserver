@@ -20,6 +20,9 @@ TARGET_INPUTS = {
     "arm64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
     "x64win": ("host.lib", "ws2_32.lib", "bcrypt.lib", "advapi32.lib"),
 }
+PLATFORM_LINK_SUPPORT = (
+    PLATFORM_DIR / "targets" / "macos-sysroot" / "usr" / "lib" / "libSystem.tbd",
+)
 
 
 def relative_platform_path(path: Path) -> str:
@@ -139,7 +142,8 @@ def main() -> None:
         for target, filenames in TARGET_INPUTS.items()
         for filename in filenames
     ]
-    missing = [path for path in library_files if not path.is_file()]
+    link_input_files = [*library_files, *PLATFORM_LINK_SUPPORT]
+    missing = [path for path in link_input_files if not path.is_file()]
     if missing:
         formatted = "\n".join(
             f"  {relative_platform_path(path)}" for path in missing
@@ -154,12 +158,12 @@ def main() -> None:
 
     bundle_files = [
         *(relative_platform_path(path) for path in roc_files),
-        *(relative_platform_path(path) for path in library_files),
+        *(relative_platform_path(path) for path in link_input_files),
     ]
     license_source = ROOT / "THIRD_PARTY_LICENSES.md"
     rust_licenses_target = PLATFORM_DIR / "RUST_DEPENDENCY_LICENSES.md"
     generate_rust_dependency_licenses(rust_licenses_target)
-    unpacked_size = sum(path.stat().st_size for path in (*roc_files, *library_files))
+    unpacked_size = sum(path.stat().st_size for path in (*roc_files, *link_input_files))
     unpacked_size += license_source.stat().st_size + rust_licenses_target.stat().st_size
     if unpacked_size > MAX_PLATFORM_BYTES:
         rust_licenses_target.unlink(missing_ok=True)
@@ -172,7 +176,7 @@ def main() -> None:
 
     print(
         f"Bundling {len(roc_files)} .roc files and "
-        f"{len(library_files)} library files...\n"
+        f"{len(link_input_files)} link input files...\n"
     )
     print("Files to bundle:")
     for path in bundle_files:

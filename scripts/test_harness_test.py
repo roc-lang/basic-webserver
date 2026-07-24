@@ -161,7 +161,7 @@ class SpecValidationTests(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()):
                     test.compare_results(directory)
 
-    def test_compare_results_requires_same_compiler_hosts_per_target(self) -> None:
+    def test_compare_results_allows_target_specific_compiler_hosts(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             for target, platform_name in test.TARGET_PLATFORMS.items():
@@ -191,11 +191,8 @@ class SpecValidationTests(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-            with self.assertRaisesRegex(
-                test.TestFailure, "compiler-host coverage mismatch"
-            ):
-                with contextlib.redirect_stdout(io.StringIO()):
-                    test.compare_results(directory)
+            with contextlib.redirect_stdout(io.StringIO()):
+                test.compare_results(directory)
 
     def test_release_platform_url_uses_prepared_bundle_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

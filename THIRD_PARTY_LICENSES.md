@@ -1,6 +1,19 @@
 # Third-Party Licenses
 
-This project bundles third-party libraries for static linking on Linux (musl) targets.
+This project bundles third-party link inputs for its supported targets.
+
+## Roc macOS system-library stub
+
+File: `platform/targets/macos-sysroot/usr/lib/libSystem.tbd`
+
+This text-based API stub is copied byte-for-byte from the pinned Roc compiler
+source. Roc uses it to link macOS executables without requiring a local Apple
+SDK.
+
+Source: https://github.com/roc-lang/roc/blob/306abd6d8b5fe5c3c0967976a5da2e7568b02a37/src/cli/darwin/usr/lib/libSystem.tbd
+
+The Roc compiler is licensed under the Universal Permissive License v1.0,
+which is also included as this project's `LICENSE`.
 
 ## musl libc
 
