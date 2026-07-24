@@ -731,8 +731,13 @@ pub extern "C" fn hosted_sqlite_bind(
             Err(error) => try_sqlite_unit_err(error),
         }
     };
-    for binding in bindings.as_slice() {
-        unsafe { binding.decref(roc_host) };
+    // A cloned Roc list shares its backing allocation without separately
+    // incrementing each element. Recursively release the bindings only when
+    // this list owns the final reference to that allocation.
+    if bindings.has_one_ref() {
+        for binding in bindings.allocation_items() {
+            unsafe { (*binding).decref(roc_host) };
+        }
     }
     unsafe { bindings.decref(roc_host) };
     release_sqlite_stmt(handle, roc_host);
