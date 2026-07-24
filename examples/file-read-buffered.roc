@@ -1,56 +1,62 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
-
-import pf.File
-import pf.Http exposing [Request, Response]
-
-# To run this example: check the README.md in this folder
-
-# # Buffered File Reading
-#
-# Instead of reading an entire file and storing all of it in memory,
-# like with File.read_utf8, you may want to read it in parts.
-# A part of the file is stored in a buffer.
-# Typically you process a part and then you ask for the next one.
-#
-# This can be useful to process large files without using a lot of RAM or
-# requiring the user to wait until the complete file is processed when they
-# only wanted to look at the first page.
-#
-# See examples/file-read.roc if you want to read the full contents at once.
-
-Model : ReadSummary
-
-ReadSummary : {
-    lines_read : U64,
-    bytes_read : U64,
+## Reads `LICENSE` incrementally and serves its line and byte counts.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-# We only read the file once in `init`.
-init! : {} => Result Model [Exit I32 Str]_
-init! = |{}|
-    reader = File.open_reader!("LICENSE")?
+import pf.File
+import pf.Path
+import pf.Server
+import http.Response
 
-    process_line!(reader, { lines_read: 0, bytes_read: 0 })
+Context : ReadSummary
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, model|
-    Ok({ status: 200, headers: [], body: Str.to_utf8(Inspect.to_str(model)) })
+ReadSummary : {
+	lines_read : U64,
+	bytes_read : U64,
+}
 
-## Count the number of lines and the number of bytes read.
-process_line! : File.Reader, ReadSummary => Result ReadSummary _
+program = { init!, respond!, shutdown! }
+
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), FailedToOpenLicense(_), FailedToReadLicense(_), ..],
+)
+init! = || {
+	reader = File.open_reader!(Path.utf8("LICENSE")) ? |err| FailedToOpenLicense(err)
+	summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |err| FailedToReadLicense(err)
+
+	Ok({ config: Server.default_config, context: summary })
+}
+
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_, summary|
+	Ok(
+		Server.respond(
+			Response.from_status(200).with_body(
+				Str.to_utf8("{bytes_read: ${summary.bytes_read.to_str()}, lines_read: ${summary.lines_read.to_str()}}"),
+			),
+		),
+	)
+
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})
+
+## Recursively read one bounded line at a time, accumulating line and byte counts.
+process_line! : File.Reader, ReadSummary => Try(ReadSummary, _)
 process_line! = |reader, { lines_read, bytes_read }|
-    when File.read_line!(reader) is
-        Ok(bytes) if List.len(bytes) == 0 ->
-            Ok({ lines_read, bytes_read })
+	match reader.read_line!() {
+		Ok(bytes) if bytes.len() == 0 =>
+			Ok({ lines_read, bytes_read })
 
-        Ok(bytes) ->
-            process_line!(
-                reader,
-                {
-                    lines_read: lines_read + 1,
-                    bytes_read: bytes_read + (List.len(bytes) |> Num.int_cast),
-                },
-            )
+		Ok(bytes) =>
+			process_line!(
+				reader,
+				{
+					lines_read: lines_read + 1,
+					bytes_read: bytes_read + bytes.len(),
+				},
+			)
 
-        Err(err) ->
-            Err(ErrorReadingLine(Inspect.to_str(err)))
+		Err(err) => Err(err)
+	}

@@ -1,41 +1,45 @@
-app [Model, init!, respond!] { 
-    pf: platform "../platform/main.roc",
+## Checks and serves whether `LICENSE` is readable, writable, and executable.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
-import pf.Http exposing [Request, Response]
-import pf.File
+import pf.Server
+import pf.Path
+import http.Response
 
-Model : {}
+Context : Str
 
-init! : {} => Result Model _
-init! = |{}|
-    file = "LICENSE"
+program = { init!, respond!, shutdown! }
 
-    is_executable = File.is_executable!(file)?
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[
+		Exit(I64),
+		FailedToCheckExecutable(_),
+		FailedToCheckReadable(_),
+		FailedToCheckWritable(_),
+		FailedToPrintPermissions(_),
+		..,
+	],
+)
+init! = || {
+	file = Path.utf8("LICENSE")
 
-    is_readable = File.is_readable!(file)?
+	is_executable = Path.is_executable!(file) ? |err| FailedToCheckExecutable(err)
+	is_readable = Path.is_readable!(file) ? |err| FailedToCheckReadable(err)
+	is_writable = Path.is_writable!(file) ? |err| FailedToCheckWritable(err)
+	summary = "${Path.display(file)} file permissions:\nExecutable: ${Str.inspect(is_executable)}\nReadable: ${Str.inspect(is_readable)}\nWritable: ${Str.inspect(is_writable)}"
 
-    is_writable = File.is_writable!(file)?
+	Stdout.line!(summary) ? |err| FailedToPrintPermissions(err)
 
-    Stdout.line!(
-        """
-        ${file} file permissions:
-            Executable: ${Inspect.to_str(is_executable)}
-            Readable: ${Inspect.to_str(is_readable)}
-            Writable: ${Inspect.to_str(is_writable)}
-        """
-    )?
+	Ok({ config: Server.default_config, context: summary })
+}
 
-    Ok({})
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, summary|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(summary))))
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, _|
-
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("See example in init! function."),
-        },
-    )
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

@@ -1,67 +1,103 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+## Queries completed todos from SQLite and serves their inspected records.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+}
 
-import pf.Stdout
-import pf.Http exposing [Request, Response]
+import pf.Server
 import pf.Sqlite
 import pf.Env
+import pf.Path
+import http.Response
 
-# To run this example: check the README.md in this folder
+# Set `DB_PATH` to choose a database; otherwise this uses
+# `./examples/todos.db`. The database must already contain this table:
+#
+# CREATE TABLE todos (
+#     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#     task TEXT NOT NULL,
+#     status TEXT NOT NULL
+# );
 
-Model : { stmt : Sqlite.Stmt }
+# The database pool is opened once during `init!` and retained in immutable context.
+Context : { db : Sqlite.Db }
 
-init! : {} => Result Model _
-init! = |{}|
-    # Read DB_PATH environment variable
-    db_path = Env.var!("DB_PATH") ? |_| ServerErr("DB_PATH not set on environment")
+program = { init!, respond!, shutdown! }
 
-    stmt =
-        Sqlite.prepare!(
-            {
-                path: db_path,
-                query: "SELECT * FROM todos WHERE status = :status;",
-            },
-        )
-        ? |err| ServerErr("Failed to prepare Sqlite statement: ${Inspect.to_str(err)}")
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || {
+	db_path = 
+		match Env.var!("DB_PATH") {
+			Ok(path) => Path.from_os_str(path)
+			Err(_) => Path.utf8("./examples/todos.db")
+		}
+	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
+	Ok({ config: Server.default_config, context: { db: db } })
+}
 
-    Ok({ stmt })
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, { db }| {
+	match query_todos_by_status!(db, Completed) {
+		Ok(todos) => {
+			lines = todos.map(|todo| Str.inspect(todo))
+			body = Str.join_with(lines, "\n")
+			response = 
+				Response.from_status(200)
+					.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
+					.with_body(Str.to_utf8(body))
+			Ok(Server.respond(response))
+		}
+		Err(err) => Err(ServerErr("Failed to query Sqlite: ${Str.inspect(err)}"))
+	}
+}
 
-respond! : Request, Model => Result Response _
-respond! = |_, { stmt }|
-    # Query todos table
-    strings : Str
-    strings =
-        Sqlite.query_many_prepared!(
-            {
-                stmt,
-                bindings: [{ name: ":status", value: String("completed") }],
-                # This uses the record builder syntax: https://www.roc-lang.org/examples/RecordBuilder/README.html
-                rows: { Sqlite.decode_record <-
-                    id: Sqlite.i64("id"),
-                    task: Sqlite.str("task"),
-                    status: Sqlite.str("status") |> Sqlite.map_value_result(decode_db_status),
-                },
-            },
-        )?
-        |> List.map(|todo| Inspect.to_str(todo))
-        |> Str.join_with("\n")
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})
 
-    # Print out the results
-    Stdout.line!(strings)?
+Todo : { id : I64, status : TodoStatus, task : Str }
 
-    Ok(
-        {
-            status: 200,
-            headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
-            body: Str.to_utf8(strings),
-        },
-    )
+# TODO: Decode `Todo` directly once application-defined `parser_for` methods
+# compose their validation errors through a platform-derived record parser.
+StoredTodo : { id : I64, status : Str, task : Str }
 
-TodoStatus : [Todo, Completed, InProgress]
+query_todos_by_status! : Sqlite.Db, TodoStatus => Try(List(Todo), Sqlite.QueryError)
+query_todos_by_status! = |db, status| {
+	transaction = Sqlite.begin!(db, Deferred)?
+	stored : List(StoredTodo)
+	stored = transaction.query_many!({
+		query: "SELECT id, task, status FROM todos WHERE status = :status;",
+		# TODO: Pass `status` directly once a nested application-defined
+		# `encoder_for` receives the field state across the platform boundary.
+		params: { status: todo_status_to_str(status) },
+		limits: Sqlite.default_query_limits,
+	})?
+	transaction.commit!()?
 
-decode_db_status : Str -> Result TodoStatus _
-decode_db_status = |status_str|
-    when status_str is
-        "todo" -> Ok(Todo)
-        "completed" -> Ok(Completed)
-        "in-progress" -> Ok(InProgress)
-        _ -> Err(ParseError("Unknown status str: ${status_str}"))
+	stored.map_try(
+		|todo| match parse_todo_status(todo.status) {
+			Ok(decoded_status) => Ok({ id: todo.id, status: decoded_status, task: todo.task })
+			Err(_) => Err(InvalidValue({ column: "status" }))
+		},
+	)
+}
+
+TodoStatus := [Todo, Planned, Completed, InProgress].{}
+
+todo_status_to_str : TodoStatus -> Str
+todo_status_to_str = |status|
+	match status {
+		Todo => "todo"
+		Planned => "planned"
+		Completed => "completed"
+		InProgress => "in-progress"
+	}
+
+parse_todo_status : Str -> Try(TodoStatus, [InvalidTodoStatus])
+parse_todo_status = |status_str|
+	match status_str {
+		"todo" => Ok(Todo)
+		"planned" => Ok(Planned)
+		"completed" => Ok(Completed)
+		"in-progress" => Ok(InProgress)
+		_ => Err(InvalidTodoStatus)
+	}

@@ -1,37 +1,26 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+## Reads this example's UTF-8 source during initialization and serves it over HTTP.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+}
 
-import pf.File
 import pf.Path
-import pf.Http exposing [Request, Response]
+import pf.Server
+import http.Response
 
-# To run this example: check the README.md in this folder
+Context : Str
 
-# Model represents the content of the file we read in `init`.
-Model : Str
+program = { init!, respond!, shutdown! }
 
-# We only read the file once in `init`. If that fails, we don't launch the server.
-init! : {} => Result Model [Exit I32 Str]_
-init! = |{}|
-    # Read the contents of examples/file.roc
-    File.read_utf8!("examples/file-read.roc")
-    |> Result.map_ok(|contents| "Source code of current program:\n\n${contents}")
-    |> Result.map_err(
-        |err|
-            when err is
-                FileReadErr(path, file_err) ->
-                    Exit(
-                        -1,
-                        "Failed to launch server!\nError reading file ${Path.display(path)}:\n\t${Inspect.to_str(file_err)}",
-                    )
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToReadSource(_), ..])
+init! = || {
+	contents = Path.read_utf8!(Path.utf8("examples/file-read.roc")) ? |err| FailedToReadSource(err)
+	Ok({ config: Server.default_config, context: "Source code of current program:\n\n${contents}" })
+}
 
-                FileReadUtf8Err(path, _) ->
-                    Exit(
-                        -2,
-                        "Failed to launch server!\nError: failed to read file ${Path.display(path)} as utf8.",
-                    ),
-    )
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, contents|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(contents))))
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, model|
-    # If the server launched, the model contains the file content.
-    Ok({ status: 200, headers: [], body: Str.to_utf8(model) })
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

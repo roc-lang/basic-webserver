@@ -1,46 +1,35 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+## Lists the entries in the examples directory and serves the listing over HTTP.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+}
 
 import pf.Stdout
-import pf.Dir
-import pf.Env
+import pf.Server
 import pf.Path
-import pf.Http exposing [Request, Response]
+import http.Response
 
-# To run this example: check the README.md in this folder
+Context : Str
 
-Model : {}
+program = { init!, respond!, shutdown! }
 
-init! : {} => Result Model _
-init! = |{}|
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), FailedToListExamples(_), FailedToPrintExamples(_), ..],
+)
+init! = || {
 
-    # Get current working directory
-    cwd = Env.cwd!({}) ? |CwdUnavailable| Exit(1, "Unable to read current working directory")
+	paths = Path.list!(Path.utf8("examples")) ? |err| FailedToListExamples(err)
+	paths_str = Str.join_with(paths.map(Path.display), "\n")
 
-    Stdout.line!("The current working directory is ${Path.display(cwd)}")?
+	Stdout.line!("Entries in examples/:\n${paths_str}") ? |err| FailedToPrintExamples(err)
 
-    # Try to set cwd to examples
-    Env.set_cwd!(Path.from_str("examples/")) ? |InvalidCwd| Exit(1, "Unable to set cwd to examples/")
+	Ok({ config: Server.default_config, context: paths_str })
+}
 
-    Stdout.line!("Set cwd to examples/")?
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, paths_str|
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(paths_str))))
 
-    # List contents of examples directory
-    paths = Dir.list!("./") ? |DirErr(err)| Exit(1, "Error reading directory ./:\n\t${Inspect.to_str(err)}")
-
-    paths_str =
-        paths
-        |> List.map(Path.display)
-        |> Str.join_with(",")
-
-    Stdout.line!("The paths are;\n${paths_str}")?
-
-    Ok({})
-
-respond! : Request, Model => Result Response []
-respond! = |_, _|
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("Logged request"),
-        },
-    )
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

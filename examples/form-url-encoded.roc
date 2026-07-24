@@ -1,111 +1,119 @@
-app [Model, init!, respond!] {
-    pf: platform "../platform/main.roc",
+## Serves an HTML form and parses bounded URL-encoded form submissions.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Http exposing [Request, Response]
+import pf.Server
+import pf.Attribute
+import pf.Html
 import pf.MultipartFormData
+import http.Response
 
-# To run this example: check the README.md in this folder
+Context : {}
 
-# Demonstrates how to handle URL-encoded form data.
+program = { init!, respond!, shutdown! }
 
-form_page : Result Response [ServerErr Str]_
-form_page =
-    Ok(
-        {
-            status: 200,
-            headers: [
-                { name: "Content-Type", value: "text/html" },
-            ],
-            body: Str.to_utf8(
-                """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>URL-Encoded Form Example</title>
-                </head>
-                <body>
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, context: {} })
 
-                <h2>Submit Form Data</h2>
+form_page : Response
+form_page = {
+	response = 
+		Response.from_status(200)
+			.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 
-                <form action="/" method="post" enctype="application/x-www-form-urlencoded">
-                    <label for="name">Name:</label><br>
-                    <input type="text" name="name" id="name" required><br><br>
-                    
-                    <label for="email">Email:</label><br>
-                    <input type="email" name="email" id="email" required><br><br>
-                    
-                    <label for="message">Message:</label><br>
-                    <textarea name="message" id="message" rows="4" cols="50" required></textarea><br><br>
-                    
-                    <input type="submit" value="Submit">
-                </form>
+	response.with_body(
+		Str.to_utf8(
+			\\<!DOCTYPE html>
+			\\<html>
+			\\<head>
+			\\    <title>URL-Encoded Form Example</title>
+			\\</head>
+			\\<body>
+			\\
+			\\<h2>Submit Form Data</h2>
+			\\
+			\\<form action="/" method="post" enctype="application/x-www-form-urlencoded">
+			\\    <label for="name">Name:</label><br>
+			\\    <input type="text" name="name" id="name" required><br><br>
+			\\    <label for="email">Email:</label><br>
+			\\    <input type="email" name="email" id="email" required><br><br>
+			\\    <label for="message">Message:</label><br>
+			\\    <textarea name="message" id="message" rows="4" cols="50" required></textarea><br><br>
+			\\    <input type="submit" value="Submit">
+			\\</form>
+			\\
+			\\</body>
+			\\</html>
+			,
+		),
+	)
+}
 
-                </body>
-                </html>
-                """,
-            ),
-        },
-    )
+display_form_data! : Server.Request => Try(Response, [ServerErr(Str), ..])
+display_form_data! = |req| {
+	body = req.body().with_limit(64 * 1024).read_all!()
+		? |err| ServerErr("Failed to read URL-encoded form: ${Str.inspect(err)}")
 
-display_form_data! : Request => Result Response [ServerErr Str]_
-display_form_data! = |req|
-    page = |form_data|
-        entries = 
-            form_data
-            |> Dict.to_list
-            |> List.map(|(key, value)| "<li><strong>$(key):</strong> $(value)</li>")
-            |> Str.join_with("")
-        
-        Str.to_utf8(
-            """
-            <!DOCTYPE html>
-            <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Form Data Received</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                </head>
-                <body>
-                    <h1>Form Data Received:</h1>
-                    <ul>
-                        $(entries)
-                    </ul>
-                    <a href="/">Go back</a>
-                </body>
-            </html>
-            """,
-        )
+	match MultipartFormData.parse_form_url_encoded(body) {
+		Ok(form_data) => Ok(html_response(200, form_data_page(form_data)))
+		Err(_) => Ok(text_response(400, "Malformed URL-encoded form data."))
+	}
+}
 
-    parsed_form =
-        MultipartFormData.parse_form_url_encoded(req.body)
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, _context|
+	match req.method() {
+		GET => Ok(Server.respond(form_page))
+		POST => Ok(Server.respond(display_form_data!(req)?))
+		_ => Ok(Server.respond(Response.from_status(405)))
+	}
 
-    when parsed_form is
-        Ok(form_data) ->
-            Ok(
-                {
-                    status: 200,
-                    headers: [
-                        { name: "Content-Type", value: "text/html" },
-                    ],
-                    body: page(form_data),
-                },
-            )
+form_data_page : Dict(Str, Str) -> List(U8)
+form_data_page = |form_data| {
+	entries = 
+		Dict.to_list(form_data).map(
+			|(key, value)|
+				Html.li(
+					[],
+					[
+						Html.element("strong", [], [Html.text("${key}:")]),
+						Html.text(" ${value}"),
+					],
+				),
+		)
 
-        Err(err) -> Ok({ status: 500, headers: [], body: Str.to_utf8(Inspect.to_str(err)) })
+	page = 
+		Html.html(
+			[],
+			[
+				Html.head([], [Html.title([], [Html.text("Form Data Received")])]),
+				Html.body(
+					[],
+					[
+						Html.h1([], [Html.text("Form Data Received:")]),
+						Html.ul([], entries),
+						Html.a([Attribute.href("/")], [Html.text("Go back")]),
+					],
+				),
+			],
+		)
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |req, _|
-    if req.method == GET then
-        form_page
-    else if req.method == POST then
-        display_form_data!(req)
-    else
-        Ok({ status: 500, headers: [], body: [] })
+	Str.to_utf8(Html.render(page))
+}
 
-        
-# Model is produced by `init`.
-Model : {}
+html_response : U16, List(U8) -> Response
+html_response = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
+		.with_body(body)
 
-init! : {} => Result Model []
-init! = |{}| Ok({})
+text_response : U16, Str -> Response
+text_response = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8(body))
+
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

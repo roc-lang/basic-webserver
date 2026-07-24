@@ -1,0 +1,492 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version, for example 0.21.0 or 0.21.0-rc1"
+        required: true
+        type: string
+  pull_request:
+
+# Do not add permissions here! Configure them at the job level!
+permissions: {}
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && format('release-{0}', github.repository) || format('release-validate-{0}-{1}', github.repository, github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  rust-version:
+    name: read Rust version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: read
+        run: |
+          version=$(sed -n 's/^channel = "\(.*\)".*/\1/p' rust-toolchain.toml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build-windows-host:
+    name: Build Windows x64 host
+    needs: rust-version
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal --target x86_64-pc-windows-msvc
+          rustup default "${{ needs.rust-version.outputs.version }}"
+
+      - name: Build Windows host
+        shell: pwsh
+        run: python scripts/build.py
+
+      - name: Upload Windows host
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64-host
+          path: platform/targets/x64win/*.lib
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: Build release bundle
+    needs: [rust-version, build-windows-host]
+    # macOS cross-compiles the Apple and Linux musl hosts. Windows is built
+    # natively above because the Rust dependencies require the Windows SDK.
+    runs-on: macos-15
+    outputs:
+      release_version: ${{ steps.validate.outputs.release_version }}
+      docs_version: ${{ steps.validate.outputs.docs_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Roc
+        uses: ./.github/actions/setup-roc
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
+        with:
+          version: 0.16.0
+
+      - name: Install Rust with cross-compilation targets
+        run: |
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal --component llvm-tools-preview \
+            --target x86_64-apple-darwin --target aarch64-apple-darwin \
+            --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
+          rustup default "${{ needs.rust-version.outputs.version }}"
+
+      - name: Download Windows host
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-x64-host
+          path: platform/targets/x64win
+
+      - name: Validate release request
+        id: validate
+        uses: roc-lang/release-package/actions/validate-release@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          release_version: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
+          dry_run: ${{ github.event_name != 'workflow_dispatch' }}
+          github_token: ${{ github.token }}
+
+      - name: Validate release branch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "${GITHUB_REF_TYPE:-}" != "branch" ] || [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo "Releases must be dispatched from the default branch: $DEFAULT_BRANCH" >&2
+            exit 1
+          fi
+
+      - name: Build platform for all targets
+        run: python scripts/build.py --all
+
+      - name: Resolve previous release
+        if: github.event_name == 'workflow_dispatch'
+        id: previous
+        uses: roc-lang/release-package/actions/resolve-previous-release@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          github_token: ${{ github.token }}
+
+      # The previous stable release uses the legacy compiler's package format.
+      # Change this to `require` after the first stable new-compiler .tar.zst
+      # release provides a comparable predecessor.
+      - name: Check version bump
+        uses: roc-lang/release-package/actions/run-bump-check@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          release_version: ${{ steps.validate.outputs.release_version }}
+          dry_run: ${{ github.event_name != 'workflow_dispatch' }}
+          bump_check: warn
+          bump_entrypoint: platform/main.roc
+          previous_url: ${{ steps.previous.outputs.previous_url }}
+
+      - name: Bundle platform
+        run: python scripts/bundle.py --output-dir dist
+
+      - name: Prepare release bundle metadata
+        uses: roc-lang/release-package/actions/prepare-bundles@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          bundle_glob: dist/*.tar.zst
+
+      - name: Upload release bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundles
+          path: .release/bundles/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-metadata
+          path: |
+            .release/bump-output.txt
+            .release/previous-url.txt
+            .release/release-bundles.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-examples:
+    name: Build supported targets on ${{ matrix.builder.id }}
+    needs: build
+    runs-on: ${{ matrix.builder.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        builder:
+          - id: linux-x64
+            os: ubuntu-24.04
+            targets: x64mac arm64mac x64musl arm64musl
+          - id: linux-arm64
+            os: ubuntu-24.04-arm
+            targets: x64mac arm64mac x64musl arm64musl
+          - id: macos-x64
+            os: macos-26-intel
+            targets: x64mac arm64mac x64musl arm64musl
+          - id: macos-arm64
+            os: macos-26
+            targets: x64mac arm64mac x64musl arm64musl
+          - id: windows-x64
+            os: windows-2025
+            targets: x64mac arm64mac x64musl arm64musl x64win
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Roc
+        uses: ./.github/actions/setup-roc
+
+      - name: Download bundled platform
+        uses: actions/download-artifact@v8
+        with:
+          name: release-bundles
+          path: .release/bundles
+
+      # Roc requires the native MSVC and Windows SDK directories when linking
+      # x64win. Mach-O and musl links are self-contained by the platform.
+      - name: Cross-compile every example for supported targets
+        run: >-
+          python scripts/test_bundle.py
+          --operation build-all
+          --bundle-dir .release/bundles
+          --build-id "${{ matrix.builder.id }}"
+          --artifact-dir dist/example-binaries
+          --targets ${{ matrix.builder.targets }}
+
+      - name: Upload x64 Linux binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64musl
+          path: dist/example-binaries/x64musl
+          if-no-files-found: error
+
+      - name: Upload Arm64 Linux binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-arm64musl
+          path: dist/example-binaries/arm64musl
+          if-no-files-found: error
+
+      - name: Upload x64 macOS binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64mac
+          path: dist/example-binaries/x64mac
+          if-no-files-found: error
+
+      - name: Upload Arm64 macOS binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-arm64mac
+          path: dist/example-binaries/arm64mac
+          if-no-files-found: error
+
+      - name: Upload x64 Windows binaries
+        if: contains(matrix.builder.targets, 'x64win')
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64win
+          path: dist/example-binaries/x64win
+          if-no-files-found: error
+
+  run-examples:
+    name: Run every ${{ matrix.target }} build
+    needs: build-examples
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x64musl
+          - os: ubuntu-24.04-arm
+            target: arm64musl
+          - os: macos-26-intel
+            target: x64mac
+          - os: macos-26
+            target: arm64mac
+          - os: windows-2025
+            target: x64win
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download every build for the native target
+        uses: actions/download-artifact@v8
+        with:
+          pattern: basic-webserver-example-binaries-*-${{ matrix.target }}
+          path: dist/example-binaries
+
+      - name: Run every independently built binary set
+        run: python scripts/test.py --operation run --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
+
+      - name: Upload runtime conformance results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spec-results-${{ matrix.target }}
+          path: target/spec/results-*.json
+          if-no-files-found: error
+
+  cross-platform-conformance:
+    name: Compare cross-platform runtime coverage
+    needs: run-examples
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download runtime results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spec-results-*
+          path: target/spec-results
+
+      - name: Verify every supported target/build combination ran the same cases
+        run: python scripts/test.py --operation compare --results-dir target/spec-results
+
+  build-docs:
+    name: Validate release docs
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Roc
+        uses: ./.github/actions/setup-roc
+
+      - name: Create docs staging tree
+        run: mkdir -p docs-site
+
+      - name: Snapshot docs staging tree
+        uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: docs-site
+
+      - name: Generate docs archive
+        env:
+          DOCS_URL_ROOT: /basic-webserver/${{ needs.build.outputs.docs_version }}
+          DOCS_VERSION: ${{ needs.build.outputs.docs_version }}
+        run: |
+          set -euo pipefail
+
+          ROC_DOCS_URL_ROOT="$DOCS_URL_ROOT" roc docs --output="docs-site/$DOCS_VERSION" platform/main.roc
+
+      - name: Validate versioned docs
+        uses: roc-lang/release-package/actions/docs-validate@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: docs-site
+          docs_version: ${{ needs.build.outputs.docs_version }}
+
+  publish-release:
+    name: Publish GitHub release
+    needs:
+      - build
+      - build-docs
+      - cross-platform-conformance
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download release bundles
+        uses: actions/download-artifact@v8
+        with:
+          name: release-bundles
+          path: .release/bundles
+
+      - name: Download release metadata
+        uses: actions/download-artifact@v8
+        with:
+          name: release-metadata
+          path: .release
+
+      - name: Make release notes
+        uses: roc-lang/release-package/actions/make-release-notes@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          release_version: ${{ needs.build.outputs.release_version }}
+          docs_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ needs.build.outputs.docs_version }}/
+          github_token: ${{ github.token }}
+
+      - name: Publish release
+        uses: roc-lang/release-package/actions/publish-release@48ccc909bd8f6ba60feb1d33d8b6ac1dc1c7af36
+        with:
+          release_version: ${{ needs.build.outputs.release_version }}
+          github_token: ${{ github.token }}
+
+  publish-docs:
+    name: Publish versioned docs and update examples
+    needs:
+      - build
+      - publish-release
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Roc
+        uses: ./.github/actions/setup-roc
+
+      - name: Download release metadata
+        uses: actions/download-artifact@v8
+        with:
+          name: release-metadata
+          path: .release
+
+      - name: Derive release bundle URL and update examples
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+        run: >-
+          python scripts/update_app_platform_urls.py
+          --release-manifest .release/release-bundles.json
+          examples
+
+      - name: Validate updated examples
+        run: python scripts/test.py --operation validate
+
+      - name: Snapshot existing docs
+        uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: www
+
+      - name: Generate release docs
+        env:
+          DOCS_URL_ROOT: /basic-webserver/${{ needs.build.outputs.docs_version }}
+          DOCS_VERSION: ${{ needs.build.outputs.docs_version }}
+        run: |
+          rm -rf "www/$DOCS_VERSION"
+          ROC_DOCS_URL_ROOT="$DOCS_URL_ROOT" roc docs \
+            --output="www/$DOCS_VERSION" \
+            platform/main.roc
+
+      - name: Update docs index
+        uses: roc-lang/release-package/actions/docs-index@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: www
+          docs_version: ${{ needs.build.outputs.docs_version }}
+
+      - name: Validate docs
+        uses: roc-lang/release-package/actions/docs-validate@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: www
+          docs_version: ${{ needs.build.outputs.docs_version }}
+
+      - name: Open release follow-up PR
+        uses: roc-lang/release-package/actions/create-followup-pr@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          release_version: ${{ needs.build.outputs.release_version }}
+          paths: |
+            examples
+            www
+          branch_prefix: release-followup
+          base_branch: ${{ github.event.repository.default_branch }}
+          commit_message: Update docs and examples for ${{ needs.build.outputs.release_version }}
+          pr_title: Update docs and examples for ${{ needs.build.outputs.release_version }}
+          pr_body: |
+            Release follow-up for ${{ needs.build.outputs.release_version }}.
+
+            Updates checked-in examples and versioned docs for the published
+            platform bundle.
+          github_token: ${{ github.token }}
+
+      - name: Create Pages tree
+        run: |
+          mkdir -p temp_docs
+          cp -R www/. temp_docs/
+
+          # Keep /main live without committing a generated main snapshot.
+          ROC_DOCS_URL_ROOT=/basic-webserver/main roc docs \
+            --output=temp_docs/main \
+            platform/main.roc
+
+      - name: Fix legacy generated URLs
+        run: |
+          find temp_docs -type f \( -name "*.html" -o -name "*.js" \) \
+            -exec sed -i 's|/packages/basic-webserver/|/basic-webserver/|g' {} +
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: temp_docs
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

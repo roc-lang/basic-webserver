@@ -1,3 +1,21 @@
+# Design
+
+- Read `design.md` before making code changes. It is the authoritative,
+  forward-looking reference for the platform's desired architecture, scope,
+  ownership boundaries, and invariants.
+- The current implementation may differ from `design.md`. Move the
+  implementation toward the design; do not treat existing code as evidence
+  that a conflicting architecture is intended.
+- Evaluate changes against the goals and non-goals in `design.md`. If requested
+  work conflicts with them, identify the conflict explicitly rather than
+  silently adding a workaround or expanding the platform's scope.
+- Do not update `design.md` merely to justify an implementation decision. It
+  should change only when new information invalidates an assumption, exposes a
+  conflict between its goals, or the desired architecture or scope is
+  deliberately changed.
+- Keep implementation plans, migration status, and temporary constraints out
+  of `design.md`. It records enduring WHAT and WHY; implementation-specific HOW
+  belongs in code, focused documentation, issues, or pull requests.
 
 # General Info
 
@@ -9,21 +27,68 @@ Applications only interact with the Roc API portion of a platform, but there is 
 
 basic-webserver is implemented in Rust and Roc.
 
+# Compiler
+
+This platform targets the new Zig-based Roc compiler. Use a `roc` from your PATH
+(build it from a roc source checkout with `zig build roc`). The old Rust-based
+compiler is no longer supported.
+
 # Useful Commands
 
-If you are in a nix dev shell, you can run `buildcmd` to build basic-webserver and `testcmd` to run all tests. Check if you are inside a nix shell with `echo $IN_NIX_SHELL`, enter one with `nix develop`. Or, run a command inside nix with `nix develop -c command`
+Build the host static library for the native target (writes `libhost.a` or
+`host.lib` under `platform/targets/<target>/`):
+```
+python scripts/build.py                  # native target
+python scripts/build.py --target TARGET  # one specific target
+python scripts/build.py --all            # targets buildable from this host OS
+```
+
+Format, check, test, build, and run every active example through the
+cross-platform HTTP specification suite:
+```
+python scripts/test.py
+```
+
+Release validation bundles the platform once. Five compiler-host jobs consume
+that bundle and each cross-build every target; five native runner jobs then
+execute every independently built artifact set for their target:
+```
+python scripts/test.py --operation validate
+python scripts/test_bundle.py --operation build-all --bundle-path BUNDLE --build-id linux-x64 --artifact-dir dist/example-binaries
+python scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
+```
+
+Regenerate the committed Rust glue after changing `platform/main.roc`'s
+`hosted`/`provides` blocks (needs a roc source checkout for `RustGlue.roc`):
+```
+ROC_SRC=/path/to/roc python scripts/regenerate_glue.py          # write
+ROC_SRC=/path/to/roc python scripts/regenerate_glue.py --check  # fail if stale
+```
 
 # Tests
 
-Note that if something is tested in ./examples, it may not have another test in ./tests.
+Runtime coverage lives in `scripts/test_spec.json`. Every active
+`examples/*.roc` application must have exactly one spec entry, and normal
+server cases must exercise the real HTTP listener. Keep examples realistic:
+add cases to an existing example or add a useful example rather than creating
+test-only Roc applications.
 
-Run an individual test with:
+Platform-specific skips are exceptional. Every skip must include both a
+concrete reason and a GitHub tracking issue URL; the spec validator rejects
+incomplete skips and platform-specific expected results.
+
+Build an individual example (the server binary lands in the repo root):
 ```
-roc build --linker=legacy tests/issue_154.roc
-TESTS_DIR=tests/ expect ci/expect_scripts/issue_154.exp
+roc build examples/hello-web.roc
 ```
+
+Files with a `.todoroc` extension are intentionally skipped migration backlog.
+Active `.roc` examples should pass `python scripts/test.py` on every supported OS.
 
 # Style
 
 - Prefer simple solutions.
 - Try to achieve a single source of truth when sensible.
+- Keep repository automation in `scripts/` and write it in portable Python.
+  Extend an existing entrypoint when the responsibility fits; add a script only
+  when it owns a distinct reusable workflow.

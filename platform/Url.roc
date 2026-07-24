@@ -1,523 +1,1494 @@
-module [
-    Url,
-    append,
-    from_str,
-    to_str,
-    append_param,
-    has_query,
-    has_fragment,
-    query,
-    fragment,
-    reserve,
-    with_query,
-    with_fragment,
-    query_params,
-    path,
-]
+## A validated HTTP or HTTPS URL implemented entirely in Roc.
+##
+## This is deliberately stricter than a browser parser. Hosts must be ASCII
+## DNS names, dotted-decimal IPv4 addresses, or bracketed IPv6 addresses made
+## from hexadecimal groups with optional :: elision. IPv4-in-IPv6 and Unicode
+## domain names are intentionally unsupported.
+Url :: {
+	scheme : [Http, Https],
+	host : Str,
+	port : [None, Some(U16)],
+	path : Str,
+	query : [None, Some(Str)],
+	fragment : [None, Some(Str)],
+}.{
 
-## A [Uniform Resource Locator](https://en.wikipedia.org/wiki/URL).
-##
-## It could be an absolute address, such as `https://roc-lang.org/authors` or
-## a relative address, such as `/authors`. You can create one using [Url.from_str].
-Url := Str implements [Inspect]
+	## A reason a URL or relative reference could not be parsed.
+	##
+	## This error set describes this module's strict HTTP/HTTPS subset. Inputs
+	## that browsers might repair, such as missing authority slashes or
+	## backslashes, are rejected instead.
+	ParseErr : [
+		CredentialsNotAllowed,
+		EmptyHost,
+		InternationalHostUnsupported,
+		InvalidCharacter(U8),
+		InvalidHost(Str),
+		InvalidIpv4(Str),
+		InvalidIpv6(Str),
+		InvalidPercentEncoding(U64),
+		InvalidPort(Str),
+		MissingAuthority,
+		MissingScheme,
+		PortOutOfRange(U64),
+		UnsupportedScheme(Str),
+	]
 
-## Reserve the given number of bytes as extra capacity. This can avoid reallocation
-## when calling multiple functions that increase the length of the URL.
-##
-## The following example reserves 50 bytes, then builds the url `https://example.com/stuff?caf%C3%A9=du%20Monde&email=hi%40example.com`;
-## ```
-## Url.from_str("https://example.com")
-## |> Url.reserve(50)
-## |> Url.append("stuff")
-## |> Url.append_param("café", "du Monde")
-## |> Url.append_param("email", "hi@example.com")
-## ```
-## The [Str.count_utf8_bytes](https://www.roc-lang.org/builtins/Str#count_utf8_bytes) function can be helpful in finding out how many bytes to reserve.
-##
-## There is no `Url.with_capacity` because it's better to reserve extra capacity
-## on a [Str] first, and then pass that string to [Url.from_str]. This function will make use
-## of the extra capacity.
-reserve : Url, U64 -> Url
-reserve = |@Url(str), cap|
-    @Url(Str.reserve(str, Num.int_cast(cap)))
+	## Parse a dynamic string as an absolute HTTP or HTTPS URL.
+	##
+	## The input must contain an explicit scheme and authority. Its host is
+	## lowercased, default ports are removed, dot path segments are normalized,
+	## and non-ASCII path, query, and fragment bytes are percent-encoded.
+	parse : Str -> Try(Url, ParseErr)
+	parse = |input| parse_absolute(input)
 
-## Create a [Url] without validating or [percent-encoding](https://en.wikipedia.org/wiki/Percent-encoding)
-## anything.
-##
-## ```
-## Url.from_str("https://example.com#stuff")
-## ```
-##
-## URLs can be absolute, like `https://example.com`, or they can be relative, like `/blah`.
-##
-## ```
-## Url.from_str("/this/is#relative")
-## ```
-##
-## Since nothing is validated, this can return invalid URLs.
-##
-## ```
-## Url.from_str("https://this is not a valid URL, not at all!")
-## ```
-##
-## Naturally, passing invalid URLs to functions that need valid ones will tend to result in errors.
-##
-from_str : Str -> Url
-from_str = |str| @Url(str)
+	## Convert a quoted literal to a URL using the same validation as parse.
+	##
+	## Roc calls this automatically when a quoted literal is expected to have
+	## type Url. A rejected literal reports a descriptive BadQuotedBytes error.
+	from_quote : Str -> Try(Url, [BadQuotedBytes(Str)])
+	from_quote = |input|
+		match parse_absolute(input) {
+			Ok(url) => Ok(url)
+			Err(err) => Err(BadQuotedBytes(parse_err_to_str(err)))
+		}
 
-## Return a [Str] representation of this URL.
-## ```
-## # Gives "https://example.com/two%20words"
-## Url.from_str("https://example.com")
-## |> Url.append("two words")
-## |> Url.to_str
-## ```
-to_str : Url -> Str
-to_str = |@Url(str)| str
+	## Parse a URL from a string value supplied by a generic encoding.
+	parser_for : encoding -> (state -> Try({ value : Url, rest : state }, err))
+		where [
+			encoding.parse_str : encoding, state -> Try({ value : Str, rest : state }, err),
+			encoding.invalid_value : encoding, state -> err,
+		]
+	parser_for = |encoding| {
+		Encoding : encoding
 
-## [Percent-encodes](https://en.wikipedia.org/wiki/Percent-encoding) a
-## [path component](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier#Syntax)
-## and appends to the end of the URL's path.
-##
-## This will be appended before any queries and fragments. If the given path string begins with `/` and the URL already ends with `/`, one
-## will be ignored. This avoids turning a single slash into a double slash. If either the given URL or the given string is empty, no `/` will be added.
-##
-## ```
-## # Gives https://example.com/some%20stuff
-## Url.from_str("https://example.com")
-## |> Url.append("some stuff")
-##
-## # Gives https://example.com/stuff?search=blah#fragment
-## Url.from_str("https://example.com?search=blah#fragment")
-## |> Url.append("stuff")
-##
-## # Gives https://example.com/things/stuff/more/etc/"
-## Url.from_str("https://example.com/things/")
-## |> Url.append("/stuff/")
-## |> Url.append("/more/etc/")
-##
-## # Gives https://example.com/things
-## Url.from_str("https://example.com/things")
-## |> Url.append("")
-## ```
-append : Url, Str -> Url
-append = |@Url(url_str), suffix_unencoded|
-    # percent-encode the suffix but not the slashes
-    suffix =
-        suffix_unencoded
-        |> Str.split_on("/")
-        |> List.map(percent_encode)
-        |> Str.join_with("/")
+		|state| {
+			parsed = Encoding.parse_str(encoding, state)?
 
-    when Str.split_first(url_str, "?") is
-        Ok({ before, after }) ->
-            bytes =
-                Str.count_utf8_bytes(before)
-                + 1 # for "/"
-                + Str.count_utf8_bytes(suffix)
-                + 1 # for "?"
-                + Str.count_utf8_bytes(after)
+			match parse(parsed.value) {
+				Ok(url) => Ok({ value: url, rest: parsed.rest })
+				Err(_) => Err(Encoding.invalid_value(encoding, state))
+			}
+		}
+	}
 
-            before
-            |> Str.reserve(bytes)
-            |> append_help(suffix)
-            |> Str.concat("?")
-            |> Str.concat(after)
-            |> @Url
+	## Encode a URL as its canonical string through a generic encoding.
+	encoder_for : encoding -> (Url, state -> Try(state, err))
+		where [
+			encoding.encode_str : Str, state -> Try(state, err),
+		]
+	encoder_for = |_encoding| {
+		Encoding : encoding
 
-        Err(NotFound) ->
-            # There wasn't a query, but there might still be a fragment
-            when Str.split_first(url_str, "#") is
-                Ok({ before, after }) ->
-                    bytes =
-                        Str.count_utf8_bytes(before)
-                        + 1 # for "/"
-                        + Str.count_utf8_bytes(suffix)
-                        + 1 # for "#"
-                        + Str.count_utf8_bytes(after)
+		|url, state| Encoding.encode_str(to_str(url), state)
+	}
 
-                    before
-                    |> Str.reserve(bytes)
-                    |> append_help(suffix)
-                    |> Str.concat("#")
-                    |> Str.concat(after)
-                    |> @Url
+	## Serialize the URL in a stable normalized ASCII form.
+	##
+	## Scheme and DNS host names are lowercase, default ports are omitted,
+	## paths are absolute, and IPv6 addresses use eight unpadded groups.
+	to_str : Url -> Str
+	to_str = |url| serialize(url, True)
 
-                Err(NotFound) ->
-                    # No query and no fragment, so just append it
-                    @Url(append_help(url_str, suffix))
+	## Render a URL for debugging and test failures.
+	to_inspect : Url -> Str
+	to_inspect = |url| "Url(${Json.to_str(to_str(url))})"
 
-## Internal helper
-append_help : Str, Str -> Str
-append_help = |prefix, suffix|
-    if Str.ends_with(prefix, "/") then
-        if Str.starts_with(suffix, "/") then
-            # Avoid a double-slash by appending only the part of the suffix after the "/"
-            when Str.split_first(suffix, "/") is
-                Ok({ after }) ->
-                    # TODO `expect before == ""`
-                    Str.concat(prefix, after)
+	## Compare URLs by their canonical serialized representation.
+	is_eq : Url, Url -> Bool
+	is_eq = |left, right| Str.is_eq(to_str(left), to_str(right))
 
-                Err(NotFound) ->
-                    # This should never happen, because we already verified
-                    # that the suffix starts_with "/"
-                    # TODO `expect Bool.false` here with a comment
-                    Str.concat(prefix, suffix)
-        else
-            # prefix ends with "/" but suffix doesn't start with one, so just append.
-            Str.concat(prefix, suffix)
-    else if Str.starts_with(suffix, "/") then
-        # Suffix starts with "/" but prefix doesn't end with one, so just append them.
-        Str.concat(prefix, suffix)
-    else if Str.is_empty(prefix) then
-        # Prefix is empty; return suffix.
-        suffix
-    else if Str.is_empty(suffix) then
-        # Suffix is empty; return prefix.
-        prefix
-    else
-        # Neither is empty, but neither has a "/", so add one in between.
-        prefix
-        |> Str.concat("/")
-        |> Str.concat(suffix)
+	## Hash URLs consistently with canonical equality.
+	to_hash : Url, Hasher -> Hasher
+	to_hash = |url, hasher| Str.to_hash(to_str(url), hasher)
 
-## Internal helper. This is intentionally unexposed so that you don't accidentally
-## double-encode things. If you really want to percent-encode an arbitrary string,
-## you can always do:
-##
-## ```
-## Url.from_str("")
-## |> Url.append(my_str_to_encode)
-## |> Url.to_str
-## ```
-##
-## > It is recommended to encode spaces as `%20`, the HTML 2.0 specification
-## suggests that these can be encoded as `+`, however this is not always safe to
-## use. See [this stackoverflow discussion](https://stackoverflow.com/questions/2678551/when-should-space-be-encoded-to-plus-or-20/47188851#47188851)
-## for a detailed explanation.
+	## Return Http or Https.
+	scheme : Url -> [Http, Https]
+	scheme = |url| url.scheme
+
+	## Return the canonical host.
+	##
+	## IPv6 brackets are omitted; to_str includes them where required.
+	host : Url -> Str
+	host = |url|
+		if starts_with(url.host, "[") {
+			trim_brackets(url.host)
+		} else {
+			url.host
+		}
+
+	## Return an explicit non-default port.
+	##
+	## Ports 80 for HTTP and 443 for HTTPS are canonicalized to None.
+	port : Url -> [None, Some(U16)]
+	port = |url| url.port
+
+	## Return the absolute percent-encoded path, always beginning with slash.
+	path : Url -> Str
+	path = |url| url.path
+
+	## Return the percent-encoded query without its leading question mark.
+	##
+	## None and Some("") distinguish no query from a present empty query.
+	query : Url -> [None, Some(Str)]
+	query = |url| url.query
+
+	## Return the percent-encoded fragment without its leading hash.
+	##
+	## None and Some("") distinguish no fragment from a present empty fragment.
+	fragment : Url -> [None, Some(Str)]
+	fragment = |url| url.fragment
+
+	## Return this URL without its fragment. HTTP never transmits fragments.
+	without_fragment : Url -> Url
+	without_fragment = |url|
+		Url.{
+			scheme: url.scheme,
+			host: url.host,
+			port: url.port,
+			path: url.path,
+			query: url.query,
+			fragment: None,
+		}
+
+	## Resolve a strict relative reference or absolute web URL against this URL.
+	##
+	## Root-relative, path-relative, query-only, and fragment-only references
+	## are supported. Scheme-relative references are rejected.
+	resolve : Url, Str -> Try(Url, ParseErr)
+	resolve = |base, reference| resolve_reference(base, reference)
+
+	## Append unencoded path segments.
+	##
+	## Each list item is one segment, so slash characters inside an item are
+	## percent-encoded rather than treated as separators.
+	append_path_segments : Url, List(Str) -> Url
+	append_path_segments = |url, segments| {
+		suffix = Str.join_with(segments.map(percent_encode), "/")
+		next_path = 
+			if Str.is_empty(suffix) {
+				url.path
+			} else if url.path == "/" {
+				Str.concat("/", suffix)
+			} else if ends_with(url.path, "/") {
+				Str.concat(url.path, suffix)
+			} else {
+				Str.concat(Str.concat(url.path, "/"), suffix)
+			}
+		Url.{
+			scheme: url.scheme,
+			host: url.host,
+			port: url.port,
+			path: normalize_path(next_path),
+			query: url.query,
+			fragment: url.fragment,
+		}
+	}
+
+	## Append one application/x-www-form-urlencoded query pair.
+	##
+	## Existing parameters, ordering, duplicate names, and the fragment are
+	## preserved.
+	append_query_param : Url, Str, Str -> Url
+	append_query_param = |url, key, value| {
+		pair = Str.concat(Str.concat(form_encode(key), "="), form_encode(value))
+		next_query = 
+			match url.query {
+				None => pair
+				Some("") => pair
+				Some(existing) => Str.concat(Str.concat(existing, "&"), pair)
+			}
+		Url.{
+			scheme: url.scheme,
+			host: url.host,
+			port: url.port,
+			path: url.path,
+			query: Some(next_query),
+			fragment: url.fragment,
+		}
+	}
+
+	## Decode the query into ordered name/value pairs.
+	##
+	## Plus signs decode as spaces, percent escapes decode as UTF-8 bytes,
+	## parameters without equals receive an empty value, and duplicates remain.
+	query_pairs : Url -> List((Str, Str))
+	query_pairs = |url|
+		match url.query {
+			None => []
+			Some("") => []
+			Some(query_str) =>
+				Str.split_on(query_str, "&").map(
+					|pair|
+						match split_first(pair, "=") {
+							Found({ before, after }) => (form_decode(before), form_decode(after))
+							NotFound => (form_decode(pair), "")
+						},
+				)
+			}
+
+	## Replace or remove the query.
+	##
+	## Some("") produces a present empty query. The supplied query may contain
+	## Unicode but must otherwise already obey URL query syntax.
+	with_query : Url, [None, Some(Str)] -> Try(Url, ParseErr)
+	with_query = |url, option| {
+		next_query_option = 
+			match option {
+				None => Ok(None)
+				Some(raw) =>
+					match validate_component(raw, Query) {
+						Ok(value) => Ok(Some(value))
+						Err(err) => Err(err)
+					}
+				}?
+		Ok(
+			Url.{
+				scheme: url.scheme,
+				host: url.host,
+				port: url.port,
+				path: url.path,
+				query: next_query_option,
+				fragment: url.fragment,
+			},
+		)
+	}
+
+	## Replace or remove the fragment.
+	##
+	## Some("") produces a present empty fragment. Unicode is percent-encoded.
+	with_fragment : Url, [None, Some(Str)] -> Try(Url, ParseErr)
+	with_fragment = |url, option| {
+		next_fragment_option = 
+			match option {
+				None => Ok(None)
+				Some(raw) =>
+					match validate_component(raw, Fragment) {
+						Ok(value) => Ok(Some(value))
+						Err(err) => Err(err)
+					}
+				}?
+		Ok(
+			Url.{
+				scheme: url.scheme,
+				host: url.host,
+				port: url.port,
+				path: url.path,
+				query: url.query,
+				fragment: next_fragment_option,
+			},
+		)
+	}
+}
+
+# Absolute URL and authority parsing.
+
+parse_absolute : Str -> Try(Url, Url.ParseErr)
+parse_absolute = |input| {
+	scheme_parts = 
+		match split_first(input, "://") {
+			Found(parts) => Ok(parts)
+			NotFound =>
+				if Str.contains(input, ":") {
+					Err(MissingAuthority)
+				} else {
+					Err(MissingScheme)
+				}
+			}?
+	scheme = 
+		match ascii_lower(scheme_parts.before) {
+			"http" => Ok(Http)
+			"https" => Ok(Https)
+			other => Err(UnsupportedScheme(other))
+		}?
+	{ authority, suffix } = split_authority(scheme_parts.after)
+	if Str.is_empty(authority) {
+		Err(EmptyHost)
+	} else if Str.contains(authority, "@") {
+		Err(CredentialsNotAllowed)
+	} else {
+		parsed_authority = parse_authority(authority, scheme)?
+		components = parse_suffix(suffix)?
+		Ok(
+			Url.{
+				scheme,
+				host: parsed_authority.host,
+				port: parsed_authority.port,
+				path: normalize_path(components.path),
+				query: components.query,
+				fragment: components.fragment,
+			},
+		)
+	}
+}
+
+parse_authority : Str, [Http, Https] -> Try({ host : Str, port : [None, Some(U16)] }, Url.ParseErr)
+parse_authority = |authority, scheme| {
+	if starts_with(authority, "[") {
+		match split_first(authority, "]") {
+			NotFound => Err(InvalidIpv6(authority))
+			Found({ before, after }) => {
+				raw_ipv6 = drop_prefix(before, "[")
+				host = validate_ipv6(raw_ipv6)?
+				port = 
+					if Str.is_empty(after) {
+						Ok(None)
+					} else if starts_with(after, ":") {
+						parse_port(drop_prefix(after, ":"), scheme)
+					} else {
+						Err(InvalidIpv6(authority))
+					}
+				Ok({ host: Str.concat(Str.concat("[", host), "]"), port: port? })
+			}
+		}
+	} else {
+		{ raw_host, raw_port } = 
+			match split_last(authority, ":") {
+				Found({ before, after }) => { raw_host: before, raw_port: Some(after) }
+				NotFound => { raw_host: authority, raw_port: None }
+			}
+		host = validate_host(raw_host)?
+		port = 
+			match raw_port {
+				None => Ok(None)
+				Some(raw) => parse_port(raw, scheme)
+			}
+		Ok({ host, port: port? })
+	}
+}
+
+validate_host : Str -> Try(Str, Url.ParseErr)
+validate_host = |raw_host| {
+	if Str.is_empty(raw_host) {
+		Err(EmptyHost)
+	} else if List.any(Str.to_utf8(raw_host), |byte| byte > 127) {
+		Err(InternationalHostUnsupported)
+	} else if Str.to_utf8(raw_host).all(|byte| is_digit(byte) or byte == 46) {
+		validate_ipv4(raw_host)
+	} else {
+		validate_dns_name(raw_host)
+	}
+}
+
+validate_dns_name : Str -> Try(Str, [InvalidHost(Str), ..])
+validate_dns_name = |raw_host| {
+	host = ascii_lower(raw_host)
+	labels = Str.split_on(host, ".")
+	valid = 
+		Str.to_utf8(host).len() <= 253 and
+			labels.all(
+				|label| {
+					bytes = Str.to_utf8(label)
+					len = bytes.len()
+					len > 0 and len <= 63 and
+						is_alphanumeric(first_or_zero(bytes)) and
+							is_alphanumeric(last_or_zero(bytes)) and
+								bytes.all(|byte| is_alphanumeric(byte) or byte == 45)
+				},
+			)
+	if valid {
+		Ok(host)
+	} else {
+		Err(InvalidHost(raw_host))
+	}
+}
+
+validate_ipv4 : Str -> Try(Str, [InvalidIpv4(Str), ..])
+validate_ipv4 = |raw_host| {
+	parts = Str.split_on(raw_host, ".")
+	if parts.len() != 4 {
+		Err(InvalidIpv4(raw_host))
+	} else {
+		match parse_ipv4_parts(parts, []) {
+			Err(_) => Err(InvalidIpv4(raw_host))
+			Ok(values) => Ok(Str.join_with(values.map(U64.to_str), "."))
+		}
+	}
+}
+
+parse_ipv4_parts : List(Str), List(U64) -> Try(List(U64), [BadIpv4Part])
+parse_ipv4_parts = |parts, out|
+	match parts {
+		[] => Ok(out)
+		[first, .. as rest] => {
+			# An IPv4 component can contain at most three decimal digits. Check
+			# that before accumulating into U64 so hostile input cannot overflow.
+			if Str.to_utf8(first).len() > 3 {
+				Err(BadIpv4Part)
+			} else {
+				match parse_decimal(first) {
+					Ok(value) =>
+						if value <= 255 {
+							parse_ipv4_parts(rest, out.append(value))
+						} else {
+							Err(BadIpv4Part)
+						}
+					Err(_) => Err(BadIpv4Part)
+				}
+			}
+		}
+	}
+
+parse_port : Str, [Http, Https] -> Try([None, Some(U16)], [InvalidPort(Str), PortOutOfRange(U64), ..])
+parse_port = |raw, scheme| {
+	# A valid U16 port has at most five decimal digits. Reject longer input
+	# before parsing so decimal accumulation cannot overflow U64.
+	if Str.to_utf8(raw).len() > 5 {
+		Err(InvalidPort(raw))
+	} else {
+		match parse_decimal(raw) {
+			Err(_) => Err(InvalidPort(raw))
+			Ok(value) =>
+				if value > 65535 {
+					Err(PortOutOfRange(value))
+				} else {
+					port = U64.to_u16_wrap(value)
+					is_default = 
+						match scheme {
+							Http => port == 80
+							Https => port == 443
+						}
+					Ok(
+						if is_default {
+							None
+						} else {
+							Some(port)
+						},
+					)
+				}
+			}
+	}
+}
+
+parse_decimal : Str -> Try(U64, [NotDecimal])
+parse_decimal = |raw| {
+	bytes = Str.to_utf8(raw)
+	if bytes.is_empty() or Bool.not(bytes.all(is_digit)) {
+		Err(NotDecimal)
+	} else {
+		Ok(bytes.fold(0, |acc, byte| acc * 10 + U8.to_u64(byte - 48)))
+	}
+}
+
+# IPv6 parsing.
+#
+# Addresses are validated as eight hexadecimal groups, with at most one ::
+# elision. IPv4-in-IPv6 syntax is outside this module's deliberately small
+# subset. Serialization expands elided groups and removes leading zeroes.
+validate_ipv6 : Str -> Try(Str, [InvalidIpv6(Str), ..])
+validate_ipv6 = |raw| {
+	pieces = Str.split_on(raw, "::")
+	if pieces.len() > 2 {
+		Err(InvalidIpv6(raw))
+	} else if pieces.len() == 1 {
+		groups = parse_ipv6_side(raw)?
+		if groups.len() == 8 {
+			Ok(serialize_ipv6(groups))
+		} else {
+			Err(InvalidIpv6(raw))
+		}
+	} else {
+		left = parse_ipv6_side(get_or_empty(pieces, 0))?
+		right = parse_ipv6_side(get_or_empty(pieces, 1))?
+		count = left.len() + right.len()
+		if count >= 8 {
+			Err(InvalidIpv6(raw))
+		} else {
+			groups = left.concat(List.repeat(0, 8 - count)).concat(right)
+			Ok(serialize_ipv6(groups))
+		}
+	}
+}
+
+parse_ipv6_side : Str -> Try(List(U16), [InvalidIpv6(Str), ..])
+parse_ipv6_side = |raw|
+	if Str.is_empty(raw) {
+		Ok([])
+	} else {
+		parse_hex_groups(Str.split_on(raw, ":"), [])
+	}
+
+parse_hex_groups : List(Str), List(U16) -> Try(List(U16), [InvalidIpv6(Str), ..])
+parse_hex_groups = |parts, out|
+	match parts {
+		[] => Ok(out)
+		[first, .. as rest] => {
+			bytes = Str.to_utf8(first)
+			if bytes.is_empty() or bytes.len() > 4 or Bool.not(bytes.all(is_hex)) {
+				Err(InvalidIpv6(first))
+			} else {
+				value = bytes.fold(0, |acc, byte| acc * 16 + U8.to_u16(hex_value(byte)))
+				parse_hex_groups(rest, out.append(value))
+			}
+		}
+	}
+
+serialize_ipv6 : List(U16) -> Str
+serialize_ipv6 = |groups| Str.join_with(groups.map(u16_to_hex), ":")
+
+u16_to_hex : U16 -> Str
+u16_to_hex = |value|
+	if value == 0 {
+		"0"
+	} else {
+		u16_to_hex_help(value, [])
+	}
+
+u16_to_hex_help : U16, List(U8) -> Str
+u16_to_hex_help = |value, digits| {
+	next_digits = [lower_hex_digit_byte(U16.to_u8_wrap(value % 16))].concat(digits)
+	next = value // 16
+	if next == 0 {
+		Str.from_utf8_lossy(next_digits)
+	} else {
+		u16_to_hex_help(next, next_digits)
+	}
+}
+
+parse_suffix : Str -> Try({ fragment : [None, Some(Str)], path : Str, query : [None, Some(Str)] }, Url.ParseErr)
+parse_suffix = |suffix| {
+	{ before_fragment, fragment } = 
+		match split_first(suffix, "#") {
+			Found({ before, after }) => { before_fragment: before, fragment: Some(after) }
+			NotFound => { before_fragment: suffix, fragment: None }
+		}
+	{ raw_path, query } = 
+		match split_first(before_fragment, "?") {
+			Found({ before, after }) => { raw_path: before, query: Some(after) }
+			NotFound => { raw_path: before_fragment, query: None }
+		}
+	path_input = if Str.is_empty(raw_path) {
+		"/"
+	} else {
+		raw_path
+	}
+	if Bool.not(starts_with(path_input, "/")) {
+		Err(InvalidCharacter(first_or_zero(Str.to_utf8(path_input))))
+	} else {
+		path = validate_component(path_input, Path)?
+		encoded_query = validate_optional(query, Query)?
+		encoded_fragment = validate_optional(fragment, Fragment)?
+		Ok({ path, query: encoded_query, fragment: encoded_fragment })
+	}
+}
+
+validate_optional : [None, Some(Str)], [Fragment, Path, Query] -> Try([None, Some(Str)], Url.ParseErr)
+validate_optional = |option, kind|
+	match option {
+		None => Ok(None)
+		Some(raw) =>
+			match validate_component(raw, kind) {
+				Ok(value) => Ok(Some(value))
+				Err(err) => Err(err)
+			}
+		}
+
+validate_component : Str, [Fragment, Path, Query] -> Try(Str, Url.ParseErr)
+validate_component = |raw, kind|
+	match validate_component_help(Str.to_utf8(raw), kind, 0, []) {
+		Ok(bytes) => Ok(Str.from_utf8_lossy(bytes))
+		Err(err) => Err(err)
+	}
+
+validate_component_help : List(U8), [Fragment, Path, Query], U64, List(U8) -> Try(List(U8), Url.ParseErr)
+validate_component_help = |bytes, kind, index, out| {
+	if index >= bytes.len() {
+		Ok(out)
+	} else {
+		byte = get_or_zero(bytes, index)
+		if byte == 37 {
+			if index + 2 >= bytes.len() or Bool.not(is_hex(get_or_zero(bytes, index + 1))) or Bool.not(is_hex(get_or_zero(bytes, index + 2))) {
+				Err(InvalidPercentEncoding(index))
+			} else {
+				next = out.append(37)
+					.append(ascii_upper_hex(get_or_zero(bytes, index + 1)))
+					.append(ascii_upper_hex(get_or_zero(bytes, index + 2)))
+				validate_component_help(bytes, kind, index + 3, next)
+			}
+		} else if byte > 127 {
+			validate_component_help(bytes, kind, index + 1, append_percent_byte(out, byte))
+		} else if is_forbidden(byte, kind) {
+			Err(InvalidCharacter(byte))
+		} else {
+			validate_component_help(bytes, kind, index + 1, out.append(byte))
+		}
+	}
+}
+
+is_forbidden : U8, [Fragment, Path, Query] -> Bool
+is_forbidden = |byte, kind| {
+	common = byte <= 32 or byte == 127 or byte == 34 or byte == 60 or byte == 62 or byte == 92
+	if common {
+		True
+	} else {
+		match kind {
+			Path => byte == 35 or byte == 63
+			Query => byte == 35
+			Fragment => False
+		}
+	}
+}
+
+# Relative-reference resolution and path normalization.
+
+resolve_reference : Url, Str -> Try(Url, Url.ParseErr)
+resolve_reference = |base, reference| {
+	lower = ascii_lower(reference)
+	if starts_with(lower, "http://") or starts_with(lower, "https://") {
+		parse_absolute(reference)
+	} else if Str.contains(reference, "://") or starts_with(reference, "//") {
+		Err(MissingScheme)
+	} else {
+		relative = parse_relative(reference)?
+		next_path = 
+			if Str.is_empty(relative.path) {
+				base.path
+			} else if starts_with(relative.path, "/") {
+				normalize_path(relative.path)
+			} else {
+				normalize_path(Str.concat(path_directory(base.path), relative.path))
+			}
+		next_query = 
+			match relative.query {
+				Some(value) => Some(value)
+				None => if Str.is_empty(relative.path) {
+					base.query
+				} else {
+					None
+				}
+			}
+		Ok(
+			Url.{
+				scheme: base.scheme,
+				host: base.host,
+				port: base.port,
+				path: next_path,
+				query: next_query,
+				fragment: relative.fragment,
+			},
+		)
+	}
+}
+
+parse_relative : Str -> Try({ fragment : [None, Some(Str)], path : Str, query : [None, Some(Str)] }, Url.ParseErr)
+parse_relative = |reference| {
+	{ before_fragment, fragment } = 
+		match split_first(reference, "#") {
+			Found({ before, after }) => { before_fragment: before, fragment: Some(after) }
+			NotFound => { before_fragment: reference, fragment: None }
+		}
+	{ raw_path, query } = 
+		match split_first(before_fragment, "?") {
+			Found({ before, after }) => { raw_path: before, query: Some(after) }
+			NotFound => { raw_path: before_fragment, query: None }
+		}
+	path = validate_component(raw_path, Path)?
+	encoded_query = validate_optional(query, Query)?
+	encoded_fragment = validate_optional(fragment, Fragment)?
+	Ok({ path, query: encoded_query, fragment: encoded_fragment })
+}
+
+normalize_path : Str -> Str
+normalize_path = |path_str| {
+	rooted = if starts_with(path_str, "/") {
+		path_str
+	} else {
+		Str.concat("/", path_str)
+	}
+	trailing = ends_with(rooted, "/") or ends_with(rooted, "/.") or ends_with(rooted, "/..")
+	normalized = normalize_segments(Str.split_on(rooted, "/"), [])
+	joined = Str.concat("/", Str.join_with(normalized, "/"))
+	if trailing and joined != "/" {
+		Str.concat(joined, "/")
+	} else {
+		joined
+	}
+}
+
+normalize_segments : List(Str), List(Str) -> List(Str)
+normalize_segments = |segments, out|
+	match segments {
+		[] => out
+		["", .. as rest] => normalize_segments(rest, out)
+		[first, .. as rest] if is_single_dot_segment(first) => normalize_segments(rest, out)
+		[first, .. as rest] if is_double_dot_segment(first) => normalize_segments(rest, out.drop_last(1))
+		[first, .. as rest] => normalize_segments(rest, out.append(first))
+	}
+
+# Percent escapes have already been canonicalized to uppercase by
+# validate_component, so these cover every URL-standard encoded-dot spelling.
+is_single_dot_segment : Str -> Bool
+is_single_dot_segment = |segment| segment == "." or segment == "%2E"
+
+is_double_dot_segment : Str -> Bool
+is_double_dot_segment = |segment|
+	segment == ".." or segment == ".%2E" or segment == "%2E." or segment == "%2E%2E"
+
+path_directory : Str -> Str
+path_directory = |path_str| {
+	parts = Str.split_on(path_str, "/")
+	if parts.len() <= 2 {
+		"/"
+	} else {
+		Str.concat(Str.join_with(parts.drop_last(1), "/"), "/")
+	}
+}
+
+serialize : Url, Bool -> Str
+serialize = |url, include_fragment| {
+	scheme_str = 
+		match url.scheme {
+			Http => "http"
+			Https => "https"
+		}
+	port_str = 
+		match url.port {
+			None => ""
+			Some(value) => Str.concat(":", U16.to_str(value))
+		}
+	query_str = 
+		match url.query {
+			None => ""
+			Some(value) => Str.concat("?", value)
+		}
+	fragment_str = 
+		if include_fragment {
+			match url.fragment {
+				None => ""
+				Some(value) => Str.concat("#", value)
+			}
+		} else {
+			""
+		}
+	Str.concat(
+		Str.concat(
+			Str.concat(
+				Str.concat(
+					Str.concat(Str.concat(scheme_str, "://"), url.host),
+					port_str,
+				),
+				url.path,
+			),
+			query_str,
+		),
+		fragment_str,
+	)
+}
+
+# Percent encoding and application/x-www-form-urlencoded query handling.
+
 percent_encode : Str -> Str
 percent_encode = |input|
-    # Optimistically assume we won't need any percent encoding, and can have
-    # the same capacity as the input string. If we're wrong, it will get doubled.
-    initial_output = List.with_capacity((Str.count_utf8_bytes(input) |> Num.int_cast))
+	Str.from_utf8_lossy(
+		Str.to_utf8(input).fold(
+			[],
+			|out, byte|
+				if is_unreserved(byte) {
+					out.append(byte)
+				} else {
+					append_percent_byte(out, byte)
+				},
+		),
+	)
 
-    answer =
-        List.walk(
-            Str.to_utf8(input),
-            initial_output,
-            |output, byte|
-                # Spec for percent-encoding: https://www.ietf.org/rfc/rfc3986.txt
-                if
-                    (byte >= 97 and byte <= 122) # lowercase ASCII
-                    or (byte >= 65 and byte <= 90) # uppercase ASCII
-                    or (byte >= 48 and byte <= 57) # digit
-                then
-                    # This is the most common case: an unreserved character,
-                    # which needs no encoding in a path
-                    List.append(output, byte)
-                else
-                    when byte is
-                        46 # '.'
-                        | 95 # '_'
-                        | 126 # '~'
-                        | 150 -> # '-'
-                            # These special characters can all be unescaped in paths
-                            List.append(output, byte)
+form_encode : Str -> Str
+form_encode = |input|
+	Str.from_utf8_lossy(
+		Str.to_utf8(input).fold(
+			[],
+			|out, byte|
+				if byte == 32 {
+					out.append(43)
+				} else if is_form_unescaped(byte) {
+					out.append(byte)
+				} else {
+					append_percent_byte(out, byte)
+				},
+		),
+	)
 
-                        _ ->
-                            # This needs encoding in a path
-                            suffix =
-                                Str.to_utf8(percent_encoded)
-                                |> List.sublist({ len: 3, start: 3 * Num.int_cast(byte) })
+form_decode : Str -> Str
+form_decode = |input| Str.from_utf8_lossy(form_decode_help(Str.to_utf8(input), 0, []))
 
-                            List.concat(output, suffix),
-        )
+form_decode_help : List(U8), U64, List(U8) -> List(U8)
+form_decode_help = |bytes, index, out| {
+	if index >= bytes.len() {
+		out
+	} else {
+		byte = get_or_zero(bytes, index)
+		if byte == 43 {
+			form_decode_help(bytes, index + 1, out.append(32))
+		} else if byte == 37 and index + 2 < bytes.len() and is_hex(get_or_zero(bytes, index + 1)) and is_hex(get_or_zero(bytes, index + 2)) {
+			decoded = hex_value(get_or_zero(bytes, index + 1)) * 16 + hex_value(get_or_zero(bytes, index + 2))
+			form_decode_help(bytes, index + 3, out.append(decoded))
+		} else {
+			form_decode_help(bytes, index + 1, out.append(byte))
+		}
+	}
+}
 
-    Str.from_utf8(answer)
-    |> Result.with_default("") # This should never fail
+# Small string and byte helpers. Keeping these local avoids depending on host
+# code or exposing parser implementation details through the public API.
 
-## Adds a [Str] query parameter to the end of the [Url].
-##
-## The key and value both get [percent-encoded](https://en.wikipedia.org/wiki/Percent-encoding).
-##
-## ```
-## # Gives https://example.com?email=someone%40example.com
-## Url.from_str("https://example.com")
-## |> Url.append_param("email", "someone@example.com")
-## ```
-##
-## This can be called multiple times on the same URL.
-##
-## ```
-## # Gives https://example.com?caf%C3%A9=du%20Monde&email=hi%40example.com
-## Url.from_str("https://example.com")
-## |> Url.append_param("café", "du Monde")
-## |> Url.append_param("email", "hi@example.com")
-## ```
-##
-append_param : Url, Str, Str -> Url
-append_param = |@Url(url_str), key, value|
-    { without_fragment, after_query } =
-        when Str.split_last(url_str, "#") is
-            Ok({ before, after }) ->
-                # The fragment is almost certainly going to be a small string,
-                # so this interpolation should happen on the stack.
-                { without_fragment: before, after_query: "#${after}" }
+split_authority : Str -> { authority : Str, suffix : Str }
+split_authority = |after_scheme| {
+	bytes = Str.to_utf8(after_scheme)
+	index = first_delimiter(bytes, 0)
+	authority = Str.from_utf8_lossy(bytes.sublist({ start: 0, len: index }))
+	suffix = Str.from_utf8_lossy(bytes.sublist({ start: index, len: bytes.len() - index }))
+	{ authority, suffix }
+}
 
-            Err(NotFound) ->
-                { without_fragment: url_str, after_query: "" }
+first_delimiter : List(U8), U64 -> U64
+first_delimiter = |bytes, index| {
+	if index >= bytes.len() {
+		index
+	} else {
+		byte = get_or_zero(bytes, index)
+		if byte == 47 or byte == 63 or byte == 35 {
+			index
+		} else {
+			first_delimiter(bytes, index + 1)
+		}
+	}
+}
 
-    encoded_key = percent_encode(key)
-    encoded_value = percent_encode(value)
+parse_err_to_str : Url.ParseErr -> Str
+parse_err_to_str = |err|
+	match err {
+		CredentialsNotAllowed => "URL credentials are not supported"
+		EmptyHost => "URL host is empty"
+		InternationalHostUnsupported => "URL host must be ASCII; use its Punycode form"
+		InvalidCharacter(byte) => Str.concat("URL contains invalid byte ", U8.to_str(byte))
+		InvalidHost(host) => Str.concat("Invalid URL host: ", host)
+		InvalidIpv4(host) => Str.concat("Invalid IPv4 address: ", host)
+		InvalidIpv6(host) => Str.concat("Invalid IPv6 address: ", host)
+		InvalidPercentEncoding(index) => Str.concat("Invalid percent escape at byte ", U64.to_str(index))
+		InvalidPort(port) => Str.concat("Invalid URL port: ", port)
+		MissingAuthority => "URL must contain :// after its scheme"
+		MissingScheme => "URL must start with http:// or https://"
+		PortOutOfRange(port) => Str.concat("URL port is out of range: ", U64.to_str(port))
+		UnsupportedScheme(scheme) => Str.concat("Unsupported URL scheme: ", scheme)
+	}
 
-    bytes =
-        Str.count_utf8_bytes(without_fragment)
-        + 1 # for "?" or "&"
-        + Str.count_utf8_bytes(encoded_key)
-        + 1 # for "="
-        + Str.count_utf8_bytes(encoded_value)
-        + Str.count_utf8_bytes(after_query)
+ascii_lower : Str -> Str
+ascii_lower = |input|
+	Str.from_utf8_lossy(
+		Str.to_utf8(input).map(
+			|byte|
+				if byte >= 65 and byte <= 90 {
+					byte + 32
+				} else {
+					byte
+				},
+		),
+	)
 
-    without_fragment
-    |> Str.reserve(bytes)
-    |> Str.concat((if has_query(@Url(without_fragment)) then "&" else "?"))
-    |> Str.concat(encoded_key)
-    |> Str.concat("=")
-    |> Str.concat(encoded_value)
-    |> Str.concat(after_query)
-    |> @Url
+ascii_upper_hex : U8 -> U8
+ascii_upper_hex = |byte|
+	if byte >= 97 and byte <= 102 {
+		byte - 32
+	} else {
+		byte
+	}
 
-## Replaces the URL's [query](https://en.wikipedia.org/wiki/URL#Syntax)—the part
-## after the `?`, if it has one, but before any `#` it might have.
-##
-## Passing `""` removes the `?` (if there was one).
-##
-## ```
-## # Gives https://example.com?newQuery=thisRightHere#stuff
-## Url.from_str("https://example.com?key1=val1&key2=val2#stuff")
-## |> Url.with_query("newQuery=thisRightHere")
-##
-## # Gives https://example.com#stuff
-## Url.from_str("https://example.com?key1=val1&key2=val2#stuff")
-## |> Url.with_query("")
-## ```
-with_query : Url, Str -> Url
-with_query = |@Url(url_str), query_str|
-    { without_fragment, after_query } =
-        when Str.split_last(url_str, "#") is
-            Ok({ before, after }) ->
-                # The fragment is almost certainly going to be a small string,
-                # so this interpolation should happen on the stack.
-                { without_fragment: before, after_query: "#${after}" }
+is_unreserved : U8 -> Bool
+is_unreserved = |byte| is_alphanumeric(byte) or byte == 45 or byte == 46 or byte == 95 or byte == 126
 
-            Err(NotFound) ->
-                { without_fragment: url_str, after_query: "" }
+is_form_unescaped : U8 -> Bool
+is_form_unescaped = |byte| is_alphanumeric(byte) or byte == 42 or byte == 45 or byte == 46 or byte == 95
 
-    before_query =
-        when Str.split_last(without_fragment, "?") is
-            Ok({ before }) -> before
-            Err(NotFound) -> without_fragment
+is_alphanumeric : U8 -> Bool
+is_alphanumeric = |byte| is_digit(byte) or (byte >= 65 and byte <= 90) or (byte >= 97 and byte <= 122)
 
-    if Str.is_empty(query_str) then
-        @Url(Str.concat(before_query, after_query))
-    else
-        bytes =
-            Str.count_utf8_bytes(before_query)
-            + 1 # for "?"
-            + Str.count_utf8_bytes(query_str)
-            + Str.count_utf8_bytes(after_query)
+is_digit : U8 -> Bool
+is_digit = |byte| byte >= 48 and byte <= 57
 
-        before_query
-        |> Str.reserve(bytes)
-        |> Str.concat("?")
-        |> Str.concat(query_str)
-        |> Str.concat(after_query)
-        |> @Url
+is_hex : U8 -> Bool
+is_hex = |byte| is_digit(byte) or (byte >= 65 and byte <= 70) or (byte >= 97 and byte <= 102)
 
-## Returns the URL's [query](https://en.wikipedia.org/wiki/URL#Syntax)—the part after
-## the `?`, if it has one, but before any `#` it might have.
-##
-## Returns `""` if the URL has no query.
-##
-## ```
-## # Gives "key1=val1&key2=val2&key3=val3"
-## Url.from_str("https://example.com?key1=val1&key2=val2&key3=val3#stuff")
-## |> Url.query
-##
-## # Gives ""
-## Url.from_str("https://example.com#stuff")
-## |> Url.query
-## ```
-##
-query : Url -> Str
-query = |@Url(url_str)|
-    without_fragment =
-        when Str.split_last(url_str, "#") is
-            Ok({ before }) -> before
-            Err(NotFound) -> url_str
+hex_value : U8 -> U8
+hex_value = |byte|
+	if byte <= 57 {
+		byte - 48
+	} else if byte <= 70 {
+		byte - 55
+	} else {
+		byte - 87
+	}
 
-    when Str.split_last(without_fragment, "?") is
-        Ok({ after }) -> after
-        Err(NotFound) -> ""
+append_percent_byte : List(U8), U8 -> List(U8)
+append_percent_byte = |out, byte|
+	out.append(37).append(hex_digit_byte(byte // 16)).append(hex_digit_byte(byte % 16))
 
-## Returns [Bool.true] if the URL has a `?` in it.
-##
-## ```
-## # Gives Bool.true
-## Url.from_str("https://example.com?key=value#stuff")
-## |> Url.has_query
-##
-## # Gives Bool.false
-## Url.from_str("https://example.com#stuff")
-## |> Url.has_query
-## ```
-##
-has_query : Url -> Bool
-has_query = |@Url(url_str)|
-    Str.contains(url_str, "?")
+hex_digit_byte : U8 -> U8
+hex_digit_byte = |value|
+	if value < 10 {
+		value + 48
+	} else {
+		value + 55
+	}
 
-## Returns the URL's [fragment](https://en.wikipedia.org/wiki/URL#Syntax)—the part after
-## the `#`, if it has one.
-##
-## Returns `""` if the URL has no fragment.
-##
-## ```
-## # Gives "stuff"
-## Url.from_str("https://example.com#stuff")
-## |> Url.fragment
-##
-## # Gives ""
-## Url.from_str("https://example.com")
-## |> Url.fragment
-## ```
-##
-fragment : Url -> Str
-fragment = |@Url(url_str)|
-    when Str.split_last(url_str, "#") is
-        Ok({ after }) -> after
-        Err(NotFound) -> ""
+lower_hex_digit_byte : U8 -> U8
+lower_hex_digit_byte = |value|
+	if value < 10 {
+		value + 48
+	} else {
+		value + 87
+	}
 
-## Replaces the URL's [fragment](https://en.wikipedia.org/wiki/URL#Syntax).
-##
-## If the URL didn't have a fragment, adds one. Passing `""` removes the fragment.
-##
-## ```
-## # Gives https://example.com#things
-## Url.from_str("https://example.com#stuff")
-## |> Url.with_fragment("things")
-##
-## # Gives https://example.com#things
-## Url.from_str("https://example.com")
-## |> Url.with_fragment("things")
-##
-## # Gives https://example.com
-## Url.from_str("https://example.com#stuff")
-## |> Url.with_fragment ""
-## ```
-##
-with_fragment : Url, Str -> Url
-with_fragment = |@Url(url_str), fragment_str|
-    when Str.split_last(url_str, "#") is
-        Ok({ before }) ->
-            if Str.is_empty(fragment_str) then
-                # If the given fragment is empty, remove the URL's fragment
-                @Url(before)
-            else
-                # Replace the URL's old fragment with this one, discarding `after`
-                @Url("${before}#${fragment_str}")
+get_or_zero : List(U8), U64 -> U8
+get_or_zero = |list, index|
+	match list.get(index) {
+		Ok(value) => value
+		Err(_) => 0
+	}
 
-        Err(NotFound) ->
-            if Str.is_empty(fragment_str) then
-                # If the given fragment is empty, leave the URL as having no fragment
-                @Url(url_str)
-            else
-                # The URL didn't have a fragment, so give it this one
-                @Url("${url_str}#${fragment_str}")
+get_or_empty : List(Str), U64 -> Str
+get_or_empty = |list, index|
+	match list.get(index) {
+		Ok(value) => value
+		Err(_) => ""
+	}
 
-## Returns [Bool.true] if the URL has a `#` in it.
-##
-## ```
-## # Gives Bool.true
-## Url.from_str("https://example.com?key=value#stuff")
-## |> Url.has_fragment
-##
-## # Gives Bool.false
-## Url.from_str("https://example.com?key=value")
-## |> Url.has_fragment
-## ```
-##
-has_fragment : Url -> Bool
-has_fragment = |@Url(url_str)|
-    Str.contains(url_str, "#")
+first_or_zero : List(U8) -> U8
+first_or_zero = |list| get_or_zero(list, 0)
 
-# Adapted from the percent-encoding crate, © The rust-url developers, Apache2-licensed
-#
-# https://github.com/servo/rust-url/blob/e12d76a61add5bc09980599c738099feaacd1d0d/percent_encoding/src/lib.rs#L183
-percent_encoded : Str
-percent_encoded = "%00%01%02%03%04%05%06%07%08%09%0A%0B%0C%0D%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D%2E%2F%30%31%32%33%34%35%36%37%38%39%3A%3B%3C%3D%3E%3F%40%41%42%43%44%45%46%47%48%49%4A%4B%4C%4D%4E%4F%50%51%52%53%54%55%56%57%58%59%5A%5B%5C%5D%5E%5F%60%61%62%63%64%65%66%67%68%69%6A%6B%6C%6D%6E%6F%70%71%72%73%74%75%76%77%78%79%7A%7B%7C%7D%7E%7F%80%81%82%83%84%85%86%87%88%89%8A%8B%8C%8D%8E%8F%90%91%92%93%94%95%96%97%98%99%9A%9B%9C%9D%9E%9F%A0%A1%A2%A3%A4%A5%A6%A7%A8%A9%AA%AB%AC%AD%AE%AF%B0%B1%B2%B3%B4%B5%B6%B7%B8%B9%BA%BB%BC%BD%BE%BF%C0%C1%C2%C3%C4%C5%C6%C7%C8%C9%CA%CB%CC%CD%CE%CF%D0%D1%D2%D3%D4%D5%D6%D7%D8%D9%DA%DB%DC%DD%DE%DF%E0%E1%E2%E3%E4%E5%E6%E7%E8%E9%EA%EB%EC%ED%EE%EF%F0%F1%F2%F3%F4%F5%F6%F7%F8%F9%FA%FB%FC%FD%FE%FF"
+last_or_zero : List(U8) -> U8
+last_or_zero = |list|
+	if list.is_empty() {
+		0
+	} else {
+		get_or_zero(list, list.len() - 1)
+	}
 
-query_params : Url -> Dict Str Str
-query_params = |url|
-    query(url)
-    |> Str.split_on("&")
-    |> List.walk(
-        Dict.empty({}),
-        |dict, pair|
-            when Str.split_first(pair, "=") is
-                Ok({ before, after }) -> Dict.insert(dict, before, after)
-                Err(NotFound) -> Dict.insert(dict, pair, ""),
-    )
+trim_brackets : Str -> Str
+trim_brackets = |str| {
+	bytes = Str.to_utf8(str)
+	if bytes.len() < 2 {
+		""
+	} else {
+		Str.from_utf8_lossy(bytes.sublist({ start: 1, len: bytes.len() - 2 }))
+	}
+}
 
-## Returns the URL's [path](https://en.wikipedia.org/wiki/URL#Syntax)—the part after
-## the scheme and authority (e.g. `https://`) but before any `?` or `#` it might have.
-##
-## Returns `""` if the URL has no path.
-##
-## ```
-## # Gives "example.com/"
-## Url.from_str("https://example.com/?key1=val1&key2=val2&key3=val3#stuff")
-## |> Url.path
-## ```
-##
-## ```
-## # Gives "/foo/"
-## Url.from_str("/foo/?key1=val1&key2=val2&key3=val3#stuff")
-## |> Url.path
-## ```
-path : Url -> Str
-path = |@Url(url_str)|
-    without_authority =
-        if Str.starts_with(url_str, "/") then
-            url_str
-        else
-            when Str.split_first(url_str, ":") is
-                Ok({ after }) ->
-                    when Str.split_first(after, "//") is
-                        # Only drop the `//` if it's right after the `://` like in `https://`
-                        # (so, `before` is empty) - otherwise, the `//` is part of the path!
-                        Ok({ before, after: after_slashes }) if Str.is_empty(before) -> after_slashes
-                        _ -> after
+starts_with : Str, Str -> Bool
+starts_with = |str, prefix|
+	if Str.is_empty(prefix) {
+		True
+	} else {
+		match split_first(str, prefix) {
+			Found({ before, after: _ }) => Str.is_empty(before)
+			NotFound => False
+		}
+	}
 
-                # There's no `//` and also no `:` so this must be a path-only URL, e.g. "/foo?bar=baz#blah"
-                Err(NotFound) -> url_str
+ends_with : Str, Str -> Bool
+ends_with = |str, suffix| {
+	if Str.is_empty(suffix) {
+		True
+	} else {
+		parts = Str.split_on(str, suffix)
+		match parts.get(parts.len() - 1) {
+			Ok(last) => Str.is_empty(last)
+			Err(_) => False
+		}
+	}
+}
 
-    # Drop the query and/or fragment
-    when Str.split_last(without_authority, "?") is
-        Ok({ before }) -> before
-        Err(NotFound) ->
-            when Str.split_last(without_authority, "#") is
-                Ok({ before }) -> before
-                Err(NotFound) -> without_authority
+drop_prefix : Str, Str -> Str
+drop_prefix = |str, prefix| {
+	parts = Str.split_on(str, prefix)
+	Str.join_with(parts.drop_first(1), prefix)
+}
 
-# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+split_first : Str, Str -> [Found({ after : Str, before : Str }), NotFound]
+split_first = |str, separator| {
+	parts = Str.split_on(str, separator)
+	if parts.len() > 1 {
+		match parts.get(0) {
+			Ok(before) => Found({ before, after: Str.join_with(parts.drop_first(1), separator) })
+			Err(_) => NotFound
+		}
+	} else {
+		NotFound
+	}
+}
+
+split_last : Str, Str -> [Found({ after : Str, before : Str }), NotFound]
+split_last = |str, separator| {
+	parts = Str.split_on(str, separator)
+	if parts.len() > 1 {
+		match parts.get(parts.len() - 1) {
+			Ok(after) => Found({ before: Str.join_with(parts.drop_last(1), separator), after })
+			Err(_) => NotFound
+		}
+	} else {
+		NotFound
+	}
+}
+
+# The parsing cases below are a curated strict HTTP/HTTPS subset informed by
+# web-platform-tests/url/resources/urltestdata.json at WPT commit
+# dc97e7bed3096ac9e0e591ab5fa22e7fb8844ead (BSD-3-Clause).
+
+## Parsing canonicalizes the scheme, host, default port, and dot segments.
 expect
-    input = Url.from_str("https://example.com/foo/bar?key1=https://www.baz.com/some-path#stuff")
-    expected = "example.com/foo/bar"
-    path(input) == expected
+	match Url.parse("HTTP://Example.COM:80/a/../b") {
+		Ok(url) => Url.to_str(url) == "http://example.com/b"
+		Err(_) => False
+	}
 
-# `Url.path` supports non-encoded URIs in query parameters (https://datatracker.ietf.org/doc/html/rfc3986#section-3.4)
+## Parsing removes the default HTTPS port and supplies a root path.
 expect
-    input = Url.from_str("/foo/bar?key1=https://www.baz.com/some-path#stuff")
-    output = Url.path(input)
-    expected = "/foo/bar"
-    output == expected
+	match Url.parse("https://example.com:443") {
+		Ok(url) => Url.scheme(url) == Https and Url.host(url) == "example.com" and Url.port(url) == None and Url.path(url) == "/"
+		Err(_) => False
+	}
+
+## Parsing canonicalizes IPv4 decimal components.
+expect
+	match Url.parse("https://127.000.000.001:8443/") {
+		Ok(url) => Url.to_str(url) == "https://127.0.0.1:8443/"
+		Err(_) => False
+	}
+
+## Parsing expands and canonicalizes an IPv6 loopback address.
+expect
+	match Url.parse("http://[::1]:8080/") {
+		Ok(url) => Url.host(url) == "0:0:0:0:0:0:0:1" and Url.to_str(url) == "http://[0:0:0:0:0:0:0:1]:8080/"
+		Err(_) => False
+	}
+
+## Parsing percent-encodes Unicode URL components.
+expect
+	match Url.parse("https://example.com/café?q=naïve#résumé") {
+		Ok(url) => Url.to_str(url) == "https://example.com/caf%C3%A9?q=na%C3%AFve#r%C3%A9sum%C3%A9"
+		Err(_) => False
+	}
+
+## Parsing normalizes hexadecimal percent escapes to uppercase.
+expect
+	match Url.parse("https://example.com/%7euser") {
+		Ok(url) => Url.to_str(url) == "https://example.com/%7Euser"
+		Err(_) => False
+	}
+
+## Parsing requires an explicit scheme.
+expect Url.parse("example.com") == Err(MissingScheme)
+
+## Parsing rejects non-hierarchical URLs without an authority.
+expect Url.parse("mailto:user@example.com") == Err(MissingAuthority)
+
+## Parsing rejects unsupported URL schemes.
+expect Url.parse("ftp://example.com") == Err(UnsupportedScheme("ftp"))
+
+## Parsing rejects credentials in the URL authority.
+expect Url.parse("https://user:secret@example.com") == Err(CredentialsNotAllowed)
+
+## Parsing rejects internationalized hostnames until IDNA is supported.
+expect Url.parse("https://münich.example") == Err(InternationalHostUnsupported)
+
+## Parsing rejects an empty host.
+expect Url.parse("https://") == Err(EmptyHost)
+
+## Parsing rejects DNS labels that begin with a hyphen.
+expect Url.parse("https://-example.com") == Err(InvalidHost("-example.com"))
+
+## Parsing rejects empty DNS labels.
+expect Url.parse("https://example..com") == Err(InvalidHost("example..com"))
+
+## Parsing rejects IPv4 components above 255.
+expect Url.parse("https://127.0.0.256") == Err(InvalidIpv4("127.0.0.256"))
+
+## Parsing requires exactly four IPv4 components.
+expect Url.parse("https://127.0.0") == Err(InvalidIpv4("127.0.0"))
+
+## Parsing rejects malformed IPv6 compression.
+expect
+	match Url.parse("https://[:::1]") {
+		Err(InvalidIpv6(_)) => True
+		_ => False
+	}
+
+## Parsing rejects non-decimal ports.
+expect Url.parse("https://example.com:wat") == Err(InvalidPort("wat"))
+
+## Parsing rejects ports above the U16 range.
+expect Url.parse("https://example.com:70000") == Err(PortOutOfRange(70000))
+
+## Parsing rejects non-hexadecimal percent escapes.
+expect Url.parse("https://example.com/%zz") == Err(InvalidPercentEncoding(1))
+
+## Parsing rejects spaces in URL syntax.
+expect Url.parse("https://example.com/a b") == Err(InvalidCharacter(32))
+
+## Parsing rejects backslashes in URL syntax.
+expect Url.parse("https://example.com/a\\b") == Err(InvalidCharacter(92))
+
+## Parsing distinguishes present empty query and fragment components.
+expect
+	match Url.parse("https://example.com/?#") {
+		Ok(url) => Url.query(url) == Some("") and Url.fragment(url) == Some("")
+		Err(_) => False
+	}
+
+## Builder helpers encode path segments and repeated query parameters.
+expect
+	match Url.parse("https://example.com/") {
+		Err(_) => False
+		Ok(url) => {
+			with_path = Url.append_path_segments(url, ["a/b", "café"])
+			with_first = Url.append_query_param(with_path, "tag", "one")
+			built = Url.append_query_param(with_first, "tag", "two words")
+			Url.to_str(built) == "https://example.com/a%2Fb/caf%C3%A9?tag=one&tag=two+words" and
+				Url.query_pairs(built) == [("tag", "one"), ("tag", "two words")]
+		}
+	}
+
+## Relative resolution replaces path, query, and fragment components.
+expect
+	match Url.parse("https://example.com/a/b?old=1#old") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "../c?new=2#fresh") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/c?new=2#fresh"
+				Err(_) => False
+			}
+		}
+
+## Query-only resolution preserves the base path.
+expect
+	match Url.parse("https://example.com/a/b?old=1#old") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "?new=2") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?new=2"
+				Err(_) => False
+			}
+		}
+
+## Fragment-only resolution preserves the base path and query.
+expect
+	match Url.parse("https://example.com/a/b?old=1") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "#fresh") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?old=1#fresh"
+				Err(_) => False
+			}
+		}
+
+## Absolute-path resolution removes dot segments.
+expect
+	match Url.parse("https://example.com/a/b") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "/root/./x/../y") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/root/y"
+				Err(_) => False
+			}
+		}
+
+## Removing a fragment preserves the remaining URL components.
+expect
+	match Url.parse("https://example.com/a?x=1#frag") {
+		Err(_) => False
+		Ok(url) => Url.to_str(Url.without_fragment(url)) == "https://example.com/a?x=1"
+	}
+
+## Quoted URL literals parse and supply a root path.
+expect
+	match Url.from_quote("https://example.com") {
+		Ok(url) => Url.to_str(url) == "https://example.com/"
+		Err(_) => False
+	}
+
+## Port zero is valid and path dot segments normalize.
+expect
+	match Url.parse("http://localhost:0/a/./b/../../c/") {
+		Ok(url) => Url.port(url) == Some(0) and Url.to_str(url) == "http://localhost:0/c/"
+		Err(_) => False
+	}
+
+## The largest U16 port is valid.
+expect
+	match Url.parse("https://example.com:65535") {
+		Ok(url) => Url.port(url) == Some(65535) and Url.to_str(url) == "https://example.com:65535/"
+		Err(_) => False
+	}
+
+## Parsing rejects an empty explicit port.
+expect Url.parse("https://example.com:") == Err(InvalidPort(""))
+
+## Parsing rejects the first port above the U16 range.
+expect Url.parse("https://example.com:65536") == Err(PortOutOfRange(65536))
+
+## Parsing rejects decimal ports that overflow U64.
+expect Url.parse("https://example.com:18446744073709551616") == Err(InvalidPort("18446744073709551616"))
+
+## Parsing rejects IPv4 components that overflow U64.
+expect Url.parse("https://18446744073709551616.0.0.1") == Err(InvalidIpv4("18446744073709551616.0.0.1"))
+
+## Parsing rejects underscores in DNS names.
+expect Url.parse("https://example_com") == Err(InvalidHost("example_com"))
+
+## Parsing rejects trailing DNS dots in the strict URL subset.
+expect Url.parse("https://example.com.") == Err(InvalidHost("example.com."))
+
+## Parsing canonicalizes full IPv6 addresses.
+expect
+	match Url.parse("http://[2001:0DB8:0000:0000:0000:ff00:0042:8329]/") {
+		Ok(url) => Url.host(url) == "2001:db8:0:0:0:ff00:42:8329" and Url.to_str(url) == "http://[2001:db8:0:0:0:ff00:42:8329]/"
+		Err(_) => False
+	}
+
+## Parsing expands an all-zero IPv6 address.
+expect
+	match Url.parse("http://[::]/") {
+		Ok(url) => Url.host(url) == "0:0:0:0:0:0:0:0"
+		Err(_) => False
+	}
+
+## Parsing rejects IPv6 addresses with too few uncompressed groups.
+expect
+	match Url.parse("http://[1:2:3:4:5:6:7]/") {
+		Err(InvalidIpv6(_)) => True
+		_ => False
+	}
+
+## Parsing rejects IPv6 addresses with too many groups.
+expect
+	match Url.parse("http://[1:2:3:4:5:6:7:8:9]/") {
+		Err(InvalidIpv6(_)) => True
+		_ => False
+	}
+
+## Parsing rejects embedded IPv4 syntax in IPv6 addresses.
+expect
+	match Url.parse("http://[::ffff:192.0.2.1]/") {
+		Err(InvalidIpv6(_)) => True
+		_ => False
+	}
+
+## Parsing normalizes valid percent escapes in paths.
+expect
+	match Url.parse("https://example.com/a/%2f/%aa") {
+		Ok(url) => Url.path(url) == "/a/%2F/%AA"
+		Err(_) => False
+	}
+
+## Path normalization treats encoded double dots as parent segments.
+expect
+	match Url.parse("https://example.com/safe/%2e%2e/admin") {
+		Ok(url) => Url.to_str(url) == "https://example.com/admin"
+		Err(_) => False
+	}
+
+## Path normalization recognizes mixed encoded dot segments.
+expect
+	match Url.parse("https://example.com/a/.%2e/b/%2E/c") {
+		Ok(url) => Url.to_str(url) == "https://example.com/b/c"
+		Err(_) => False
+	}
+
+## Parsing rejects a percent sign without hexadecimal digits.
+expect Url.parse("https://example.com/%") == Err(InvalidPercentEncoding(1))
+
+## Parsing rejects a one-digit percent escape.
+expect Url.parse("https://example.com/%0") == Err(InvalidPercentEncoding(1))
+
+## Parsing rejects unsafe angle brackets.
+expect Url.parse("https://example.com/<unsafe>") == Err(InvalidCharacter(60))
+
+## Parsing keeps reserved query and fragment delimiters in their components.
+expect
+	match Url.parse("https://example.com/path?reserved=%23%26/?#fragment/?") {
+		Ok(url) =>
+			Url.path(url) == "/path" and
+				Url.query(url) == Some("reserved=%23%26/?") and
+					Url.fragment(url) == Some("fragment/?")
+		Err(_) => False
+	}
+
+## Query-pair decoding handles plus signs, Unicode, flags, and repeated keys.
+expect
+	match Url.parse("https://example.com/?name=Roc+Lang&letter=%C3%A9&flag&name=again") {
+		Ok(url) => Url.query_pairs(url) == [("name", "Roc Lang"), ("letter", "é"), ("flag", ""), ("name", "again")]
+		Err(_) => False
+	}
+
+## An empty query contains no query pairs.
+expect
+	match Url.parse("https://example.com/?") {
+		Ok(url) => Url.query_pairs(url) == []
+		Err(_) => False
+	}
+
+## Appending path segments preserves the existing query and fragment.
+expect
+	match Url.parse("https://example.com/base?old=1#frag") {
+		Err(_) => False
+		Ok(url) => {
+			appended = Url.append_path_segments(url, ["space here", "?and#"])
+			Url.to_str(appended) == "https://example.com/base/space%20here/%3Fand%23?old=1#frag"
+		}
+	}
+
+## Appending no path segments leaves a URL unchanged.
+expect
+	match Url.parse("https://example.com/base") {
+		Err(_) => False
+		Ok(url) => Url.append_path_segments(url, []) == url
+	}
+
+## Removing a query preserves the fragment.
+expect
+	match Url.parse("https://example.com/path?old=1#frag") {
+		Err(_) => False
+		Ok(url) =>
+			match Url.with_query(url, None) {
+				Ok(changed) => Url.to_str(changed) == "https://example.com/path#frag"
+				Err(_) => False
+			}
+		}
+
+## Setting a query percent-encodes Unicode while preserving query syntax.
+expect
+	match Url.parse("https://example.com/path") {
+		Err(_) => False
+		Ok(url) =>
+			match Url.with_query(url, Some("term=café&empty=")) {
+				Ok(changed) => Url.to_str(changed) == "https://example.com/path?term=caf%C3%A9&empty="
+				Err(_) => False
+			}
+		}
+
+## Setting a query rejects fragment delimiters.
+expect
+	match Url.parse("https://example.com/path") {
+		Err(_) => False
+		Ok(url) => Url.with_query(url, Some("bad#query")) == Err(InvalidCharacter(35))
+	}
+
+## Removing a fragment preserves the path.
+expect
+	match Url.parse("https://example.com/path#old") {
+		Err(_) => False
+		Ok(url) =>
+			match Url.with_fragment(url, None) {
+				Ok(changed) => Url.to_str(changed) == "https://example.com/path"
+				Err(_) => False
+			}
+		}
+
+## Setting a fragment percent-encodes Unicode while preserving fragment syntax.
+expect
+	match Url.parse("https://example.com/path") {
+		Err(_) => False
+		Ok(url) =>
+			match Url.with_fragment(url, Some("résumé/?")) {
+				Ok(changed) => Url.to_str(changed) == "https://example.com/path#r%C3%A9sum%C3%A9/?"
+				Err(_) => False
+			}
+		}
+
+## Setting a fragment rejects backslashes.
+expect
+	match Url.parse("https://example.com/path") {
+		Err(_) => False
+		Ok(url) => Url.with_fragment(url, Some("bad\\fragment")) == Err(InvalidCharacter(92))
+	}
+
+## Resolving an empty reference drops the base fragment.
+expect
+	match Url.parse("https://example.com/a/b?old=1#old") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?old=1"
+				Err(_) => False
+			}
+		}
+
+## Relative resolution cannot traverse above the URL root.
+expect
+	match Url.parse("https://example.com/a/b") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "../../../root") {
+				Ok(resolved) => Url.to_str(resolved) == "https://example.com/root"
+				Err(_) => False
+			}
+		}
+
+## Absolute URL resolution canonicalizes the replacement URL.
+expect
+	match Url.parse("https://example.com/a/b") {
+		Err(_) => False
+		Ok(base) =>
+			match Url.resolve(base, "HTTP://Other.EXAMPLE:80/x") {
+				Ok(resolved) => Url.to_str(resolved) == "http://other.example/x"
+				Err(_) => False
+			}
+		}
+
+## Resolution rejects scheme-relative references.
+expect
+	match Url.parse("https://example.com/a/b") {
+		Err(_) => False
+		Ok(base) => Url.resolve(base, "//other.example/x") == Err(MissingScheme)
+	}
+
+## Resolution rejects unsupported absolute schemes.
+expect
+	match Url.parse("https://example.com/a/b") {
+		Err(_) => False
+		Ok(base) => Url.resolve(base, "ftp://other.example/x") == Err(MissingScheme)
+	}
+
+## Invalid quoted URL literals return a useful literal error.
+expect
+	match Url.from_quote("not a url") {
+		Err(BadQuotedBytes(message)) => Str.contains(message, "http:// or https://")
+		Ok(_) => False
+	}
+
+## Inspection uses the canonical URL and identifies the nominal type.
+expect
+	match Url.parse("HTTPS://EXAMPLE.COM:443/a") {
+		Ok(url) => Str.inspect(url) == "Url(\"https://example.com/a\")"
+		Err(_) => False
+	}
+
+## Canonically equivalent URLs compare and hash identically.
+expect
+	match (Url.parse("HTTPS://EXAMPLE.COM:443/a"), Url.parse("https://example.com/a")) {
+		(Ok(stored), Ok(lookup)) => stored == lookup and Dict.single(stored, "found").get(lookup) == Ok("found")
+		_ => False
+	}
+
+## Generic encoders represent URLs as canonical strings.
+expect {
+	url : Url
+	url = "https://example.com/a?q=roc"
+	Json.to_str(url) == "\"https://example.com/a?q=roc\""
+}
+
+## Generic parsers validate and canonicalize encoded URL strings.
+expect {
+	decoded : Try(Url, [InvalidJson(Str)])
+	decoded = Json.parse("\"HTTPS://EXAMPLE.COM:443/a\"")
+
+	match decoded {
+		Ok(url) => Url.to_str(url) == "https://example.com/a"
+		Err(_) => False
+	}
+}
+
+## Generic parsers reject encoded strings that are not valid URLs.
+expect {
+	decoded : Try(Url, [InvalidJson(Str)])
+	decoded = Json.parse("\"not a url\"")
+	decoded == Err(Json.invalid_json)
+}

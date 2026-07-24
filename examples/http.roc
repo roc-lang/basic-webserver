@@ -1,89 +1,116 @@
-app [Model, init!, respond!] {
-    pf: platform "../platform/main.roc",
-    json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.13.0/RqendgZw5e1RsQa3kFhgtnMP8efWoqGRsAvubx4-zus.tar.br",
+## Demonstrates outbound HTTP decoding, response inspection, headers, timeouts,
+## and response-size limits.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Stdout
-import pf.Http exposing [Request, Response]
-import json.Json
+import pf.Http
+import pf.Server
+import pf.Url
+import http.Request
+import http.Response
 
-# Demo of all basic-webserver Http functions
+Context : {}
 
-# To run this example: 
-# ```
-# git clone --depth 1 https://github.com/roc-lang/basic-cli.git
-# cd basic-cli
-# nix develop
-# cd ci/rust_http_server
-# cargo run
-# ```
-# Then in another terminal: follow the steps in the README.md file of this folder.
+program = { init!, respond!, shutdown! }
 
-# Model is produced by `init`.
-Model : {}
+# These startup calls target an HTTP service on localhost:9000. Connection
+# failures are logged instead of aborting initialization.
+init! : () => Try({ config : Server.Config, context : Context }, _)
+init! = || {
+	demo!()?
+	Ok({ config: Server.default_config, context: {} })
+}
 
-init! : {} => Result Model _
-init! = |{}|
-    # # HTTP GET a String
-    #   ----------------
+demo! : () => Try({}, _)
+demo! = || {
+	# GET a plain-text body and decode it as UTF-8.
+	match Http.get_utf8!("http://localhost:9000/utf8test") {
+		Ok(utf8) => Stdout.line!("I received '${utf8}' from the server.")?
+		Err(_) => Stdout.line!("GET /utf8test failed (is a server running on :9000?)")?
+	}
 
-    hello_str : Str
-    hello_str = Http.get_utf8!("http://localhost:9000/utf8test")?
-    # If you want to see an example of the server side, see basic-cli/ci/rust_http_server/src/main.rs
+	# GET a JSON body and decode it into a Roc record.
+	json_result : Try({ foo : Str }, _)
+	json_result = Http.get!("http://localhost:9000")
 
-    Stdout.line!("I received '${hello_str}' from the server.\n")?
+	match json_result {
+		Ok(decoded) => Stdout.line!("The json I received was: { foo: \"${decoded.foo}\" }")?
+		Err(_) => Stdout.line!("GET / failed (is a JSON server running on :9000?)")?
+	}
 
-    # # Getting json
-    #   ------------
+	# Build a request explicitly and inspect the complete `Response` record.
+	html_url : Url
+	html_url = "http://localhost:9000/htmltest"
 
-    # We decode/deserialize the json `{ "foo": "something" }` into a Roc record
+	request = 
+		Request.from_method(GET)
+			.with_uri(Url.to_str(html_url))
+			.with_timeout(TimeoutMilliseconds(5000))
 
-    { foo } = Http.get!("http://localhost:9000", Json.utf8)?
-    # If you want to see an example of the server side, see basic-cli/ci/rust_http_server/src/main.rs
+	match Http.send!(request) {
+		Ok(response) => {
+			body_str = Str.from_utf8(response.body())?
+			Stdout.line!("Response body:\n\t${body_str}.\n")?
+		}
+		Err(err) => {
+			Stdout.line!("send! failed: ${Str.inspect(err)}")?
+		}
+	}
 
-    Stdout.line!("The json I received was: { foo: \"$(foo)\" }\n")?
+	# Same request with a custom Accept header.
+	html_request = 
+		Request.from_method(GET)
+			.with_uri(Url.to_str(html_url))
+			.with_headers([{ name: "Accept", value: "text/html" }])
+			.with_timeout(TimeoutMilliseconds(5000))
 
-    # # Getting a Response record
-    #   -------------------------
+	match Http.send!(html_request) {
+		Ok(html_response) => {
+			html_body = Str.from_utf8(html_response.body())?
+			Stdout.line!("Response body 2:\n\t${html_body}.\n")?
+			Ok({})
+		}
+		Err(err) => {
+			Stdout.line!("send! failed: ${Str.inspect(err)}")?
+			Ok({})
+		}
+	}
+}
 
-    response : Http.Response
-    response = Http.send!(
-        {
-            method: GET,
-            headers: [],
-            uri: "https://www.example.com",
-            body: [],
-            timeout_ms: TimeoutMilliseconds(5000),
-        },
-    )?
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |server_request, _context|
+	match server_request.target() {
+		"/limit" => {
+			request = Request.from_method(GET).with_uri("http://localhost:9000/large")
+			config = Http.default_config.with_max_response_bytes(8)
 
-    body_str = (Str.from_utf8(response.body))?
+			match Http.send_with!(request, config) {
+				Err(HttpErr(ResponseTooLarge(_))) => Ok(text_response("Outbound response was limited."))
+				other => Err(ServerErr("Expected ResponseTooLarge, got ${Str.inspect(other)}"))
+			}
+		}
+		"/timeout" => {
+			request = Request.from_method(GET).with_uri("http://localhost:9000/slow")
+			config = Http.default_config.with_timeout_millis(20)
 
-    Stdout.line!("Response body:\n\t${body_str}.\n")?
+			match Http.send_with!(request, config) {
+				Err(HttpErr(Timeout)) => Ok(text_response("Outbound request timed out."))
+				other => Err(ServerErr("Expected Timeout, got ${Str.inspect(other)}"))
+			}
+		}
+		_ => Ok(text_response("See init! for the outbound HTTP example code."))
+	}
 
-    # # Using default_request and providing a header
-    #   --------------------------------------------
-    
-    response_2 =
-        Http.default_request
-        |> &uri "https://www.example.com"
-        |> &headers [Http.header(("Accept", "text/html"))]
-        |> Http.send!()?
+text_response : Str -> Server.Outcome
+text_response = |body|
+	Server.respond(
+		Response.from_status(200)
+			.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+			.with_body(Str.to_utf8(body)),
+	)
 
-    body_str_2 = (Str.from_utf8(response_2.body))?
-
-    # Same as above
-    Stdout.line!("Response body 2:\n\t${body_str_2}.\n")?
-
-    Ok({})
-
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_req, _model|
-    Ok(
-        {
-            status: 200,
-            headers: [],
-            body: Str.to_utf8("See init! for the example code."),
-        },
-    )
-
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

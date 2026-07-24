@@ -1,802 +1,917 @@
-module [
-    Value,
-    ErrCode,
-    Binding,
-    Stmt,
-    SqlDecodeErr,
-    query!,
-    query_many!,
-    execute!,
-    prepare!,
-    query_prepared!,
-    query_many_prepared!,
-    execute_prepared!,
-    errcode_to_str,
-    decode_record,
-    map_value,
-    map_value_result,
-    tagged_value,
-    str,
-    bytes,
-    i64,
-    i32,
-    i16,
-    i8,
-    u64,
-    u32,
-    u16,
-    u8,
-    f64,
-    f32,
-    Nullable,
-    nullable_str,
-    nullable_bytes,
-    nullable_i64,
-    nullable_i32,
-    nullable_i16,
-    nullable_i8,
-    nullable_u64,
-    nullable_u32,
-    nullable_u16,
-    nullable_u8,
-    nullable_f64,
-    nullable_f32,
-]
-
-import Host
 import InternalSqlite
+import InternalPath
+import Host
+import Path
 
-## Represents a value that can be stored in a Sqlite database.
+## Execute bounded SQLite statements with statically dispatched parameter
+## encoders and row parsers.
 ##
-## ```
-## [
-##     Null,
-##     Real F64,
-##     Integer I64,
-##     String Str,
-##     Bytes (List U8),
-## ]
-## ```
-Value : InternalSqlite.SqliteValue
-
-## Represents various error codes that can be returned by Sqlite.
-## ```
-## [
-##     Error, # SQL error or missing database
-##     Internal, # Internal logic error in Sqlite
-##     Perm, # Access permission denied
-##     Abort, # Callback routine requested an abort
-##     Busy, # The database file is locked
-##     Locked, # A table in the database is locked
-##     NoMem, # A malloc() failed
-##     ReadOnly, # Attempt to write a readonly database
-##     Interrupt, # Operation terminated by sqlite3_interrupt(
-##     IOErr, # Some kind of disk I/O error occurred
-##     Corrupt, # The database disk image is malformed
-##     NotFound, # Unknown opcode in sqlite3_file_control()
-##     Full, # Insertion failed because database is full
-##     CanNotOpen, # Unable to open the database file
-##     Protocol, # Database lock protocol error
-##     Empty, # Database is empty
-##     Schema, # The database schema changed
-##     TooBig, # String or BLOB exceeds size limit
-##     Constraint, # Abort due to constraint violation
-##     Mismatch, # Data type mismatch
-##     Misuse, # Library used incorrectly
-##     NoLfs, # Uses OS features not supported on host
-##     AuthDenied, # Authorization denied
-##     Format, # Auxiliary database format error
-##     OutOfRange, # 2nd parameter to sqlite3_bind out of range
-##     NotADatabase, # File opened that is not a database file
-##     Notice, # Notifications from sqlite3_log()
-##     Warning, # Warnings from sqlite3_log()
-##     Row, # sqlite3_step() has another row ready
-##     Done, # sqlite3_step() has finished executing
-##     Unknown I64, # error code not known
-## ]
-## ```
-ErrCode : [
-    Error, # SQL error or missing database
-    Internal, # Internal logic error in Sqlite
-    Perm, # Access permission denied
-    Abort, # Callback routine requested an abort
-    Busy, # The database file is locked
-    Locked, # A table in the database is locked
-    NoMem, # A malloc() failed
-    ReadOnly, # Attempt to write a readonly database
-    Interrupt, # Operation terminated by sqlite3_interrupt(
-    IOErr, # Some kind of disk I/O error occurred
-    Corrupt, # The database disk image is malformed
-    NotFound, # Unknown opcode in sqlite3_file_control()
-    Full, # Insertion failed because database is full
-    CanNotOpen, # Unable to open the database file
-    Protocol, # Database lock protocol error
-    Empty, # Database is empty
-    Schema, # The database schema changed
-    TooBig, # String or BLOB exceeds size limit
-    Constraint, # Abort due to constraint violation
-    Mismatch, # Data type mismatch
-    Misuse, # Library used incorrectly
-    NoLFS, # Uses OS features not supported on host
-    AuthDenied, # Authorization denied
-    Format, # Auxiliary database format error
-    OutOfRange, # 2nd parameter to sqlite3_bind out of range
-    NotADatabase, # File opened that is not a database file
-    Notice, # Notifications from sqlite3_log()
-    Warning, # Warnings from sqlite3_log()
-    Row, # sqlite3_step() has another row ready
-    Done, # sqlite3_step() has finished executing
-    Unknown I64, # error code not known
-]
-
-## Bind a name and a value to pass to the Sqlite database.
-## ```
-## {
-##     name : Str,
-##     value : SqliteValue,
-## }
-## ```
-Binding : InternalSqlite.SqliteBindings
-
-## Represents a prepared statement that can be executed many times.
-Stmt := Box {}
-
-## Prepare a [Stmt] for execution at a later time.
+## Query parameters are ordinary flat records. Their field names map to SQLite
+## parameters with a leading colon, so `{ status }` binds `:status`. Query
+## results are selected by the expected Roc type. Structural records derive
+## their parser automatically when their fields use supported SQLite types.
 ##
-## This is useful when you have a query that will be called many times, as it is more efficient than
-## preparing the query each time it is called. This is usually done in `init!` with the prepared `Stmt` stored in the model.
+## ```roc
+## Todo : { id : I64, task : Str }
 ##
-## ```
-## prepared_query = Sqlite.prepare!({
-##     path : "path/to/database.db",
-##     query : "SELECT * FROM todos;",
-## })?
-##
-## Sqlite.query_many_prepared!({
-##     stmt: prepared_query,
-##     bindings: [],
-##     rows: { Sqlite.decode_record <-
-##         id: Sqlite.i64("id"),
-##         task: Sqlite.str("task"),
-##     },
+## todos : List(Todo)
+## db = Sqlite.open!(Sqlite.default_config(db_path))?
+## todos = Sqlite.query_many!({
+##     db,
+##     query: "SELECT id, task FROM todos WHERE status = :status",
+##     params: { status: "open" },
+##     limits: Sqlite.default_query_limits,
 ## })?
 ## ```
-prepare! :
-    {
-        path : Str,
-        query : Str,
-    }
-    => Result Stmt [SqliteErr ErrCode Str]
-prepare! = |{ path, query: q }|
-    Host.sqlite_prepare!(path, q)
-    |> Result.map_ok(@Stmt)
-    |> Result.map_err(internal_to_external_error)
-
-# internal use only
-bind! : Stmt, List Binding => Result {} [SqliteErr ErrCode Str]
-bind! = |@Stmt(stmt), bindings|
-    Host.sqlite_bind!(stmt, bindings)
-    |> Result.map_err(internal_to_external_error)
-
-# internal use only
-columns! : Stmt => List Str
-columns! = |@Stmt(stmt)|
-    Host.sqlite_columns!(stmt)
-
-# internal use only
-column_value! : Stmt, U64 => Result Value [SqliteErr ErrCode Str]
-column_value! = |@Stmt(stmt), i|
-    Host.sqlite_column_value!(stmt, i)
-    |> Result.map_err(internal_to_external_error)
-
-# internal use only
-step! : Stmt => Result [Row, Done] [SqliteErr ErrCode Str]
-step! = |@Stmt(stmt)|
-    Host.sqlite_step!(stmt)
-    |> Result.map_err(internal_to_external_error)
-
-# internal use only
-## Resets a prepared statement back to its initial state, ready to be re-executed.
-reset! : Stmt => Result {} [SqliteErr ErrCode Str]
-reset! = |@Stmt(stmt)|
-    Host.sqlite_reset!(stmt)
-    |> Result.map_err(internal_to_external_error)
-
-## Execute a SQL statement that **doesn't return any rows** (like INSERT, UPDATE, DELETE).
-## Use a function starting with `query_` if you expect rows to be returned.
 ##
-## Use execute_prepared! if you expect to run the same query multiple times.
+## SQLite INTEGER maps strictly to `I64`, REAL to `F64`, TEXT to
+## `Str`, and BLOB to `Sqlite.Blob`. No text/number coercions are performed.
+## TODO: Add derived nullable fields once the compiler can compose their parser
+## errors through a platform-defined encoding.
 ##
-## Example:
-## ```
-## Sqlite.execute!({
-##     path: "path/to/database.db",
-##     query: "INSERT INTO users (first, last) VALUES (:first, :last);",
-##     bindings: [
-##         { name: ":first", value: String("John") },
-##         { name: ":last", value: String("Smith") },
-##     ],
-## })?
-## ```
-execute! :
-    {
-        path : Str,
-        query : Str,
-        bindings : List Binding,
-    }
-    => Result {} [SqliteErr ErrCode Str, RowsReturnedUseQueryInstead]
-execute! = |{ path, query: q, bindings }|
-    stmt = try(prepare!, { path, query: q })
-    execute_prepared!({ stmt, bindings })
-
-## Execute a prepared SQL statement that **doesn't return any rows** (like INSERT, UPDATE, DELETE).
-## Use a function starting with `query_` if you expect rows to be returned.
-##
-## This is more efficient than [execute!] when running the same query multiple times
-## as it reuses the prepared statement.
-execute_prepared! :
-    {
-        stmt : Stmt,
-        bindings : List Binding,
-    }
-    => Result {} [SqliteErr ErrCode Str, RowsReturnedUseQueryInstead]
-execute_prepared! = |{ stmt, bindings }|
-    try(bind!, stmt, bindings)
-    res = step!(stmt)
-    try(reset!, stmt)
-    when res is
-        Ok(Done) ->
-            Ok({})
-
-        Ok(Row) ->
-            Err(RowsReturnedUseQueryInstead)
-
-        Err(e) ->
-            Err(e)
-
-## Execute a SQL query and decode exactly one row into a value.
-##
-## Example:
-## ```
-## # count the number of rows in the `users` table
-## count = Sqlite.query!({
-##     path: db_path,
-##     query: "SELECT COUNT(*) as \"count\" FROM users;",
-##     bindings: [],
-##     row: Sqlite.u64("count"),
-## })?
-## ```
-query! :
-    {
-        path : Str,
-        query : Str,
-        bindings : List Binding,
-        row : SqlDecode a (RowCountErr err),
-    }
-    => Result a (SqlDecodeErr (RowCountErr err))
-query! = |{ path, query: q, bindings, row }|
-    stmt = try(prepare!, { path, query: q })
-    query_prepared!({ stmt, bindings, row })
-
-## Execute a prepared SQL query and decode exactly one row into a value.
-##
-## This is more efficient than [query!] when running the same query multiple times
-## as it reuses the prepared statement.
-query_prepared! :
-    {
-        stmt : Stmt,
-        bindings : List Binding,
-        row : SqlDecode a (RowCountErr err),
-    }
-    => Result a (SqlDecodeErr (RowCountErr err))
-query_prepared! = |{ stmt, bindings, row: decode }|
-    try(bind!, stmt, bindings)
-    res = decode_exactly_one_row!(stmt, decode)
-    try(reset!, stmt)
-    res
-
-## Execute a SQL query and decode multiple rows into a list of values.
-##
-## Example:
-## ```
-## rows = Sqlite.query_many!({
-##     path: "path/to/database.db",
-##     query: "SELECT * FROM todos;",
-##     bindings: [],
-##     rows: { Sqlite.decode_record <-
-##         id: Sqlite.i64("id"),
-##         task: Sqlite.str("task"),
-##     },
-## })?
-## ```
-query_many! :
-    {
-        path : Str,
-        query : Str,
-        bindings : List Binding,
-        rows : SqlDecode a err,
-    }
-    => Result (List a) (SqlDecodeErr err)
-query_many! = |{ path, query: q, bindings, rows }|
-    stmt = try(prepare!, { path, query: q })
-    query_many_prepared!({ stmt, bindings, rows })
-
-## Execute a prepared SQL query and decode multiple rows into a list of values.
-##
-## This is more efficient than [query_many!] when running the same query multiple times
-## as it reuses the prepared statement.
-query_many_prepared! :
-    {
-        stmt : Stmt,
-        bindings : List Binding,
-        rows : SqlDecode a err,
-    }
-    => Result (List a) (SqlDecodeErr err)
-query_many_prepared! = |{ stmt, bindings, rows: decode }|
-    try(bind!, stmt, bindings)
-    res = decode_rows!(stmt, decode)
-    try(reset!, stmt)
-    res
-
-SqlDecodeErr err : [NoSuchField Str, SqliteErr ErrCode Str]err
-SqlDecode a err := List Str -> (Stmt => Result a (SqlDecodeErr err))
-
-## Decode a Sqlite row into a record by combining decoders.
-##
-## Example:
-## ```
-## { Sqlite.decode_record <-
-##     id: Sqlite.i64("id"),
-##     task: Sqlite.str("task"),
-## }
-## ```
-decode_record : SqlDecode a err, SqlDecode b err, (a, b -> c) -> SqlDecode c err
-decode_record = |@SqlDecode(gen_first), @SqlDecode(gen_second), mapper|
-    @SqlDecode(
-        |cols|
-            decode_first! = gen_first(cols)
-            decode_second! = gen_second(cols)
-
-            |stmt|
-                first = try(decode_first!, stmt)
-                second = try(decode_second!, stmt)
-                Ok(mapper(first, second)),
-    )
-
-## Transform the output of a decoder by applying a function to the decoded value.
-##
-## Example:
-## ```
-## Sqlite.i64("id") |> Sqlite.map_value(Num.to_str)
-## ```
-map_value : SqlDecode a err, (a -> b) -> SqlDecode b err
-map_value = |@SqlDecode(gen_decode), mapper|
-    @SqlDecode(
-        |cols|
-            decode! = gen_decode(cols)
-
-            |stmt|
-                val = try(decode!, stmt)
-                Ok(mapper(val)),
-    )
-
-## Transform the output of a decoder by applying a function (that returns a Result) to the decoded value.
-## The Result is converted to SqlDecode.
-##
-## Example:
-## ```
-## decode_status : Str -> Result OnlineStatus UnknownStatusErr
-## decode_status = |status_str|
-##     when status_str is
-##         "online" -> Ok(Online)
-##         "offline" -> Ok(Offline)
-##         _ -> Err(UnknownStatus("${status_str}"))
-##
-## Sqlite.str("status") |> Sqlite.map_value_result(decode_status)
-## ```
-map_value_result : SqlDecode a err, (a -> Result c (SqlDecodeErr err)) -> SqlDecode c err
-map_value_result = |@SqlDecode(gen_decode), mapper|
-    @SqlDecode(
-        |cols|
-            decode! = gen_decode(cols)
-
-            |stmt|
-                val = try(decode!, stmt)
-                mapper(val),
-    )
-
-RowCountErr err : [NoRowsReturned, TooManyRowsReturned]err
-
-# internal use only
-decode_exactly_one_row! : Stmt, SqlDecode a (RowCountErr err) => Result a (SqlDecodeErr (RowCountErr err))
-decode_exactly_one_row! = |stmt, @SqlDecode(gen_decode)|
-    cols = columns!(stmt)
-    decode_row! = gen_decode(cols)
-
-    when try(step!, stmt) is
-        Row ->
-            row = try(decode_row!, stmt)
-            when try(step!, stmt) is
-                Done ->
-                    Ok(row)
-
-                Row ->
-                    Err(TooManyRowsReturned)
-
-        Done ->
-            Err(NoRowsReturned)
-
-# internal use only
-decode_rows! : Stmt, SqlDecode a err => Result (List a) (SqlDecodeErr err)
-decode_rows! = |stmt, @SqlDecode(gen_decode)|
-    cols = columns!(stmt)
-    decode_row! = gen_decode(cols)
-
-    helper! = |out|
-        when try(step!, stmt) is
-            Done ->
-                Ok(out)
-
-            Row ->
-                row = try(decode_row!, stmt)
-
-                List.append(out, row)
-                |> helper!
-
-    helper!([])
-
-# internal use only
-decoder : (Value -> Result a (SqlDecodeErr err)) -> (Str -> SqlDecode a err)
-decoder = |fn|
-    |name|
-        @SqlDecode(
-            |cols|
-
-                found = List.find_first_index(cols, |x| x == name)
-                when found is
-                    Ok(index) ->
-                        |stmt|
-                            try(column_value!, stmt, index)
-                            |> fn
-
-                    Err(NotFound) ->
-                        |_|
-                            Err(NoSuchField(name)),
-        )
-
-## Decode a [Value] keeping it tagged. This is useful when data could be many possible types.
-##
-## For example here we build a decoder that decodes the rows into a list of records with `id` and `mixed_data` fields:
-## ```
-## rows = Sqlite.query_many!({
-##     path: "path/to/database.db",
-##     query: "SELECT id, mix_data FROM users;",
-##     bindings: [],
-##     rows: { Sqlite.decode_record <-
-##         id: Sqlite.i64("id"),
-##         mix_data: Sqlite.tagged_value("mixed_data"),
-##     },
-## })?
-## ```
-tagged_value : Str -> SqlDecode Value []
-tagged_value = decoder(
-    |val|
-        Ok(val),
-)
-
-to_unexpected_type_err = |val|
-    type =
-        when val is
-            Integer(_) -> Integer
-            Real(_) -> Real
-            String(_) -> String
-            Bytes(_) -> Bytes
-            Null -> Null
-    Err(UnexpectedType(type))
-
-UnexpectedTypeErr : [UnexpectedType [Integer, Real, String, Bytes, Null]]
-
-## Decode a [Value] to a [Str].
-##
-## For example here we build a decoder that decodes the rows into a list of records with `id` and `name` fields:
-## ```
-## rows = Sqlite.query_many!({
-##     path: "path/to/database.db",
-##     query: "SELECT id, name FROM users;",
-##     bindings: [],
-##     rows: { Sqlite.decode_record <-
-##         id: Sqlite.i64("id"),
-##         task: Sqlite.str("name"),
-##     },
-## })?
-## ```
-str : Str -> SqlDecode Str UnexpectedTypeErr
-str = decoder(
-    |val|
-        when val is
-            String(s) -> Ok(s)
-            _ -> to_unexpected_type_err(val),
-)
-
-## Decode a [Value] to a [List U8].
-bytes : Str -> SqlDecode (List U8) UnexpectedTypeErr
-bytes = decoder(
-    |val|
-        when val is
-            Bytes(b) -> Ok(b)
-            _ -> to_unexpected_type_err(val),
-)
-
-# internal use only
-int_decoder : (I64 -> Result a err) -> (Str -> SqlDecode a [FailedToDecodeInteger err]UnexpectedTypeErr)
-int_decoder = |cast|
-    decoder(
-        |val|
-            when val is
-                Integer(i) -> cast(i) |> Result.map_err(FailedToDecodeInteger)
-                _ -> to_unexpected_type_err(val),
-    )
-
-# internal use only
-real_decoder : (F64 -> Result a err) -> (Str -> SqlDecode a [FailedToDecodeReal err]UnexpectedTypeErr)
-real_decoder = |cast|
-    decoder(
-        |val|
-            when val is
-                Real(r) -> cast(r) |> Result.map_err(FailedToDecodeReal)
-                _ -> to_unexpected_type_err(val),
-    )
-
-## Decode a [Value] to a [I64].
-##
-## For example here we build a decoder that decodes the rows into a list of records with `id` and `name` fields:
-## ```
-## rows = Sqlite.query_many!({
-##     path: "path/to/database.db",
-##     query: "SELECT id, name FROM users;",
-##     bindings: [],
-##     rows: { Sqlite.decode_record <-
-##         id: Sqlite.i64("id"),
-##         task: Sqlite.str("name"),
-##     },
-## })?
-## ```
-i64 : Str -> SqlDecode I64 [FailedToDecodeInteger []]UnexpectedTypeErr
-i64 = int_decoder(Ok)
-
-## Decode a [Value] to a [I32].
-i32 : Str -> SqlDecode I32 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-i32 = int_decoder(Num.to_i32_checked)
-
-## Decode a [Value] to a [I16].
-i16 : Str -> SqlDecode I16 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-i16 = int_decoder(Num.to_i16_checked)
-
-## Decode a [Value] to a [I8].
-i8 : Str -> SqlDecode I8 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-i8 = int_decoder(Num.to_i8_checked)
-
-## Decode a [Value] to a [U64].
-u64 : Str -> SqlDecode U64 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-u64 = int_decoder(Num.to_u64_checked)
-
-## Decode a [Value] to a [U32].
-u32 : Str -> SqlDecode U32 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-u32 = int_decoder(Num.to_u32_checked)
-
-## Decode a [Value] to a [U16].
-u16 : Str -> SqlDecode U16 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-u16 = int_decoder(Num.to_u16_checked)
-
-## Decode a [Value] to a [U8].
-u8 : Str -> SqlDecode U8 [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-u8 = int_decoder(Num.to_u8_checked)
-
-## Decode a [Value] to a [F64].
-f64 : Str -> SqlDecode F64 [FailedToDecodeReal []]UnexpectedTypeErr
-f64 = real_decoder(Ok)
-
-## Decode a [Value] to a [F32].
-f32 : Str -> SqlDecode F32 [FailedToDecodeReal []]UnexpectedTypeErr
-f32 = real_decoder(|x| Num.to_f32(x) |> Ok)
-
-# TODO: Mising Num.to_dec and Num.to_dec_checked
-# dec = real_sql_decoder Ok
-
-# These are the same decoders as above but Nullable.
-# If the sqlite field is `Null`, they will return `Null`.
-
-## Represents a nullable value that can be stored in a Sqlite database.
-Nullable a : [NotNull a, Null]
-
-## Decode a [Value] to a [Nullable Str].
-nullable_str : Str -> SqlDecode (Nullable Str) UnexpectedTypeErr
-nullable_str = decoder(
-    |val|
-        when val is
-            String(s) -> Ok(NotNull(s))
-            Null -> Ok(Null)
-            _ -> to_unexpected_type_err(val),
-)
-
-## Decode a [Value] to a [Nullable (List U8)].
-nullable_bytes : Str -> SqlDecode (Nullable (List U8)) UnexpectedTypeErr
-nullable_bytes = decoder(
-    |val|
-        when val is
-            Bytes(b) -> Ok(NotNull(b))
-            Null -> Ok(Null)
-            _ -> to_unexpected_type_err(val),
-)
-
-# internal use only
-nullable_int_decoder : (I64 -> Result a err) -> (Str -> SqlDecode (Nullable a) [FailedToDecodeInteger err]UnexpectedTypeErr)
-nullable_int_decoder = |cast|
-    decoder(
-        |val|
-            when val is
-                Integer(i) -> cast(i) |> Result.map_ok(NotNull) |> Result.map_err(FailedToDecodeInteger)
-                Null -> Ok(Null)
-                _ -> to_unexpected_type_err(val),
-    )
-
-# internal use only
-nullable_real_decoder : (F64 -> Result a err) -> (Str -> SqlDecode (Nullable a) [FailedToDecodeReal err]UnexpectedTypeErr)
-nullable_real_decoder = |cast|
-    decoder(
-        |val|
-            when val is
-                Real(r) -> cast(r) |> Result.map_ok(NotNull) |> Result.map_err(FailedToDecodeReal)
-                Null -> Ok(Null)
-                _ -> to_unexpected_type_err(val),
-    )
-
-## Decode a [Value] to a [Nullable I64].
-nullable_i64 : Str -> SqlDecode (Nullable I64) [FailedToDecodeInteger []]UnexpectedTypeErr
-nullable_i64 = nullable_int_decoder(Ok)
-
-## Decode a [Value] to a [Nullable I32].
-nullable_i32 : Str -> SqlDecode (Nullable I32) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_i32 = nullable_int_decoder(Num.to_i32_checked)
-
-## Decode a [Value] to a [Nullable I16].
-nullable_i16 : Str -> SqlDecode (Nullable I16) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_i16 = nullable_int_decoder(Num.to_i16_checked)
-
-## Decode a [Value] to a [Nullable I8].
-nullable_i8 : Str -> SqlDecode (Nullable I8) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_i8 = nullable_int_decoder(Num.to_i8_checked)
-
-## Decode a [Value] to a [Nullable U64].
-nullable_u64 : Str -> SqlDecode (Nullable U64) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_u64 = nullable_int_decoder(Num.to_u64_checked)
-
-## Decode a [Value] to a [Nullable U32].
-nullable_u32 : Str -> SqlDecode (Nullable U32) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_u32 = nullable_int_decoder(Num.to_u32_checked)
-
-## Decode a [Value] to a [Nullable U16].
-nullable_u16 : Str -> SqlDecode (Nullable U16) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_u16 = nullable_int_decoder(Num.to_u16_checked)
-
-## Decode a [Value] to a [Nullable U8].
-nullable_u8 : Str -> SqlDecode (Nullable U8) [FailedToDecodeInteger [OutOfBounds]]UnexpectedTypeErr
-nullable_u8 = nullable_int_decoder(Num.to_u8_checked)
-
-## Decode a [Value] to a [Nullable F64].
-nullable_f64 : Str -> SqlDecode (Nullable F64) [FailedToDecodeReal []]UnexpectedTypeErr
-nullable_f64 = nullable_real_decoder(Ok)
-
-## Decode a [Value] to a [Nullable F32].
-nullable_f32 : Str -> SqlDecode (Nullable F32) [FailedToDecodeReal []]UnexpectedTypeErr
-nullable_f32 = nullable_real_decoder(|x| Num.to_f32(x) |> Ok)
-
-# TODO: Mising Num.to_dec and Num.to_dec_checked
-# nullable_dec = nullable_real_decoder Ok
-
-# internal use only
-internal_to_external_error : InternalSqlite.SqliteError -> [SqliteErr ErrCode Str]
-internal_to_external_error = |{ code, message }|
-    SqliteErr(code_from_i64(code), message)
-
-# internal use only
-code_from_i64 : I64 -> ErrCode
+## A `Db` owns a bounded host connection pool. Statements are immutable logical
+## query descriptors; each execution briefly leases a connection and a cached
+## native prepared statement. Executions are safe to use concurrently. Their
+## final ARC release resets the native statement and returns the connection on
+## every success and error path.
+Sqlite :: [].{
+
+	## Configuration for one bounded host-owned connection pool.
+	## `max_connections` is 1-64, both timeouts are at most ten minutes, and
+	## each connection caches at most 256 native statements.
+	Config : {
+		path : Path.Path,
+		max_connections : U64,
+		acquire_timeout_ms : U64,
+		busy_timeout_ms : U64,
+		max_cached_statements_per_connection : U64,
+		journal_mode : JournalMode,
+		synchronous : Synchronous,
+	}
+
+	## SQLite rollback-journal policy applied and verified on every connection.
+	JournalMode : [Delete, Wal]
+
+	## `Full` is the durable default. `Normal` trades power-loss durability for
+	## substantially faster commits while preserving database consistency.
+	Synchronous : [Full, Normal]
+
+	## Conservative defaults for a conventional web application.
+	default_config : Path.Path -> Config
+	default_config = |path| {
+		path,
+		max_connections: 8,
+		acquire_timeout_ms: 100,
+		busy_timeout_ms: 1_000,
+		max_cached_statements_per_connection: 32,
+		journal_mode: Wal,
+		synchronous: Full,
+	}
+
+	## A host-owned SQLite connection pool, safe to retain in immutable context.
+	Db :: { host : Host.SqliteDb }.{
+		to_inspect : Db -> Str
+		to_inspect = |_| "Sqlite.Db(<opaque>)"
+	}
+
+	## A raw SQLite value. Most applications use derived record codecs instead.
+	Value : [
+		Null,
+		Real(F64),
+		Integer(I64),
+		String(Str),
+		Bytes(List(U8)),
+	]
+
+	## A raw named binding used internally by the derived parameter encoder.
+	Binding : {
+		name : Str,
+		value : Value,
+	}
+
+	## Bounds on a materialized query. `max_bytes` covers the host-side SQLite
+	## value storage handed to Roc; `max_rows` also bounds per-row record
+	## overhead after decoding. `timeout_ms` interrupts SQLite virtual-machine
+	## execution; pool acquisition has its own database-level timeout.
+	QueryLimits : {
+		max_bytes : U64,
+		max_rows : U64,
+		timeout_ms : U64,
+	}
+
+	## Conservative defaults for ordinary request-scoped queries.
+	default_query_limits : QueryLimits
+	default_query_limits = {
+		max_bytes: 16 * 1024 * 1024,
+		max_rows: 10_000,
+		timeout_ms: 5_000,
+	}
+
+	## SQLite's five runtime storage classes, used in decode diagnostics.
+	ValueType : [Blob, Integer, Null, Real, Text]
+
+	## Every failure produced by SQLite operations and their derived codecs.
+	QueryError : [
+		DuplicateColumn(Str),
+		ExpectedSingleColumn({ actual : U64 }),
+		InvalidValue({ column : Str }),
+		MalformedRow,
+		MissingRequiredField(Str),
+		MultipleValuesForParameter,
+		NestedParameterRecord,
+		NoRowsReturned,
+		ParameterValueMissing(Str),
+		ParameterValueOutsideRecord,
+		PoolSaturated,
+		QueryTimedOut,
+		ResourceSaturated,
+		ResultTooLarge({ max_bytes : U64 }),
+		RowsReturnedUseQueryInstead,
+		SqliteErr(ErrCode, Str),
+		TooManyRows({ max_rows : U64 }),
+		TooManyRowsReturned,
+		ConcurrentTransactionUse,
+		TransactionFinished,
+		UnconsumedColumns,
+		UnexpectedType({ actual : ValueType, column : Str, expected : ValueType }),
+	]
+
+	## A SQLite BLOB. The nominal wrapper distinguishes blobs from ordinary Roc
+	## lists for generic parsing and encoding.
+	##
+	## TODO: Use `Blob` inside mixed result records once the compiler composes a
+	## custom nominal parser's errors with sibling derived fields.
+	Blob :: { bytes : List(U8) }.{
+
+		from_bytes : List(U8) -> Blob
+		from_bytes = |bytes| Blob.{ bytes }
+
+		to_bytes : Blob -> List(U8)
+		to_bytes = |blob| blob.bytes
+
+		parser_for = |encoding| {
+			|state| {
+				parsed = RowEncoding.parse_bytes(encoding, state)?
+				Ok({ value: Blob.{ bytes: parsed.value }, rest: parsed.rest })
+			}
+		}
+
+		encoder_for : encoding -> (Blob, state -> Try(state, err))
+			where [
+				encoding.encode_bytes : List(U8), state -> Try(state, err),
+			]
+		encoder_for = |_encoding| {
+			Encoding : encoding
+
+			|blob, state| Encoding.encode_bytes(blob.bytes, state)
+		}
+	}
+
+	## State used by the derived parameter-record encoder.
+	ParamsState : {
+		bindings : List(Binding),
+		field : [Field(Str), NoField],
+		value : [Encoded(Value), NoValue],
+	}
+
+	## SQLite named-parameter encoding.
+	ParamsEncoding :: [Default].{
+
+		rename_field : ParamsEncoding, Str -> Str
+		rename_field = |_, name| name
+
+		encode_record : ParamsState, U64, (ParamsState, (ParamsState, Str, (ParamsState -> Try(ParamsState, QueryError)) -> Try(ParamsState, QueryError)) -> Try(ParamsState, QueryError)) -> Try(ParamsState, QueryError)
+		encode_record = |state, _, write_fields|
+			match state.field {
+				Field(_) => Err(NestedParameterRecord)
+				NoField => {
+					finished = write_fields(
+						state,
+						|cursor, name, write_value| {
+							encoded = write_value({
+								bindings: cursor.bindings,
+								field: Field(name),
+								value: NoValue,
+							})?
+
+							match encoded.value {
+								Encoded(value) =>
+									Ok({
+										bindings: encoded.bindings.append({
+											name: Str.concat(":", name),
+											value,
+										}),
+										field: NoField,
+										value: NoValue,
+									})
+								NoValue => Err(ParameterValueMissing(name))
+							}
+						},
+					)?
+					Ok(finished)
+				}
+			}
+
+		encode_str : Str, ParamsState -> Try(ParamsState, QueryError)
+		encode_str = |value, state| set_param_value(state, String(value))
+
+		encode_i64 : I64, ParamsState -> Try(ParamsState, QueryError)
+		encode_i64 = |value, state| set_param_value(state, Integer(value))
+
+		encode_f64 : F64, ParamsState -> Try(ParamsState, QueryError)
+		encode_f64 = |value, state| set_param_value(state, Real(value))
+
+		encode_bytes : List(U8), ParamsState -> Try(ParamsState, QueryError)
+		encode_bytes = |value, state| set_param_value(state, Bytes(value))
+
+		encode_null : ParamsState -> Try(ParamsState, QueryError)
+		encode_null = |state| set_param_value(state, Null)
+	}
+
+	## Pure state used by a compiler-derived SQLite row parser.
+	RowState : {
+		columns : List(Str),
+		current : [Current({ name : Str, value : Value }), NoCurrent],
+		next : U64,
+		values : List(Value),
+	}
+
+	## SQLite row encoding consumed by `parser_for`.
+	RowEncoding :: [Default].{
+
+		rename_field : RowEncoding, Str -> Str
+		rename_field = |_, name| name
+
+		parse_str : RowEncoding, RowState -> Try({ value : Str, rest : RowState }, QueryError)
+		parse_str = |_, state| {
+			taken = take_row_value(state)?
+			match taken.value {
+				String(value) => Ok({ value, rest: taken.rest })
+				other => Err(
+					UnexpectedType({
+						actual: value_type(other),
+						column: taken.column,
+						expected: Text,
+					}),
+				)
+			}
+		}
+
+		parse_i64 : RowEncoding, RowState -> Try({ value : I64, rest : RowState }, QueryError)
+		parse_i64 = |_, state| {
+			taken = take_row_value(state)?
+			match taken.value {
+				Integer(value) => Ok({ value, rest: taken.rest })
+				other => Err(
+					UnexpectedType({
+						actual: value_type(other),
+						column: taken.column,
+						expected: Integer,
+					}),
+				)
+			}
+		}
+
+		parse_f64 : RowEncoding, RowState -> Try({ value : F64, rest : RowState }, QueryError)
+		parse_f64 = |_, state| {
+			taken = take_row_value(state)?
+			match taken.value {
+				Real(value) => Ok({ value, rest: taken.rest })
+				other => Err(
+					UnexpectedType({
+						actual: value_type(other),
+						column: taken.column,
+						expected: Real,
+					}),
+				)
+			}
+		}
+
+		parse_bytes : RowEncoding, RowState -> Try({ value : List(U8), rest : RowState }, QueryError)
+		parse_bytes = |_, state| {
+			taken = take_row_value(state)?
+			match taken.value {
+				Bytes(value) => Ok({ value, rest: taken.rest })
+				other => Err(
+					UnexpectedType({
+						actual: value_type(other),
+						column: taken.column,
+						expected: Blob,
+					}),
+				)
+			}
+		}
+
+		invalid_value : RowEncoding, RowState -> QueryError
+		invalid_value = |_, state| {
+			column = 
+				match state.current {
+					Current({ name, .. }) => name
+					NoCurrent => state.columns.get(0) ?? ""
+				}
+			InvalidValue({ column: column })
+		}
+
+		parse_record_field : RowEncoding,
+		Encoding.FieldName.FieldNames(_shape),
+		RowState -> Try(
+			[
+				Field({ field : Encoding.FieldName(_shape), rest : RowState }),
+				TryField({ name : Str, rest : RowState }),
+				TryFieldCaseless({ name : Str, rest : RowState }),
+				Continue({ rest : RowState }),
+				Done({ rest : RowState }),
+			],
+			QueryError,
+		)
+		parse_record_field = |_, fields, state|
+			if state.next >= state.columns.len() {
+				Ok(Done({ rest: state }))
+			} else {
+				name = state.columns.get(state.next) ? |_| MalformedRow
+				value = state.values.get(state.next) ? |_| MalformedRow
+				rest = {
+					columns: state.columns,
+					current: Current({ name, value }),
+					next: state.next + 1,
+					values: state.values,
+				}
+
+				match find_field(fields, name) {
+					Ok(field) => Ok(Field({ field, rest }))
+					Err(NotFound) =>
+						Ok(
+							Continue({
+								rest: {
+									columns: rest.columns,
+									current: NoCurrent,
+									next: rest.next,
+									values: rest.values,
+								},
+							}),
+						)
+					}
+			}
+
+		skip_record_field : RowEncoding, RowState -> Try(RowState, QueryError)
+		skip_record_field = |_, state|
+			Ok({
+				columns: state.columns,
+				current: NoCurrent,
+				next: state.next,
+				values: state.values,
+			})
+	}
+
+	## Represents a prepared statement that can be executed many times.
+	Stmt :: { columns : List(Str), host : Host.SqliteStmt }.{
+
+		to_inspect : Stmt -> Str
+		to_inspect = |_| "Sqlite.Stmt(<opaque>)"
+
+		## Execute a prepared statement that must not return rows.
+		execute! : Stmt, params => Try({}, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+			]
+		execute! = |stmt, params| {
+			bindings = encode_params(params)?
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, Sqlite.default_query_limits.timeout_ms)?
+			match sqlite_next_row!(exec, 0, False) {
+				Ok(Done) => Ok({})
+				Ok(RowLimitExceeded) => Err(RowsReturnedUseQueryInstead)
+				Ok(Row(_)) => Err(RowsReturnedUseQueryInstead)
+				Ok(ResultTooLarge) => Err(RowsReturnedUseQueryInstead)
+				Err(err) => Err(err)
+			}
+		}
+
+		## Decode exactly one row as the expected result type.
+		query! : Stmt, params, QueryLimits => Try(row, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query! = |stmt, params, limits| {
+			bindings = encode_params(params)?
+			Row : row
+			parse_row = Row.parser_for(RowEncoding.Default)
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+			decode_exactly_one_row!(exec, stmt.columns, parse_row, limits)
+		}
+
+		## Decode all rows as the expected list item type.
+		query_many! : Stmt, params, QueryLimits => Try(List(row), QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query_many! = |stmt, params, limits| {
+			bindings = encode_params(params)?
+			Row : row
+			parse_row = Row.parser_for(RowEncoding.Default)
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+			decode_rows!(exec, stmt.columns, parse_row, limits)
+		}
+	}
+
+	## A transaction pinned to one pooled connection. Dropping its final Roc
+	## reference before `commit!` or `rollback!` rolls it back automatically.
+	## Operations within one transaction are sequential; overlapping use returns
+	## `ConcurrentTransactionUse`.
+	Transaction :: { host : Host.SqliteTxn }.{
+
+		to_inspect : Transaction -> Str
+		to_inspect = |_| "Sqlite.Transaction(<opaque>)"
+
+		prepare! : Transaction, Str => Try(Stmt, QueryError)
+		prepare! = |transaction, query| {
+			host = sqlite_txn_prepare!(transaction_to_host(transaction), query)?
+			columns = sqlite_columns!(host)?
+			validate_unique_columns(columns)?
+			Ok(Stmt.{ columns, host })
+		}
+
+		execute! : Transaction, { query : Str, params : params } => Try({}, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+			]
+		execute! = |transaction, { query, params }| {
+			stmt = transaction.prepare!(query)?
+			stmt.execute!(params)
+		}
+
+		query! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query! = |transaction, { query, params, limits }| {
+			stmt = transaction.prepare!(query)?
+			stmt.query!(params, limits)
+		}
+
+		query_many! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query_many! = |transaction, { query, params, limits }| {
+			stmt = transaction.prepare!(query)?
+			stmt.query_many!(params, limits)
+		}
+
+		commit! : Transaction => Try({}, QueryError)
+		commit! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), True)
+
+		rollback! : Transaction => Try({}, QueryError)
+		rollback! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), False)
+	}
+
+	TransactionMode : [Deferred, Immediate, Exclusive]
+
+	## Represents SQLite result codes.
+	ErrCode : [
+		Error,
+		Internal,
+		Perm,
+		Abort,
+		Busy,
+		Locked,
+		NoMem,
+		ReadOnly,
+		Interrupt,
+		IOErr,
+		Corrupt,
+		NotFound,
+		Full,
+		CanNotOpen,
+		Protocol,
+		Empty,
+		Schema,
+		TooBig,
+		Constraint,
+		Mismatch,
+		Misuse,
+		NoLFS,
+		AuthDenied,
+		Format,
+		OutOfRange,
+		NotADatabase,
+		Notice,
+		Warning,
+		Row,
+		Done,
+		Unknown(I64),
+	]
+
+	## Open and validate a bounded database pool.
+	open! : Config => Try(Db, QueryError)
+	open! = |config| {
+		raw_journal_mode = 
+			match config.journal_mode {
+				Delete => 0
+				Wal => 1
+			}
+		raw_synchronous = 
+			match config.synchronous {
+				Full => 0
+				Normal => 1
+			}
+		host = sqlite_open!(
+			InternalPath.to_host_raw!(config.path),
+			config.max_connections,
+			config.acquire_timeout_ms,
+			config.busy_timeout_ms,
+			config.max_cached_statements_per_connection,
+			raw_journal_mode,
+			raw_synchronous,
+		)?
+		Ok(Db.{ host })
+	}
+
+	## Prepare a reusable logical statement and cache its result-column metadata.
+	prepare! : { db : Db, query : Str } => Try(Stmt, QueryError)
+	prepare! = |{ db, query: q }| {
+		host = sqlite_prepare!(db_to_host(db), q)?
+		columns = sqlite_columns!(host)?
+		validate_unique_columns(columns)?
+		Ok(Stmt.{ columns, host })
+	}
+
+	## Execute a one-shot statement that must not return rows.
+	execute! : { db : Db, query : Str, params : params } => Try({}, QueryError)
+		where [
+			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+		]
+	execute! = |{ db, query: q, params }| {
+		stmt = prepare!({ db, query: q })?
+		stmt.execute!(params)
+	}
+
+	## Execute a one-shot query returning exactly one inferred result value.
+	query! : { db : Db, query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
+		where [
+			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+			row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+		]
+	query! = |{ db, query: q, params, limits }| {
+		stmt = prepare!({ db, query: q })?
+		stmt.query!(params, limits)
+	}
+
+	## Execute a one-shot query returning a list of inferred result values.
+	query_many! : { db : Db, query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
+		where [
+			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+			row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+		]
+	query_many! = |{ db, query: q, params, limits }| {
+		stmt = prepare!({ db, query: q })?
+		stmt.query_many!(params, limits)
+	}
+
+	## Begin a transaction on one connection leased from the pool.
+	begin! : Db, TransactionMode => Try(Transaction, QueryError)
+	begin! = |db, mode| {
+		raw_mode = 
+			match mode {
+				Deferred => 0
+				Immediate => 1
+				Exclusive => 2
+			}
+		host = sqlite_begin!(db_to_host(db), raw_mode)?
+		Ok(Transaction.{ host })
+	}
+
+	## Convert an `ErrCode` to a display string.
+	errcode_to_str = |code|
+		match code {
+			Error => "Error: SQL error or missing database"
+			Internal => "Internal: Internal logic error in SQLite"
+			Perm => "Perm: Access permission denied"
+			Abort => "Abort: Callback routine requested an abort"
+			Busy => "Busy: The database file is locked"
+			Locked => "Locked: A table in the database is locked"
+			NoMem => "NoMem: Allocation failed"
+			ReadOnly => "ReadOnly: Attempt to write a readonly database"
+			Interrupt => "Interrupt: Operation was interrupted"
+			IOErr => "IOErr: Disk I/O error"
+			Corrupt => "Corrupt: Database image is malformed"
+			NotFound => "NotFound: Unknown SQLite operation"
+			Full => "Full: Database or disk is full"
+			CanNotOpen => "CanNotOpen: Unable to open the database"
+			Protocol => "Protocol: Database lock protocol error"
+			Empty => "Empty: Database is empty"
+			Schema => "Schema: Database schema changed"
+			TooBig => "TooBig: String or BLOB exceeds SQLite's limit"
+			Constraint => "Constraint: Constraint violation"
+			Mismatch => "Mismatch: Data type mismatch"
+			Misuse => "Misuse: SQLite API used incorrectly"
+			NoLFS => "NoLFS: Required large-file support is unavailable"
+			AuthDenied => "AuthDenied: Authorization denied"
+			Format => "Format: Auxiliary database format error"
+			OutOfRange => "OutOfRange: Parameter index is out of range"
+			NotADatabase => "NotADatabase: File is not a database"
+			Notice => "Notice: SQLite notice"
+			Warning => "Warning: SQLite warning"
+			Row => "Row: Another row is ready"
+			Done => "Done: Statement execution completed"
+			Unknown(value) => "Unknown SQLite result code ${I64.to_str(value)}"
+		}
+}
+
+stmt_to_host : Sqlite.Stmt -> Host.SqliteStmt
+stmt_to_host = |stmt| stmt.host
+
+db_to_host : Sqlite.Db -> Host.SqliteDb
+db_to_host = |db| db.host
+
+transaction_to_host : Sqlite.Transaction -> Host.SqliteTxn
+transaction_to_host = |transaction| transaction.host
+
+set_param_value = |state, value|
+	match state.field {
+		NoField => Err(ParameterValueOutsideRecord)
+		Field(_) =>
+			match state.value {
+				NoValue => Ok({
+					bindings: state.bindings,
+					field: state.field,
+					value: Encoded(value),
+				})
+				Encoded(_) => Err(MultipleValuesForParameter)
+			}
+		}
+
+encode_params : params -> Try(List({ name : Str, value : [Null, Real(F64), Integer(I64), String(Str), Bytes(List(U8))] }), _)
+	where [
+		params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, _)),
+	]
+encode_params = |params| {
+	Params : params
+	encode = Params.encoder_for(Sqlite.ParamsEncoding.Default)
+	encoded = encode(
+		params,
+		{
+			bindings: [],
+			field: NoField,
+			value: NoValue,
+		},
+	)?
+	Ok(encoded.bindings)
+}
+
+sqlite_open! = |raw_path, max_connections, acquire_timeout_ms, busy_timeout_ms, max_cached_statements, journal_mode, synchronous|
+	Host.sqlite_open!(raw_path, max_connections, acquire_timeout_ms, busy_timeout_ms, max_cached_statements, journal_mode, synchronous)
+		.map_err(sqlite_host_error)
+
+sqlite_prepare! = |db, query|
+	Host.sqlite_prepare!(db, query)
+		.map_err(sqlite_host_error)
+
+sqlite_start! = |stmt, bindings, timeout_ms|
+	Host.sqlite_start!(stmt, bindings, timeout_ms)
+		.map_err(sqlite_host_error)
+
+sqlite_columns! = |stmt|
+	Host.sqlite_columns!(stmt)
+		.map_err(sqlite_host_error)
+
+sqlite_next_row! = |exec, max_bytes, allow_row|
+	Host.sqlite_next_row!(exec, max_bytes, allow_row)
+		.map_err(sqlite_host_error)
+
+sqlite_begin! = |db, mode|
+	Host.sqlite_begin!(db, mode)
+		.map_err(sqlite_host_error)
+
+sqlite_txn_prepare! = |transaction, query|
+	Host.sqlite_txn_prepare!(transaction, query)
+		.map_err(sqlite_host_error)
+
+sqlite_txn_finish! = |transaction, commit|
+	Host.sqlite_txn_finish!(transaction, commit)
+		.map_err(sqlite_host_error)
+
+sqlite_host_error = |{ code, message }|
+	match code {
+		-1 => PoolSaturated
+		-2 => QueryTimedOut
+		-3 => TransactionFinished
+		-4 => ResourceSaturated
+		-5 => ConcurrentTransactionUse
+		_ => SqliteErr(code_from_i64(code), message)
+	}
+
+decode_exactly_one_row! = |stmt, columns, parse_row, limits| {
+	first = sqlite_next_row!(stmt, limits.max_bytes, True)?
+	match first {
+		Done => Err(NoRowsReturned)
+		ResultTooLarge => Err(ResultTooLarge({ max_bytes: limits.max_bytes }))
+		RowLimitExceeded => Err(NoRowsReturned)
+		Row({ bytes: _, values }) => {
+			row = parse_materialized_row(columns, values, parse_row)?
+			match sqlite_next_row!(stmt, 0, False)? {
+				Done => Ok(row)
+				RowLimitExceeded => Err(TooManyRowsReturned)
+				Row(_) => Err(TooManyRowsReturned)
+				ResultTooLarge => Err(TooManyRowsReturned)
+			}
+		}
+	}
+}
+
+decode_rows! = |stmt, columns, parse_row, limits| {
+	helper! = |out, used_bytes|
+		match sqlite_next_row!(
+			stmt,
+			limits.max_bytes - used_bytes,
+			out.len() < limits.max_rows,
+		)? {
+			Done => Ok(out)
+			ResultTooLarge => Err(ResultTooLarge({ max_bytes: limits.max_bytes }))
+			RowLimitExceeded => Err(TooManyRows({ max_rows: limits.max_rows }))
+			Row({ bytes, values }) => {
+				row = parse_materialized_row(columns, values, parse_row)?
+				helper!(out.append(row), used_bytes + bytes)
+			}
+		}
+	helper!([], 0)
+}
+
+parse_materialized_row = |columns, values, parse_row| {
+	if columns.len() != values.len() {
+		Err(MalformedRow)
+	} else {
+		initial : Sqlite.RowState
+		initial = {
+			columns,
+			current: NoCurrent,
+			next: 0.U64,
+			values,
+		}
+		parsed = parse_row(initial)?
+
+		if parsed.rest.next == columns.len() {
+			match parsed.rest.current {
+				NoCurrent => Ok(parsed.value)
+				Current(_) => Err(UnconsumedColumns)
+			}
+		} else {
+			Err(UnconsumedColumns)
+		}
+	}
+}
+
+peek_row_value = |state|
+	match state.current {
+		Current({ name, value }) => Ok({ column: name, value })
+		NoCurrent =>
+			if state.columns.len() == 1 and state.values.len() == 1 and state.next == 0.U64 {
+				name = state.columns.get(0) ? |_| MalformedRow
+				value = state.values.get(0) ? |_| MalformedRow
+				Ok({ column: name, value })
+			} else {
+				Err(ExpectedSingleColumn({ actual: state.columns.len() }))
+			}
+		}
+
+take_row_value = |state| {
+	peeked = peek_row_value(state)?
+	rest = 
+		match state.current {
+			Current(_) => {
+				columns: state.columns,
+				current: NoCurrent,
+				next: state.next,
+				values: state.values,
+			}
+			NoCurrent => {
+				columns: state.columns,
+				current: NoCurrent,
+				next: 1,
+				values: state.values,
+			}
+		}
+	Ok({ column: peeked.column, rest, value: peeked.value })
+}
+
+find_field : Encoding.FieldName.FieldNames(_shape), Str -> Try(Encoding.FieldName(_shape), [NotFound])
+find_field = |fields, name| {
+	var $remaining = Encoding.FieldName.FieldNames.for_size(fields, Str.count_utf8_bytes(name))
+
+	while True {
+		match Iter.next($remaining) {
+			One({ item, rest }) =>
+				if Encoding.FieldName.name(item) == name {
+					return Ok(item)
+				} else {
+					$remaining = rest
+				}
+			Skip({ rest }) => {
+				$remaining = rest
+			}
+			Done => return Err(NotFound)
+		}
+	}
+}
+
+validate_unique_columns : List(Str) -> Try({}, [DuplicateColumn(Str), ..])
+validate_unique_columns = |columns| {
+	var $index = 0
+	while $index < columns.len() {
+		name = columns.get($index) ?? ""
+		var $other = $index + 1
+		while $other < columns.len() {
+			other_name = columns.get($other) ?? ""
+			if name == other_name {
+				return Err(DuplicateColumn(name))
+			}
+			$other = $other + 1
+		}
+		$index = $index + 1
+	}
+	Ok({})
+}
+
+value_type : [Null, Real(F64), Integer(I64), String(Str), Bytes(List(U8))] -> Sqlite.ValueType
+value_type = |value|
+	match value {
+		Null => Null
+		Real(_) => Real
+		Integer(_) => Integer
+		String(_) => Text
+		Bytes(_) => Blob
+	}
+
+code_from_i64 : I64 -> Sqlite.ErrCode
 code_from_i64 = |code|
-    if code == 1 or code == 0 then
-        Error
-    else if code == 2 then
-        Internal
-    else if code == 3 then
-        Perm
-    else if code == 4 then
-        Abort
-    else if code == 5 then
-        Busy
-    else if code == 6 then
-        Locked
-    else if code == 7 then
-        NoMem
-    else if code == 8 then
-        ReadOnly
-    else if code == 9 then
-        Interrupt
-    else if code == 10 then
-        IOErr
-    else if code == 11 then
-        Corrupt
-    else if code == 12 then
-        NotFound
-    else if code == 13 then
-        Full
-    else if code == 14 then
-        CanNotOpen
-    else if code == 15 then
-        Protocol
-    else if code == 16 then
-        Empty
-    else if code == 17 then
-        Schema
-    else if code == 18 then
-        TooBig
-    else if code == 19 then
-        Constraint
-    else if code == 20 then
-        Mismatch
-    else if code == 21 then
-        Misuse
-    else if code == 22 then
-        NoLFS
-    else if code == 23 then
-        AuthDenied
-    else if code == 24 then
-        Format
-    else if code == 25 then
-        OutOfRange
-    else if code == 26 then
-        NotADatabase
-    else if code == 27 then
-        Notice
-    else if code == 28 then
-        Warning
-    else if code == 100 then
-        Row
-    else if code == 101 then
-        Done
-    else
-        Unknown(code)
+	match code {
+		0 => Error
+		1 => Error
+		2 => Internal
+		3 => Perm
+		4 => Abort
+		5 => Busy
+		6 => Locked
+		7 => NoMem
+		8 => ReadOnly
+		9 => Interrupt
+		10 => IOErr
+		11 => Corrupt
+		12 => NotFound
+		13 => Full
+		14 => CanNotOpen
+		15 => Protocol
+		16 => Empty
+		17 => Schema
+		18 => TooBig
+		19 => Constraint
+		20 => Mismatch
+		21 => Misuse
+		22 => NoLFS
+		23 => AuthDenied
+		24 => Format
+		25 => OutOfRange
+		26 => NotADatabase
+		27 => Notice
+		28 => Warning
+		100 => Row
+		101 => Done
+		other => Unknown(other)
+	}
 
-## Convert a [ErrCode] to a pretty string for display purposes.
-errcode_to_str : ErrCode -> Str
-errcode_to_str = |code|
-    when code is
-        Error -> "Error: Sql error or missing database"
-        Internal -> "Internal: Internal logic error in Sqlite"
-        Perm -> "Perm: Access permission denied"
-        Abort -> "Abort: Callback routine requested an abort"
-        Busy -> "Busy: The database file is locked"
-        Locked -> "Locked: A table in the database is locked"
-        NoMem -> "NoMem: A malloc() failed"
-        ReadOnly -> "ReadOnly: Attempt to write a readonly database"
-        Interrupt -> "Interrupt: Operation terminated by sqlite3_interrupt("
-        IOErr -> "IOErr: Some kind of disk I/O error occurred"
-        Corrupt -> "Corrupt: The database disk image is malformed"
-        NotFound -> "NotFound: Unknown opcode in sqlite3_file_control()"
-        Full -> "Full: Insertion failed because database is full"
-        CanNotOpen -> "CanNotOpen: Unable to open the database file"
-        Protocol -> "Protocol: Database lock protocol error"
-        Empty -> "Empty: Database is empty"
-        Schema -> "Schema: The database schema changed"
-        TooBig -> "TooBig: String or BLOB exceeds size limit"
-        Constraint -> "Constraint: Abort due to constraint violation"
-        Mismatch -> "Mismatch: Data type mismatch"
-        Misuse -> "Misuse: Library used incorrectly"
-        NoLFS -> "NoLFS: Uses OS features not supported on host"
-        AuthDenied -> "AuthDenied: Authorization denied"
-        Format -> "Format: Auxiliary database format error"
-        OutOfRange -> "OutOfRange: 2nd parameter to sqlite3_bind out of range"
-        NotADatabase -> "NotADatabase: File opened that is not a database file"
-        Notice -> "Notice: Notifications from sqlite3_log()"
-        Warning -> "Warning: Warnings from sqlite3_log()"
-        Row -> "Row: sqlite3_step() has another row ready"
-        Done -> "Done: sqlite3_step() has finished executing"
-        Unknown(c) -> "Unknown: error code ${Num.to_str(c)} not known"
+expect {
+	encoded = encode_params({ id: 7.I64, name: "todo" })?
+	encoded == [
+		{ name: ":id", value: Integer(7) },
+		{ name: ":name", value: String("todo") },
+	]
+}
+
+expect {
+	encoded = encode_params({ payload: Sqlite.Blob.from_bytes([1, 2, 3]) })?
+	encoded == [{ name: ":payload", value: Bytes([1, 2, 3]) }]
+}
+
+expect {
+	parse_blob = Sqlite.Blob.parser_for(Sqlite.RowEncoding.Default)
+	blob = parse_materialized_row(
+		["payload"],
+		[Bytes([1, 2, 3])],
+		parse_blob,
+	)?
+
+	Sqlite.Blob.to_bytes(blob) == [1, 2, 3]
+}
+
+expect sqlite_host_error({ code: -1, message: "" }) == PoolSaturated
+
+expect sqlite_host_error({ code: -2, message: "" }) == QueryTimedOut
+
+expect sqlite_host_error({ code: -3, message: "" }) == TransactionFinished
+
+expect sqlite_host_error({ code: -4, message: "" }) == ResourceSaturated
+
+expect sqlite_host_error({ code: -5, message: "" }) == ConcurrentTransactionUse

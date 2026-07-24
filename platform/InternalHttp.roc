@@ -1,139 +1,132 @@
-# TODO we should be able to pull this out into a cross-platform package so multiple
-# platforms can use it.
-#
-# I haven't tried that here because I just want to get the implementation working on
-# both basic-cli and basic-webserver. Copy-pase is fine for now.
-module [
-    Request,
-    Response,
-    RequestToAndFromHost,
-    ResponseToAndFromHost,
-    Method,
-    Header,
-    to_host_request,
-    to_host_response,
-    from_host_request,
-    from_host_response,
-]
+import http.Header
+import http.Method
+import http.Request
+import http.Response
 
-# FOR ROC
+## Host-ABI types for outbound HTTP. Inbound server requests have a distinct
+## streaming representation in InternalServer.
+InternalHttp :: [].{
+	ConnectReason : [
+		ConnectionAborted,
+		ConnectionRefused,
+		ConnectionReset,
+		HostUnreachable,
+		NetworkUnreachable,
+		AddressNotAvailable,
+		PermissionDenied,
+		TimedOut,
+		Other,
+	]
 
-# https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
-Method : [OPTIONS, GET, POST, PUT, DELETE, HEAD, TRACE, CONNECT, PATCH, EXTENSION Str]
+	## A failure to exchange an HTTP request with its destination. These tags
+	## are stable programmatic categories; detail strings are diagnostic only.
+	## ExchangeFailed covers the indivisible Client::request stage (writing the
+	## request and waiting for response headers). ResponseBodyFailed occurs only
+	## after valid response headers have been received.
+	TransportErr : [
+		Timeout,
+		Saturated,
+		ResponseTooLarge({ limit_bytes : U64, received_at_least : U64 }),
+		DnsFailed({ host : Str, detail : Str }),
+		ConnectFailed(
+			{
+				host : Str,
+				port : U16,
+				reason : ConnectReason,
+				detail : Str,
+			},
+		),
+		TlsFailed({ host : Str, detail : Str }),
+		ConnectionClosed,
+		ExchangeFailed(Str),
+		ResponseBodyFailed(Str),
+		InvalidResponse(Str),
+		Cancelled,
+		Other(Str),
+	]
 
-# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers
-Header : { name : Str, value : Str }
+	SendErr : [
+		InvalidRequest(Str),
+		Transport(TransportErr),
+	]
 
-Request : {
-    method : Method,
-    headers : List Header,
-    uri : Str,
-    body : List U8,
-    timeout_ms : [TimeoutMilliseconds U64, NoTimeout],
-}
+	HostHeader : { name : Str, value : Str }
 
-Response : {
-    status : U16,
-    headers : List Header,
-    body : List U8,
-}
+	OutboundRequestToHost : {
+		method : U8,
+		method_ext : Str,
+		headers : List(HostHeader),
+		uri : Str,
+		body : List(U8),
+		timeout_ms : U64,
+		max_response_bytes : U64,
+	}
 
-# FOR HOST
+	OutboundResponseFromHost : {
+		status : U16,
+		headers : List(HostHeader),
+		body : List(U8),
+	}
 
-RequestToAndFromHost : {
-    method : U64,
-    method_ext : Str,
-    headers : List Header,
-    uri : Str,
-    body : List U8,
-    timeout_ms : U64,
-}
+	to_host_request : Request.Request, U64, U64 -> OutboundRequestToHost
+	to_host_request = |request, default_timeout_ms, max_response_bytes| {
+		method = Request.method(request)
 
-ResponseToAndFromHost : {
-    status : U16,
-    headers : List Header,
-    body : List U8,
-}
+		{
+			method: to_host_method(method),
+			method_ext: to_host_method_ext(method),
+			headers: Request.headers(request).map(to_host_header),
+			uri: Request.uri(request),
+			body: Request.body(request),
+			timeout_ms: to_host_timeout(Request.timeout(request), default_timeout_ms),
+			max_response_bytes,
+		}
+	}
 
-to_host_response : Response -> ResponseToAndFromHost
-to_host_response = |{ status, headers, body }| {
-    status,
-    headers,
-    body,
-}
+	from_host_response : OutboundResponseFromHost -> Response.Response
+	from_host_response = |response|
+		Response.from_status(response.status)
+			.with_headers(response.headers.map(from_host_header))
+			.with_body(response.body)
 
-to_host_request : Request -> RequestToAndFromHost
-to_host_request = |{ method, headers, uri, body, timeout_ms }| {
-    method: to_host_method(method),
-    method_ext: to_host_method_ext(method),
-    headers,
-    uri,
-    body,
-    timeout_ms: to_host_timeout(timeout_ms),
-}
+	to_host_method : Method.Method -> U8
+	to_host_method = |method|
+		match method {
+			OPTIONS => 5
+			GET => 3
+			POST => 7
+			PUT => 8
+			DELETE => 1
+			HEAD => 4
+			TRACE => 9
+			CONNECT => 0
+			PATCH => 6
+			QUERY => 2
+			Unknown(_) => 2
+		}
 
-to_host_method : Method -> _
-to_host_method = |method|
-    when method is
-        OPTIONS -> 5
-        GET -> 3
-        POST -> 7
-        PUT -> 8
-        DELETE -> 1
-        HEAD -> 4
-        TRACE -> 9
-        CONNECT -> 0
-        PATCH -> 6
-        EXTENSION(_) -> 2
+	to_host_method_ext : Method.Method -> Str
+	to_host_method_ext = |method|
+		match method {
+			QUERY => "QUERY"
+			Unknown(ext) => ext
+			_ => ""
+		}
 
-to_host_method_ext : Method -> Str
-to_host_method_ext = |method|
-    when method is
-        EXTENSION(ext) -> ext
-        _ -> ""
+	to_host_timeout : [TimeoutMilliseconds(U64), NoTimeout], U64 -> U64
+	to_host_timeout = |timeout, default_timeout_ms|
+		match timeout {
+			TimeoutMilliseconds(ms) => if ms == 0 {
+				1
+			} else {
+				ms
+			}
+			NoTimeout => default_timeout_ms
+		}
 
-to_host_timeout : _ -> U64
-to_host_timeout = |timeout|
-    when timeout is
-        TimeoutMilliseconds(ms) -> ms
-        NoTimeout -> 0
+	to_host_header : Header.Header -> HostHeader
+	to_host_header = |header| { name: header.name, value: header.value }
 
-from_host_request : RequestToAndFromHost -> Request
-from_host_request = |{ method, method_ext, headers, uri, body, timeout_ms }| {
-    method: from_host_method(method, method_ext),
-    headers,
-    uri,
-    body,
-    timeout_ms: from_host_timeout(timeout_ms),
-}
-
-from_host_method : U64, Str -> Method
-from_host_method = |tag, ext|
-    when tag is
-        5 -> OPTIONS
-        3 -> GET
-        7 -> POST
-        8 -> PUT
-        1 -> DELETE
-        4 -> HEAD
-        9 -> TRACE
-        0 -> CONNECT
-        6 -> PATCH
-        2 -> EXTENSION(ext)
-        _ -> crash("invalid tag from host")
-
-from_host_timeout : U64 -> [TimeoutMilliseconds U64, NoTimeout]
-from_host_timeout = |timeout|
-    when timeout is
-        0 -> NoTimeout
-        _ -> TimeoutMilliseconds(timeout)
-
-expect from_host_timeout(0) == NoTimeout
-expect from_host_timeout(1) == TimeoutMilliseconds(1)
-
-from_host_response : ResponseToAndFromHost -> Response
-from_host_response = |{ status, headers, body }| {
-    status,
-    headers,
-    body,
+	from_host_header : HostHeader -> Header.Header
+	from_host_header = |{ name, value }| { name, value }
 }

@@ -1,12 +1,12 @@
-module [
-    millis!,
-]
-
 import Host
 
-## Sleep for at least the given number of milliseconds.
-## This uses [rust's std::thread::sleep](https://doc.rust-lang.org/std/thread/fn.sleep.html).
+## Pause the current synchronous Roc handler or lifecycle hook.
 ##
-millis! : U64 => {}
-millis! = |milliseconds|
-    Host.sleep_millis!(milliseconds)
+## Sleeping occupies one bounded Roc execution slot, so it should not be used
+## to wait indefinitely or to implement background scheduling.
+Sleep := [].{
+
+	## Sleep for at least the given number of milliseconds.
+	millis! : U64 => {}
+	millis! = |milliseconds| Host.sleep_millis!(milliseconds)
+}

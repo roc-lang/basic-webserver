@@ -1,8 +1,9 @@
+name: CI
+
 on:
   pull_request:
   workflow_dispatch:
 
-# this cancels workflows currently in progress if you start a new one
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -10,72 +11,77 @@ concurrency:
 # Do not add permissions here! Configure them at the job level!
 permissions: {}
 
-env:
-  JUMP_START: 1
-  ROC: roc
-  EXAMPLES_DIR: ./examples/
-
 jobs:
-  build-and-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+  rust-version:
+    name: read Rust version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - id: read
+        run: |
+          version=$(sed -n 's/^channel = "\(.*\)".*/\1/p' rust-toolchain.toml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: roc-lang/setup-roc@39c354a6a838a0089eea9068a0414f49b62c5c08
+  validate:
+    name: validate sources
+    needs: rust-version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Zig-based Roc compiler
+        uses: ./.github/actions/setup-roc
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
+          rustup default "${{ needs.rust-version.outputs.version }}"
+          rustup component add rustfmt
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Checkout the matching Roc glue specification
+        uses: actions/checkout@v7
         with:
-          # Note: nightly hashes are not verified because they are updated regularly.
-          version: nightly
+          repository: roc-lang/roc
+          ref: 306abd6d8b5fe5c3c0967976a5da2e7568b02a37
+          path: target/roc-glue-source
+          sparse-checkout: src/glue/src/RustGlue.roc
 
-      - run: roc version
+      - name: Check generated Rust glue
+        env:
+          ROC_GLUE_SPEC: target/roc-glue-source/src/glue/src/RustGlue.roc
+        run: python scripts/regenerate_glue.py --check
 
-      - name: Install dependencies (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu-')
+      - name: Run Rust unit tests
+        run: cargo test --locked
+
+      - name: Format, check, and test Roc examples
+        run: python scripts/test.py --operation validate
+
+  memcheck:
+    name: Linux examples under Memcheck
+    needs: rust-version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Zig-based Roc compiler
+        uses: ./.github/actions/setup-roc
+
+      - name: Install Rust toolchain
         run: |
-          sudo apt install -y expect ncat ripgrep
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
+          rustup default "${{ needs.rust-version.outputs.version }}"
 
-      - name: Install dependencies (macOS)
-        if: startsWith(matrix.os, 'macos-')
+      - name: Install Valgrind
         run: |
-          brew install expect # expect for testing
-          brew install nmap  # includes ncat, for use as test server for tests/tcp.roc
-          brew install ripgrep # ripgrep for ci/check_all_exposed_funs_tested.roc
+          sudo apt-get update
+          sudo apt-get install --yes valgrind
 
-      # Run all tests
-      - run: ./ci/all_tests.sh
-
-      - name: Install dependencies for musl build
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          sudo apt-get install -y musl-tools
-
-          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO re-enable once TODOs below are gone: rustup target add aarch64-unknown-linux-musl
-            echo "no-op"
-          else
-            rustup target add x86_64-unknown-linux-musl
-          fi
-
-      - name: Test building with musl target
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          if [[ "${{ matrix.os }}" == *"-arm" ]]; then
-            # TODO debug this: CARGO_BUILD_TARGET=aarch64-unknown-linux-musl roc build.roc -- --roc roc
-            echo "no-op"
-          else
-            CARGO_BUILD_TARGET=x86_64-unknown-linux-musl roc build.roc -- --roc roc
-          fi
-          
-
-      - name: Test using musl build
-        if: startsWith(matrix.os, 'ubuntu-')
-        run: |
-          # TODO remove `if` when above TODOs are done
-          if [[ "${{ matrix.os }}" != *"-arm" ]]; then
-            # no need to build platform anymore
-            NO_BUILD=1 IS_MUSL=1 ./ci/all_tests.sh
-          fi
-
-# TODO clippy, rustfmt, roc fmt check
+      - name: Run every Linux example under Memcheck
+        run: python scripts/test.py --operation memcheck

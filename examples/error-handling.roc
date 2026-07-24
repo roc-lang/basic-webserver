@@ -1,74 +1,69 @@
-# This example demonstrates error handling and fetching content from another website.
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+## Demonstrates typed error handling while fetching content from a configured URL.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+}
 
 import pf.Stdout
-import pf.Http exposing [Request, Response]
-import pf.Utc
+import pf.Http
+import pf.Server
+import pf.Url
 import pf.Env
+import pf.Utc
+import http.Response
 
-# To run this example: check the README.md in this folder
+Context : Url
 
-Model : {}
+program = { init!, respond!, shutdown! }
 
-init! : {} => Result Model []
-init! = |{}| Ok({})
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), InvalidTargetUrl(_), MissingTargetUrl(_), ..],
+)
+init! = || {
+	target = Env.var_str!("TARGET_URL") ? |err| MissingTargetUrl(err)
+	target_url = Url.parse(target) ? |err| InvalidTargetUrl(err)
+	Ok({ config: Server.default_config, context: target_url })
+}
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |req, _|
-    handle_req!(req) |> Result.map_err(map_app_err)
+respond! : Server.Request,
+Context => Try(
+	Server.Outcome,
+	[FailedToFetch(_), FailedToLogRequest(_), ServerErr(Str), ..],
+)
+respond! = |req, target_url| {
+	response = handle_req!(req, target_url)?
+	Ok(Server.respond(response))
+}
 
-AppError : [
-    EnvVarNotSet Str,
-    FetchErr Str,
-    StdoutErr Str,
-]
+## Semantic application errors can flow directly to the platform. The platform
+## logs their inspected values and returns a generic HTTP 500 without exposing
+## the details to the client.
+handle_req! : Server.Request, Url => Try(Response, [FailedToFetch(_), FailedToLogRequest(_), ..])
+handle_req! = |req, target_url| {
+	# `?` returns early when an effect is `Err`, preserving its typed error tag.
+	log_request!(req)?
+	content = fetch_content!(target_url)?
 
-map_app_err : AppError -> [ServerErr Str]
-map_app_err = |app_err|
-    when app_err is
-        EnvVarNotSet(env_var_name) -> ServerErr("Environment variable \"${env_var_name}\" was not set.")
-        FetchErr(err) -> ServerErr("Failed to fetch content:\n\t${err}")
-        StdoutErr(err) -> ServerErr("Stdout error logging request:\n\t${err}")
+	Ok(response_with_code(200, content))
+}
 
-# Here we use AppError to ensure all errors must be handled within our application.
-handle_req! : Request => Result Response AppError
-handle_req! = |req|
-    # Log the date, time, method, and url to stdout
-    log_request!(req)?
+log_request! : Server.Request => Try({}, [FailedToLogRequest(_), ..])
+log_request! = |req| {
+	datetime = Utc.to_iso_8601(Utc.now!())
 
-    # Read environment variable
-    url = read_env_var!("TARGET_URL")?
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+		? |err| FailedToLogRequest(err)
+	Ok({})
+}
 
-    # Fetch content of url
-    content = fetch_content!(url)?
+fetch_content! : Url => Try(Str, [FailedToFetch(_), ..])
+fetch_content! = |url| Http.get_utf8!(url).map_err(|err| FailedToFetch(err))
 
-    # Respond with the website content
-    response_with_code!(200, content)
+## Build an in-memory response with the given status and UTF-8 body.
+response_with_code : U16, Str -> Response
+response_with_code = |code, body|
+	Response.from_status(code).with_body(Str.to_utf8(body))
 
-log_request! : Request => Result {} [StdoutErr Str]
-log_request! = |req|
-    datetime = Utc.to_iso_8601(Utc.now!({}))
-
-    Stdout.line!("${datetime} ${Inspect.to_str(req.method)} ${req.uri}")
-    |> Result.map_err(|err| StdoutErr(Inspect.to_str(err)))
-
-read_env_var! : Str => Result Str [EnvVarNotSet Str]
-read_env_var! = |env_var_name|
-    Env.var!(env_var_name)
-    |> Result.map_err(|_| EnvVarNotSet(env_var_name))
-
-fetch_content! : Str => Result Str [FetchErr Str]
-fetch_content! = |url|
-    Http.get_utf8!(url)
-    |> Result.map_err(|err| FetchErr(Inspect.to_str(err)))
-
-# Respond with the given status code and body
-response_with_code! : U16, Str => Result Response *
-response_with_code! = |code, body|
-    Ok(
-        {
-            status: code,
-            headers: [],
-            body: Str.to_utf8(body),
-        },
-    )
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

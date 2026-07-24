@@ -114,10 +114,12 @@
             const task = document.getElementById('task').value;
             const status = document.getElementById('status').value;
 
-            fetch('/todos?task=' + task + '&status=' + status, {
+            fetch('/todos', {
                 method: 'POST',
-                headers: {},
-                body: ''
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ task, status })
             })
                 .then(response => response.json())
                 .then(addedTodo => {

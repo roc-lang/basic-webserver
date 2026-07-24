@@ -5,106 +5,62 @@ on:
     branches:
       - main
     paths:
-      - '**.roc'
-  release:
-    types:
-      - created
-
+      - ".github/workflows/deploy-docs.yml"
+      - "platform/**"
+      - "www/**"
   workflow_dispatch:
 
-# this cancels workflows currently in progress if you start a new one
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: true
 
 # Do not add permissions here! Configure them at the job level!
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   deploy:
+    name: Deploy docs
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-24.04
     permissions:
       pages: write
       id-token: write
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        
+        uses: actions/checkout@v7
+
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
-      - uses: roc-lang/setup-roc@39c354a6a838a0089eea9068a0414f49b62c5c08
-        with:
-          # Note: nightly hashes are not verified because they are updated regularly.
-          version: nightly
+      - name: Install Roc
+        uses: ./.github/actions/setup-roc
 
-      - run: roc version
-        
-      - name: Create temp directory for docs
-        run: mkdir -p ./temp_docs
-        
-      - name: Download and extract docs for each release
+      - name: Create Pages tree
         run: |
-          # Get all releases 
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/roc-lang/basic-webserver/releases" | jq -c '.')
-          echo "$releases" | jq -c '.[]' | while read -r release; do
-            release_name=$(echo $release | jq -r '.tag_name')
-            assets_url=$(echo $release | jq -r '.assets_url')
-            
-            # Get assets for this release
-            assets=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "${assets_url}")
-            
-            # Look for docs.tar.gz asset
-            download_url=$(echo $assets | jq -r '.[] | select(.name=="docs.tar.gz") | .browser_download_url')
-            
-            if [ ! -z "$download_url" ]; then
-              echo "Processing release ${release_name}, downloading from ${download_url}"
-              
-              # Create directory for this release
-              mkdir -p "./temp_docs/${release_name}"
-              
-              # Download and extract
-              curl -sL "${download_url}" -o ./temp_docs/temp.tar.gz
-              tar -xzf ./temp_docs/temp.tar.gz -C "./temp_docs/${release_name}" --strip-components=1
-              rm ./temp_docs/temp.tar.gz
-            else
-              echo "docs.tar.gz not found for release ${release_name}, continuing..."
-            fi
-          done
-          
-          # Get the latest release version
-          latest_release=$(echo "${releases}" | jq -r '.[0].tag_name')
-          
-          if [ -f "./docs/index.html" ]; then
-            # Copy the index.html and replace LATESTVERSION with actual latest release
-            cat ./docs/index.html | sed "s/LATESTVERSION/${latest_release}/g" > ./temp_docs/index.html
-            echo "Created index.html with latest main version: ${latest_release}"
-          else
-            echo "Error: index.html not found in docs folder"
-            exit 1
-          fi
+          mkdir -p temp_docs
+          cp -R www/. temp_docs/
 
-      - name: Add docs for main branch
+      - name: Generate main branch docs
         env:
           ROC_DOCS_URL_ROOT: /basic-webserver/main
         run: |
-          roc docs ./platform/main.roc
+          set -euo pipefail
 
-          mkdir -p "./temp_docs/main"
+          roc docs --output=temp_docs/main platform/main.roc
 
-          mv ./generated-docs/* ./temp_docs/main
-          
+      - name: Fix legacy generated URLs
+        run: |
+          find temp_docs -type f \( -name "*.html" -o -name "*.js" \) \
+            -exec sed -i 's|/packages/basic-webserver/|/basic-webserver/|g' {} +
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
         with:
-          # Upload the processed docs folder
-          path: "./temp_docs"
-          
-      - name: Deploy to GitHub Pages
+          path: temp_docs
+
+      - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

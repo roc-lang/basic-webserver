@@ -1,40 +1,35 @@
-app [Model, init!, respond!] { pf: platform "../platform/main.roc" }
+## Demonstrates reading environment variables during initialization.
+##
+## With `DEBUG=1`, this serves the entire process environment. Do not expose
+## this example publicly because environment values may contain secrets.
+app [Context, program] {
+	pf: platform "../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+}
 
-import pf.Http exposing [Request, Response]
 import pf.Env
+import pf.Server
+import http.Response
 
-# To run this example: check the README.md in this folder
+Context : [DebugPrintMode, NonDebugMode]
 
-# We'll set this based on env var at server startup
-Model : [DebugPrintMode, NonDebugMode]
+program = { init!, respond!, shutdown! }
 
-init! : {} => Result Model [Exit I32 Str]_
-init! = |{}|
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = ||
+	match Env.var_str!("DEBUG") {
+		Ok("1") => Ok({ config: Server.default_config, context: DebugPrintMode })
+		_ => Ok({ config: Server.default_config, context: NonDebugMode })
+	}
 
-    # Check if DEBUG environment variable is set
-    when Env.decode!("DEBUG") is
-        Ok(1) -> Ok(DebugPrintMode)
-        _ -> Ok(NonDebugMode)
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, mode|
+	match mode {
+		DebugPrintMode => {
+			Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(Str.inspect(Env.dict!())))))
+		}
+		NonDebugMode => Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("DEBUG var not set"))))
+	}
 
-respond! : Request, Model => Result Response [ServerErr Str]_
-respond! = |_, debug|
-    when debug is
-        DebugPrintMode ->
-            # Respond with all the current environment variables
-            vars : Dict Str Str
-            vars = Env.dict!({})
-
-            # Convert the Dict to a list of key-value pairs
-            body =
-                vars
-                |> Dict.to_list
-                |> List.map(|(k, v)| "${k}: ${v}")
-                |> Str.join_with("\n")
-                |> Str.concat("\n")
-                |> Str.to_utf8
-
-            Ok({ status: 200, headers: [], body })
-
-        NonDebugMode ->
-            # Respond with a message that DEBUG is not set
-            Ok({ status: 200, headers: [], body: Str.to_utf8("DEBUG var not set") })
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})

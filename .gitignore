@@ -48,8 +48,18 @@ curl_form_output.txt
 
 .DS_Store
 
-# glue generated files
-crates/roc_std
+# Committed prebuilt link inputs for the platform's targets (these override the
+# *.o / *.a ignores above so a normal `git add` picks them up).
+!platform/targets/*/crt1.o
+!platform/targets/*/libc.a
+!platform/targets/*/libunwind.a
+# Host libraries are rebuilt by scripts/build.py and are NOT committed.
+platform/targets/*/libhost.a
+platform/targets/*/host.lib
+# Windows SDK import libraries are copied by scripts/build.py and are NOT committed.
+platform/targets/*/ws2_32.lib
+platform/targets/*/bcrypt.lib
+platform/targets/*/advapi32.lib
 
 # build script artifacts
 build
@@ -58,3 +68,12 @@ build
 *.db-shm
 
 basic-cli/
+
+# Release artifacts
+*.tar.zst
+dist/
+.release/
+
+# Python helper caches
+__pycache__/
+*.pyc
