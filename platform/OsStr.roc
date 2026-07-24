@@ -9,6 +9,7 @@ OsStr := [
 	UnixBytes(List(U8)),
 	WindowsU16s(List(U16)),
 ].{
+
 	## The structural representation used only at native host boundaries.
 	## `OsStr` remains the single public operating-system string abstraction.
 	Raw : [Utf8(Str), UnixBytes(List(U8)), WindowsU16s(List(U16))]
@@ -144,24 +145,24 @@ utf8_to_utf16 = |remaining, out|
 		[byte, .. as rest] if byte < 0x80 =>
 			utf8_to_utf16(rest, out.append(U8.to_u16(byte)))
 		[byte1, byte2, .. as rest] if byte1 < 0xE0 => {
-			top = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte1, 0x1F)), 6)
+			top = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte1, 0x1F)), 6)
 			bottom = U8.to_u32(U8.bitwise_and(byte2, 0x3F))
 			utf8_to_utf16(rest, out.append(U32.to_u16_wrap(U32.bitwise_or(top, bottom))))
 		}
 		[byte1, byte2, byte3, .. as rest] if byte1 < 0xF0 => {
-			top = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte1, 0x0F)), 12)
-			middle = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte2, 0x3F)), 6)
+			top = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte1, 0x0F)), 12)
+			middle = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte2, 0x3F)), 6)
 			bottom = U8.to_u32(U8.bitwise_and(byte3, 0x3F))
 			code_point = U32.bitwise_or(U32.bitwise_or(top, middle), bottom)
 			utf8_to_utf16(rest, out.append(U32.to_u16_wrap(code_point)))
 		}
 		[byte1, byte2, byte3, byte4, .. as rest] => {
-			top = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte1, 0x07)), 18)
-			middle1 = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte2, 0x3F)), 12)
-			middle2 = U32.shift_left_by(U8.to_u32(U8.bitwise_and(byte3, 0x3F)), 6)
+			top = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte1, 0x07)), 18)
+			middle1 = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte2, 0x3F)), 12)
+			middle2 = U32.shl_wrap(U8.to_u32(U8.bitwise_and(byte3, 0x3F)), 6)
 			bottom = U8.to_u32(U8.bitwise_and(byte4, 0x3F))
 			code_point = U32.bitwise_or(U32.bitwise_or(U32.bitwise_or(top, middle1), middle2), bottom)
-			high = U32.to_u16_wrap(0xD800 + U32.shift_right_by(code_point - 0x10000, 10))
+			high = U32.to_u16_wrap(0xD800 + U32.shr_wrap(code_point - 0x10000, 10))
 			low = U32.to_u16_wrap(0xDC00 + U32.bitwise_and(code_point - 0x10000, 0x3FF))
 			utf8_to_utf16(rest, out.append(high).append(low))
 		}
@@ -186,7 +187,7 @@ utf16_to_utf8 = |remaining, out, index|
 	match remaining {
 		[] => Ok(out)
 		[high, low, .. as rest] if is_high_surrogate(high) and is_low_surrogate(low) => {
-			high_bits = U32.shift_left_by(U16.to_u32(high) - 0xD800, 10)
+			high_bits = U32.shl_wrap(U16.to_u32(high) - 0xD800, 10)
 			low_bits = U16.to_u32(low) - 0xDC00
 			code_point = 0x10000 + high_bits + low_bits
 			utf16_to_utf8(rest, append_code_point_utf8(out, code_point), index + 2)
@@ -204,7 +205,7 @@ utf16_to_utf8_lossy_help = |remaining, out|
 	match remaining {
 		[] => out
 		[high, low, .. as rest] if is_high_surrogate(high) and is_low_surrogate(low) => {
-			high_bits = U32.shift_left_by(U16.to_u32(high) - 0xD800, 10)
+			high_bits = U32.shl_wrap(U16.to_u32(high) - 0xD800, 10)
 			low_bits = U16.to_u32(low) - 0xDC00
 			code_point = 0x10000 + high_bits + low_bits
 			utf16_to_utf8_lossy_help(rest, append_code_point_utf8(out, code_point))
@@ -220,16 +221,16 @@ append_code_point_utf8 = |out, code_point|
 	if code_point < 0x80 {
 		out.append(U32.to_u8_wrap(code_point))
 	} else if code_point < 0x800 {
-		out.append(U32.to_u8_wrap(0xC0 + U32.shift_right_by(code_point, 6)))
+		out.append(U32.to_u8_wrap(0xC0 + U32.shr_wrap(code_point, 6)))
 			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(code_point, 0x3F)))
 	} else if code_point < 0x10000 {
-		out.append(U32.to_u8_wrap(0xE0 + U32.shift_right_by(code_point, 12)))
-			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shift_right_by(code_point, 6), 0x3F)))
+		out.append(U32.to_u8_wrap(0xE0 + U32.shr_wrap(code_point, 12)))
+			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shr_wrap(code_point, 6), 0x3F)))
 			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(code_point, 0x3F)))
 	} else {
-		out.append(U32.to_u8_wrap(0xF0 + U32.shift_right_by(code_point, 18)))
-			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shift_right_by(code_point, 12), 0x3F)))
-			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shift_right_by(code_point, 6), 0x3F)))
+		out.append(U32.to_u8_wrap(0xF0 + U32.shr_wrap(code_point, 18)))
+			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shr_wrap(code_point, 12), 0x3F)))
+			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(U32.shr_wrap(code_point, 6), 0x3F)))
 			.append(U32.to_u8_wrap(0x80 + U32.bitwise_and(code_point, 0x3F)))
 	}
 
@@ -244,9 +245,17 @@ is_surrogate = |unit| unit >= 0xD800 and unit <= 0xDFFF
 
 ## Inspection identifies the representation and preserves invalid raw units.
 expect Str.inspect(OsStr.utf8("a\nb")) == "OsStr.utf8(\"a\\nb\")"
+
+## Unix text inspection uses the canonical UTF-8 representation.
 expect Str.inspect(OsStr.unix("abc")) == "OsStr.utf8(\"abc\")"
+
+## Unix byte inspection preserves invalid UTF-8.
 expect Str.inspect(OsStr.unix_bytes([97, 255, 98])) == "OsStr.unix_bytes([97, 255, 98])"
+
+## Windows text inspection uses the canonical UTF-8 representation.
 expect Str.inspect(OsStr.windows("abc")) == "OsStr.utf8(\"abc\")"
+
+## Windows unit inspection preserves invalid UTF-16.
 expect Str.inspect(OsStr.windows_u16s([0xD800, 97])) == "OsStr.windows_u16s([55296, 97])"
 
 ## Interpolation creates a UTF-8 representation.
@@ -259,5 +268,9 @@ expect {
 
 ## Equality and hashing agree for losslessly equivalent constructors.
 expect OsStr.utf8("abc") == OsStr.unix("abc")
+
+## Equivalent UTF-8 and Windows strings compare equally.
 expect OsStr.utf8("abc") == OsStr.windows_u16s([97, 98, 99])
+
+## Equivalent raw strings produce matching dictionary hashes.
 expect Dict.single(OsStr.unix_bytes([97, 255]), "found").get(OsStr.unix_bytes([97, 255])) == Ok("found")

@@ -462,6 +462,7 @@ dependencies = [
  "rustls",
  "tokio",
  "tower-service",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

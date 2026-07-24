@@ -7,26 +7,30 @@ use crate::abi::{
 use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
-use crate::state::{clear_roc_state_client, start_roc_state, RocValueBox};
 use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::{BodyExt, Full};
 use hyper::header::CONTENT_LENGTH;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::{spawn_blocking, JoinSet};
 
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     host: String,
     port: u16,
+    max_connections: usize,
+    max_handlers: usize,
+    max_queued_handlers: usize,
     body_max_bytes: u64,
     body_chunk_bytes: usize,
     body_buffered_chunks: usize,
-    state_queue_capacity: usize,
     drain_timeout: Duration,
     hook_timeout: Duration,
 }
@@ -42,61 +46,173 @@ impl RuntimeConfig {
         if config.body_buffered_chunks == 0 {
             return Err("request body buffered chunk count must be non-zero".to_owned());
         }
-        if config.state_queue_capacity == 0 {
-            return Err("state queue capacity must be non-zero".to_owned());
-        }
-
+        let (max_connections, max_handlers) =
+            validate_concurrency_limits(config.max_connections, config.max_handlers)?;
         Ok(Self {
             host,
             port: config.port,
+            max_connections,
+            max_handlers,
+            max_queued_handlers: config.max_queued_handlers as usize,
             body_max_bytes: config.body_max_bytes,
             body_chunk_bytes: config.body_chunk_bytes as usize,
             body_buffered_chunks: config.body_buffered_chunks as usize,
-            state_queue_capacity: config.state_queue_capacity as usize,
             drain_timeout: Duration::from_millis(config.drain_timeout_ms),
             hook_timeout: Duration::from_millis(config.hook_timeout_ms),
         })
     }
+
+    fn max_http2_streams_per_connection(&self) -> u32 {
+        // The Roc configuration fields are u16, so their sum always fits u32.
+        // A stream still passes through the global handler admission gate; the
+        // HTTP/2 setting prevents one connection from creating more service
+        // futures than the complete active-plus-queued handler budget.
+        (self.max_handlers + self.max_queued_handlers)
+            .max(1)
+            .try_into()
+            .expect("validated handler capacity fits in u32")
+    }
 }
+
+fn validate_concurrency_limits(
+    max_connections: u32,
+    max_handlers: u16,
+) -> Result<(usize, usize), String> {
+    if max_connections == 0 {
+        return Err("maximum active connections must be non-zero".to_owned());
+    }
+    if max_handlers == 0 {
+        return Err("maximum active Roc handlers must be non-zero".to_owned());
+    }
+    let max_connections = max_connections as usize;
+    if max_connections > Semaphore::MAX_PERMITS {
+        return Err(format!(
+            "maximum active connections cannot exceed {} on this target",
+            Semaphore::MAX_PERMITS
+        ));
+    }
+    Ok((max_connections, max_handlers as usize))
+}
+
+/// Bounds both the synchronous Roc invocations submitted to Tokio's blocking
+/// pool and the requests waiting to submit one.
+///
+/// An active permit is acquired before `spawn_blocking`, and the runtime's
+/// blocking thread limit is exactly `max_handlers`. Tokio's internal blocking
+/// queue is therefore not used as an implicit request queue.
+#[derive(Clone)]
+struct HandlerAdmission {
+    active: Arc<Semaphore>,
+    queued: Arc<Semaphore>,
+}
+
+impl HandlerAdmission {
+    fn new(max_handlers: usize, max_queued_handlers: usize) -> Self {
+        Self {
+            active: Arc::new(Semaphore::new(max_handlers)),
+            queued: Arc::new(Semaphore::new(max_queued_handlers)),
+        }
+    }
+
+    async fn admit(&self) -> Option<ActiveHandler> {
+        if let Ok(active) = Arc::clone(&self.active).try_acquire_owned() {
+            return Some(ActiveHandler { _permit: active });
+        }
+
+        let queued = Arc::clone(&self.queued).try_acquire_owned().ok()?;
+        let active = Arc::clone(&self.active)
+            .acquire_owned()
+            .await
+            .expect("handler admission semaphore is never closed");
+        drop(queued);
+        Some(ActiveHandler { _permit: active })
+    }
+}
+
+struct ActiveHandler {
+    _permit: OwnedSemaphorePermit,
+}
+
+/// The one Roc-owned application context retained for the server lifetime.
+///
+/// Rust never dereferences this opaque pointer. Each handler atomically retains
+/// one owned Roc reference immediately before calling Roc, and the provided Roc
+/// wrapper consumes that reference. The root reference is consumed by
+/// `shutdown!` only after all request handlers have drained.
+struct RocContext {
+    root: RocBox,
+}
+
+impl RocContext {
+    fn new(root: RocBox) -> Self {
+        Self { root }
+    }
+
+    fn retain_for_request(&self) -> RocBox {
+        // SAFETY: `root` is the live reference returned by `init!`. Generated
+        // Roc ARC uses atomic refcounts for a box shared across host threads.
+        // A null box is the valid zero-allocation representation of an empty
+        // context and `incref_box` deliberately treats it as static data.
+        unsafe { incref_box(self.root, 1) };
+        self.root
+    }
+}
+
+// SAFETY: Rust treats the pointer as opaque and immutable. Sharing performs
+// only generated atomic ARC operations; mutation is neither exposed nor
+// performed through this wrapper.
+unsafe impl Send for RocContext {}
+unsafe impl Sync for RocContext {}
 
 #[derive(Clone)]
 struct ServerContext {
     config: Arc<RuntimeConfig>,
+    roc_context: Arc<RocContext>,
     bodies: Arc<BodyRegistry>,
+    handlers: HandlerAdmission,
     requests: RequestTracker,
     shutdown: ShutdownController,
 }
 
 pub fn start() -> i32 {
+    let exit_code = start_inner();
+    crate::http::shutdown();
+    exit_code
+}
+
+fn start_inner() -> i32 {
     let init_result = unsafe { roc_init_for_host() };
     let initialized = match init_result.tag {
         InitForHostResultTag::Ok => init_result.payload_ok(),
         InitForHostResultTag::Err => return exit_code_to_i32(init_result.payload_err()),
     };
 
-    let model = initialized.model;
+    let raw_context = initialized.context;
     let config = match RuntimeConfig::from_roc(initialized.config) {
         Ok(config) => config,
         Err(detail) => {
             return finish_shutdown(
                 ShutdownReason::StartupFailed(detail),
-                model,
+                raw_context,
                 Duration::from_secs(10),
             );
         }
     };
 
-    let state = start_roc_state(model, config.state_queue_capacity);
+    let roc_context = Arc::new(RocContext::new(raw_context));
     let bodies = install_registry(config.body_buffered_chunks);
     let shutdown = ShutdownController::new();
     let context = ServerContext {
         config: Arc::new(config.clone()),
+        roc_context: Arc::clone(&roc_context),
         bodies,
+        handlers: HandlerAdmission::new(config.max_handlers, config.max_queued_handlers),
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
     };
 
     let reason = match tokio::runtime::Builder::new_multi_thread()
+        .max_blocking_threads(config.max_handlers)
         .enable_all()
         .build()
     {
@@ -106,13 +222,16 @@ pub fn start() -> i32 {
         }
     };
 
-    clear_roc_state_client();
-    let RocValueBox(final_model) = state.stop();
     clear_registry();
-    finish_shutdown(reason, final_model, config.hook_timeout)
+    debug_assert_eq!(
+        Arc::strong_count(&roc_context),
+        1,
+        "all request and connection context references must drain before shutdown"
+    );
+    finish_shutdown(reason, roc_context.root, config.hook_timeout)
 }
 
-fn finish_shutdown(reason: ShutdownReason, model: RocBox, hook_timeout: Duration) -> i32 {
+fn finish_shutdown(reason: ShutdownReason, context: RocBox, hook_timeout: Duration) -> i32 {
     let default_exit_code = reason.default_exit_code();
     let (tag, detail) = shutdown_reason_to_host(&reason);
     let raw_reason = ServerShutdownReason {
@@ -134,7 +253,7 @@ fn finish_shutdown(reason: ShutdownReason, model: RocBox, hook_timeout: Duration
         })
         .expect("failed to start shutdown watchdog");
 
-    let result = unsafe { roc_shutdown_for_host(raw_reason, model) };
+    let result = unsafe { roc_shutdown_for_host(raw_reason, context) };
     let _ = finished_sender.send(());
     let _ = watchdog.join();
 
@@ -190,6 +309,10 @@ fn request_body_error(error: hyper::Error) -> PumpError {
     }
 }
 
+fn request_headers_are_utf8(headers: &hyper::HeaderMap) -> bool {
+    headers.values().all(|value| value.to_str().is_ok())
+}
+
 fn request_to_roc(
     parts: hyper::http::request::Parts,
     body_id: u64,
@@ -208,7 +331,12 @@ fn request_to_roc(
         .iter()
         .map(|(name, value)| ServerHeader {
             name: RocStr::from_str(name.as_str(), roc_host),
-            value: RocStr::from_str(value.to_str().unwrap_or_default(), roc_host),
+            value: RocStr::from_str(
+                value
+                    .to_str()
+                    .expect("request headers are validated before Roc conversion"),
+                roc_host,
+            ),
         })
         .collect();
 
@@ -224,8 +352,11 @@ fn request_to_roc(
     }
 }
 
-fn call_roc(request: ServerRequest) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
-    let response = unsafe { roc_respond_for_host(request) };
+fn call_roc(
+    request: ServerRequest,
+    context: RocBox,
+) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
+    let response = unsafe { roc_respond_for_host(request, context) };
     response_to_hyper(response)
 }
 
@@ -253,9 +384,24 @@ fn internal_server_error(message: &str) -> hyper::Response<Full<Bytes>> {
 fn service_unavailable() -> hyper::Response<Full<Bytes>> {
     hyper::Response::builder()
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
-        .header(hyper::header::CONNECTION, "close")
         .body(Full::new(Bytes::from_static(b"Server is shutting down")))
         .expect("static 503 response is valid")
+}
+
+fn overloaded() -> hyper::Response<Full<Bytes>> {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
+        .body(Full::new(Bytes::from_static(b"Server is overloaded")))
+        .expect("static 503 response is valid")
+}
+
+fn invalid_request_headers() -> hyper::Response<Full<Bytes>> {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::BAD_REQUEST)
+        .body(Full::new(Bytes::from_static(
+            b"Request header values must be valid UTF-8",
+        )))
+        .expect("static 400 response is valid")
 }
 
 fn payload_too_large(limit: u64) -> hyper::Response<Full<Bytes>> {
@@ -276,10 +422,19 @@ async fn handle_req(
         None => return service_unavailable(),
     };
 
+    if !request_headers_are_utf8(request.headers()) {
+        return invalid_request_headers();
+    }
+
     let declared_length = content_length(request.headers());
     if declared_length.is_some_and(|length| length > context.config.body_max_bytes) {
         return payload_too_large(context.config.body_max_bytes);
     }
+
+    let active_handler = match context.handlers.admit().await {
+        Some(active) => active,
+        None => return overloaded(),
+    };
 
     let (parts, body) = request.into_parts();
     let registration = context.bodies.register(context.config.body_max_bytes);
@@ -292,13 +447,17 @@ async fn handle_req(
 
     let body_limit = context.config.body_max_bytes;
     let bodies = Arc::clone(&context.bodies);
+    let roc_context = Arc::clone(&context.roc_context);
     let handled = spawn_blocking(move || {
         // These guards intentionally live in the non-cancellable blocking task.
         // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
-        // stopped using its body or state capability.
+        // stopped using its handler slot, body, or immutable application
+        // context.
         let _active_request = active_request;
+        let _active_handler = active_handler;
         let roc_request = request_to_roc(parts, body_id, body_limit, declared_length);
-        let result = call_roc(roc_request);
+        let request_context = roc_context.retain_for_request();
+        let result = call_roc(roc_request, request_context);
         bodies.expire(body_id);
         result
     })
@@ -329,10 +488,17 @@ async fn handle_panics(
     }
 }
 
+fn connection_builder(max_http2_streams: u32) -> auto::Builder<TokioExecutor> {
+    let mut builder = auto::Builder::new(TokioExecutor::new());
+    builder.http2().max_concurrent_streams(max_http2_streams);
+    builder
+}
+
 async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
-    let io = hyper_util::rt::TokioIo::new(stream);
+    let io = TokioIo::new(stream);
     let service_context = context.clone();
-    let connection = hyper::server::conn::http1::Builder::new().serve_connection(
+    let builder = connection_builder(context.config.max_http2_streams_per_connection());
+    let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request| {
             handle_panics(handle_req(request, service_context.clone()))
@@ -376,19 +542,38 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
     let signal_shutdown = context.shutdown.clone();
     let signal_task = tokio::spawn(async move { watch_signals(signal_shutdown).await });
     let mut connections = JoinSet::new();
+    let connection_slots = Arc::new(Semaphore::new(context.config.max_connections));
+    let mut next_connection_slot = None;
 
     let reason = loop {
         tokio::select! {
+            biased;
             reason = context.shutdown.requested() => break reason,
-            accepted = listener.accept() => match accepted {
+            completed = connections.join_next(), if !connections.is_empty() => {
+                if let Some(Err(error)) = completed {
+                    eprintln!("Connection task failed: {error:?}");
+                }
+            },
+            slot = Arc::clone(&connection_slots).acquire_owned(),
+                if next_connection_slot.is_none() =>
+            {
+                next_connection_slot = Some(
+                    slot.expect("connection admission semaphore is never closed")
+                );
+            }
+            accepted = listener.accept(), if next_connection_slot.is_some() => match accepted {
                 Ok((stream, _)) => {
+                    let connection_slot = next_connection_slot
+                        .take()
+                        .expect("accept is polled only with a reserved connection slot");
                     let connection_context = context.clone();
                     connections.spawn(async move {
-                        serve_connection(stream, connection_context).await
+                        let _connection_slot = connection_slot;
+                        serve_connection(stream, connection_context).await;
                     });
                 }
                 Err(error) => eprintln!("Failed to accept incoming connection: {error}"),
-            }
+            },
         }
     };
 
@@ -408,7 +593,7 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         );
 
         // spawn_blocking Roc handlers cannot be safely preempted. Running the
-        // shutdown hook or dropping the model while one may still use state
+        // shutdown hook or dropping the context while one may still use it
         // would be unsound, so the configured drain deadline is a hard process
         // deadline and intentionally skips application shutdown cleanup.
         std::process::exit(1);
@@ -504,6 +689,19 @@ mod tests {
     }
 
     #[test]
+    fn identifies_non_utf8_request_header_values() {
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert("x-valid", hyper::header::HeaderValue::from_static("hello"));
+        assert!(request_headers_are_utf8(&headers));
+
+        headers.insert(
+            "x-invalid",
+            hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
+        );
+        assert!(!request_headers_are_utf8(&headers));
+    }
+
+    #[test]
     fn shutdown_reason_tags_match_internal_server_contract() {
         assert_eq!(
             shutdown_reason_to_host(&ShutdownReason::ApplicationRequested { exit_code: 0 }).0,
@@ -535,5 +733,139 @@ mod tests {
         );
 
         assert!(signals.should_force_exit());
+    }
+
+    #[test]
+    fn concurrency_limits_reject_zero_connections_and_handlers() {
+        assert_eq!(
+            validate_concurrency_limits(0, 1),
+            Err("maximum active connections must be non-zero".to_owned())
+        );
+        assert_eq!(
+            validate_concurrency_limits(1, 0),
+            Err("maximum active Roc handlers must be non-zero".to_owned())
+        );
+        assert_eq!(validate_concurrency_limits(256, 32), Ok((256, 32)));
+    }
+
+    #[tokio::test]
+    async fn handler_admission_bounds_active_and_queued_work() {
+        let admission = HandlerAdmission::new(1, 1);
+        let first = admission.admit().await.unwrap();
+
+        let waiting = {
+            let admission = admission.clone();
+            tokio::spawn(async move { admission.admit().await })
+        };
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while admission.queued.available_permits() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("second handler did not enter the bounded queue");
+        assert_eq!(admission.queued.available_permits(), 0);
+        assert!(
+            admission.admit().await.is_none(),
+            "work beyond the active and queued limits must be rejected"
+        );
+
+        drop(first);
+        let second = tokio::time::timeout(Duration::from_secs(1), waiting)
+            .await
+            .expect("queued handler was not admitted after capacity became available")
+            .unwrap()
+            .expect("bounded queued handler should be admitted");
+        assert_eq!(admission.queued.available_permits(), 1);
+        assert_eq!(admission.active.available_permits(), 0);
+        drop(second);
+        assert_eq!(admission.active.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn zero_handler_queue_rejects_immediately_at_saturation() {
+        let admission = HandlerAdmission::new(1, 0);
+        let active = admission.admit().await.unwrap();
+        assert!(admission.admit().await.is_none());
+        drop(active);
+        assert!(admission.admit().await.is_some());
+    }
+
+    #[test]
+    fn overload_response_is_protocol_neutral() {
+        let response = overloaded();
+        assert_eq!(response.status(), hyper::StatusCode::SERVICE_UNAVAILABLE);
+        assert!(!response.headers().contains_key(hyper::header::CONNECTION));
+    }
+
+    #[test]
+    fn invalid_header_response_is_protocol_neutral() {
+        let response = invalid_request_headers();
+        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+        assert!(!response.headers().contains_key(hyper::header::CONNECTION));
+    }
+
+    #[test]
+    fn http2_stream_limit_matches_the_complete_handler_budget() {
+        let config = RuntimeConfig {
+            host: "127.0.0.1".to_owned(),
+            port: 8000,
+            max_connections: 256,
+            max_handlers: 32,
+            max_queued_handlers: 64,
+            body_max_bytes: 1024,
+            body_chunk_bytes: 1024,
+            body_buffered_chunks: 1,
+            drain_timeout: Duration::from_secs(30),
+            hook_timeout: Duration::from_secs(10),
+        };
+        assert_eq!(config.max_http2_streams_per_connection(), 96);
+    }
+
+    #[tokio::test]
+    async fn auto_server_accepts_an_http2_prior_knowledge_request() {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            connection_builder(8)
+                .serve_connection(
+                    TokioIo::new(server_io),
+                    hyper::service::service_fn(
+                        |request: hyper::Request<hyper::body::Incoming>| async move {
+                            assert_eq!(request.version(), hyper::Version::HTTP_2);
+                            Ok::<_, Infallible>(hyper::Response::new(Full::new(
+                                Bytes::from_static(b"http2"),
+                            )))
+                        },
+                    ),
+                )
+                .await
+                .expect("HTTP/2 server connection should complete without error");
+        });
+
+        let (mut sender, connection) = hyper::client::conn::http2::handshake::<_, _, Full<Bytes>>(
+            TokioExecutor::new(),
+            TokioIo::new(client_io),
+        )
+        .await
+        .expect("HTTP/2 prior-knowledge handshake should succeed");
+        let client = tokio::spawn(connection);
+        let request = hyper::Request::builder()
+            .uri("http://localhost/http2")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let response = sender
+            .send_request(request)
+            .await
+            .expect("HTTP/2 request should receive a response");
+
+        assert_eq!(response.version(), hyper::Version::HTTP_2);
+        assert_eq!(
+            response.into_body().collect().await.unwrap().to_bytes(),
+            Bytes::from_static(b"http2")
+        );
+
+        drop(sender);
+        client.abort();
+        server.abort();
     }
 }

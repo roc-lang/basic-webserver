@@ -2,22 +2,25 @@ import Host
 
 ## Connect to TCP servers and exchange buffered byte streams.
 ##
-## See the [host runtime behavior](https://github.com/roc-lang/basic-webserver#host-runtime-behavior)
-## for current timeout and buffering limitations.
+## Connect, read, and write operations have a 30-second host timeout.
+## Materialized reads are limited to 8 MiB; callers should use repeated
+## `read_up_to!` operations for larger protocols.
 Tcp :: [].{
 
 	## Represents a TCP stream.
 	##
 	## The connection is automatically closed when the last reference to the
-	## stream is dropped. It wraps an opaque host-side `BufReader<TcpStream>`
-	## handle.
+	## stream is dropped. The host synchronizes stream access, so it is safe to
+	## retain in application context. A concurrent operation returns
+	## `TcpReadErr(StreamBusy)` or `TcpWriteErr(StreamBusy)`.
 	Stream :: { host : Host.TcpStream }.{
 
 		## Render the stream without exposing its host handle.
 		to_inspect : Stream -> Str
 		to_inspect = |_| "Tcp.Stream(<opaque>)"
 
-		## Read up to a number of bytes from this TCP stream.
+		## Read up to a number of bytes from this TCP stream. Requests larger
+		## than 8 MiB return `TcpReadErr(ReadLimitExceeded)`.
 		read_up_to! : Stream, U64 => Try(List(U8), _)
 		read_up_to! = |stream, bytes_to_read|
 			Host.tcp_read_up_to!(stream.host, bytes_to_read)
@@ -66,6 +69,9 @@ Tcp :: [].{
 
 	## Represents errors that can occur when connecting to a remote host.
 	ConnectErr : [
+
+		## The host already retains its maximum of 64 TCP streams.
+		CapacityExhausted,
 		PermissionDenied,
 		AddrInUse,
 		AddrNotAvailable,
@@ -79,10 +85,17 @@ Tcp :: [].{
 	## Represents errors that can occur when performing an effect with a `Stream`.
 	StreamErr : [
 		StreamNotFound,
+
+		## Another handler is currently reading from or writing to this stream.
+		StreamBusy,
+
+		## A materialized read requested or encountered more than 8 MiB.
+		ReadLimitExceeded,
 		PermissionDenied,
 		ConnectionRefused,
 		ConnectionReset,
 		Interrupted,
+		TimedOut,
 		OutOfMemory,
 		BrokenPipe,
 		Unrecognized(Str),
@@ -104,6 +117,7 @@ Tcp :: [].{
 	## Convert a `ConnectErr` to a `Str` you can print.
 	connect_err_to_str = |err|
 		match err {
+			CapacityExhausted => "CapacityExhausted"
 			PermissionDenied => "PermissionDenied"
 			AddrInUse => "AddrInUse"
 			AddrNotAvailable => "AddrNotAvailable"
@@ -118,10 +132,13 @@ Tcp :: [].{
 	stream_err_to_str = |err|
 		match err {
 			StreamNotFound => "StreamNotFound"
+			StreamBusy => "StreamBusy"
+			ReadLimitExceeded => "ReadLimitExceeded"
 			PermissionDenied => "PermissionDenied"
 			ConnectionRefused => "ConnectionRefused"
 			ConnectionReset => "ConnectionReset"
 			Interrupted => "Interrupted"
+			TimedOut => "TimedOut"
 			OutOfMemory => "OutOfMemory"
 			BrokenPipe => "BrokenPipe"
 			Unrecognized(message) => "Unrecognized Error: ${message}"
@@ -130,8 +147,10 @@ Tcp :: [].{
 
 # ---- internal helpers (module-private) -----------------------------------------
 
+parse_connect_err : Str -> Tcp.ConnectErr
 parse_connect_err = |err|
 	match err {
+		"StreamCapacityExhausted" => CapacityExhausted
 		"ErrorKind::PermissionDenied" => PermissionDenied
 		"ErrorKind::AddrInUse" => AddrInUse
 		"ErrorKind::AddrNotAvailable" => AddrNotAvailable
@@ -142,13 +161,17 @@ parse_connect_err = |err|
 		other => Unrecognized(other)
 	}
 
+parse_stream_err : Str -> Tcp.StreamErr
 parse_stream_err = |err|
 	match err {
 		"StreamNotFound" => StreamNotFound
+		"StreamBusy" => StreamBusy
+		"ReadLimitExceeded" => ReadLimitExceeded
 		"ErrorKind::PermissionDenied" => PermissionDenied
 		"ErrorKind::ConnectionRefused" => ConnectionRefused
 		"ErrorKind::ConnectionReset" => ConnectionReset
 		"ErrorKind::Interrupted" => Interrupted
+		"ErrorKind::TimedOut" => TimedOut
 		"ErrorKind::OutOfMemory" => OutOfMemory
 		"ErrorKind::BrokenPipe" => BrokenPipe
 		other => Unrecognized(other)

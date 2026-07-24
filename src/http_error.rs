@@ -43,6 +43,11 @@ pub(crate) enum ConnectReason {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TransportError {
     Timeout,
+    Saturated,
+    ResponseTooLarge {
+        limit_bytes: u64,
+        received_at_least: u64,
+    },
     DnsFailed {
         host: String,
         detail: String,

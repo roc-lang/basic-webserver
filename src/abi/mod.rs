@@ -1,6 +1,7 @@
 use core::ffi::c_void;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 use crate::roc_platform_abi::*;
 
@@ -82,6 +83,9 @@ pub(crate) type SqliteHostPrepareResultTag = HostSqlitePrepareResultTag;
 pub(crate) type SqliteHostBindResult = HostSqliteBindResult;
 pub(crate) type SqliteHostBindResultPayload = HostSqliteBindResultPayload;
 pub(crate) type SqliteHostBindResultTag = HostSqliteBindResultTag;
+pub(crate) type SqliteHostColumnsResult = HostSqliteColumnsResult;
+pub(crate) type SqliteHostColumnsResultPayload = HostSqliteColumnsResultPayload;
+pub(crate) type SqliteHostColumnsResultTag = HostSqliteColumnsResultTag;
 pub(crate) type SqliteHostColumnValueResult = HostSqliteColumnValueResult;
 pub(crate) type SqliteHostColumnValueResultPayload = HostSqliteColumnValueResultPayload;
 pub(crate) type SqliteHostColumnValueResultTag = HostSqliteColumnValueResultTag;
@@ -109,7 +113,6 @@ pub(crate) type ServerConfig = InitForHostOkConfig;
 pub(crate) type ServerRequest = RespondForHostArg0;
 pub(crate) type ServerResponse = RespondForHost;
 pub(crate) type ServerHeader = RespondForHostArg0Headers;
-pub(crate) type ServerTransition = TransitionForHost;
 pub(crate) type ServerShutdownReason = ShutdownForHostArg0;
 
 pub(crate) type BodyReadResult = HostRequestBodyReadResult;
@@ -126,26 +129,37 @@ pub(crate) type BodyReadErrorPayload = HostRequestBodyReadErrPayload;
 pub(crate) type BodyReadErrorTag = HostRequestBodyReadErrTag;
 pub(crate) type BodyTooLarge = HostRequestBodyReadErrTooLarge;
 
-pub(crate) type StateApplyResult = HostStateApplyResult;
-pub(crate) type StateApplyResultPayload = HostStateApplyResultPayload;
-pub(crate) type StateApplyResultTag = HostStateApplyResultTag;
-
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
-static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
 
-pub(crate) fn set_roc_host(roc_host: *mut RocHost) {
-    unsafe {
-        ROC_HOST = roc_host;
-    }
+struct SharedRocHost(RocHost);
+
+// SAFETY: the generated helper context is initialized once with a null
+// environment pointer and immutable function pointers. The callbacks provide
+// thread-safe allocation and diagnostics and do not mutate the RocHost value.
+unsafe impl Send for SharedRocHost {}
+unsafe impl Sync for SharedRocHost {}
+
+static ROC_HOST: OnceLock<SharedRocHost> = OnceLock::new();
+
+pub(crate) fn initialize_roc_host() {
+    let mut host = make_roc_host(core::ptr::null_mut());
+    // Generated Rust helpers release Roc allocations through this vtable,
+    // while compiled Roc calls the exported symbols below. Both paths must
+    // route opaque resource boxes through the same finalizer heaps.
+    host.roc_dealloc = routed_roc_dealloc;
+    host.roc_realloc = routed_roc_realloc;
+    ROC_HOST
+        .set(SharedRocHost(host))
+        .unwrap_or_else(|_| panic!("RocHost initialized more than once"));
 }
 
 fn roc_host_ptr() -> *mut RocHost {
-    unsafe {
-        if ROC_HOST.is_null() {
+    match ROC_HOST.get() {
+        Some(host) => &host.0 as *const RocHost as *mut RocHost,
+        None => {
             eprintln!("roc host error: RocHost not initialized");
             std::process::exit(1);
         }
-        ROC_HOST
     }
 }
 
@@ -158,9 +172,53 @@ pub extern "C" fn roc_alloc(length: usize, alignment: usize) -> *mut c_void {
     DefaultAllocators::roc_alloc(roc_host_ptr(), length, alignment)
 }
 
+pub(crate) extern "C" fn routed_roc_dealloc(
+    roc_host: *mut RocHost,
+    ptr: *mut c_void,
+    alignment: usize,
+) {
+    use crate::host_resource::DeallocRoute;
+
+    for route_resource in [
+        crate::sqlite::route_resource_dealloc,
+        crate::file::route_resource_dealloc,
+        crate::tcp::route_resource_dealloc,
+    ] {
+        let route = route_resource(ptr);
+        match route {
+            DeallocRoute::NotOwned => {}
+            DeallocRoute::Deallocated => return,
+            DeallocRoute::Corrupt => {
+                eprintln!("fatal: invalid or duplicate host resource deallocation");
+                std::process::abort();
+            }
+        }
+    }
+    DefaultAllocators::roc_dealloc(roc_host, ptr, alignment);
+}
+
 #[no_mangle]
 pub extern "C" fn roc_dealloc(ptr: *mut c_void, alignment: usize) {
-    DefaultAllocators::roc_dealloc(roc_host_ptr(), ptr, alignment);
+    routed_roc_dealloc(roc_host_ptr(), ptr, alignment);
+}
+
+fn is_host_resource_address(ptr: *const c_void) -> bool {
+    crate::sqlite::contains_resource_address(ptr)
+        || crate::file::contains_resource_address(ptr)
+        || crate::tcp::contains_resource_address(ptr)
+}
+
+pub(crate) extern "C" fn routed_roc_realloc(
+    roc_host: *mut RocHost,
+    ptr: *mut c_void,
+    new_length: usize,
+    alignment: usize,
+) -> *mut c_void {
+    if is_host_resource_address(ptr) {
+        eprintln!("fatal: Roc attempted to reallocate an opaque host resource");
+        std::process::abort();
+    }
+    DefaultAllocators::roc_realloc(roc_host, ptr, new_length, alignment)
 }
 
 #[no_mangle]
@@ -169,7 +227,7 @@ pub extern "C" fn roc_realloc(
     new_length: usize,
     alignment: usize,
 ) -> *mut c_void {
-    DefaultAllocators::roc_realloc(roc_host_ptr(), ptr, new_length, alignment)
+    routed_roc_realloc(roc_host_ptr(), ptr, new_length, alignment)
 }
 
 #[no_mangle]
@@ -344,41 +402,6 @@ pub(crate) fn body_error(
     }
 }
 
-pub(crate) fn state_apply_ok(value: RocBox) -> StateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    unsafe {
-        let mut result: StateApplyResult = core::mem::zeroed();
-        write_payload(&mut result.payload, value);
-        result.tag = StateApplyResultTag::Ok;
-        result
-    }
-    #[cfg(not(target_pointer_width = "32"))]
-    {
-        StateApplyResult {
-            payload: StateApplyResultPayload {
-                ok: core::mem::ManuallyDrop::new(value),
-            },
-            tag: StateApplyResultTag::Ok,
-        }
-    }
-}
-
-pub(crate) fn state_apply_stopping() -> StateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    unsafe {
-        let mut result: StateApplyResult = core::mem::zeroed();
-        result.tag = StateApplyResultTag::Err;
-        result
-    }
-    #[cfg(not(target_pointer_width = "32"))]
-    {
-        StateApplyResult {
-            payload: StateApplyResultPayload { err: [] },
-            tag: StateApplyResultTag::Err,
-        }
-    }
-}
-
 pub(crate) fn io_err_other(message: &str, roc_host: &RocHost) -> HostIOErrType {
     HostIOErrType {
         payload: HostIOErrPayloadType {
@@ -510,13 +533,5 @@ mod tests {
         let end = body_read_end();
         assert_eq!(end.tag, BodyReadResultTag::Ok);
         assert_eq!(end.payload_ok().tag, BodyReadValueTag::End);
-
-        let stopping = state_apply_stopping();
-        assert_eq!(stopping.tag, StateApplyResultTag::Err);
-
-        let null_box = core::ptr::null_mut();
-        let applied = state_apply_ok(null_box);
-        assert_eq!(applied.tag, StateApplyResultTag::Ok);
-        assert_eq!(applied.payload_ok(), null_box);
     }
 }

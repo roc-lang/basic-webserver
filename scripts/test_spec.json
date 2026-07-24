@@ -1,0 +1,576 @@
+{
+  "stages": {
+    "fmt": true,
+    "check": true,
+    "test": true,
+    "build": true,
+    "run": true
+  },
+  "apps": [
+    {
+      "path": "examples/command.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "commands-and-request",
+          "env": {
+            "PYTHON": "{python}",
+            "COMMAND_HELPER": "{root}/scripts/command_helper.py"
+          },
+          "requests": [
+            {
+              "method": "GET",
+              "target": "/",
+              "expect_body": "Command succeeded."
+            },
+            {
+              "method": "GET",
+              "target": "/timeout",
+              "expect_body": "Command timed out."
+            },
+            {
+              "method": "GET",
+              "target": "/output-limit",
+              "expect_body": "Command output was limited."
+            }
+          ],
+          "stdout_contains": [
+            "Hello",
+            "stdout_utf8: \"Hi",
+            "Exit code: 1",
+            "stdout_bytes: [72, 105, 10]"
+          ],
+          "stdout_regex": [
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/dir.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "lists-examples",
+          "requests": [
+            {
+              "expect_body": "See example in init! function."
+            }
+          ],
+          "stdout_contains": [
+            "The current working directory is ",
+            "Set cwd to examples/",
+            "The paths are;",
+            "dir.roc"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/echo.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "utf8-and-binary",
+          "requests": [
+            {
+              "method": "POST",
+              "target": "/echo?kind=utf8",
+              "body": "echo me",
+              "expect_body": "echo me"
+            },
+            {
+              "method": "POST",
+              "target": "/binary",
+              "body_hex": "00ff410a",
+              "expect_body_hex": "00ff410a"
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request",
+                "Request header values must be valid UTF-8"
+              ]
+            }
+          ],
+          "stdout_contains": [
+            "POST /echo?kind=utf8",
+            "POST /binary"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/env.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "debug-disabled",
+          "unset_env": ["DEBUG"],
+          "requests": [
+            {
+              "expect_body": "DEBUG var not set"
+            }
+          ]
+        },
+        {
+          "name": "debug-enabled",
+          "env": {
+            "DEBUG": "1",
+            "BASIC_WEBSERVER_SPEC_VALUE": "present"
+          },
+          "requests": [
+            {
+              "body_contains": ["BASIC_WEBSERVER_SPEC_VALUE", "present"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/error-handling.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "outbound-http",
+          "helper": "http",
+          "env": {
+            "TARGET_URL": "http://127.0.0.1:9000/example"
+          },
+          "requests": [
+            {
+              "expect_body": "<html><body>Example Domain</body></html>"
+            }
+          ],
+          "stdout_regex": [
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+          ]
+        },
+        {
+          "name": "missing-configuration",
+          "unset_env": ["TARGET_URL"],
+          "requests": [
+            {
+              "status": 500
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/file-accessed-modified-created-time.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "license-metadata",
+          "requests": [
+            {
+              "expect_body": "See example in init! function."
+            }
+          ],
+          "stdout_regex": [
+            "LICENSE file time metadata:\\n    Modified: 20[^\\n]+\\n    Accessed: 20[^\\n]+\\n    Created: 20[^\\n]+"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/file-permissions.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "license-permissions",
+          "requests": [
+            {
+              "expect_body": "See example in init! function."
+            }
+          ],
+          "stdout_contains": [
+            "LICENSE file permissions:",
+            "Executable: False",
+            "Readable: True",
+            "Writable: True"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/file-read-buffered.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "reads-license",
+          "requests": [
+            {
+              "body_regex": [
+                "^\\{bytes_read: [1-9][0-9]*, lines_read: [1-9][0-9]*\\}$"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/file-read.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "reads-source",
+          "requests": [
+            {
+              "body_contains": [
+                "Source code of current program:",
+                "examples/file-read.roc",
+                "respond!"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/form-file-upload.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "get-and-upload",
+          "requests": [
+            {
+              "method": "GET",
+              "response_headers": {
+                "Content-Type": "text/html; charset=utf-8"
+              },
+              "body_contains": ["Upload an Image", "multipart/form-data"]
+            },
+            {
+              "method": "POST",
+              "multipart": [
+                {
+                  "name": "fileToUpload",
+                  "filename": "tiny.png",
+                  "content_type": "image/png",
+                  "data_hex": "89504e470d0a1a0a"
+                },
+                {
+                  "name": "submit",
+                  "data": "Upload .png Image"
+                }
+              ],
+              "body_contains": [
+                "You uploaded:",
+                "iVBORw0KGgo="
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/form-url-encoded.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "get-post-and-method-rejection",
+          "requests": [
+            {
+              "method": "GET",
+              "body_contains": ["Submit Form Data"]
+            },
+            {
+              "method": "POST",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "body": "name=Test+User&email=test%40example.com&message=This+is+a+test",
+              "body_contains": [
+                "Form Data Received:",
+                "Test User",
+                "test@example.com",
+                "This is a test"
+              ]
+            },
+            {
+              "method": "DELETE",
+              "status": 405,
+              "expect_body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/hello-web.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "semantic-http",
+          "requests": [
+            {
+              "method": "GET",
+              "target": "/",
+              "expect_body": "<b>Hello from server</b></br>"
+            }
+          ],
+          "stdout_regex": [
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+          ]
+        },
+        {
+          "name": "raw-fragmented-request",
+          "requests": [
+            {
+              "raw": true,
+              "half_close": false,
+              "fragments": [
+                {
+                  "data": "GET /raw HTTP/1.1\r\nHost: local"
+                },
+                {
+                  "data": "host\r\nConnection: close\r\n\r\n"
+                }
+              ],
+              "response_contains": [
+                "HTTP/1.1 200 OK\r\n",
+                "\r\n\r\n<b>Hello from server</b></br>"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/http.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "outbound-http-effects",
+          "helper": "http",
+          "requests": [
+            {
+              "expect_body": "See init! for the outbound HTTP example code."
+            },
+            {
+              "target": "/limit",
+              "expect_body": "Outbound response was limited."
+            },
+            {
+              "target": "/timeout",
+              "expect_body": "Outbound request timed out."
+            }
+          ],
+          "stdout_contains": [
+            "I received 'Hello utf8' from the server.",
+            "The json I received was: { foo: \"Hello Json!\" }",
+            "<html>",
+            "</html>"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/init-basic.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "context-from-init",
+          "requests": [
+            {
+              "expect_body": "<b>init gave me 🎁</b>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/result.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "result-composition",
+          "requests": [
+            {
+              "method": "POST",
+              "body": "",
+              "expect_body": "GOOD"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/sleep.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "delayed-response",
+          "timeout": 12,
+          "requests": [
+            {
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 3
+            }
+          ],
+          "concurrent_requests": [
+            {
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 4
+            },
+            {
+              "launch_after_ms": 150,
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 4
+            },
+            {
+              "launch_after_ms": 150,
+              "status": 503,
+              "expect_body": "Server is overloaded"
+            }
+          ],
+          "stdout_contains": ["Sleeping for 1 second..."]
+        }
+      ]
+    },
+    {
+      "path": "examples/sqlite.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "completed-todos",
+          "fixtures": [
+            {
+              "source": "{root}/examples/todos.db",
+              "dest": "{temp}/todos.db"
+            }
+          ],
+          "env": {
+            "DB_PATH": "{temp}/todos.db"
+          },
+          "requests": [
+            {
+              "body_contains": ["Completed"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/temp-dir.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "temporary-directory",
+          "requests": [
+            {
+              "body_regex": ["^The temp dir path is .+$"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/todos.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "routes-and-database",
+          "fixtures": [
+            {
+              "source": "{root}/examples/todos.db",
+              "dest": "{temp}/todos.db"
+            }
+          ],
+          "env": {
+            "DB_PATH": "{temp}/todos.db"
+          },
+          "requests": [
+            {
+              "method": "GET",
+              "target": "/",
+              "body_contains": ["addTodoForm"]
+            },
+            {
+              "method": "GET",
+              "target": "/todos",
+              "response_headers": {
+                "Content-Type": "application/json; charset=utf-8"
+              },
+              "body_contains": ["Prepare for AoC"]
+            },
+            {
+              "method": "POST",
+              "target": "/todos?task=Spec%20task&status=completed",
+              "body_contains": ["Spec task", "completed"]
+            },
+            {
+              "method": "GET",
+              "target": "/todos",
+              "body_contains": ["Spec task"]
+            },
+            {
+              "method": "POST",
+              "target": "/todos",
+              "status": 400,
+              "expect_body": "Invalid query string; expected ?task=foo&status=bar"
+            },
+            {
+              "method": "DELETE",
+              "target": "/todos",
+              "status": 405,
+              "body_contains": ["HTTP method DELETE is not supported"]
+            },
+            {
+              "method": "GET",
+              "target": "/missing",
+              "status": 404,
+              "expect_body": "URL Not Found (404)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/server-lifecycle.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "stop-after-runs-shutdown-once",
+          "requests": [
+            {
+              "expect_body": "context=lifecycle context"
+            }
+          ],
+          "expect_exit": true,
+          "stdout_contains": [
+            "shutdown hook: ApplicationRequested, context: lifecycle context"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/tcp.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "bridges-http-to-tcp",
+          "helper": "tcp",
+          "requests": [
+            {
+              "method": "POST",
+              "target": "/",
+              "body": "Test message from Roc!\n",
+              "expect_body": "Test message from Roc!\n"
+            },
+            {
+              "method": "POST",
+              "target": "/binary",
+              "body_hex": "00ff414243",
+              "expect_body_hex": "00ff414243"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

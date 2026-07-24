@@ -1,13 +1,16 @@
 use crate::abi::roc_host;
+use crate::bounded_gate::{AcquireError, BoundedGate};
 use crate::http_error::{
     classify_client_error, classify_response_error, DnsError, Endpoint, TransportError,
 };
 use crate::roc_platform_abi::*;
+use hyper::body::Body;
 use std::future::Future;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 use tower_service::Service;
 
 type HttpResponse = HostHttpSendRequestOk;
@@ -73,10 +76,18 @@ struct OutboundHttp {
     client: OutboundClient,
 }
 
-static OUTBOUND_HTTP: OnceLock<OutboundHttp> = OnceLock::new();
+static OUTBOUND_HTTP: Mutex<Option<Arc<OutboundHttp>>> = Mutex::new(None);
+static OUTBOUND_GATE: BoundedGate = BoundedGate::new(64, 256);
 
-fn outbound_http() -> &'static OutboundHttp {
-    OUTBOUND_HTTP.get_or_init(|| {
+fn outbound_http() -> Arc<OutboundHttp> {
+    let mut shared = OUTBOUND_HTTP
+        .lock()
+        .expect("outbound HTTP global mutex poisoned");
+    if let Some(outbound) = shared.as_ref() {
+        return Arc::clone(outbound);
+    }
+
+    let outbound = {
         use hyper_rustls::HttpsConnectorBuilder;
         use hyper_util::client::legacy::connect::HttpConnector;
         use hyper_util::client::legacy::Client;
@@ -95,11 +106,41 @@ fn outbound_http() -> &'static OutboundHttp {
             .with_webpki_roots()
             .https_or_http()
             .enable_http1()
+            .enable_http2()
             .wrap_connector(http);
-        let client = Client::builder(TokioExecutor::new()).build(https);
+        let mut client_builder = Client::builder(TokioExecutor::new());
+        // Even the legacy client's narrow "request was not transmitted" retry
+        // is disabled: retry policy is observable application policy.
+        client_builder.retry_canceled_requests(false);
+        let client = client_builder.build(https);
 
         OutboundHttp { runtime, client }
-    })
+    };
+    let outbound = Arc::new(outbound);
+    *shared = Some(Arc::clone(&outbound));
+    outbound
+}
+
+/// Release the outbound client and join its runtime after all Roc callbacks and
+/// the application shutdown hook have completed.
+pub(crate) fn shutdown() {
+    let outbound = OUTBOUND_HTTP
+        .lock()
+        .expect("outbound HTTP global mutex poisoned")
+        .take();
+    let Some(outbound) = outbound else {
+        return;
+    };
+    let outbound = match Arc::try_unwrap(outbound) {
+        Ok(outbound) => outbound,
+        Err(_) => {
+            eprintln!("outbound HTTP runtime still has active users during shutdown");
+            return;
+        }
+    };
+    let OutboundHttp { runtime, client } = outbound;
+    drop(client);
+    runtime.shutdown_timeout(Duration::from_secs(1));
 }
 
 // Numeric method tags must match `to_host_method` in platform/InternalHttp.roc.
@@ -197,26 +238,54 @@ async fn async_send_request(
     request: hyper::Request<http_body_util::Full<bytes::Bytes>>,
     endpoint: Endpoint,
     client: &OutboundClient,
+    max_response_bytes: u64,
 ) -> Result<InternalResponse, TransportError> {
     use http_body_util::BodyExt;
 
-    let response = client
+    let mut response = client
         .request(request)
         .await
         .map_err(|error| classify_client_error(&error, &endpoint))?;
     let status = response.status().as_u16();
     let headers = response_headers_to_strings(response.headers())?;
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .map_err(|error| classify_response_error(&error, &endpoint))?
-        .to_bytes();
+    if let Some(content_length) = response.body().size_hint().exact() {
+        if content_length > max_response_bytes {
+            return Err(TransportError::ResponseTooLarge {
+                limit_bytes: max_response_bytes,
+                received_at_least: content_length,
+            });
+        }
+    }
+
+    let initial_capacity = response
+        .body()
+        .size_hint()
+        .exact()
+        .unwrap_or(0)
+        .min(max_response_bytes)
+        .min(64 * 1024)
+        .try_into()
+        .unwrap_or(64 * 1024);
+    let mut body = Vec::with_capacity(initial_capacity);
+    let mut received = 0u64;
+    while let Some(frame) = response.body_mut().frame().await {
+        let frame = frame.map_err(|error| classify_response_error(&error, &endpoint))?;
+        if let Ok(data) = frame.into_data() {
+            received = received.saturating_add(data.len() as u64);
+            if received > max_response_bytes {
+                return Err(TransportError::ResponseTooLarge {
+                    limit_bytes: max_response_bytes,
+                    received_at_least: received,
+                });
+            }
+            body.extend_from_slice(&data);
+        }
+    }
 
     Ok(InternalResponse {
         status,
         headers,
-        body,
+        body: body.into(),
     })
 }
 
@@ -350,6 +419,24 @@ fn transport_to_abi(error: TransportError, roc_host: &RocHost) -> HostHttpSendRe
             HostHttpSendRequestErrTransportPayload { timeout: [] },
             HostHttpSendRequestErrTransportTag::Timeout,
         ),
+        TransportError::Saturated => (
+            HostHttpSendRequestErrTransportPayload { saturated: [] },
+            HostHttpSendRequestErrTransportTag::Saturated,
+        ),
+        TransportError::ResponseTooLarge {
+            limit_bytes,
+            received_at_least,
+        } => (
+            HostHttpSendRequestErrTransportPayload {
+                response_too_large: ManuallyDrop::new(
+                    HostHttpSendRequestErrTransportResponseTooLarge {
+                        limit_bytes,
+                        received_at_least,
+                    },
+                ),
+            },
+            HostHttpSendRequestErrTransportTag::ResponseTooLarge,
+        ),
         TransportError::DnsFailed { host, detail } => (
             HostHttpSendRequestErrTransportPayload {
                 dns_failed: ManuallyDrop::new(HostHttpSendRequestErrTransportDnsFailed {
@@ -437,7 +524,11 @@ pub extern "C" fn hosted_http_send_request(
     args: HostHttpSendRequestArgs,
 ) -> HostHttpSendRequestResult {
     let roc_host = roc_host();
-    let timeout_ms = args.timeout_ms;
+    let timeout_ms = args.timeout_ms.max(1);
+    let max_response_bytes = args.max_response_bytes;
+    let deadline = Instant::now()
+        .checked_add(Duration::from_millis(timeout_ms))
+        .unwrap_or_else(Instant::now);
 
     // Build the hyper request from borrowed args, then release the owned Roc
     // values after the request has copied everything it needs.
@@ -459,24 +550,30 @@ pub extern "C" fn hosted_http_send_request(
         Err(error) => return invalid_request_error(&error.detail, roc_host),
     };
 
-    let outbound = outbound_http();
-    let result = if timeout_ms > 0 {
-        outbound.runtime.block_on(async {
-            match tokio::time::timeout(
-                std::time::Duration::from_millis(timeout_ms),
-                async_send_request(request, endpoint, &outbound.client),
-            )
-            .await
-            {
-                Ok(response) => response,
-                Err(_) => Err(TransportError::Timeout),
-            }
-        })
-    } else {
-        outbound
-            .runtime
-            .block_on(async_send_request(request, endpoint, &outbound.client))
+    let _permit = match OUTBOUND_GATE.acquire(deadline) {
+        Ok(permit) => permit,
+        Err(AcquireError::Saturated) => {
+            return transport_error(TransportError::Saturated, roc_host)
+        }
+        Err(AcquireError::TimedOut) => return transport_error(TransportError::Timeout, roc_host),
     };
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return transport_error(TransportError::Timeout, roc_host);
+    }
+
+    let outbound = outbound_http();
+    let result = outbound.runtime.block_on(async {
+        match tokio::time::timeout(
+            remaining,
+            async_send_request(request, endpoint, &outbound.client, max_response_bytes),
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(_) => Err(TransportError::Timeout),
+        }
+    });
 
     match result {
         Ok(response) => try_http_ok(internal_response_to_roc(response, roc_host)),
@@ -487,6 +584,7 @@ pub extern "C" fn hosted_http_send_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
 
     #[test]
     fn maps_host_method_tags_to_hyper_methods() {
@@ -524,7 +622,7 @@ mod tests {
         let first = outbound_http();
         let second = outbound_http();
 
-        assert!(core::ptr::eq(first, second));
+        assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(
             first.runtime.handle().runtime_flavor(),
             tokio::runtime::RuntimeFlavor::MultiThread
@@ -582,6 +680,43 @@ mod tests {
                 detail: "response header 'x-binary' is not valid UTF-8".into(),
             })
         );
+    }
+
+    #[test]
+    fn chunked_response_limit_is_enforced_before_materialization() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\n1234\r\n5\r\n56789\r\n0\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let uri: hyper::Uri = format!("http://{address}/").parse().unwrap();
+        let endpoint = Endpoint::from_uri(&uri).unwrap();
+        let request = hyper::Request::builder()
+            .uri(uri)
+            .body(http_body_util::Full::new(bytes::Bytes::new()))
+            .unwrap();
+        let outbound = outbound_http();
+        let result =
+            outbound
+                .runtime
+                .block_on(async_send_request(request, endpoint, &outbound.client, 6));
+        server.join().unwrap();
+
+        assert!(matches!(
+            result,
+            Err(TransportError::ResponseTooLarge {
+                limit_bytes: 6,
+                received_at_least,
+            }) if received_at_least > 6
+        ));
     }
 
     #[test]

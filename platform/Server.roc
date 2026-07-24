@@ -20,47 +20,114 @@ Server :: [].{
 	default_buffered_body_chunks : U16
 	default_buffered_body_chunks = 1
 
-	## Runtime configuration returned from the application's `init!` function.
-	Config : {
-		listen : { host : Str, port : U16 },
-		request_bodies : {
-			max_bytes : U64,
-			chunk_bytes : U32,
-			buffered_chunks : U16,
-		},
-		state_queue_capacity : U32,
-		graceful_shutdown : {
-			drain_timeout_ms : U64,
-			hook_timeout_ms : U64,
-		},
+	default_max_connections : U32
+	default_max_connections = 256
+
+	default_max_handlers : U16
+	default_max_handlers = 32
+
+	default_max_queued_handlers : U16
+	default_max_queued_handlers = 64
+
+	## Opaque runtime configuration returned from the application's `init!`
+	## function. Use the builders below so future server settings can be added
+	## without invalidating application record construction.
+	Config := [
+		Config(
+			{
+				listen : { host : Str, port : U16 },
+				limits : {
+
+					## The listener applies TCP accept backpressure while this many
+					## connections are active.
+					max_connections : U32,
+
+					## At most this many Roc request handlers execute concurrently.
+					max_handlers : U16,
+
+					## Requests beyond the active-handler limit may wait in this finite
+					## queue. Once it is full, new requests receive 503. Zero disables
+					## queueing.
+					max_queued_handlers : U16,
+				},
+				request_bodies : {
+					max_bytes : U64,
+					chunk_bytes : U32,
+					buffered_chunks : U16,
+				},
+				graceful_shutdown : {
+					drain_timeout_ms : U64,
+					hook_timeout_ms : U64,
+				},
+			},
+		),
+	].{
+
+		## Accessors used by the platform's host conversion layer.
+		get_listen : Config -> { host : Str, port : U16 }
+		get_listen = |Config(config)| config.listen
+
+		get_limits : Config -> { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 }
+		get_limits = |Config(config)| config.limits
+
+		request_body_limits : Config -> { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 }
+		request_body_limits = |Config(config)| config.request_bodies
+
+		get_graceful_shutdown : Config -> { drain_timeout_ms : U64, hook_timeout_ms : U64 }
+		get_graceful_shutdown = |Config(config)| config.graceful_shutdown
 	}
 
-	## Safe defaults: loopback-only, a 1 MiB request limit, one buffered 64 KiB
-	## chunk, a bounded state queue, and bounded graceful shutdown. Exceeding the
-	## drain deadline forces process exit without running the shutdown hook,
-	## because a request handler may still be using the application model.
+	## Safe defaults: loopback-only; finite connection, handler, and handler
+	## queue limits; a 1 MiB request limit; one buffered 64 KiB chunk; and
+	## bounded graceful shutdown. Exceeding the drain deadline forces process
+	## exit without running the shutdown hook, because a request handler may
+	## still be using the application context.
 	default_config : Config
-	default_config = {
+	default_config = Config({
 		listen: { host: "127.0.0.1", port: 8000 },
+		limits: {
+			max_connections: default_max_connections,
+			max_handlers: default_max_handlers,
+			max_queued_handlers: default_max_queued_handlers,
+		},
 		request_bodies: {
 			max_bytes: default_body_limit_bytes,
 			chunk_bytes: default_body_chunk_bytes,
 			buffered_chunks: default_buffered_body_chunks,
 		},
-		state_queue_capacity: 1024,
 		graceful_shutdown: {
 			drain_timeout_ms: 30_000,
 			hook_timeout_ms: 10_000,
 		},
-	}
+	})
+
+	with_listen : Config, { host : Str, port : U16 } -> Config
+	with_listen = |Config(config), listen| Config({ ..config, listen })
+
+	with_limits : Config, { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 } -> Config
+	with_limits = |Config(config), limits| Config({ ..config, limits })
+
+	with_request_body_limits : Config, { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 } -> Config
+	with_request_body_limits = |Config(config), request_bodies| Config({ ..config, request_bodies })
+
+	with_request_body_limit : Config, U64 -> Config
+	with_request_body_limit = |Config(config), max_bytes|
+		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
+
+	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
+	with_graceful_shutdown = |Config(config), graceful_shutdown| Config({ ..config, graceful_shutdown })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
-	Body := [Body({
-		host_id : U64,
-		limit_bytes : U64,
-		content_length : [Unknown, Known(U64)],
-	})].{
+	Body := [
+		Body(
+			{
+				host_id : U64,
+				limit_bytes : U64,
+				content_length : [Unknown, Known(U64)],
+			},
+		),
+	].{
 		Read : [Chunk(List(U8)), End]
 
 		## A typed failure while consuming an inbound request body.
@@ -99,7 +166,11 @@ Server :: [].{
 		## may only be narrowed, never widened beyond the server configuration.
 		with_limit : Body, U64 -> Body
 		with_limit = |Body(raw), requested_limit| {
-			next_limit = if requested_limit < raw.limit_bytes { requested_limit } else { raw.limit_bytes }
+			next_limit = if requested_limit < raw.limit_bytes {
+				requested_limit
+			} else {
+				raw.limit_bytes
+			}
 			Body({ ..raw, limit_bytes: next_limit })
 		}
 
@@ -159,26 +230,21 @@ Server :: [].{
 			}
 	}
 
-	## A typed capability for applying linearizable application-state actions.
-	## Only the pure `program.transition` function is serialized; request I/O
-	## remains concurrent.
-	State(action, result) := [State].{
-
-		apply! : State(action, result), action => Try(result, [ServerStopping])
-		apply! = |_, action_value|
-			Host.state_apply!(Box.box(action_value)).map_ok(Box.unbox)
-
-		## Create the capability passed to each request handler.
-		for_host : {} -> State(action, result)
-		for_host = |_| State
-	}
-
 	## A successful request outcome. StopAfter sends its response while beginning
 	## graceful shutdown; the first shutdown cause wins.
-	Outcome : [
+	Outcome := [
 		Respond(Response.Response),
 		StopAfter({ response : Response.Response, exit_code : I64 }),
-	]
+	].{
+
+		## Convert an outcome into the stable host response plan.
+		to_host : Outcome -> { response : Response.Response, stop : Bool, exit_code : I64 }
+		to_host = |outcome|
+			match outcome {
+				Respond(response) => { response, stop: Bool.False, exit_code: 0 }
+				StopAfter({ response, exit_code }) => { response, stop: Bool.True, exit_code }
+			}
+	}
 
 	respond : Response.Response -> Outcome
 	respond = |response| Respond(response)
@@ -198,7 +264,4 @@ Server :: [].{
 		RuntimeFailed(Str),
 	]
 
-	## Reducer for an application that does not use mutable server state.
-	no_transition : {}, model -> { model : model, result : {} }
-	no_transition = |_, model| { model, result: {} }
 }

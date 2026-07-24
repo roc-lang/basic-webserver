@@ -2,16 +2,32 @@ import IOErr exposing [IOErr]
 import Host
 import OsStr exposing [OsStr]
 
-## Build and run child processes with native-safe programs, arguments, and
-## environment values.
-Cmd :: {
-	args : List(OsStr),
-	clear_envs : Bool,
-	envs : List({ name : OsStr, value : OsStr }),
-	program : OsStr,
-}.{
+## Build and run finite child processes with native-safe programs, arguments,
+## and environment values. Programs execute directly without a shell. Commands
+## inherit the host working directory and, unless clear_envs is used, the host
+## environment. exec!/exec_cmd! inherit standard streams; exec_output! captures
+## both streams with finite limits.
+Cmd := [
+	Cmd(
+		{
+			args : List(OsStr),
+			clear_envs : Bool,
+			envs : List({ name : OsStr, value : OsStr }),
+			program : OsStr,
+			timeout_ms : U64,
+			stdout_limit_bytes : U64,
+			stderr_limit_bytes : U64,
+		},
+	),
+].{
+	default_timeout_ms : U64
+	default_timeout_ms = 30_000
+
+	default_output_limit_bytes : U64
+	default_output_limit_bytes = 1024 * 1024
+
 	## Execute a program with native arguments, inheriting standard streams.
-	exec! : OsStr, List(OsStr) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), ..])
+	exec! : OsStr, List(OsStr) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
 	exec! = |program, arguments| {
 		command = "${OsStr.display(program)} ${Str.join_with(arguments.map(OsStr.display), " ")}"
 		exit_code = new(program).args(arguments).exec_exit_code!()?
@@ -24,12 +40,12 @@ Cmd :: {
 	}
 
 	## Execute a UTF-8 program with UTF-8 arguments.
-	exec_str! : Str, List(Str) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), ..])
+	exec_str! : Str, List(Str) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
 	exec_str! = |program, arguments|
 		exec!(OsStr.from_str(program), arguments.map(OsStr.from_str))
 
 	## Execute a configured command, inheriting standard streams.
-	exec_cmd! : Cmd => Try({}, [ExecCmdFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), ..])
+	exec_cmd! : Cmd => Try({}, [ExecCmdFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
 	exec_cmd! = |cmd| {
 		command = to_str(cmd)
 		exit_code = exec_exit_code!(cmd)?
@@ -43,11 +59,12 @@ Cmd :: {
 
 	## Execute a command and capture stdout as UTF-8 and stderr lossily.
 	## Use [exec_output_bytes!] when either stream must be preserved exactly.
-	exec_output! : Cmd => Try({ stdout_utf8 : Str, stderr_utf8_lossy : Str }, [StdoutContainsInvalidUtf8({ cmd_str : Str, err : [BadUtf8({ problem : _, index : U64 })] }), NonZeroExitCode({ command : Str, exit_code : I32, stdout_utf8_lossy : Str, stderr_utf8_lossy : Str }), FailedToGetExitCode({ command : Str, err : IOErr }), ..])
-	exec_output! = |cmd| {
-		cmd_str = to_str(cmd)
+	exec_output! : Cmd => Try({ stdout_utf8 : Str, stderr_utf8_lossy : Str }, [StdoutContainsInvalidUtf8({ cmd_str : Str, err : [BadUtf8({ problem : _, index : U64 })] }), NonZeroExitCode({ command : Str, exit_code : I32, stdout_utf8_lossy : Str, stderr_utf8_lossy : Str }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), StdoutLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 }), StderrLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 }), ..])
+	exec_output! = |Cmd(cmd)| {
+		command = Cmd(cmd)
+		cmd_str = to_str(command)
 
-		match Host.cmd_exec_output!(to_host_cmd(cmd)) {
+		match Host.cmd_exec_output!(to_host_cmd(command)) {
 			Ok({ stderr_bytes, stdout_bytes }) => {
 				stdout_utf8 = Str.from_utf8(stdout_bytes)
 					.map_err(|err| StdoutContainsInvalidUtf8({ cmd_str, err }))?
@@ -64,38 +81,77 @@ Cmd :: {
 					}),
 				)
 			Err(FailedToGetExitCode(err)) => Err(FailedToGetExitCode({ command: cmd_str, err }))
+			Err(Timeout) => Err(CommandTimedOut({ command: cmd_str, timeout_ms: cmd.timeout_ms }))
+			Err(Saturated) => Err(CommandSaturated({ command: cmd_str }))
+			Err(StdoutTooLarge({ limit_bytes, received_at_least })) => Err(StdoutLimitExceeded({ command: cmd_str, limit_bytes, received_at_least }))
+			Err(StderrTooLarge({ limit_bytes, received_at_least })) => Err(StderrLimitExceeded({ command: cmd_str, limit_bytes, received_at_least }))
 		}
 	}
 
 	## Execute a command and capture stdout and stderr without text conversion.
-	exec_output_bytes! : Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [NonZeroExitCodeB({ exit_code : I32, stdout_bytes : List(U8), stderr_bytes : List(U8) }), FailedToGetExitCodeB(IOErr), ..])
-	exec_output_bytes! = |cmd|
-		match Host.cmd_exec_output!(to_host_cmd(cmd)) {
+	exec_output_bytes! : Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [NonZeroExitCodeB({ exit_code : I32, stdout_bytes : List(U8), stderr_bytes : List(U8) }), FailedToGetExitCodeB(IOErr), CommandTimedOutB(U64), CommandSaturatedB, StdoutLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), StderrLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), ..])
+	exec_output_bytes! = |Cmd(cmd)|
+		match Host.cmd_exec_output!(to_host_cmd(Cmd(cmd))) {
 			Ok({ stderr_bytes, stdout_bytes }) => Ok({ stdout_bytes, stderr_bytes })
 			Err(NonZeroExitCode({ exit_code, stderr_bytes, stdout_bytes })) =>
 				Err(NonZeroExitCodeB({ exit_code, stdout_bytes, stderr_bytes }))
 			Err(FailedToGetExitCode(err)) => Err(FailedToGetExitCodeB(err))
+			Err(Timeout) => Err(CommandTimedOutB(cmd.timeout_ms))
+			Err(Saturated) => Err(CommandSaturatedB)
+			Err(StdoutTooLarge(payload)) => Err(StdoutLimitExceededB(payload))
+			Err(StderrTooLarge(payload)) => Err(StderrLimitExceededB(payload))
 		}
 
 	## Execute a command and return its exit code.
-	exec_exit_code! : Cmd => Try(I32, [FailedToGetExitCode({ command : Str, err : IOErr }), ..])
-	exec_exit_code! = |cmd| {
-		command = to_str(cmd)
+	exec_exit_code! : Cmd => Try(I32, [FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
+	exec_exit_code! = |Cmd(cmd)| {
+		command = to_str(Cmd(cmd))
 
-		match Host.cmd_exec_exit_code!(to_host_cmd(cmd)) {
+		match Host.cmd_exec_exit_code!(to_host_cmd(Cmd(cmd))) {
 			Ok(num) => Ok(num)
-			Err(io_err) => Err(FailedToGetExitCode({ command, err: io_err }))
+			Err(FailedToGetExitCode(io_err)) => Err(FailedToGetExitCode({ command, err: io_err }))
+			Err(Timeout) => Err(CommandTimedOut({ command, timeout_ms: cmd.timeout_ms }))
+			Err(Saturated) => Err(CommandSaturated({ command: command }))
 		}
 	}
 
 	## Create a command whose program is an exact native OS string.
 	new : OsStr -> Cmd
-	new = |program| {
+	new = |program| Cmd({
 		args: [],
 		clear_envs: Bool.False,
 		envs: [],
 		program,
-	}
+		timeout_ms: default_timeout_ms,
+		stdout_limit_bytes: default_output_limit_bytes,
+		stderr_limit_bytes: default_output_limit_bytes,
+	})
+
+	## Set the total deadline, including bounded admission wait. Zero is
+	## normalized to one millisecond.
+	with_timeout_millis : Cmd, U64 -> Cmd
+	with_timeout_millis = |Cmd(cmd), timeout_ms|
+		Cmd({
+			..cmd,
+			timeout_ms: if timeout_ms == 0 {
+				1
+			} else {
+				timeout_ms
+			},
+		})
+
+	with_stdout_limit : Cmd, U64 -> Cmd
+	with_stdout_limit = |Cmd(cmd), limit_bytes| Cmd({ ..cmd, stdout_limit_bytes: limit_bytes })
+
+	with_stderr_limit : Cmd, U64 -> Cmd
+	with_stderr_limit = |Cmd(cmd), limit_bytes| Cmd({ ..cmd, stderr_limit_bytes: limit_bytes })
+
+	with_output_limits : Cmd, { stdout_bytes : U64, stderr_bytes : U64 } -> Cmd
+	with_output_limits = |Cmd(cmd), limits| Cmd({
+		..cmd,
+		stdout_limit_bytes: limits.stdout_bytes,
+		stderr_limit_bytes: limits.stderr_bytes,
+	})
 
 	## Create a command whose program is UTF-8 text.
 	new_str : Str -> Cmd
@@ -103,7 +159,7 @@ Cmd :: {
 
 	## Add an exact native argument. Shell expansion is not performed.
 	arg : Cmd, OsStr -> Cmd
-	arg = |cmd, argument| { ..cmd, args: cmd.args.append(argument) }
+	arg = |Cmd(cmd), argument| Cmd({ ..cmd, args: cmd.args.append(argument) })
 
 	## Add a UTF-8 argument. Shell expansion is not performed.
 	arg_str : Cmd, Str -> Cmd
@@ -111,7 +167,7 @@ Cmd :: {
 
 	## Add exact native arguments. Shell expansion is not performed.
 	args : Cmd, List(OsStr) -> Cmd
-	args = |cmd, arguments| { ..cmd, args: cmd.args.concat(arguments) }
+	args = |Cmd(cmd), arguments| Cmd({ ..cmd, args: cmd.args.concat(arguments) })
 
 	## Add UTF-8 arguments. Shell expansion is not performed.
 	args_str : Cmd, List(Str) -> Cmd
@@ -119,7 +175,7 @@ Cmd :: {
 
 	## Add an exact native environment name and value.
 	env : Cmd, OsStr, OsStr -> Cmd
-	env = |cmd, name, value| { ..cmd, envs: cmd.envs.append({ name, value }) }
+	env = |Cmd(cmd), name, value| Cmd({ ..cmd, envs: cmd.envs.append({ name, value }) })
 
 	## Add a UTF-8 environment name and value.
 	env_str : Cmd, Str, Str -> Cmd
@@ -128,24 +184,29 @@ Cmd :: {
 	## Add exact native environment variables. Named fields keep same-typed names
 	## and values unambiguous at call sites.
 	envs : Cmd, List({ name : OsStr, value : OsStr }) -> Cmd
-	envs = |cmd, variables| { ..cmd, envs: cmd.envs.concat(variables) }
+	envs = |Cmd(cmd), variables| Cmd({ ..cmd, envs: cmd.envs.concat(variables) })
 
 	## Add UTF-8 environment variables using `{ name, value }` records.
 	envs_str : Cmd, List({ name : Str, value : Str }) -> Cmd
 	envs_str = |cmd, variables|
-		envs(cmd, variables.map(|variable| {
-			name: OsStr.from_str(variable.name),
-			value: OsStr.from_str(variable.value),
-		}))
+		envs(
+			cmd,
+			variables.map(
+				|variable| {
+					name: OsStr.from_str(variable.name),
+					value: OsStr.from_str(variable.value),
+				},
+			),
+		)
 
 	## Remove the inherited environment before applying configured pairs.
 	clear_envs : Cmd -> Cmd
-	clear_envs = |cmd| { ..cmd, clear_envs: Bool.True }
+	clear_envs = |Cmd(cmd)| Cmd({ ..cmd, clear_envs: Bool.True })
 
 	## Render an escaped, diagnostic representation of this command.
 	## Native values are never round-tripped through this lossy string.
 	to_str : Cmd -> Str
-	to_str = |cmd|
+	to_str = |Cmd(cmd)|
 		"Cmd({ program: ${Str.inspect(cmd.program)}, args: ${Str.inspect(cmd.args)}, envs: ${Str.inspect(cmd.envs)}, clear_envs: ${Str.inspect(cmd.clear_envs)} })"
 
 	to_inspect : Cmd -> Str
@@ -153,16 +214,22 @@ Cmd :: {
 }
 
 to_host_cmd : Cmd -> Host.Cmd
-to_host_cmd = |cmd| {
+to_host_cmd = |Cmd(cmd)| {
 	args: cmd.args.map(OsStr.to_raw),
 	clear_envs: cmd.clear_envs,
-	envs: cmd.envs.map(|variable| {
-		name: OsStr.to_raw(variable.name),
-		value: OsStr.to_raw(variable.value),
-	}),
+	envs: cmd.envs.map(
+		|variable| {
+			name: OsStr.to_raw(variable.name),
+			value: OsStr.to_raw(variable.value),
+		},
+	),
 	program: OsStr.to_raw(cmd.program),
+	timeout_ms: cmd.timeout_ms,
+	stdout_limit_bytes: cmd.stdout_limit_bytes,
+	stderr_limit_bytes: cmd.stderr_limit_bytes,
 }
 
+## Command inspection preserves escaped arguments and environment variables.
 expect {
 	cmd = Cmd.new_str("echo\nnext")
 		.arg_str("hello world")
@@ -172,14 +239,22 @@ expect {
 	Str.inspect(cmd) == "Cmd({ program: OsStr.utf8(\"echo\\nnext\"), args: [OsStr.utf8(\"hello world\")], envs: [{ name: OsStr.utf8(\"NAME\"), value: OsStr.utf8(\"Roc\") }], clear_envs: True })"
 }
 
+## Host conversion preserves non-UTF-8 command arguments and environment variables.
 expect {
 	cmd = Cmd.new(OsStr.unix_bytes([112, 255]))
 		.arg(OsStr.windows_u16s([97, 0xD800]))
 		.env(OsStr.unix_bytes([75, 255]), OsStr.windows_u16s([86, 0xD800]))
 	host_cmd = to_host_cmd(cmd)
 
-	cmd.program == OsStr.unix_bytes([112, 255]) and
-		cmd.args == [OsStr.windows_u16s([97, 0xD800])] and
-		cmd.envs == [{ name: OsStr.unix_bytes([75, 255]), value: OsStr.windows_u16s([86, 0xD800]) }] and
-			host_cmd.envs == [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 0xD800]) }]
+	actual = 
+		\\program: ${Str.inspect(host_cmd.program)}
+		\\args: ${Str.inspect(host_cmd.args)}
+		\\envs: ${Str.inspect(host_cmd.envs)}
+
+	expected = 
+		\\program: UnixBytes([112, 255])
+		\\args: [WindowsU16s([97, 55296])]
+		\\envs: [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 55296]) }]
+
+	actual == expected
 }

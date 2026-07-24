@@ -827,22 +827,28 @@ impl<T: core::fmt::Debug, const ELEMENTS_REFCOUNTED: bool> core::fmt::Debug for 
     }
 }
 
-/// Element type for __AnonStruct_302fff638fe940ea
+/// Element type for __AnonStruct_e09af2c5b0324fa8
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct302fff638fe940ea {
+pub struct AnonStructE09af2c5b0324fa8 {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
     pub clear_envs: bool,
 }
 
-/// Element type for __AnonStruct_302fff638fe940ea
+/// Element type for __AnonStruct_e09af2c5b0324fa8
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct302fff638fe940ea {
+pub struct AnonStructE09af2c5b0324fa8 {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
@@ -850,13 +856,13 @@ pub struct AnonStruct302fff638fe940ea {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct302fff638fe940ea>() == 88, "AnonStruct302fff638fe940ea size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructE09af2c5b0324fa8>() == 112, "AnonStructE09af2c5b0324fa8 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct302fff638fe940ea>() == 8, "AnonStruct302fff638fe940ea alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructE09af2c5b0324fa8>() == 8, "AnonStructE09af2c5b0324fa8 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct302fff638fe940ea>() == 44, "AnonStruct302fff638fe940ea size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructE09af2c5b0324fa8>() == 72, "AnonStructE09af2c5b0324fa8 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct302fff638fe940ea>() == 4, "AnonStruct302fff638fe940ea alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructE09af2c5b0324fa8>() == 8, "AnonStructE09af2c5b0324fa8 alignment mismatch");
 
 /// Element type for __AnonStruct_4028312a23fce46c
 #[cfg(target_pointer_width = "32")]
@@ -913,6 +919,33 @@ const _: () = assert!(core::mem::align_of::<AnonStruct3f89ee1e14924626>() == 8, 
 const _: () = assert!(core::mem::size_of::<AnonStruct3f89ee1e14924626>() == 28, "AnonStruct3f89ee1e14924626 size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct3f89ee1e14924626>() == 4, "AnonStruct3f89ee1e14924626 alignment mismatch");
+
+/// Element type for __AnonStruct_3c19acd0e825703f
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct3c19acd0e825703f {
+    pub limit_bytes: u64,
+    pub received_at_least: u64,
+}
+
+/// Element type for __AnonStruct_3c19acd0e825703f
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct3c19acd0e825703f {
+    pub limit_bytes: u64,
+    pub received_at_least: u64,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct3c19acd0e825703f>() == 16, "AnonStruct3c19acd0e825703f size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct3c19acd0e825703f>() == 8, "AnonStruct3c19acd0e825703f alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct3c19acd0e825703f>() == 16, "AnonStruct3c19acd0e825703f size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct3c19acd0e825703f>() == 8, "AnonStruct3c19acd0e825703f alignment mismatch");
 
 /// Element type for __AnonStruct_3e7554e024207e25
 #[cfg(target_pointer_width = "32")]
@@ -1111,11 +1144,12 @@ const _: () = assert!(core::mem::size_of::<AnonStruct82a96c5d55d63488>() == 24, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct82a96c5d55d63488>() == 4, "AnonStruct82a96c5d55d63488 alignment mismatch");
 
-/// Element type for __AnonStruct_6c432fac2d7d01ef
+/// Element type for __AnonStruct_85380e02323174c5
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct6c432fac2d7d01ef {
+pub struct AnonStruct85380e02323174c5 {
+    pub max_response_bytes: u64,
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
@@ -1124,11 +1158,12 @@ pub struct AnonStruct6c432fac2d7d01ef {
     pub method: u8,
 }
 
-/// Element type for __AnonStruct_6c432fac2d7d01ef
+/// Element type for __AnonStruct_85380e02323174c5
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct6c432fac2d7d01ef {
+pub struct AnonStruct85380e02323174c5 {
+    pub max_response_bytes: u64,
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
@@ -1138,40 +1173,13 @@ pub struct AnonStruct6c432fac2d7d01ef {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct6c432fac2d7d01ef>() == 112, "AnonStruct6c432fac2d7d01ef size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct85380e02323174c5>() == 120, "AnonStruct85380e02323174c5 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct6c432fac2d7d01ef>() == 8, "AnonStruct6c432fac2d7d01ef alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct85380e02323174c5>() == 8, "AnonStruct85380e02323174c5 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct6c432fac2d7d01ef>() == 64, "AnonStruct6c432fac2d7d01ef size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct85380e02323174c5>() == 72, "AnonStruct85380e02323174c5 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct6c432fac2d7d01ef>() == 8, "AnonStruct6c432fac2d7d01ef alignment mismatch");
-
-/// Element type for __AnonStruct_3c19acd0e825703f
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStruct3c19acd0e825703f {
-    pub limit_bytes: u64,
-    pub received_at_least: u64,
-}
-
-/// Element type for __AnonStruct_3c19acd0e825703f
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStruct3c19acd0e825703f {
-    pub limit_bytes: u64,
-    pub received_at_least: u64,
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct3c19acd0e825703f>() == 16, "AnonStruct3c19acd0e825703f size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct3c19acd0e825703f>() == 8, "AnonStruct3c19acd0e825703f alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct3c19acd0e825703f>() == 16, "AnonStruct3c19acd0e825703f size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct3c19acd0e825703f>() == 8, "AnonStruct3c19acd0e825703f alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct85380e02323174c5>() == 8, "AnonStruct85380e02323174c5 alignment mismatch");
 
 /// Element type for __AnonStruct_8dfa7f17f2083a52
 #[cfg(target_pointer_width = "32")]
@@ -1256,129 +1264,104 @@ const _: () = assert!(core::mem::size_of::<AnonStruct2782504baf739389>() == 32, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct2782504baf739389>() == 8, "AnonStruct2782504baf739389 alignment mismatch");
 
-/// Element type for __AnonStruct_23d066919f2edbe8
+/// Element type for __AnonStruct_1f12a65955b54fe1
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct23d066919f2edbe8 {
+pub struct AnonStruct1f12a65955b54fe1 {
     pub init_bang: *mut c_void,
     pub respond_bang: *mut c_void,
     pub shutdown_bang: *mut c_void,
-    pub transition: *mut c_void,
 }
 
-/// Element type for __AnonStruct_23d066919f2edbe8
+/// Element type for __AnonStruct_1f12a65955b54fe1
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct23d066919f2edbe8 {
+pub struct AnonStruct1f12a65955b54fe1 {
     pub init_bang: *mut c_void,
     pub respond_bang: *mut c_void,
     pub shutdown_bang: *mut c_void,
-    pub transition: *mut c_void,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct23d066919f2edbe8>() == 32, "AnonStruct23d066919f2edbe8 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 24, "AnonStruct1f12a65955b54fe1 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct23d066919f2edbe8>() == 8, "AnonStruct23d066919f2edbe8 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 8, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct23d066919f2edbe8>() == 16, "AnonStruct23d066919f2edbe8 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, "AnonStruct1f12a65955b54fe1 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct23d066919f2edbe8>() == 4, "AnonStruct23d066919f2edbe8 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_cdb3403b9d31de47
+/// Element type for __AnonStruct_e340dbd21a9f8d48
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructCdb3403b9d31de47 {
-    pub config: AnonStruct33606278b7ec2382,
-    pub model: RocBox,
+pub struct AnonStructE340dbd21a9f8d48 {
+    pub config: AnonStructF0688567cca5fbf7,
+    pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_cdb3403b9d31de47
+/// Element type for __AnonStruct_e340dbd21a9f8d48
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructCdb3403b9d31de47 {
-    pub config: AnonStruct33606278b7ec2382,
-    pub model: RocBox,
+pub struct AnonStructE340dbd21a9f8d48 {
+    pub config: AnonStructF0688567cca5fbf7,
+    pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructCdb3403b9d31de47>() == 72, "AnonStructCdb3403b9d31de47 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructE340dbd21a9f8d48>() == 72, "AnonStructE340dbd21a9f8d48 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructCdb3403b9d31de47>() == 8, "AnonStructCdb3403b9d31de47 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructE340dbd21a9f8d48>() == 8, "AnonStructE340dbd21a9f8d48 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructCdb3403b9d31de47>() == 56, "AnonStructCdb3403b9d31de47 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructE340dbd21a9f8d48>() == 64, "AnonStructE340dbd21a9f8d48 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructCdb3403b9d31de47>() == 8, "AnonStructCdb3403b9d31de47 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructE340dbd21a9f8d48>() == 8, "AnonStructE340dbd21a9f8d48 alignment mismatch");
 
-/// Element type for __AnonStruct_33606278b7ec2382
+/// Element type for __AnonStruct_f0688567cca5fbf7
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct33606278b7ec2382 {
+pub struct AnonStructF0688567cca5fbf7 {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
     pub host: RocStr,
     pub body_chunk_bytes: u32,
-    pub state_queue_capacity: u32,
+    pub max_connections: u32,
     pub body_buffered_chunks: u16,
+    pub max_handlers: u16,
+    pub max_queued_handlers: u16,
     pub port: u16,
 }
 
-/// Element type for __AnonStruct_33606278b7ec2382
+/// Element type for __AnonStruct_f0688567cca5fbf7
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct33606278b7ec2382 {
+pub struct AnonStructF0688567cca5fbf7 {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
     pub host: RocStr,
     pub body_chunk_bytes: u32,
-    pub state_queue_capacity: u32,
+    pub max_connections: u32,
     pub body_buffered_chunks: u16,
+    pub max_handlers: u16,
+    pub max_queued_handlers: u16,
     pub port: u16,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct33606278b7ec2382>() == 64, "AnonStruct33606278b7ec2382 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF0688567cca5fbf7>() == 64, "AnonStructF0688567cca5fbf7 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct33606278b7ec2382>() == 8, "AnonStruct33606278b7ec2382 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF0688567cca5fbf7>() == 8, "AnonStructF0688567cca5fbf7 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct33606278b7ec2382>() == 48, "AnonStruct33606278b7ec2382 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF0688567cca5fbf7>() == 56, "AnonStructF0688567cca5fbf7 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct33606278b7ec2382>() == 8, "AnonStruct33606278b7ec2382 alignment mismatch");
-
-/// Element type for __AnonStruct_ff9b81c732bd7dac
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStructFf9b81c732bd7dac {
-    pub model: RocBox,
-    pub result: RocBox,
-}
-
-/// Element type for __AnonStruct_ff9b81c732bd7dac
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStructFf9b81c732bd7dac {
-    pub model: RocBox,
-    pub result: RocBox,
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructFf9b81c732bd7dac>() == 16, "AnonStructFf9b81c732bd7dac size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructFf9b81c732bd7dac>() == 8, "AnonStructFf9b81c732bd7dac alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructFf9b81c732bd7dac>() == 8, "AnonStructFf9b81c732bd7dac size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructFf9b81c732bd7dac>() == 4, "AnonStructFf9b81c732bd7dac alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF0688567cca5fbf7>() == 8, "AnonStructF0688567cca5fbf7 alignment mismatch");
 
 /// Element type for __AnonStruct_9618161a745c1367
 #[cfg(target_pointer_width = "32")]
@@ -1490,7 +1473,7 @@ pub enum HostCmdExecExitCodeResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostCmdExecExitCodeResultPayload {
-    pub err: core::mem::ManuallyDrop<HostIOErr>,
+    pub err: core::mem::ManuallyDrop<FailedToGetExitCodeOrSaturatedOrTimeout>,
     pub ok: core::mem::ManuallyDrop<i32>,
 }
 
@@ -1505,7 +1488,7 @@ pub struct HostCmdExecExitCodeResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct HostCmdExecExitCodeResult {
     pub _payload_alignment: [HostCmdExecExitCodeResultPayloadAlignment; 0],
-    pub payload: [u8; 16],
+    pub payload: [u8; 20],
     pub tag: HostCmdExecExitCodeResultTag,
 }
 
@@ -1520,12 +1503,12 @@ pub struct HostCmdExecExitCodeResult {
 
 impl HostCmdExecExitCodeResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> HostIOErr {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const HostIOErr) }
+    pub fn payload_err(&self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const FailedToGetExitCodeOrSaturatedOrTimeout) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> HostIOErr {
+    pub fn payload_err(&self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -1542,17 +1525,84 @@ impl HostCmdExecExitCodeResult {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeResult>() == 40, "HostCmdExecExitCodeResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeResult>() == 48, "HostCmdExecExitCodeResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeResult>() == 8, "HostCmdExecExitCodeResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostCmdExecExitCodeResult, tag) == 32, "HostCmdExecExitCodeResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(HostCmdExecExitCodeResult, tag) == 40, "HostCmdExecExitCodeResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeResult>() == 20, "HostCmdExecExitCodeResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeResult>() == 24, "HostCmdExecExitCodeResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeResult>() == 4, "HostCmdExecExitCodeResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostCmdExecExitCodeResult, tag) == 16, "HostCmdExecExitCodeResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(HostCmdExecExitCodeResult, tag) == 20, "HostCmdExecExitCodeResult tag offset mismatch");
+
+/// Tag discriminant for FailedToGetExitCodeOrSaturatedOrTimeout.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailedToGetExitCodeOrSaturatedOrTimeoutTag {
+    FailedToGetExitCode = 0,
+    Saturated = 1,
+    Timeout = 2,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union FailedToGetExitCodeOrSaturatedOrTimeoutPayload {
+    pub failed_to_get_exit_code: core::mem::ManuallyDrop<HostIOErr>,
+    pub saturated: [u8; 0],
+    pub timeout: [u8; 0],
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(4))]
+#[derive(Clone, Copy)]
+pub struct FailedToGetExitCodeOrSaturatedOrTimeoutPayloadAlignment;
+
+/// Tag union: FailedToGetExitCodeOrSaturatedOrTimeout
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FailedToGetExitCodeOrSaturatedOrTimeout {
+    pub _payload_alignment: [FailedToGetExitCodeOrSaturatedOrTimeoutPayloadAlignment; 0],
+    pub payload: [u8; 16],
+    pub tag: FailedToGetExitCodeOrSaturatedOrTimeoutTag,
+}
+
+/// Tag union: FailedToGetExitCodeOrSaturatedOrTimeout
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FailedToGetExitCodeOrSaturatedOrTimeout {
+    pub payload: FailedToGetExitCodeOrSaturatedOrTimeoutPayload,
+    pub tag: FailedToGetExitCodeOrSaturatedOrTimeoutTag,
+}
+
+impl FailedToGetExitCodeOrSaturatedOrTimeout {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_failed_to_get_exit_code(&self) -> HostIOErr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const HostIOErr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_failed_to_get_exit_code(&self) -> HostIOErr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.failed_to_get_exit_code) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrSaturatedOrTimeout>() == 40, "FailedToGetExitCodeOrSaturatedOrTimeout size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrSaturatedOrTimeout>() == 8, "FailedToGetExitCodeOrSaturatedOrTimeout alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrSaturatedOrTimeout, tag) == 32, "FailedToGetExitCodeOrSaturatedOrTimeout tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrSaturatedOrTimeout>() == 20, "FailedToGetExitCodeOrSaturatedOrTimeout size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrSaturatedOrTimeout>() == 4, "FailedToGetExitCodeOrSaturatedOrTimeout alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrSaturatedOrTimeout, tag) == 16, "FailedToGetExitCodeOrSaturatedOrTimeout tag offset mismatch");
 
 /// Tag discriminant for IOErr.
 #[repr(u8)]
@@ -1729,12 +1779,12 @@ pub enum HostCmdExecOutputResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostCmdExecOutputResultPayload {
-    pub err: core::mem::ManuallyDrop<FailedToGetExitCodeOrNonZeroExitCode>,
+    pub err: core::mem::ManuallyDrop<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout>,
     pub ok: core::mem::ManuallyDrop<AnonStruct3e7554e024207e25>,
 }
 
 #[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
+#[repr(align(8))]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecOutputResultPayloadAlignment;
 
@@ -1759,12 +1809,12 @@ pub struct HostCmdExecOutputResult {
 
 impl HostCmdExecOutputResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCode {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const FailedToGetExitCodeOrNonZeroExitCode) }
+    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCode {
+    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -1787,52 +1837,60 @@ const _: () = assert!(core::mem::align_of::<HostCmdExecOutputResult>() == 8, "Ho
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::offset_of!(HostCmdExecOutputResult, tag) == 64, "HostCmdExecOutputResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecOutputResult>() == 36, "HostCmdExecOutputResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecOutputResult>() == 40, "HostCmdExecOutputResult size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecOutputResult>() == 4, "HostCmdExecOutputResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostCmdExecOutputResult>() == 8, "HostCmdExecOutputResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostCmdExecOutputResult, tag) == 32, "HostCmdExecOutputResult tag offset mismatch");
 
-/// Tag discriminant for FailedToGetExitCodeOrNonZeroExitCode.
+/// Tag discriminant for FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FailedToGetExitCodeOrNonZeroExitCodeTag {
+pub enum FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag {
     FailedToGetExitCode = 0,
     NonZeroExitCode = 1,
+    Saturated = 2,
+    StderrTooLarge = 3,
+    StdoutTooLarge = 4,
+    Timeout = 5,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union FailedToGetExitCodeOrNonZeroExitCodePayload {
+pub union FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutPayload {
     pub failed_to_get_exit_code: core::mem::ManuallyDrop<IOErr>,
     pub non_zero_exit_code: core::mem::ManuallyDrop<AnonStruct3f89ee1e14924626>,
+    pub saturated: [u8; 0],
+    pub stderr_too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
+    pub stdout_too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
+    pub timeout: [u8; 0],
 }
 
 #[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
+#[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct FailedToGetExitCodeOrNonZeroExitCodePayloadAlignment;
+pub struct FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutPayloadAlignment;
 
-/// Tag union: FailedToGetExitCodeOrNonZeroExitCode
+/// Tag union: FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FailedToGetExitCodeOrNonZeroExitCode {
-    pub _payload_alignment: [FailedToGetExitCodeOrNonZeroExitCodePayloadAlignment; 0],
+pub struct FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+    pub _payload_alignment: [FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutPayloadAlignment; 0],
     pub payload: [u8; 28],
-    pub tag: FailedToGetExitCodeOrNonZeroExitCodeTag,
+    pub tag: FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag,
 }
 
-/// Tag union: FailedToGetExitCodeOrNonZeroExitCode
+/// Tag union: FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FailedToGetExitCodeOrNonZeroExitCode {
-    pub payload: FailedToGetExitCodeOrNonZeroExitCodePayload,
-    pub tag: FailedToGetExitCodeOrNonZeroExitCodeTag,
+pub struct FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+    pub payload: FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutPayload,
+    pub tag: FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag,
 }
 
-impl FailedToGetExitCodeOrNonZeroExitCode {
+impl FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_failed_to_get_exit_code(&self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
@@ -1853,20 +1911,40 @@ impl FailedToGetExitCodeOrNonZeroExitCode {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.non_zero_exit_code) }
     }
 
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_stderr_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_stderr_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.stderr_too_large) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_stdout_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_stdout_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.stdout_too_large) }
+    }
+
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrNonZeroExitCode>() == 64, "FailedToGetExitCodeOrNonZeroExitCode size mismatch");
+const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout>() == 64, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrNonZeroExitCode>() == 8, "FailedToGetExitCodeOrNonZeroExitCode alignment mismatch");
+const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout>() == 8, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrNonZeroExitCode, tag) == 56, "FailedToGetExitCodeOrNonZeroExitCode tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout, tag) == 56, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrNonZeroExitCode>() == 32, "FailedToGetExitCodeOrNonZeroExitCode size mismatch");
+const _: () = assert!(core::mem::size_of::<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout>() == 32, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrNonZeroExitCode>() == 4, "FailedToGetExitCodeOrNonZeroExitCode alignment mismatch");
+const _: () = assert!(core::mem::align_of::<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout>() == 8, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrNonZeroExitCode, tag) == 28, "FailedToGetExitCodeOrNonZeroExitCode tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout, tag) == 28, "FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout tag offset mismatch");
 
 /// Tag discriminant for IOErr.
 #[repr(u8)]
@@ -2981,7 +3059,7 @@ pub union HostHttpSendRequestResultPayload {
 }
 
 #[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
+#[repr(align(8))]
 #[derive(Clone, Copy)]
 pub struct HostHttpSendRequestResultPayloadAlignment;
 
@@ -2991,7 +3069,7 @@ pub struct HostHttpSendRequestResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct HostHttpSendRequestResult {
     pub _payload_alignment: [HostHttpSendRequestResultPayloadAlignment; 0],
-    pub payload: [u8; 36],
+    pub payload: [u8; 40],
     pub tag: HostHttpSendRequestResultTag,
 }
 
@@ -3034,11 +3112,11 @@ const _: () = assert!(core::mem::align_of::<HostHttpSendRequestResult>() == 8, "
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::offset_of!(HostHttpSendRequestResult, tag) == 72, "HostHttpSendRequestResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostHttpSendRequestResult>() == 40, "HostHttpSendRequestResult size mismatch");
+const _: () = assert!(core::mem::size_of::<HostHttpSendRequestResult>() == 48, "HostHttpSendRequestResult size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostHttpSendRequestResult>() == 4, "HostHttpSendRequestResult alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostHttpSendRequestResult>() == 8, "HostHttpSendRequestResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostHttpSendRequestResult, tag) == 36, "HostHttpSendRequestResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(HostHttpSendRequestResult, tag) == 40, "HostHttpSendRequestResult tag offset mismatch");
 
 /// Tag discriminant for InvalidRequestOrTransport.
 #[repr(u8)]
@@ -3052,11 +3130,11 @@ pub enum InvalidRequestOrTransportTag {
 #[derive(Clone, Copy)]
 pub union InvalidRequestOrTransportPayload {
     pub invalid_request: core::mem::ManuallyDrop<RocStr>,
-    pub transport: core::mem::ManuallyDrop<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed>,
+    pub transport: core::mem::ManuallyDrop<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed>,
 }
 
 #[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
+#[repr(align(8))]
 #[derive(Clone, Copy)]
 pub struct InvalidRequestOrTransportPayloadAlignment;
 
@@ -3091,12 +3169,12 @@ impl InvalidRequestOrTransport {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed) }
+    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
+    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.transport) }
     }
 
@@ -3109,16 +3187,16 @@ const _: () = assert!(core::mem::align_of::<InvalidRequestOrTransport>() == 8, "
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::offset_of!(InvalidRequestOrTransport, tag) == 64, "InvalidRequestOrTransport tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InvalidRequestOrTransport>() == 36, "InvalidRequestOrTransport size mismatch");
+const _: () = assert!(core::mem::size_of::<InvalidRequestOrTransport>() == 40, "InvalidRequestOrTransport size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<InvalidRequestOrTransport>() == 4, "InvalidRequestOrTransport alignment mismatch");
+const _: () = assert!(core::mem::align_of::<InvalidRequestOrTransport>() == 8, "InvalidRequestOrTransport alignment mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(InvalidRequestOrTransport, tag) == 32, "InvalidRequestOrTransport tag offset mismatch");
 
-/// Tag discriminant for CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed.
+/// Tag discriminant for CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag {
+pub enum CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag {
     Cancelled = 0,
     ConnectFailed = 1,
     ConnectionClosed = 2,
@@ -3127,13 +3205,15 @@ pub enum CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOr
     InvalidResponse = 5,
     Other = 6,
     ResponseBodyFailed = 7,
-    Timeout = 8,
-    TlsFailed = 9,
+    ResponseTooLarge = 8,
+    Saturated = 9,
+    Timeout = 10,
+    TlsFailed = 11,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayload {
+pub union CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayload {
     pub cancelled: [u8; 0],
     pub connect_failed: core::mem::ManuallyDrop<AnonStructFfdd5953388e390f>,
     pub connection_closed: [u8; 0],
@@ -3142,35 +3222,37 @@ pub union CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedO
     pub invalid_response: core::mem::ManuallyDrop<RocStr>,
     pub other: core::mem::ManuallyDrop<RocStr>,
     pub response_body_failed: core::mem::ManuallyDrop<RocStr>,
+    pub response_too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
+    pub saturated: [u8; 0],
     pub timeout: [u8; 0],
     pub tls_failed: core::mem::ManuallyDrop<AnonStruct773d55204b824e5d>,
 }
 
 #[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
+#[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayloadAlignment;
+pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayloadAlignment;
 
-/// Tag union: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed
+/// Tag union: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
-    pub _payload_alignment: [CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayloadAlignment; 0],
+pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+    pub _payload_alignment: [CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayloadAlignment; 0],
     pub payload: [u8; 28],
-    pub tag: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag,
+    pub tag: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag,
 }
 
-/// Tag union: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed
+/// Tag union: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
-    pub payload: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayload,
-    pub tag: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag,
+pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+    pub payload: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayload,
+    pub tag: CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag,
 }
 
-impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
+impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_connect_failed(&self) -> AnonStructFfdd5953388e390f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructFfdd5953388e390f) }
@@ -3232,6 +3314,16 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
     }
 
     #[cfg(target_pointer_width = "32")]
+    pub fn payload_response_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_response_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.response_too_large) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
     pub fn payload_tls_failed(&self) -> AnonStruct773d55204b824e5d {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct773d55204b824e5d) }
     }
@@ -3244,17 +3336,17 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed>() == 64, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed>() == 64, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed>() == 8, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed>() == 8, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed, tag) == 56, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed, tag) == 56, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed>() == 32, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed>() == 32, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed>() == 4, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed>() == 8, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed, tag) == 28, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed, tag) == 28, "CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed tag offset mismatch");
 
 /// Tag union: AddressNotAvailableOrConnectionAbortedOrConnectionRefusedOrConnectionResetOrHostUnreachableOrNetworkUnreachableOrOtherOrPermissionDeniedOrTimedOut
 #[repr(u8)]
@@ -3581,71 +3673,6 @@ const _: () = assert!(core::mem::offset_of!(HostRequestBodyReadAllResult, tag) =
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostStateApplyResultTag {
-    Err = 0,
-    Ok = 1,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union HostStateApplyResultPayload {
-    pub err: [u8; 0],
-    pub ok: core::mem::ManuallyDrop<RocBox>,
-}
-
-#[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResultPayloadAlignment;
-
-/// Tag union: Try
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResult {
-    pub _payload_alignment: [HostStateApplyResultPayloadAlignment; 0],
-    pub payload: [u8; 4],
-    pub tag: HostStateApplyResultTag,
-}
-
-/// Tag union: Try
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResult {
-    pub payload: HostStateApplyResultPayload,
-    pub tag: HostStateApplyResultTag,
-}
-
-impl HostStateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocBox {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocBox) }
-    }
-
-    #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocBox {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
-    }
-
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostStateApplyResult>() == 16, "HostStateApplyResult size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostStateApplyResult>() == 8, "HostStateApplyResult alignment mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostStateApplyResult, tag) == 8, "HostStateApplyResult tag offset mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostStateApplyResult>() == 8, "HostStateApplyResult size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostStateApplyResult>() == 4, "HostStateApplyResult alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostStateApplyResult, tag) == 4, "HostStateApplyResult tag offset mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPathTypeResultTag {
     Err = 0,
     Ok = 1,
@@ -3958,6 +3985,81 @@ const _: () = assert!(core::mem::size_of::<BytesOrIntegerOrNullOrRealOrString>()
 const _: () = assert!(core::mem::align_of::<BytesOrIntegerOrNullOrRealOrString>() == 8, "BytesOrIntegerOrNullOrRealOrString alignment mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(BytesOrIntegerOrNullOrRealOrString, tag) == 12, "BytesOrIntegerOrNullOrRealOrString tag offset mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostSqliteColumnsResultTag {
+    Err = 0,
+    Ok = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union HostSqliteColumnsResultPayload {
+    pub err: core::mem::ManuallyDrop<AnonStruct22cf486058afc711>,
+    pub ok: core::mem::ManuallyDrop<RocList<RocStr>>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResultPayloadAlignment;
+
+/// Tag union: Try
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResult {
+    pub _payload_alignment: [HostSqliteColumnsResultPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: HostSqliteColumnsResultTag,
+}
+
+/// Tag union: Try
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostSqliteColumnsResult {
+    pub payload: HostSqliteColumnsResultPayload,
+    pub tag: HostSqliteColumnsResultTag,
+}
+
+impl HostSqliteColumnsResult {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_ok(&self) -> RocList<RocStr> {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocList<RocStr>) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_ok(&self) -> RocList<RocStr> {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<HostSqliteColumnsResult>() == 40, "HostSqliteColumnsResult size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<HostSqliteColumnsResult>() == 8, "HostSqliteColumnsResult alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(HostSqliteColumnsResult, tag) == 32, "HostSqliteColumnsResult tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<HostSqliteColumnsResult>() == 32, "HostSqliteColumnsResult size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<HostSqliteColumnsResult>() == 8, "HostSqliteColumnsResult alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(HostSqliteColumnsResult, tag) == 24, "HostSqliteColumnsResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -4466,7 +4568,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStructCdb3403b9d31de47>,
+    pub ok: core::mem::ManuallyDrop<AnonStructE340dbd21a9f8d48>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -4480,7 +4582,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 56],
+    pub payload: [u8; 64],
     pub tag: InitForHostResultTag,
 }
 
@@ -4505,12 +4607,12 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStructCdb3403b9d31de47 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructCdb3403b9d31de47) }
+    pub fn payload_ok(&self) -> AnonStructE340dbd21a9f8d48 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructE340dbd21a9f8d48) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStructCdb3403b9d31de47 {
+    pub fn payload_ok(&self) -> AnonStructE340dbd21a9f8d48 {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
@@ -4523,11 +4625,11 @@ const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForH
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 72, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 64, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 72, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 56, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 64, "InitForHostResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -4655,12 +4757,15 @@ const _: () = assert!(core::mem::size_of::<HostEnvTempDirRetRecord>() == 28, "Ho
 const _: () = assert!(core::mem::align_of::<HostEnvTempDirRetRecord>() == 4, "HostEnvTempDirRetRecord alignment mismatch");
 
 /// Arguments for Host.cmd_exec_exit_code!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try(I32, IOErr)
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecExitCodeArgs {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
@@ -4668,12 +4773,15 @@ pub struct HostCmdExecExitCodeArgs {
 }
 
 /// Arguments for Host.cmd_exec_exit_code!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try(I32, IOErr)
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecExitCodeArgs {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
@@ -4681,21 +4789,24 @@ pub struct HostCmdExecExitCodeArgs {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 88, "HostCmdExecExitCodeArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 112, "HostCmdExecExitCodeArgs size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 8, "HostCmdExecExitCodeArgs alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 44, "HostCmdExecExitCodeArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 72, "HostCmdExecExitCodeArgs size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 4, "HostCmdExecExitCodeArgs alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 8, "HostCmdExecExitCodeArgs alignment mismatch");
 
 /// Arguments for Host.cmd_exec_output!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) })])
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecOutputArgs {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
@@ -4703,12 +4814,15 @@ pub struct HostCmdExecOutputArgs {
 }
 
 /// Arguments for Host.cmd_exec_output!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) })])
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecOutputArgs {
+    pub stderr_limit_bytes: u64,
+    pub stdout_limit_bytes: u64,
+    pub timeout_ms: u64,
     pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
     pub envs: RocList<AnonStruct4028312a23fce46c>,
     pub program: UnixBytesOrUtf8OrWindowsU16s,
@@ -4716,13 +4830,13 @@ pub struct HostCmdExecOutputArgs {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 88, "HostCmdExecOutputArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 112, "HostCmdExecOutputArgs size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 8, "HostCmdExecOutputArgs alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 44, "HostCmdExecOutputArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 72, "HostCmdExecOutputArgs size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 4, "HostCmdExecOutputArgs alignment mismatch");
+const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 8, "HostCmdExecOutputArgs alignment mismatch");
 
 /// Arguments for Host.dir_create!
 /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [DirErr(IOErr)])
@@ -5384,12 +5498,13 @@ pub struct HostFileWriteUtf8Args {
 }
 
 /// Arguments for Host.http_send_request!
-/// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), Timeout, TlsFailed({ detail : Str, host : Str })])])
+/// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), max_response_bytes : U64, method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), ResponseTooLarge({ limit_bytes : U64, received_at_least : U64 }), Saturated, Timeout, TlsFailed({ detail : Str, host : Str })])])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostHttpSendRequestArgs {
+    pub max_response_bytes: u64,
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
@@ -5399,12 +5514,13 @@ pub struct HostHttpSendRequestArgs {
 }
 
 /// Arguments for Host.http_send_request!
-/// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), Timeout, TlsFailed({ detail : Str, host : Str })])])
+/// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), max_response_bytes : U64, method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), ResponseTooLarge({ limit_bytes : U64, received_at_least : U64 }), Saturated, Timeout, TlsFailed({ detail : Str, host : Str })])])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostHttpSendRequestArgs {
+    pub max_response_bytes: u64,
     pub timeout_ms: u64,
     pub body: RocListWith<u8, false>,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
@@ -5414,11 +5530,11 @@ pub struct HostHttpSendRequestArgs {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostHttpSendRequestArgs>() == 112, "HostHttpSendRequestArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostHttpSendRequestArgs>() == 120, "HostHttpSendRequestArgs size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<HostHttpSendRequestArgs>() == 8, "HostHttpSendRequestArgs alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostHttpSendRequestArgs>() == 64, "HostHttpSendRequestArgs size mismatch");
+const _: () = assert!(core::mem::size_of::<HostHttpSendRequestArgs>() == 72, "HostHttpSendRequestArgs size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<HostHttpSendRequestArgs>() == 8, "HostHttpSendRequestArgs alignment mismatch");
 
@@ -5505,7 +5621,7 @@ pub struct HostSqliteColumnValueArgs {
 }
 
 /// Arguments for Host.sqlite_columns!
-/// Roc signature: Host.SqliteStmt => List(Str)
+/// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -5539,15 +5655,6 @@ pub struct HostSqliteResetArgs {
 #[derive(Clone, Copy)]
 pub struct HostSqliteStepArgs {
     pub arg0: *mut u64,
-}
-
-/// Arguments for Host.state_apply!
-/// Roc signature: Box(rigid) => Try(Box(rigid), [ServerStopping])
-/// Refcounted fields are owned by the hosted function.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyArgs {
-    pub arg0: RocBox,
 }
 
 /// Arguments for Host.stderr_line!
@@ -5656,22 +5763,29 @@ pub struct HostTcpWriteArgs {
 
 // Platform Type Aliases
 
-pub type HostCmdExecExitCodeArg0 = AnonStruct302fff638fe940ea;
+pub type HostCmdExecExitCodeArg0 = AnonStructE09af2c5b0324fa8;
 pub type HostCmdExecExitCodeArg0Args = UnixBytesOrUtf8OrWindowsU16s;
 pub type HostCmdExecExitCodeArg0ArgsPayload = UnixBytesOrUtf8OrWindowsU16sPayload;
 pub type HostCmdExecExitCodeArg0ArgsTag = UnixBytesOrUtf8OrWindowsU16sTag;
 pub type HostCmdExecExitCodeArg0Envs = AnonStruct4028312a23fce46c;
-pub type HostCmdExecOutputArg0 = AnonStruct302fff638fe940ea;
+pub type HostCmdExecExitCodeErr = FailedToGetExitCodeOrSaturatedOrTimeout;
+pub type HostCmdExecExitCodeErrPayload = FailedToGetExitCodeOrSaturatedOrTimeoutPayload;
+pub type HostCmdExecExitCodeErrTag = FailedToGetExitCodeOrSaturatedOrTimeoutTag;
+pub type HostCmdExecOutputArg0 = AnonStructE09af2c5b0324fa8;
 pub type HostCmdExecOutputArg0Args = UnixBytesOrUtf8OrWindowsU16s;
 pub type HostCmdExecOutputArg0ArgsPayload = UnixBytesOrUtf8OrWindowsU16sPayload;
 pub type HostCmdExecOutputArg0ArgsTag = UnixBytesOrUtf8OrWindowsU16sTag;
 pub type HostCmdExecOutputArg0Envs = AnonStruct4028312a23fce46c;
-pub type HostCmdExecOutputErr = FailedToGetExitCodeOrNonZeroExitCode;
-pub type HostCmdExecOutputErrPayload = FailedToGetExitCodeOrNonZeroExitCodePayload;
-pub type HostCmdExecOutputErrTag = FailedToGetExitCodeOrNonZeroExitCodeTag;
+pub type HostCmdExecOutputErr = FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout;
+pub type HostCmdExecOutputErrPayload = FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutPayload;
+pub type HostCmdExecOutputErrTag = FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag;
 pub type HostCmdExecOutputErrNonZeroExitCode = AnonStruct3f89ee1e14924626;
+pub type HostCmdExecOutputErrStderrTooLarge = AnonStruct3c19acd0e825703f;
+pub type HostCmdExecOutputErrStdoutTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostCmdExecOutputOk = AnonStruct3e7554e024207e25;
-pub type FailedToGetExitCodeOrNonZeroExitCodeNonZeroExitCode = AnonStruct3f89ee1e14924626;
+pub type FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutNonZeroExitCode = AnonStruct3f89ee1e14924626;
+pub type FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutStderrTooLarge = AnonStruct3c19acd0e825703f;
+pub type FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutStdoutTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostDirCreateArg0 = AnonStruct2e21b53659f79626;
 pub type HostDirCreateAllArg0 = AnonStruct2e21b53659f79626;
 pub type HostDirCreateAllResult = HostDirCreateResult;
@@ -5753,27 +5867,30 @@ pub type HostFileWriteUtf8Arg0 = AnonStruct2e21b53659f79626;
 pub type HostFileWriteUtf8Result = HostFileDeleteResult;
 pub type HostFileWriteUtf8ResultPayload = HostFileDeleteResultPayload;
 pub type HostFileWriteUtf8ResultTag = HostFileDeleteResultTag;
-pub type HostHttpSendRequestArg0 = AnonStruct6c432fac2d7d01ef;
+pub type HostHttpSendRequestArg0 = AnonStruct85380e02323174c5;
 pub type HostHttpSendRequestArg0Headers = AnonStruct82a96c5d55d63488;
 pub type HostHttpSendRequestErr = InvalidRequestOrTransport;
 pub type HostHttpSendRequestErrPayload = InvalidRequestOrTransportPayload;
 pub type HostHttpSendRequestErrTag = InvalidRequestOrTransportTag;
-pub type HostHttpSendRequestErrTransport = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed;
-pub type HostHttpSendRequestErrTransportPayload = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayload;
-pub type HostHttpSendRequestErrTransportTag = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag;
+pub type HostHttpSendRequestErrTransport = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed;
+pub type HostHttpSendRequestErrTransportPayload = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayload;
+pub type HostHttpSendRequestErrTransportTag = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag;
 pub type HostHttpSendRequestErrTransportConnectFailed = AnonStructFfdd5953388e390f;
 pub type HostHttpSendRequestErrTransportDnsFailed = AnonStruct773d55204b824e5d;
+pub type HostHttpSendRequestErrTransportResponseTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostHttpSendRequestErrTransportTlsFailed = AnonStruct773d55204b824e5d;
 pub type HostHttpSendRequestOk = AnonStructA14cd3b7d5755441;
-pub type InvalidRequestOrTransportTransport = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed;
-pub type InvalidRequestOrTransportTransportPayload = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedPayload;
-pub type InvalidRequestOrTransportTransportTag = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag;
+pub type InvalidRequestOrTransportTransport = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed;
+pub type InvalidRequestOrTransportTransportPayload = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedPayload;
+pub type InvalidRequestOrTransportTransportTag = CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag;
 pub type InvalidRequestOrTransportTransportConnectFailed = AnonStructFfdd5953388e390f;
 pub type InvalidRequestOrTransportTransportDnsFailed = AnonStruct773d55204b824e5d;
+pub type InvalidRequestOrTransportTransportResponseTooLarge = AnonStruct3c19acd0e825703f;
 pub type InvalidRequestOrTransportTransportTlsFailed = AnonStruct773d55204b824e5d;
-pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedConnectFailed = AnonStructFfdd5953388e390f;
-pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedDnsFailed = AnonStruct773d55204b824e5d;
-pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTlsFailed = AnonStruct773d55204b824e5d;
+pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedConnectFailed = AnonStructFfdd5953388e390f;
+pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedDnsFailed = AnonStruct773d55204b824e5d;
+pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedResponseTooLarge = AnonStruct3c19acd0e825703f;
+pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTlsFailed = AnonStruct773d55204b824e5d;
 pub type HostHttpSendRequestOkHeaders = AnonStruct82a96c5d55d63488;
 pub type HostPathTypeArg0 = AnonStruct2e21b53659f79626;
 pub type HostPathTypeOk = AnonStruct8dfa7f17f2083a52;
@@ -5795,6 +5912,7 @@ pub type HostSqliteColumnValueErr = AnonStruct22cf486058afc711;
 pub type HostSqliteColumnValueOk = BytesOrIntegerOrNullOrRealOrString;
 pub type HostSqliteColumnValueOkPayload = BytesOrIntegerOrNullOrRealOrStringPayload;
 pub type HostSqliteColumnValueOkTag = BytesOrIntegerOrNullOrRealOrStringTag;
+pub type HostSqliteColumnsErr = AnonStruct22cf486058afc711;
 pub type HostSqlitePrepareArg0 = AnonStruct2e21b53659f79626;
 pub type HostSqlitePrepareErr = AnonStruct22cf486058afc711;
 pub type HostSqliteResetResult = HostSqliteBindResult;
@@ -5820,9 +5938,8 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStructCdb3403b9d31de47;
-pub type InitForHostOkConfig = AnonStruct33606278b7ec2382;
-pub type TransitionForHost = AnonStructFf9b81c732bd7dac;
+pub type InitForHostOk = AnonStructE340dbd21a9f8d48;
+pub type InitForHostOkConfig = AnonStructF0688567cca5fbf7;
 pub type RespondForHostArg0 = AnonStruct9618161a745c1367;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
 pub type RespondForHost = AnonStruct6f3dea2f169284fc;
@@ -5862,6 +5979,43 @@ impl HostCmdExecExitCodeResult {
                 unsafe { payload.incref(amount); }
             },
             HostCmdExecExitCodeResultTag::Ok => {},
+        }
+    }
+}
+
+impl FailedToGetExitCodeOrSaturatedOrTimeout {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode => {
+                let payload = value.payload_failed_to_get_exit_code();
+                unsafe { payload.decref(roc_host); }
+            },
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::Saturated => {},
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::Timeout => {},
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode => {
+                let payload = value.payload_failed_to_get_exit_code();
+                unsafe { payload.incref(amount); }
+            },
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::Saturated => {},
+            FailedToGetExitCodeOrSaturatedOrTimeoutTag::Timeout => {},
         }
     }
 }
@@ -5913,7 +6067,7 @@ impl HostIOErr {
     }
 }
 
-impl AnonStruct302fff638fe940ea {
+impl AnonStructE09af2c5b0324fa8 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -6069,7 +6223,7 @@ impl HostCmdExecOutputResult {
     }
 }
 
-impl FailedToGetExitCodeOrNonZeroExitCode {
+impl FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -6078,14 +6232,24 @@ impl FailedToGetExitCodeOrNonZeroExitCode {
         let value = self;
         let _ = roc_host;
         match value.tag {
-            FailedToGetExitCodeOrNonZeroExitCodeTag::FailedToGetExitCode => {
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode => {
                 let payload = value.payload_failed_to_get_exit_code();
                 unsafe { payload.decref(roc_host); }
             },
-            FailedToGetExitCodeOrNonZeroExitCodeTag::NonZeroExitCode => {
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode => {
                 let payload = value.payload_non_zero_exit_code();
                 unsafe { payload.decref(roc_host); }
             },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Saturated => {},
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge => {
+                let payload = value.payload_stderr_too_large();
+                unsafe { payload.decref(roc_host); }
+            },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge => {
+                let payload = value.payload_stdout_too_large();
+                unsafe { payload.decref(roc_host); }
+            },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Timeout => {},
         }
     }
 
@@ -6098,14 +6262,24 @@ impl FailedToGetExitCodeOrNonZeroExitCode {
         let value = self;
         let _ = amount;
         match value.tag {
-            FailedToGetExitCodeOrNonZeroExitCodeTag::FailedToGetExitCode => {
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode => {
                 let payload = value.payload_failed_to_get_exit_code();
                 unsafe { payload.incref(amount); }
             },
-            FailedToGetExitCodeOrNonZeroExitCodeTag::NonZeroExitCode => {
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode => {
                 let payload = value.payload_non_zero_exit_code();
                 unsafe { payload.incref(amount); }
             },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Saturated => {},
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge => {
+                let payload = value.payload_stderr_too_large();
+                unsafe { payload.incref(amount); }
+            },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge => {
+                let payload = value.payload_stdout_too_large();
+                unsafe { payload.incref(amount); }
+            },
+            FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Timeout => {},
         }
     }
 }
@@ -6177,6 +6351,29 @@ impl AnonStruct3f89ee1e14924626 {
         let value = self;
         unsafe { value.stderr_bytes.incref(amount); }
         unsafe { value.stdout_bytes.incref(amount); }
+    }
+}
+
+impl AnonStruct3c19acd0e825703f {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = value;
+        let _ = roc_host;
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = value;
+        let _ = amount;
     }
 }
 
@@ -6878,7 +7075,7 @@ impl InvalidRequestOrTransport {
     }
 }
 
-impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailed {
+impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -6887,34 +7084,39 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
         let value = self;
         let _ = roc_host;
         match value.tag {
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Cancelled => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ConnectFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Cancelled => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed => {
                 let payload = value.payload_connect_failed();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::DnsFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed => {
                 let payload = value.payload_dns_failed();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
                 let payload = value.payload_exchange_failed();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::InvalidResponse => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse => {
                 let payload = value.payload_invalid_response();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Other => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other => {
                 let payload = value.payload_other();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
                 let payload = value.payload_response_body_failed();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Timeout => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::TlsFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge => {
+                let payload = value.payload_response_too_large();
+                unsafe { payload.decref(roc_host); }
+            },
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Saturated => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Timeout => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed => {
                 let payload = value.payload_tls_failed();
                 unsafe { payload.decref(roc_host); }
             },
@@ -6930,34 +7132,39 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
         let value = self;
         let _ = amount;
         match value.tag {
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Cancelled => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ConnectFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Cancelled => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed => {
                 let payload = value.payload_connect_failed();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::DnsFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed => {
                 let payload = value.payload_dns_failed();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
                 let payload = value.payload_exchange_failed();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::InvalidResponse => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse => {
                 let payload = value.payload_invalid_response();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Other => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other => {
                 let payload = value.payload_other();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
                 let payload = value.payload_response_body_failed();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::Timeout => {},
-            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrTimeoutOrTlsFailedTag::TlsFailed => {
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge => {
+                let payload = value.payload_response_too_large();
+                unsafe { payload.incref(amount); }
+            },
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Saturated => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Timeout => {},
+            CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed => {
                 let payload = value.payload_tls_failed();
                 unsafe { payload.incref(amount); }
             },
@@ -7089,7 +7296,7 @@ impl AnonStruct82a96c5d55d63488 {
     }
 }
 
-impl AnonStruct6c432fac2d7d01ef {
+impl AnonStruct85380e02323174c5 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7215,29 +7422,6 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
     }
 }
 
-impl AnonStruct3c19acd0e825703f {
-    /// Recursively decrement Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted field.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        let _ = value;
-        let _ = roc_host;
-    }
-
-    /// Increment Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        let _ = value;
-        let _ = amount;
-    }
-}
-
 impl ChunkOrEnd {
     /// Recursively decrement Roc-owned payloads.
     ///
@@ -7309,41 +7493,6 @@ impl HostRequestBodyReadAllResult {
             HostRequestBodyReadAllResultTag::Ok => {
                 let payload = value.payload_ok();
                 unsafe { payload.incref(amount); }
-            },
-        }
-    }
-}
-
-impl HostStateApplyResult {
-    /// Recursively decrement Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted payload.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        let _ = roc_host;
-        match value.tag {
-            HostStateApplyResultTag::Err => {},
-            HostStateApplyResultTag::Ok => {
-                let payload = value.payload_ok();
-                unsafe { decref_box(payload as RocBox, roc_host); }
-            },
-        }
-    }
-
-    /// Increment Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        let _ = amount;
-        match value.tag {
-            HostStateApplyResultTag::Err => {},
-            HostStateApplyResultTag::Ok => {
-                let payload = value.payload_ok();
-                unsafe { incref_box(payload as RocBox, amount); }
             },
         }
     }
@@ -7574,6 +7723,56 @@ impl BytesOrIntegerOrNullOrRealOrString {
             BytesOrIntegerOrNullOrRealOrStringTag::Real => {},
             BytesOrIntegerOrNullOrRealOrStringTag::String => {
                 let payload = value.payload_string();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl HostSqliteColumnsResult {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            HostSqliteColumnsResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.decref(roc_host); }
+            },
+            HostSqliteColumnsResultTag::Ok => {
+                let payload = value.payload_ok();
+                {
+                    let list = payload;
+                    if list.has_one_ref() {
+                        for item_ref in list.allocation_items() {
+                            let item = *item_ref;
+                                unsafe { item.decref(roc_host); }
+                        }
+                    }
+                    unsafe { list.decref(roc_host); }
+                }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            HostSqliteColumnsResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.incref(amount); }
+            },
+            HostSqliteColumnsResultTag::Ok => {
+                let payload = value.payload_ok();
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7843,7 +8042,7 @@ impl HostTcpWriteResult {
     }
 }
 
-impl AnonStruct23d066919f2edbe8 {
+impl AnonStruct1f12a65955b54fe1 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7901,7 +8100,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStructCdb3403b9d31de47 {
+impl AnonStructE340dbd21a9f8d48 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7909,7 +8108,7 @@ impl AnonStructCdb3403b9d31de47 {
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
         unsafe { value.config.decref(roc_host); }
-        unsafe { decref_box(value.model as RocBox, roc_host); }
+        unsafe { decref_box(value.context as RocBox, roc_host); }
     }
 
     /// Increment Roc-owned fields.
@@ -7920,11 +8119,11 @@ impl AnonStructCdb3403b9d31de47 {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.config.incref(amount); }
-        unsafe { incref_box(value.model as RocBox, amount); }
+        unsafe { incref_box(value.context as RocBox, amount); }
     }
 }
 
-impl AnonStruct33606278b7ec2382 {
+impl AnonStructF0688567cca5fbf7 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7942,29 +8141,6 @@ impl AnonStruct33606278b7ec2382 {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.host.incref(amount); }
-    }
-}
-
-impl AnonStructFf9b81c732bd7dac {
-    /// Recursively decrement Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted field.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        unsafe { decref_box(value.model as RocBox, roc_host); }
-        unsafe { decref_box(value.result as RocBox, roc_host); }
-    }
-
-    /// Increment Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        unsafe { incref_box(value.model as RocBox, amount); }
-        unsafe { incref_box(value.result as RocBox, amount); }
     }
 }
 
@@ -8107,11 +8283,11 @@ unsafe extern "C" {
 #[allow(improper_ctypes)]
 unsafe extern "C" {
     /// Hosted symbol for Host.cmd_exec_exit_code!
-    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try(I32, IOErr)
+    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
     pub fn hosted_cmd_host_exec_exit_code(arg0: HostCmdExecExitCodeArgs) -> HostCmdExecExitCodeResult;
 
     /// Hosted symbol for Host.cmd_exec_output!
-    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) })])
+    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
     pub fn hosted_cmd_host_exec_output(arg0: HostCmdExecOutputArgs) -> HostCmdExecOutputResult;
 
     /// Hosted symbol for Host.dir_create!
@@ -8239,7 +8415,7 @@ unsafe extern "C" {
     pub fn hosted_file_write_utf8(arg0: AnonStruct2e21b53659f79626, arg1: RocStr) -> HostFileDeleteResult;
 
     /// Hosted symbol for Host.http_send_request!
-    /// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), Timeout, TlsFailed({ detail : Str, host : Str })])])
+    /// Roc signature: { body : List(U8), headers : List({ name : Str, value : Str }), max_response_bytes : U64, method : U8, method_ext : Str, timeout_ms : U64, uri : Str } => Try({ body : List(U8), headers : List({ name : Str, value : Str }), status : U16 }, [InvalidRequest(Str), Transport([Cancelled, ConnectFailed({ detail : Str, host : Str, port : U16, reason : [AddressNotAvailable, ConnectionAborted, ConnectionRefused, ConnectionReset, HostUnreachable, NetworkUnreachable, Other, PermissionDenied, TimedOut] }), ConnectionClosed, DnsFailed({ detail : Str, host : Str }), ExchangeFailed(Str), InvalidResponse(Str), Other(Str), ResponseBodyFailed(Str), ResponseTooLarge({ limit_bytes : U64, received_at_least : U64 }), Saturated, Timeout, TlsFailed({ detail : Str, host : Str })])])
     pub fn hosted_http_send_request(arg0: HostHttpSendRequestArgs) -> HostHttpSendRequestResult;
 
     /// Hosted symbol for Host.path_type!
@@ -8267,8 +8443,8 @@ unsafe extern "C" {
     pub fn hosted_sqlite_column_value(arg0: *mut u64, arg1: u64) -> HostSqliteColumnValueResult;
 
     /// Hosted symbol for Host.sqlite_columns!
-    /// Roc signature: Host.SqliteStmt => List(Str)
-    pub fn hosted_sqlite_columns(arg0: *mut u64) -> RocList<RocStr>;
+    /// Roc signature: Host.SqliteStmt => Try(List(Str), { code : I64, message : Str })
+    pub fn hosted_sqlite_columns(arg0: *mut u64) -> HostSqliteColumnsResult;
 
     /// Hosted symbol for Host.sqlite_prepare!
     /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) }, Str => Try(Host.SqliteStmt, { code : I64, message : Str })
@@ -8281,10 +8457,6 @@ unsafe extern "C" {
     /// Hosted symbol for Host.sqlite_step!
     /// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
     pub fn hosted_sqlite_step(arg0: *mut u64) -> HostSqliteStepResult;
-
-    /// Hosted symbol for Host.state_apply!
-    /// Roc signature: Box(rigid) => Try(Box(rigid), [ServerStopping])
-    pub fn hosted_state_apply(arg0: RocBox) -> HostStateApplyResult;
 
     /// Hosted symbol for Host.stderr_line!
     /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
@@ -8471,11 +8643,8 @@ unsafe extern "C" {
     /// Entrypoint: init_for_host!
     pub fn roc_init_for_host() -> InitForHostResult;
 
-    /// Entrypoint: transition_for_host
-    pub fn roc_transition_for_host(arg0: RocBox, arg1: RocBox) -> AnonStructFf9b81c732bd7dac;
-
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367) -> AnonStruct6f3dea2f169284fc;
+    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367, arg1: RocBox) -> AnonStruct6f3dea2f169284fc;
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

@@ -8,10 +8,13 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+mod bounded_gate;
+mod capability;
 mod cmd;
 mod dir;
 mod env;
 mod file;
+mod host_resource;
 mod http;
 mod http_error;
 mod http_server;
@@ -21,12 +24,9 @@ mod request_body;
 mod roc_platform_abi;
 mod shutdown;
 mod sqlite;
-mod state;
 mod stdio;
 mod tcp;
 mod time;
-
-use crate::roc_platform_abi::make_roc_host;
 
 #[cfg(not(test))]
 #[no_mangle]
@@ -35,10 +35,20 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 }
 
 pub fn rust_main() -> i32 {
-    // Leak the RocHost so the pointer stashed in ABI state stays valid for the
-    // whole life of the long-running server.
-    let roc_host = Box::leak(Box::new(make_roc_host(core::ptr::null_mut())));
-    abi::set_roc_host(roc_host);
-
-    http_server::start()
+    abi::initialize_roc_host();
+    let exit_code = http_server::start();
+    let live_resources =
+        sqlite::active_resources() + file::active_resources() + tcp::active_resources();
+    if live_resources != 0 {
+        eprintln!(
+            "host resource lifecycle error: {live_resources} opaque resources remained after \
+             shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={})",
+            sqlite::resource_high_water(),
+            file::resource_high_water(),
+            tcp::resource_high_water(),
+        );
+        1
+    } else {
+        exit_code
+    }
 }

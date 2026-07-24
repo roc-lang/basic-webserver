@@ -24,88 +24,64 @@ jobs:
           version=$(sed -n 's/^channel = "\(.*\)".*/\1/p' rust-toolchain.toml)
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  build-and-test:
-    name: build and test (${{ matrix.target }})
+  validate:
+    name: validate sources
     needs: rust-version
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: x64musl
-            rust_target: x86_64-unknown-linux-musl
-            install_zig: true
-            run_expect_tests: true
-            is_musl: true
-          - os: ubuntu-24.04-arm
-            target: arm64musl
-            rust_target: aarch64-unknown-linux-musl
-            install_zig: true
-            run_expect_tests: true
-            is_musl: true
-          - os: macos-26-intel
-            target: x64mac
-            rust_target: x86_64-apple-darwin
-            install_zig: false
-            run_expect_tests: false
-            is_musl: false
-          - os: macos-26
-            target: arm64mac
-            rust_target: aarch64-apple-darwin
-            install_zig: false
-            run_expect_tests: false
-            is_musl: false
-          - os: windows-2025
-            target: x64win
-            rust_target: x86_64-pc-windows-msvc
-            install_zig: false
-            run_expect_tests: false
-            is_musl: false
-
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
       - name: Install the Zig-based Roc compiler
-        uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427 # ratchet:roc-lang/setup-roc@v0.3.0
-        with:
-          version: nightly-new-compiler
-
-      - run: roc version
-
-      - name: Install Zig
-        if: matrix.install_zig
-        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # ratchet:mlugg/setup-zig@v2.0.5
-        with:
-          version: 0.16.0
+        uses: ./.github/actions/setup-roc
 
       - name: Install Rust toolchain
         run: |
-          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal --target "${{ matrix.rust_target }}"
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
           rustup default "${{ needs.rust-version.outputs.version }}"
-
-      - name: Install LLVM tools for Linux host stripping
-        if: matrix.is_musl
-        run: rustup component add llvm-tools-preview
-
-      - name: Install expect test dependencies
-        if: matrix.run_expect_tests
-        run: sudo apt-get update && sudo apt-get install --yes expect curl
+          rustup component add rustfmt
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
+      - name: Checkout the matching Roc glue specification
+        uses: actions/checkout@v7
+        with:
+          repository: roc-lang/roc
+          ref: 306abd6d8b5fe5c3c0967976a5da2e7568b02a37
+          path: target/roc-glue-source
+          sparse-checkout: src/glue/src/RustGlue.roc
+
+      - name: Check generated Rust glue
+        env:
+          ROC_GLUE_SPEC: target/roc-glue-source/src/glue/src/RustGlue.roc
+        run: python scripts/regenerate_glue.py --check
+
       - name: Run Rust unit tests
         run: cargo test --locked
 
-      - name: Build host static library
-        run: ./build.sh --target "${{ matrix.target }}"
+      - name: Format, check, and test Roc examples
+        run: python scripts/test.py --operation validate
 
-      - name: Build and test Roc examples
-        env:
-          RUN_EXPECT_TESTS: ${{ matrix.run_expect_tests }}
-          IS_MUSL: ${{ matrix.is_musl }}
-        run: ./ci/all_tests.sh
+  memcheck:
+    name: Linux examples under Memcheck
+    needs: rust-version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Zig-based Roc compiler
+        uses: ./.github/actions/setup-roc
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
+          rustup default "${{ needs.rust-version.outputs.version }}"
+
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes valgrind
+
+      - name: Run every Linux example under Memcheck
+        run: python scripts/test.py --operation memcheck
