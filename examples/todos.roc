@@ -16,7 +16,7 @@ import "todos.html" as todo_html : List(U8)
 
 # Set `DB_PATH` to override the default database path (`./examples/todos.db`).
 
-Context : Path
+Context : Sqlite.Db
 
 TodoStatus := [Todo, Planned, Completed, InProgress].{
 	encoder_for : encoding -> (TodoStatus, state -> Try(state, err))
@@ -48,20 +48,21 @@ init! = || {
 			Err(_) => Path.utf8("./examples/todos.db")
 		}
 
-	ensure_schema!(db_path) ? |err| FailedToEnsureSchema(err)
+	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |err| FailedToEnsureSchema(err)
+	ensure_schema!(db) ? |err| FailedToEnsureSchema(err)
 
-	Ok({ config: Server.default_config, context: db_path })
+	Ok({ config: Server.default_config, context: db })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, db_path|
-	match handle_req!(req, db_path) {
+respond! = |req, db|
+	match handle_req!(req, db) {
 		Ok(response) => Ok(Server.respond(response))
 		Err(err) => Err(ServerErr(Str.inspect(err)))
 	}
 
-handle_req! : Server.Request, Path => Try(Response, _)
-handle_req! = |req, db_path| {
+handle_req! : Server.Request, Sqlite.Db => Try(Response, _)
+handle_req! = |req, db| {
 	log_request!(req)?
 
 	request_url = Url.resolve(todo_origin, req.target()) ? InvalidRequestTarget
@@ -69,8 +70,8 @@ handle_req! = |req, db_path| {
 
 	match path_parts {
 		["", ""] => Ok(html_response(200, todo_html))
-		["", "todos"] => route_todos!(db_path, req)
-		["", "todos", ..] => route_todos!(db_path, req)
+		["", "todos"] => route_todos!(db, req)
+		["", "todos", ..] => route_todos!(db, req)
 		_ => Ok(text_response(404, "URL Not Found (404)"))
 	}
 }
@@ -78,23 +79,23 @@ handle_req! = |req, db_path| {
 todo_origin : Url
 todo_origin = "http://localhost"
 
-route_todos! : Path, Server.Request => Try(Response, _)
-route_todos! = |db_path, req|
+route_todos! : Sqlite.Db, Server.Request => Try(Response, _)
+route_todos! = |db, req|
 	match req.method() {
-		GET => list_todos!(db_path)
+		GET => list_todos!(db)
 
-		POST => create_todo_from_request!(db_path, req)
+		POST => create_todo_from_request!(db, req)
 
 		other_method =>
 			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${req.target()}"))
 		}
 
-list_todos! : Path => Try(Response, _)
-list_todos! = |db_path| {
+list_todos! : Sqlite.Db => Try(Response, _)
+list_todos! = |db| {
 	stored : List(StoredTodo)
 	stored = 
 		Sqlite.query_many!({
-			path: db_path,
+			db,
 			query: "SELECT id, task, status FROM todos ORDER BY id;",
 			params: {},
 			limits: Sqlite.default_query_limits,
@@ -106,8 +107,8 @@ list_todos! = |db_path| {
 	Ok(json_response(todos))
 }
 
-create_todo_from_request! : Path, Server.Request => Try(Response, _)
-create_todo_from_request! = |db_path, req| {
+create_todo_from_request! : Sqlite.Db, Server.Request => Try(Response, _)
+create_todo_from_request! = |db, req| {
 	body = req.body().with_limit(16 * 1024).read_all!()
 		? |err| RequestErr(Str.inspect(err))
 	json = 
@@ -131,16 +132,16 @@ create_todo_from_request! = |db_path, req| {
 	if Str.is_empty(decoded.task) {
 		Ok(text_response(400, "Task must not be empty."))
 	} else {
-		create_todo!(db_path, { task: decoded.task, status })
+		create_todo!(db, { task: decoded.task, status })
 	}
 }
 
-create_todo! : Path, { task : Str, status : TodoStatus } => Try(Response, _)
-create_todo! = |db_path, params| {
+create_todo! : Sqlite.Db, { task : Str, status : TodoStatus } => Try(Response, _)
+create_todo! = |db, params| {
 	stored : StoredTodo
 	stored = 
 		Sqlite.query!({
-			path: db_path,
+			db,
 			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",
 			params: {
 				task: params.task,
@@ -184,10 +185,10 @@ todo_status_to_str = |status|
 		InProgress => "in-progress"
 	}
 
-ensure_schema! : Path => Try({}, _)
-ensure_schema! = |db_path|
+ensure_schema! : Sqlite.Db => Try({}, _)
+ensure_schema! = |db|
 	Sqlite.execute!({
-		path: db_path,
+		db,
 		query: "CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, task TEXT NOT NULL, status TEXT NOT NULL);",
 		params: {},
 	})

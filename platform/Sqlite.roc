@@ -15,8 +15,9 @@ import Path
 ## Todo : { id : I64, task : Str }
 ##
 ## todos : List(Todo)
+## db = Sqlite.open!(Sqlite.default_config(db_path))?
 ## todos = Sqlite.query_many!({
-##     path: db_path,
+##     db,
 ##     query: "SELECT id, task FROM todos WHERE status = :status",
 ##     params: { status: "open" },
 ##     limits: Sqlite.default_query_limits,
@@ -28,10 +29,50 @@ import Path
 ## TODO: Add derived nullable fields once the compiler can compose their parser
 ## errors through a platform-defined encoding.
 ##
-## Each prepared statement owns one host connection. One handler claims it
-## from bind through reset; concurrent use returns `SqliteErr(Busy, ...)`.
-## At most 64 statements may be open in one process.
+## A `Db` owns a bounded host connection pool. Statements are immutable logical
+## query descriptors; each execution briefly leases a connection and a cached
+## native prepared statement. Executions are safe to use concurrently. Their
+## final ARC release resets the native statement and returns the connection on
+## every success and error path.
 Sqlite :: [].{
+
+	## Configuration for one bounded host-owned connection pool.
+	## `max_connections` is 1-64, both timeouts are at most ten minutes, and
+	## each connection caches at most 256 native statements.
+	Config : {
+		path : Path.Path,
+		max_connections : U64,
+		acquire_timeout_ms : U64,
+		busy_timeout_ms : U64,
+		max_cached_statements_per_connection : U64,
+		journal_mode : JournalMode,
+		synchronous : Synchronous,
+	}
+
+	## SQLite rollback-journal policy applied and verified on every connection.
+	JournalMode : [Delete, Wal]
+
+	## `Full` is the durable default. `Normal` trades power-loss durability for
+	## substantially faster commits while preserving database consistency.
+	Synchronous : [Full, Normal]
+
+	## Conservative defaults for a conventional web application.
+	default_config : Path.Path -> Config
+	default_config = |path| {
+		path,
+		max_connections: 8,
+		acquire_timeout_ms: 100,
+		busy_timeout_ms: 1_000,
+		max_cached_statements_per_connection: 32,
+		journal_mode: Wal,
+		synchronous: Full,
+	}
+
+	## A host-owned SQLite connection pool, safe to retain in immutable context.
+	Db :: { host : Host.SqliteDb }.{
+		to_inspect : Db -> Str
+		to_inspect = |_| "Sqlite.Db(<opaque>)"
+	}
 
 	## A raw SQLite value. Most applications use derived record codecs instead.
 	Value : [
@@ -48,12 +89,14 @@ Sqlite :: [].{
 		value : Value,
 	}
 
-	## Bounds on a materialized query result. `max_bytes` covers the host-side
-	## SQLite value storage handed to Roc; `max_rows` also bounds per-row record
-	## overhead after decoding.
+	## Bounds on a materialized query. `max_bytes` covers the host-side SQLite
+	## value storage handed to Roc; `max_rows` also bounds per-row record
+	## overhead after decoding. `timeout_ms` interrupts SQLite virtual-machine
+	## execution; pool acquisition has its own database-level timeout.
 	QueryLimits : {
 		max_bytes : U64,
 		max_rows : U64,
+		timeout_ms : U64,
 	}
 
 	## Conservative defaults for ordinary request-scoped queries.
@@ -61,6 +104,7 @@ Sqlite :: [].{
 	default_query_limits = {
 		max_bytes: 16 * 1024 * 1024,
 		max_rows: 10_000,
+		timeout_ms: 5_000,
 	}
 
 	## SQLite's five runtime storage classes, used in decode diagnostics.
@@ -78,11 +122,16 @@ Sqlite :: [].{
 		NoRowsReturned,
 		ParameterValueMissing(Str),
 		ParameterValueOutsideRecord,
+		PoolSaturated,
+		QueryTimedOut,
+		ResourceSaturated,
 		ResultTooLarge({ max_bytes : U64 }),
 		RowsReturnedUseQueryInstead,
 		SqliteErr(ErrCode, Str),
 		TooManyRows({ max_rows : U64 }),
 		TooManyRowsReturned,
+		ConcurrentTransactionUse,
+		TransactionFinished,
 		UnconsumedColumns,
 		UnexpectedType({ actual : ValueType, column : Str, expected : ValueType }),
 	]
@@ -327,22 +376,14 @@ Sqlite :: [].{
 			]
 		execute! = |stmt, params| {
 			bindings = encode_params(params)?
-			host_stmt = stmt_to_host(stmt)
-			sqlite_bind!(host_stmt, bindings)?
-			result = sqlite_next_row!(host_stmt, 0, False)
-			reset_result = sqlite_reset!(host_stmt)
-
-			match reset_result {
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, Sqlite.default_query_limits.timeout_ms)?
+			match sqlite_next_row!(exec, 0, False) {
+				Ok(Done) => Ok({})
+				Ok(RowLimitExceeded) => Err(RowsReturnedUseQueryInstead)
+				Ok(Row(_)) => Err(RowsReturnedUseQueryInstead)
+				Ok(ResultTooLarge) => Err(RowsReturnedUseQueryInstead)
 				Err(err) => Err(err)
-				Ok({}) =>
-					match result {
-						Ok(Done) => Ok({})
-						Ok(RowLimitExceeded) => Err(RowsReturnedUseQueryInstead)
-						Ok(Row(_)) => Err(RowsReturnedUseQueryInstead)
-						Ok(ResultTooLarge) => Err(RowsReturnedUseQueryInstead)
-						Err(err) => Err(err)
-					}
-				}
+			}
 		}
 
 		## Decode exactly one row as the expected result type.
@@ -355,15 +396,8 @@ Sqlite :: [].{
 			bindings = encode_params(params)?
 			Row : row
 			parse_row = Row.parser_for(RowEncoding.Default)
-			host_stmt = stmt_to_host(stmt)
-			sqlite_bind!(host_stmt, bindings)?
-			result = decode_exactly_one_row!(host_stmt, stmt.columns, parse_row, limits)
-			reset_result = sqlite_reset!(host_stmt)
-
-			match reset_result {
-				Err(err) => Err(err)
-				Ok({}) => result
-			}
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+			decode_exactly_one_row!(exec, stmt.columns, parse_row, limits)
 		}
 
 		## Decode all rows as the expected list item type.
@@ -376,17 +410,65 @@ Sqlite :: [].{
 			bindings = encode_params(params)?
 			Row : row
 			parse_row = Row.parser_for(RowEncoding.Default)
-			host_stmt = stmt_to_host(stmt)
-			sqlite_bind!(host_stmt, bindings)?
-			result = decode_rows!(host_stmt, stmt.columns, parse_row, limits)
-			reset_result = sqlite_reset!(host_stmt)
-
-			match reset_result {
-				Err(err) => Err(err)
-				Ok({}) => result
-			}
+			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+			decode_rows!(exec, stmt.columns, parse_row, limits)
 		}
 	}
+
+	## A transaction pinned to one pooled connection. Dropping its final Roc
+	## reference before `commit!` or `rollback!` rolls it back automatically.
+	## Operations within one transaction are sequential; overlapping use returns
+	## `ConcurrentTransactionUse`.
+	Transaction :: { host : Host.SqliteTxn }.{
+
+		to_inspect : Transaction -> Str
+		to_inspect = |_| "Sqlite.Transaction(<opaque>)"
+
+		prepare! : Transaction, Str => Try(Stmt, QueryError)
+		prepare! = |transaction, query| {
+			host = sqlite_txn_prepare!(transaction_to_host(transaction), query)?
+			columns = sqlite_columns!(host)?
+			validate_unique_columns(columns)?
+			Ok(Stmt.{ columns, host })
+		}
+
+		execute! : Transaction, { query : Str, params : params } => Try({}, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+			]
+		execute! = |transaction, { query, params }| {
+			stmt = transaction.prepare!(query)?
+			stmt.execute!(params)
+		}
+
+		query! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query! = |transaction, { query, params, limits }| {
+			stmt = transaction.prepare!(query)?
+			stmt.query!(params, limits)
+		}
+
+		query_many! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
+			where [
+				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
+				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
+			]
+		query_many! = |transaction, { query, params, limits }| {
+			stmt = transaction.prepare!(query)?
+			stmt.query_many!(params, limits)
+		}
+
+		commit! : Transaction => Try({}, QueryError)
+		commit! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), True)
+
+		rollback! : Transaction => Try({}, QueryError)
+		rollback! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), False)
+	}
+
+	TransactionMode : [Deferred, Immediate, Exclusive]
 
 	## Represents SQLite result codes.
 	ErrCode : [
@@ -423,45 +505,83 @@ Sqlite :: [].{
 		Unknown(I64),
 	]
 
-	## Prepare a reusable statement and cache its result-column metadata.
-	prepare! : { path : Path.Path, query : Str } => Try(Stmt, QueryError)
-	prepare! = |{ path, query: q }| {
-		host = sqlite_prepare!(InternalPath.to_host_raw!(path), q)?
+	## Open and validate a bounded database pool.
+	open! : Config => Try(Db, QueryError)
+	open! = |config| {
+		raw_journal_mode = 
+			match config.journal_mode {
+				Delete => 0
+				Wal => 1
+			}
+		raw_synchronous = 
+			match config.synchronous {
+				Full => 0
+				Normal => 1
+			}
+		host = sqlite_open!(
+			InternalPath.to_host_raw!(config.path),
+			config.max_connections,
+			config.acquire_timeout_ms,
+			config.busy_timeout_ms,
+			config.max_cached_statements_per_connection,
+			raw_journal_mode,
+			raw_synchronous,
+		)?
+		Ok(Db.{ host })
+	}
+
+	## Prepare a reusable logical statement and cache its result-column metadata.
+	prepare! : { db : Db, query : Str } => Try(Stmt, QueryError)
+	prepare! = |{ db, query: q }| {
+		host = sqlite_prepare!(db_to_host(db), q)?
 		columns = sqlite_columns!(host)?
 		validate_unique_columns(columns)?
 		Ok(Stmt.{ columns, host })
 	}
 
 	## Execute a one-shot statement that must not return rows.
-	execute! : { path : Path.Path, query : Str, params : params } => Try({}, QueryError)
+	execute! : { db : Db, query : Str, params : params } => Try({}, QueryError)
 		where [
 			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
 		]
-	execute! = |{ path, query: q, params }| {
-		stmt = prepare!({ path, query: q })?
+	execute! = |{ db, query: q, params }| {
+		stmt = prepare!({ db, query: q })?
 		stmt.execute!(params)
 	}
 
 	## Execute a one-shot query returning exactly one inferred result value.
-	query! : { path : Path.Path, query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
+	query! : { db : Db, query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
 		where [
 			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
 			row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
 		]
-	query! = |{ path, query: q, params, limits }| {
-		stmt = prepare!({ path, query: q })?
+	query! = |{ db, query: q, params, limits }| {
+		stmt = prepare!({ db, query: q })?
 		stmt.query!(params, limits)
 	}
 
 	## Execute a one-shot query returning a list of inferred result values.
-	query_many! : { path : Path.Path, query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
+	query_many! : { db : Db, query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
 		where [
 			params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
 			row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
 		]
-	query_many! = |{ path, query: q, params, limits }| {
-		stmt = prepare!({ path, query: q })?
+	query_many! = |{ db, query: q, params, limits }| {
+		stmt = prepare!({ db, query: q })?
 		stmt.query_many!(params, limits)
+	}
+
+	## Begin a transaction on one connection leased from the pool.
+	begin! : Db, TransactionMode => Try(Transaction, QueryError)
+	begin! = |db, mode| {
+		raw_mode = 
+			match mode {
+				Deferred => 0
+				Immediate => 1
+				Exclusive => 2
+			}
+		host = sqlite_begin!(db_to_host(db), raw_mode)?
+		Ok(Transaction.{ host })
 	}
 
 	## Convert an `ErrCode` to a display string.
@@ -504,6 +624,12 @@ Sqlite :: [].{
 stmt_to_host : Sqlite.Stmt -> Host.SqliteStmt
 stmt_to_host = |stmt| stmt.host
 
+db_to_host : Sqlite.Db -> Host.SqliteDb
+db_to_host = |db| db.host
+
+transaction_to_host : Sqlite.Transaction -> Host.SqliteTxn
+transaction_to_host = |transaction| transaction.host
+
 set_param_value = |state, value|
 	match state.field {
 		NoField => Err(ParameterValueOutsideRecord)
@@ -536,27 +662,47 @@ encode_params = |params| {
 	Ok(encoded.bindings)
 }
 
-sqlite_prepare! = |raw_path, query|
-	Host.sqlite_prepare!(raw_path, query)
-		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+sqlite_open! = |raw_path, max_connections, acquire_timeout_ms, busy_timeout_ms, max_cached_statements, journal_mode, synchronous|
+	Host.sqlite_open!(raw_path, max_connections, acquire_timeout_ms, busy_timeout_ms, max_cached_statements, journal_mode, synchronous)
+		.map_err(sqlite_host_error)
 
-sqlite_bind! : Host.SqliteStmt, List({ name : Str, value : [Null, Real(F64), Integer(I64), String(Str), Bytes(List(U8))] }) => Try({}, [SqliteErr(Sqlite.ErrCode, Str), ..])
-sqlite_bind! = |stmt, bindings|
-	Host.sqlite_bind!(stmt, bindings)
-		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+sqlite_prepare! = |db, query|
+	Host.sqlite_prepare!(db, query)
+		.map_err(sqlite_host_error)
+
+sqlite_start! = |stmt, bindings, timeout_ms|
+	Host.sqlite_start!(stmt, bindings, timeout_ms)
+		.map_err(sqlite_host_error)
 
 sqlite_columns! = |stmt|
 	Host.sqlite_columns!(stmt)
-		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+		.map_err(sqlite_host_error)
 
-sqlite_next_row! = |stmt, max_bytes, allow_row|
-	Host.sqlite_next_row!(stmt, max_bytes, allow_row)
-		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+sqlite_next_row! = |exec, max_bytes, allow_row|
+	Host.sqlite_next_row!(exec, max_bytes, allow_row)
+		.map_err(sqlite_host_error)
 
-sqlite_reset! : Host.SqliteStmt => Try({}, [SqliteErr(Sqlite.ErrCode, Str), ..])
-sqlite_reset! = |stmt|
-	Host.sqlite_reset!(stmt)
-		.map_err(|{ code, message }| SqliteErr(code_from_i64(code), message))
+sqlite_begin! = |db, mode|
+	Host.sqlite_begin!(db, mode)
+		.map_err(sqlite_host_error)
+
+sqlite_txn_prepare! = |transaction, query|
+	Host.sqlite_txn_prepare!(transaction, query)
+		.map_err(sqlite_host_error)
+
+sqlite_txn_finish! = |transaction, commit|
+	Host.sqlite_txn_finish!(transaction, commit)
+		.map_err(sqlite_host_error)
+
+sqlite_host_error = |{ code, message }|
+	match code {
+		-1 => PoolSaturated
+		-2 => QueryTimedOut
+		-3 => TransactionFinished
+		-4 => ResourceSaturated
+		-5 => ConcurrentTransactionUse
+		_ => SqliteErr(code_from_i64(code), message)
+	}
 
 decode_exactly_one_row! = |stmt, columns, parse_row, limits| {
 	first = sqlite_next_row!(stmt, limits.max_bytes, True)?
@@ -759,3 +905,13 @@ expect {
 
 	Sqlite.Blob.to_bytes(blob) == [1, 2, 3]
 }
+
+expect sqlite_host_error({ code: -1, message: "" }) == PoolSaturated
+
+expect sqlite_host_error({ code: -2, message: "" }) == QueryTimedOut
+
+expect sqlite_host_error({ code: -3, message: "" }) == TransactionFinished
+
+expect sqlite_host_error({ code: -4, message: "" }) == ResourceSaturated
+
+expect sqlite_host_error({ code: -5, message: "" }) == ConcurrentTransactionUse

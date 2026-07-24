@@ -71,6 +71,12 @@ def arguments() -> argparse.Namespace:
         type=positive,
         default=max(1, (os.cpu_count() or 2) // 2),
     )
+    parser.add_argument(
+        "--pool-size",
+        type=positive,
+        default=8,
+        help="SQLite connections opened by the compiled Roc application (1-64)",
+    )
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--rebuild-database", action="store_true")
     parser.add_argument(
@@ -283,6 +289,13 @@ def scenarios(suite: str) -> list[Scenario]:
         Scenario("indexed point read under load", "http1", 64, path="/point"),
         Scenario("single writer", "http1", 1, path="/write"),
         Scenario("concurrent writers", "http1", 32, path="/write"),
+        Scenario("transactional writer", "http1", 1, path="/transaction"),
+        Scenario(
+            "concurrent transactional writers",
+            "http1",
+            32,
+            path="/transaction",
+        ),
         Scenario(
             "90/10 read-write mixture",
             "http1",
@@ -426,11 +439,15 @@ def main() -> None:
 
     environment = os.environ.copy()
     environment["SQLITE_BENCH_DB"] = str(DATABASE.resolve())
+    if args.pool_size > 64:
+        raise SystemExit("--pool-size must be at most 64")
+    environment["SQLITE_BENCH_POOL"] = str(args.pool_size)
     environment["TOKIO_WORKER_THREADS"] = str(args.server_workers)
     print(
         f"\nSQLite exploratory run: rows={args.rows:,}, "
         f"server_workers={args.server_workers}, "
-        f"client_threads={args.client_threads}\n"
+        f"client_threads={args.client_threads}, "
+        f"sqlite_pool={args.pool_size}\n"
         "The compiled Roc app has 64 active and 64 queued handler slots. "
         "Non-200 responses are reported rather than aborting the suite.\n",
         flush=True,

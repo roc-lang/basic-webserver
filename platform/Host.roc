@@ -47,7 +47,13 @@ Host := [].{
 		os : Str,
 	}
 
+	SqliteDb :: Box(U64)
+
 	SqliteStmt :: Box(U64)
+
+	SqliteExec :: Box(U64)
+
+	SqliteTxn :: Box(U64)
 
 	FileReader :: Box(U64)
 
@@ -119,11 +125,14 @@ Host := [].{
 
 	path_type! : RawPath => Try(PathType, IOErr)
 
-	sqlite_prepare! : RawPath, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
-	sqlite_bind! : SqliteStmt, List(InternalSqlite.SqliteBindings) => Try({}, InternalSqlite.SqliteError)
+	sqlite_open! : RawPath, U64, U64, U64, U64, I64, I64 => Try(SqliteDb, InternalSqlite.SqliteError)
+	sqlite_prepare! : SqliteDb, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
+	sqlite_start! : SqliteStmt, List(InternalSqlite.SqliteBindings), U64 => Try(SqliteExec, InternalSqlite.SqliteError)
 	sqlite_columns! : SqliteStmt => Try(List(Str), InternalSqlite.SqliteError)
-	sqlite_next_row! : SqliteStmt, U64, Bool => Try(InternalSqlite.SqliteState, InternalSqlite.SqliteError)
-	sqlite_reset! : SqliteStmt => Try({}, InternalSqlite.SqliteError)
+	sqlite_next_row! : SqliteExec, U64, Bool => Try(InternalSqlite.SqliteState, InternalSqlite.SqliteError)
+	sqlite_begin! : SqliteDb, I64 => Try(SqliteTxn, InternalSqlite.SqliteError)
+	sqlite_txn_prepare! : SqliteTxn, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
+	sqlite_txn_finish! : SqliteTxn, Bool => Try({}, InternalSqlite.SqliteError)
 
 	stdout_line! : Str => Try({}, [StdoutErr(IOErr)])
 	stdout_write! : Str => Try({}, [StdoutErr(IOErr)])

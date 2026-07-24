@@ -19,28 +19,29 @@ import http.Response
 #     status TEXT NOT NULL
 # );
 
-# The path is resolved once during `init!` and stored as immutable context.
-Context : { db_path : Path }
+# The database pool is opened once during `init!` and retained in immutable context.
+Context : { db : Sqlite.Db }
 
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
 		}
-	Ok({ config: Server.default_config, context: { db_path: db_path } })
+	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
+	Ok({ config: Server.default_config, context: { db: db } })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, { db_path }| {
-	match query_todos_by_status!(db_path, Completed) {
+respond! = |_request, { db }| {
+	match query_todos_by_status!(db, Completed) {
 		Ok(todos) => {
 			lines = todos.map(|todo| Str.inspect(todo))
 			body = Str.join_with(lines, "\n")
-			response = 
+			response =
 				Response.from_status(200)
 					.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 					.with_body(Str.to_utf8(body))
@@ -59,24 +60,24 @@ Todo : { id : I64, status : TodoStatus, task : Str }
 # compose their validation errors through a platform-derived record parser.
 StoredTodo : { id : I64, status : Str, task : Str }
 
-query_todos_by_status! : Path, TodoStatus => Try(List(Todo), Sqlite.QueryError)
-query_todos_by_status! = |db_path, status| {
+query_todos_by_status! : Sqlite.Db, TodoStatus => Try(List(Todo), Sqlite.QueryError)
+query_todos_by_status! = |db, status| {
+	transaction = Sqlite.begin!(db, Deferred)?
 	stored : List(StoredTodo)
-	stored = Sqlite.query_many!({
-		path: db_path,
+	stored = transaction.query_many!({
 		query: "SELECT id, task, status FROM todos WHERE status = :status;",
 		# TODO: Pass `status` directly once a nested application-defined
 		# `encoder_for` receives the field state across the platform boundary.
 		params: { status: todo_status_to_str(status) },
 		limits: Sqlite.default_query_limits,
 	})?
+	transaction.commit!()?
 
 	stored.map_try(
-		|todo|
-			match parse_todo_status(todo.status) {
-				Ok(decoded_status) => Ok({ id: todo.id, status: decoded_status, task: todo.task })
-				Err(_) => Err(InvalidValue({ column: "status" }))
-			},
+		|todo| match parse_todo_status(todo.status) {
+			Ok(decoded_status) => Ok({ id: todo.id, status: decoded_status, task: todo.task })
+			Err(_) => Err(InvalidValue({ column: "status" }))
+		},
 	)
 }
 

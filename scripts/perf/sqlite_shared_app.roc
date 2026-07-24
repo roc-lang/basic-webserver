@@ -25,9 +25,25 @@ init! = || {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./target/perf-harness/sqlite-load.db")
 		}
+	pool_size = 
+		match Env.var_str!("SQLITE_BENCH_POOL") {
+			Ok(raw) => parse_pool_size(raw) ?? 8
+			Err(_) => 8
+		}
+	db = 
+		Sqlite.open!({
+			path: db_path,
+			max_connections: pool_size,
+			acquire_timeout_ms: 100,
+			busy_timeout_ms: 1_000,
+			max_cached_statements_per_connection: 32,
+			journal_mode: Wal,
+			synchronous: Normal,
+		})
+			? |_| Exit(2)
 	shared_point = 
 		Sqlite.prepare!({
-			path: db_path,
+			db,
 			query: "SELECT id, category, body FROM records WHERE id = 125000;",
 		})
 			? |_| Exit(2)
@@ -57,3 +73,17 @@ respond! = |_, context| {
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})
+
+parse_pool_size = |raw| {
+	bytes = Str.to_utf8(raw)
+	if bytes.is_empty() or bytes.any(|byte| byte < 48 or byte > 57) {
+		Err(InvalidPoolSize)
+	} else {
+		value = bytes.fold(0, |total, byte| total * 10 + U8.to_u64(byte - 48))
+		if value >= 1 and value <= 64 {
+			Ok(value)
+		} else {
+			Err(InvalidPoolSize)
+		}
+	}
+}
