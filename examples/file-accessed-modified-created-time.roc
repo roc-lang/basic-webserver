@@ -13,16 +13,26 @@ Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[
+		Exit(I64),
+		FailedToPrintFileTimes(_),
+		FailedToReadAccessedTime(_),
+		FailedToReadCreatedTime(_),
+		FailedToReadModifiedTime(_),
+		..,
+	],
+)
 init! = || {
 	file = Path.utf8("LICENSE")
 
-	time_modified = Utc.to_iso_8601(Path.time_modified!(file) ? |_| Exit(1))
-	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file) ? |_| Exit(1))
-	time_created = Utc.to_iso_8601(Path.time_created!(file) ? |_| Exit(1))
+	time_modified = Utc.to_iso_8601(Path.time_modified!(file) ? |err| FailedToReadModifiedTime(err))
+	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file) ? |err| FailedToReadAccessedTime(err))
+	time_created = Utc.to_iso_8601(Path.time_created!(file) ? |err| FailedToReadCreatedTime(err))
 	summary = "${Path.display(file)} file time metadata:\nModified: ${time_modified}\nAccessed: ${time_accessed}\nCreated: ${time_created}"
 
-	Stdout.line!(summary) ? |_| Exit(1)
+	Stdout.line!(summary) ? |err| FailedToPrintFileTimes(err)
 
 	Ok({ config: Server.default_config, context: summary })
 }

@@ -16,34 +16,30 @@ Context : Url
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), InvalidTargetUrl(_), MissingTargetUrl(_), ..],
+)
 init! = || {
-	target = Env.var_str!("TARGET_URL") ? |_| Exit(1)
-	target_url = Url.parse(target) ? |_| Exit(1)
+	target = Env.var_str!("TARGET_URL") ? |err| MissingTargetUrl(err)
+	target_url = Url.parse(target) ? |err| InvalidTargetUrl(err)
 	Ok({ config: Server.default_config, context: target_url })
 }
 
-AppError : [
-	FetchErr(Str),
-	StdoutErr(Str),
-]
-
-# Here we use AppError to ensure all errors must be handled within our application.
-
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request,
+Context => Try(
+	Server.Outcome,
+	[FailedToFetch(_), FailedToLogRequest(_), ServerErr(Str), ..],
+)
 respond! = |req, target_url| {
-	response = handle_req!(req, target_url) ? map_app_err
+	response = handle_req!(req, target_url)?
 	Ok(Server.respond(response))
 }
 
-map_app_err : AppError -> [ServerErr(Str), ..]
-map_app_err = |app_err|
-	match app_err {
-		FetchErr(err) => ServerErr("Failed to fetch content:\n\t${err}")
-		StdoutErr(err) => ServerErr("Stdout error logging request:\n\t${err}")
-	}
-
-handle_req! : Server.Request, Url => Try(Response, AppError)
+## Semantic application errors can flow directly to the platform. The platform
+## logs their inspected values and returns a generic HTTP 500 without exposing
+## the details to the client.
+handle_req! : Server.Request, Url => Try(Response, [FailedToFetch(_), FailedToLogRequest(_), ..])
 handle_req! = |req, target_url| {
 	# Log the method and url to stdout
 	log_request!(req)?
@@ -55,17 +51,17 @@ handle_req! = |req, target_url| {
 	Ok(response_with_code(200, content))
 }
 
-log_request! : Server.Request => Try({}, [StdoutErr(Str), ..])
+log_request! : Server.Request => Try({}, [FailedToLogRequest(_), ..])
 log_request! = |req| {
 	datetime = Utc.to_iso_8601(Utc.now!())
 
 	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
-		? |err| StdoutErr(Str.inspect(err))
+		? |err| FailedToLogRequest(err)
 	Ok({})
 }
 
-fetch_content! : Url => Try(Str, [FetchErr(Str), ..])
-fetch_content! = |url| Http.get_utf8!(url).map_err(|err| FetchErr(Str.inspect(err)))
+fetch_content! : Url => Try(Str, [FailedToFetch(_), ..])
+fetch_content! = |url| Http.get_utf8!(url).map_err(|err| FailedToFetch(err))
 
 # Respond with the given status code and body
 response_with_code : U16, Str -> Response

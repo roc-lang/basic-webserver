@@ -35,10 +35,8 @@ shutdown! = |_reason, _context| Ok({})
 # Parse a request value into a domain result, or return a typed error.
 classify : Str -> Try([Good, Bad], [InvalidRating])
 classify = |input|
-	if input == "good" {
-		Ok(Good)
-	} else if input == "bad" {
-		Ok(Bad)
-	} else {
-		Err(InvalidRating)
+	match input {
+		"good" => Ok(Good)
+		"bad" => Ok(Bad)
+		_ => Err(InvalidRating)
 	}

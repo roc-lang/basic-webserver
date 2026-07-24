@@ -67,8 +67,13 @@ server:
   processes run and 32 wait for admission. Timeout and output-limit cleanup
   terminates the process tree (Unix process groups and Windows Job Objects),
   waits for the direct child, and returns a typed error.
-- A Roc `crash` exits the entire server process. Ordinary `ServerErr` values are
-  logged and converted to an HTTP 500 response.
+- A Roc `crash` exits the entire server process. Any error returned from
+  `respond!` is inspected and logged with request context, then converted to a
+  generic HTTP 500 response. Prefer semantic application tags that retain the
+  underlying error; use `ServerErr(Str)` when a custom message is more useful.
+- `init!` and `shutdown!` errors are inspected and logged before the process
+  exits with status 1. Use semantic tags for ordinary failures and reserve
+  `Exit(code)` for deliberately choosing a process exit status.
 
 ## Example
 

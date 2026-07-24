@@ -143,7 +143,7 @@ init_for_host! = ||
 		Ok({ config, context }) => Ok({ config: InternalServer.to_host_config(config), context: Box.box(context) })
 		Err(Exit(code)) => Err(code)
 		Err(other) => {
-			Stderr.line!("Server `init!` failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
+			Stderr.line!("ERROR init!: ${Str.inspect(other)}") ?? {}
 			Err(1)
 		}
 	}
@@ -155,15 +155,22 @@ respond_for_host! = |request, boxed_context| {
 
 	match (program.respond!)(roc_request, context) {
 		Ok(outcome) => InternalServer.to_host_outcome(outcome)
-		Err(ServerErr(msg)) => {
-			Stderr.line!("ServerErr: ${msg}") ?? {}
-			{ status: 500, headers: [], body: [], stop: False, exit_code: 0 }
-		}
-		Err(other) => {
-			Stderr.line!("Server error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
-			{ status: 500, headers: [], body: [], stop: False, exit_code: 0 }
+		Err(err) => {
+			Stderr.line!(
+				"ERROR respond! method=${Str.inspect(roc_request.method())} target=${Str.inspect(roc_request.target())}: ${Str.inspect(err)}",
+			) ?? {}
+			internal_server_error
 		}
 	}
+}
+
+internal_server_error : InternalServer.OutcomeToHost
+internal_server_error = {
+	status: 500,
+	headers: [{ name: "Content-Type", value: "text/plain; charset=utf-8" }],
+	body: Str.to_utf8("Internal Server Error"),
+	stop: False,
+	exit_code: 0,
 }
 
 shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Context) => Try({}, I64)
@@ -175,7 +182,7 @@ shutdown_for_host! = |reason, boxed_context| {
 		Ok({}) => Ok({})
 		Err(Exit(code)) => Err(code)
 		Err(other) => {
-			Stderr.line!("Server `shutdown!` failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
+			Stderr.line!("ERROR shutdown!: ${Str.inspect(other)}") ?? {}
 			Err(1)
 		}
 	}

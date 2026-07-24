@@ -27,7 +27,7 @@ CreateTodoBody : { task : Str, status : Str }
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToEnsureSchema(_), ..])
 init! = || {
 	db_path = 
 		match Env.var!("DB_PATH") {
@@ -35,7 +35,7 @@ init! = || {
 			Err(_) => Path.utf8("./examples/todos.db")
 		}
 
-	ensure_schema!(db_path) ? |_| Exit(1)
+	ensure_schema!(db_path) ? |err| FailedToEnsureSchema(err)
 
 	Ok({ config: Server.default_config, context: db_path })
 }

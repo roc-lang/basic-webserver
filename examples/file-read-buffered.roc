@@ -19,10 +19,13 @@ ReadSummary : {
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), FailedToOpenLicense(_), FailedToReadLicense(_), ..],
+)
 init! = || {
-	reader = File.open_reader!(Path.utf8("LICENSE")) ? |_| Exit(1)
-	summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |_| Exit(1)
+	reader = File.open_reader!(Path.utf8("LICENSE")) ? |err| FailedToOpenLicense(err)
+	summary = process_line!(reader, { lines_read: 0, bytes_read: 0 }) ? |err| FailedToReadLicense(err)
 
 	Ok({ config: Server.default_config, context: summary })
 }

@@ -81,27 +81,28 @@ demo! = || {
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |server_request, _context| {
-	if server_request.target() == "/limit" {
-		request = Request.from_method(GET).with_uri("http://localhost:9000/large")
-		config = Http.default_config.with_max_response_bytes(8)
+respond! = |server_request, _context|
+	match server_request.target() {
+		"/limit" => {
+			request = Request.from_method(GET).with_uri("http://localhost:9000/large")
+			config = Http.default_config.with_max_response_bytes(8)
 
-		match Http.send_with!(request, config) {
-			Err(HttpErr(ResponseTooLarge(_))) => Ok(text_response("Outbound response was limited."))
-			other => Err(ServerErr("Expected ResponseTooLarge, got ${Str.inspect(other)}"))
+			match Http.send_with!(request, config) {
+				Err(HttpErr(ResponseTooLarge(_))) => Ok(text_response("Outbound response was limited."))
+				other => Err(ServerErr("Expected ResponseTooLarge, got ${Str.inspect(other)}"))
+			}
 		}
-	} else if server_request.target() == "/timeout" {
-		request = Request.from_method(GET).with_uri("http://localhost:9000/slow")
-		config = Http.default_config.with_timeout_millis(20)
+		"/timeout" => {
+			request = Request.from_method(GET).with_uri("http://localhost:9000/slow")
+			config = Http.default_config.with_timeout_millis(20)
 
-		match Http.send_with!(request, config) {
-			Err(HttpErr(Timeout)) => Ok(text_response("Outbound request timed out."))
-			other => Err(ServerErr("Expected Timeout, got ${Str.inspect(other)}"))
+			match Http.send_with!(request, config) {
+				Err(HttpErr(Timeout)) => Ok(text_response("Outbound request timed out."))
+				other => Err(ServerErr("Expected Timeout, got ${Str.inspect(other)}"))
+			}
 		}
-	} else {
-		Ok(text_response("See init! for the outbound HTTP example code."))
+		_ => Ok(text_response("See init! for the outbound HTTP example code."))
 	}
-}
 
 text_response : Str -> Server.Outcome
 text_response = |body|

@@ -154,12 +154,10 @@ base64_quad = |a, b, c, byte_count| {
 	third = base64_byte((bits // 64) % 64)
 	fourth = base64_byte(bits % 64)
 
-	if byte_count == 1 {
-		[first, second, '=', '=']
-	} else if byte_count == 2 {
-		[first, second, third, '=']
-	} else {
-		[first, second, third, fourth]
+	match byte_count {
+		1 => [first, second, '=', '=']
+		2 => [first, second, third, '=']
+		_ => [first, second, third, fourth]
 	}
 }
 

@@ -12,16 +12,26 @@ Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[
+		Exit(I64),
+		FailedToCheckExecutable(_),
+		FailedToCheckReadable(_),
+		FailedToCheckWritable(_),
+		FailedToPrintPermissions(_),
+		..,
+	],
+)
 init! = || {
 	file = Path.utf8("LICENSE")
 
-	is_executable = Path.is_executable!(file) ? |_| Exit(1)
-	is_readable = Path.is_readable!(file) ? |_| Exit(1)
-	is_writable = Path.is_writable!(file) ? |_| Exit(1)
+	is_executable = Path.is_executable!(file) ? |err| FailedToCheckExecutable(err)
+	is_readable = Path.is_readable!(file) ? |err| FailedToCheckReadable(err)
+	is_writable = Path.is_writable!(file) ? |err| FailedToCheckWritable(err)
 	summary = "${Path.display(file)} file permissions:\nExecutable: ${Str.inspect(is_executable)}\nReadable: ${Str.inspect(is_readable)}\nWritable: ${Str.inspect(is_writable)}"
 
-	Stdout.line!(summary) ? |_| Exit(1)
+	Stdout.line!(summary) ? |err| FailedToPrintPermissions(err)
 
 	Ok({ config: Server.default_config, context: summary })
 }

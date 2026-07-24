@@ -13,9 +13,9 @@ Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToReadSource(_), ..])
 init! = || {
-	contents = Path.read_utf8!(Path.utf8("examples/file-read.roc")) ? |_| Exit(1)
+	contents = Path.read_utf8!(Path.utf8("examples/file-read.roc")) ? |err| FailedToReadSource(err)
 	Ok({ config: Server.default_config, context: "Source code of current program:\n\n${contents}" })
 }
 

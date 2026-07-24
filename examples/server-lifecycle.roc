@@ -24,15 +24,18 @@ respond! = |_request, context| {
 	Ok(Server.stop_after(response))
 }
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason,
+Context => Try(
+	{},
+	[Exit(I64), FailedToLogShutdown(_), UnexpectedShutdown({ context : Str, reason : Server.ShutdownReason }), ..],
+)
 shutdown! = |reason, context|
 	match reason {
 		ApplicationRequested if context == "lifecycle context" => {
-			Stdout.line!("shutdown hook: ApplicationRequested, context: lifecycle context") ? |_| Exit(1)
+			Stdout.line!("shutdown hook: ApplicationRequested, context: lifecycle context") ? |err| FailedToLogShutdown(err)
 			Ok({})
 		}
 		_ => {
-			Stdout.line!("shutdown mismatch: reason=${Str.inspect(reason)}, context=${context}") ?? {}
-			Err(Exit(1))
+			Err(UnexpectedShutdown({ reason, context }))
 		}
 	}

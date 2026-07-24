@@ -14,11 +14,14 @@ Context : Str
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try(
+	{ config : Server.Config, context : Context },
+	[Exit(I64), FailedToListExamples(_), FailedToPrintExamples(_), ..],
+)
 init! = || {
-	paths = Path.list!(Path.utf8("examples")) ? |_| Exit(1)
+	paths = Path.list!(Path.utf8("examples")) ? |err| FailedToListExamples(err)
 	paths_str = Str.join_with(paths.map(Path.display), "\n")
-	Stdout.line!("Entries in examples/:\n${paths_str}") ? |_| Exit(1)
+	Stdout.line!("Entries in examples/:\n${paths_str}") ? |err| FailedToPrintExamples(err)
 
 	Ok({ config: Server.default_config, context: paths_str })
 }
