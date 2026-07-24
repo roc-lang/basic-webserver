@@ -1,5 +1,5 @@
 # Demo of the basic-webserver outbound HTTP client (Http.send! / Http.get_utf8! / Http.get!).
-app [Model, program] {
+app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -11,19 +11,17 @@ import pf.Url
 import http.Request
 import http.Response
 
-Model : {}
-Action : {}
-Result : {}
+Context : {}
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
 # Fetch some content at startup to demonstrate the outbound HTTP client. To
 # exercise it, run a server on localhost:9000 (see the root README); otherwise the
 # requests simply report a failure and the webserver still starts.
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
 	demo!() ?? {}
-	Ok({ config: Server.default_config, model: {} })
+	Ok({ config: Server.default_config, context: {} })
 }
 
 demo! : () => Try({}, _)
@@ -84,9 +82,8 @@ demo! = || {
     }
 }
 
-transition = Server.no_transition
 
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_request, _state| {
     response = Response.from_status(200)
         .with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
@@ -94,5 +91,5 @@ respond! = |_request, _state| {
     Ok(Server.respond(response))
 }
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

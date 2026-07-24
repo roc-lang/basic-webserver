@@ -40,18 +40,18 @@ server:
   Hyper and Roc. Applications can narrow a request's limit with
   `request.body().with_limit(...)`. Responses are currently complete in-memory
   bodies; response streaming is not yet available.
-- Request handlers run concurrently on Tokio's blocking thread pool. They can
-  apply typed actions through `Server.State`; a dedicated coordinator applies
-  `transition` calls one at a time, giving state updates a linearizable order
-  without serializing request I/O.
-- `init!` returns the server configuration and initial model. On SIGINT,
+- Request handlers run concurrently on Tokio's blocking thread pool. Every
+  handler receives an owned reference to the same immutable application
+  context. Durable mutable state belongs in SQLite or an external service, so
+  requests do not pass through a global application-state coordinator.
+- `init!` returns the server configuration and immutable context. On SIGINT,
   SIGTERM, or an application `StopAfter` outcome, the host stops accepting new
   connections, drains active work up to the configured timeout, cancels
   outstanding body streams when that timeout expires, and calls `shutdown!`
-  once with the final model after a successful drain. If the drain deadline or
+  once with the context after a successful drain. If the drain deadline or
   shutdown-hook deadline expires, the host forces exit with status 1; a drain
   timeout cannot safely run `shutdown!` while a Roc handler may still be using
-  the model. A second OS termination signal also forces exit.
+  the context. A second OS termination signal also forces exit.
 - Outbound requests require validated `Url` values in the convenience APIs and
   report typed DNS, connection, TLS, exchange, response-body, cancellation,
   timeout, and invalid-response failures. A shared client preserves connection
@@ -67,7 +67,7 @@ Run this example server with `roc examples/hello-web.roc` and go to
 to choose another interface or port.
 
 ```roc
-app [Model, program] {
+app [Context, program] {
     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/<version>/<hash>.tar.zst",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -77,25 +77,16 @@ import pf.Utc
 import pf.Stdout
 import http.Response
 
-Model : U64
-Action : [Visited]
-Result : U64
+Context : { greeting : Str }
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, model: 0 })
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, context: { greeting: "Hello from server" } })
 
-transition : Action, Model -> { model : Model, result : Result }
-transition = |Visited, model| {
-	visits = model + 1
-	{ model: visits, result: visits }
-}
-
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, state| {
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, context| {
     millis = Utc.to_millis_since_epoch(Utc.now!())
-    visits = state.apply!(Visited) ? |_| ServerErr("Server is stopping")
 
     Stdout.line!("${millis.to_str()} ${Str.inspect(req.method())} ${req.target()}")
         ? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
@@ -103,13 +94,13 @@ respond! = |req, state| {
     response =
         Response.from_status(200)
         .with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
-        .with_body(Str.to_utf8("<b>Hello from server, visit ${visits.to_str()}</b>"))
+        .with_body(Str.to_utf8("<b>${context.greeting}</b>"))
 
     Ok(Server.respond(response))
 }
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
-shutdown! = |_, _final_model| Ok({})
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_, _context| Ok({})
 ```
 
 

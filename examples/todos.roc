@@ -1,5 +1,5 @@
 # Web app for todos using a SQLite 3 database.
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -18,18 +18,13 @@ import "todos.html" as todo_html : List(U8)
 # To run this example: check the root README.md.
 # Set `DB_PATH` to override the default database path (`./examples/todos.db`).
 
-Model : {
-    db_path : Path.Path,
-    requests_served : U64,
-}
-Action : [RecordRequest]
-Result : [RequestContext(Path.Path, U64)]
+Context : Path.Path
 
 Todo : { id : I64, task : Str, status : Str }
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
     db_path =
         match Env.var!("DB_PATH") {
@@ -39,30 +34,19 @@ init! = || {
 
     ensure_schema!(db_path) ? |_| Exit(1)
 
-    Ok({ config: Server.default_config, model: { db_path, requests_served: 0 } })
+    Ok({ config: Server.default_config, context: db_path })
 }
 
-transition : Action, Model -> { model : Model, result : Result }
-transition = |RecordRequest, model| {
-    requests_served = model.requests_served + 1
-    {
-        model: { ..model, requests_served },
-        result: RequestContext(model.db_path, requests_served),
-    }
-}
-
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, state| {
-    RequestContext(db_path, request_number) = state.apply!(RecordRequest) ? |_| ServerErr("Server is stopping")
-    match handle_req!(req, db_path, request_number) {
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |req, db_path|
+    match handle_req!(req, db_path) {
         Ok(response) => Ok(Server.respond(response))
         Err(err) => Err(ServerErr(Str.inspect(err)))
     }
-}
 
-handle_req! : Server.Request, Path.Path, U64 => Try(Response.Response, _)
-handle_req! = |req, db_path, request_number| {
-    log_request!(req, request_number)?
+handle_req! : Server.Request, Path.Path => Try(Response.Response, _)
+handle_req! = |req, db_path| {
+    log_request!(req)?
 
     request_url = Url.resolve(todo_origin, req.target()) ? InvalidRequestTarget
     path_parts = Str.split_on(Url.path(request_url), "/")
@@ -165,10 +149,10 @@ ensure_schema! = |db_path|
         bindings: [],
     })
 
-log_request! : Server.Request, U64 => Try({}, _)
-log_request! = |req, request_number| {
+log_request! : Server.Request => Try({}, _)
+log_request! = |req| {
     datetime = Utc.to_iso_8601(Utc.now!())
-    Ok(Stdout.line!("#${request_number.to_str()} ${datetime} ${Str.inspect(req.method())} ${req.target()}") ? |err| StdoutErr(Str.inspect(err)))
+    Ok(Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}") ? |err| StdoutErr(Str.inspect(err)))
 }
 
 json_response : List(Todo) -> Response.Response
@@ -187,5 +171,5 @@ text_response : U16, Str -> Response.Response
 text_response = |status, body|
     html_response(status, Str.to_utf8(body))
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

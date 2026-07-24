@@ -109,7 +109,6 @@ pub(crate) type ServerConfig = InitForHostOkConfig;
 pub(crate) type ServerRequest = RespondForHostArg0;
 pub(crate) type ServerResponse = RespondForHost;
 pub(crate) type ServerHeader = RespondForHostArg0Headers;
-pub(crate) type ServerTransition = TransitionForHost;
 pub(crate) type ServerShutdownReason = ShutdownForHostArg0;
 
 pub(crate) type BodyReadResult = HostRequestBodyReadResult;
@@ -125,10 +124,6 @@ pub(crate) type BodyReadError = HostRequestBodyReadErr;
 pub(crate) type BodyReadErrorPayload = HostRequestBodyReadErrPayload;
 pub(crate) type BodyReadErrorTag = HostRequestBodyReadErrTag;
 pub(crate) type BodyTooLarge = HostRequestBodyReadErrTooLarge;
-
-pub(crate) type StateApplyResult = HostStateApplyResult;
-pub(crate) type StateApplyResultPayload = HostStateApplyResultPayload;
-pub(crate) type StateApplyResultTag = HostStateApplyResultTag;
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
 static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
@@ -344,41 +339,6 @@ pub(crate) fn body_error(
     }
 }
 
-pub(crate) fn state_apply_ok(value: RocBox) -> StateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    unsafe {
-        let mut result: StateApplyResult = core::mem::zeroed();
-        write_payload(&mut result.payload, value);
-        result.tag = StateApplyResultTag::Ok;
-        result
-    }
-    #[cfg(not(target_pointer_width = "32"))]
-    {
-        StateApplyResult {
-            payload: StateApplyResultPayload {
-                ok: core::mem::ManuallyDrop::new(value),
-            },
-            tag: StateApplyResultTag::Ok,
-        }
-    }
-}
-
-pub(crate) fn state_apply_stopping() -> StateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    unsafe {
-        let mut result: StateApplyResult = core::mem::zeroed();
-        result.tag = StateApplyResultTag::Err;
-        result
-    }
-    #[cfg(not(target_pointer_width = "32"))]
-    {
-        StateApplyResult {
-            payload: StateApplyResultPayload { err: [] },
-            tag: StateApplyResultTag::Err,
-        }
-    }
-}
-
 pub(crate) fn io_err_other(message: &str, roc_host: &RocHost) -> HostIOErrType {
     HostIOErrType {
         payload: HostIOErrPayloadType {
@@ -510,13 +470,5 @@ mod tests {
         let end = body_read_end();
         assert_eq!(end.tag, BodyReadResultTag::Ok);
         assert_eq!(end.payload_ok().tag, BodyReadValueTag::End);
-
-        let stopping = state_apply_stopping();
-        assert_eq!(stopping.tag, StateApplyResultTag::Err);
-
-        let null_box = core::ptr::null_mut();
-        let applied = state_apply_ok(null_box);
-        assert_eq!(applied.tag, StateApplyResultTag::Ok);
-        assert_eq!(applied.payload_ok(), null_box);
     }
 }

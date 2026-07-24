@@ -1,4 +1,4 @@
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -11,7 +11,7 @@ import pf.Path
 import pf.Stdout
 import http.Response
 
-Model : {
+Context : {
     list_todos_stmt : Sqlite.Stmt,
     create_todo_stmt : Sqlite.Stmt,
     last_created_todo_stmt : Sqlite.Stmt,
@@ -19,10 +19,8 @@ Model : {
     end_stmt : Sqlite.Stmt,
     rollback_stmt : Sqlite.Stmt,
 }
-Action : {}
-Result : {}
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
 prepare_stmt! : Path.Path, Str => Try(Sqlite.Stmt, [ServerErr(Str), ..])
 prepare_stmt! = |path, query|
@@ -38,7 +36,7 @@ read_env_var! = |name|
         Err(_) => Err(ServerErr("${name} not set on environment"))
     }
 
-init! : () => Try({ config : Server.Config, model : Model }, _)
+init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
     db_path = read_env_var!("DB_PATH")?
 
@@ -53,13 +51,12 @@ init! = || {
 
     Ok({
         config: Server.default_config,
-        model: { list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt },
+        context: { list_todos_stmt, create_todo_stmt, last_created_todo_stmt, begin_stmt, end_stmt, rollback_stmt },
     })
 }
 
-transition = Server.no_transition
 
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_, _state| {
     Stdout.line!("hey") ? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
 
@@ -70,5 +67,5 @@ respond! = |_, _state| {
     )
 }
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

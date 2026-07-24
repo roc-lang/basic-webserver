@@ -3,16 +3,15 @@
 # an `unknown` (rigid/flex) type as 0 bytes while every backend renders it as an
 # 8-byte opaque pointer. With a 4-byte `I32` error that off-by-pointer-width
 # surfaces as a wrong size assertion in the generated glue (for the orphan
-# `Try(model, [Exit(I32)])` app-contract type); with an 8-byte `I64` the two
+# `Try(context, [Exit(I32)])` app-contract type); with an 8-byte `I64` the two
 # happen to agree and it compiles. The host casts the code back to `i32` for
 # `process::exit`. (Root cause: src/glue/glue.zig `getSizeAlignForRepr` .unknown.)
 platform "webserver"
     requires {
-        [Model : model, Action : action, Result : result] for program : {
-            init! : () => Try({ config : Server.Config, model : model }, [Exit(I64), ..]),
-            transition : action, model -> { model : model, result : result },
-            respond! : Server.Request, Server.State(action, result) => Try(Server.Outcome, [ServerErr(Str), ..]),
-            shutdown! : Server.ShutdownReason, model => Try({}, [Exit(I64), ..]),
+        [Context : context] for program : {
+            init! : () => Try({ config : Server.Config, context : context }, [Exit(I64), ..]),
+            respond! : Server.Request, context => Try(Server.Outcome, [ServerErr(Str), ..]),
+            shutdown! : Server.ShutdownReason, context => Try({}, [Exit(I64), ..]),
         }
     }
     exposes [
@@ -44,7 +43,6 @@ platform "webserver"
     }
     provides {
         "roc_init_for_host": init_for_host!,
-        "roc_transition_for_host": transition_for_host,
         "roc_respond_for_host": respond_for_host!,
         "roc_shutdown_for_host": shutdown_for_host!,
     }
@@ -105,7 +103,6 @@ platform "webserver"
         "hosted_sleep_millis": Host.sleep_millis!,
         "hosted_request_body_read": Host.request_body_read!,
         "hosted_request_body_read_all": Host.request_body_read_all!,
-        "hosted_state_apply": Host.state_apply!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -140,10 +137,10 @@ import InternalServer
 import MultipartFormData
 import SplitList
 
-init_for_host! : () => Try({ config : InternalServer.ConfigToHost, model : Box(Model) }, I64)
+init_for_host! : () => Try({ config : InternalServer.ConfigToHost, context : Box(Context) }, I64)
 init_for_host! = ||
     match (program.init!)() {
-        Ok({ config, model }) => Ok({ config: InternalServer.to_host_config(config), model: Box.box(model) })
+        Ok({ config, context }) => Ok({ config: InternalServer.to_host_config(config), context: Box.box(context) })
         Err(Exit(code)) => Err(code)
         Err(other) => {
             Stderr.line!("Server `init!` failed with error:\n\n❌ ${Str.inspect(other)}\n") ?? {}
@@ -151,15 +148,12 @@ init_for_host! = ||
         }
     }
 
-transition_for_host : Box(Action), Box(Model) -> { model : Box(Model), result : Box(Result) }
-transition_for_host = |boxed_action, boxed_model| {
-    transitioned = (program.transition)(Box.unbox(boxed_action), Box.unbox(boxed_model))
-    { model: Box.box(transitioned.model), result: Box.box(transitioned.result) }
-}
+respond_for_host! : InternalServer.RequestFromHost, Box(Context) => InternalServer.OutcomeToHost
+respond_for_host! = |request, boxed_context| {
+    roc_request = InternalServer.from_host_request(request)
+    context = Box.unbox(boxed_context)
 
-respond_for_host! : InternalServer.RequestFromHost => InternalServer.OutcomeToHost
-respond_for_host! = |request|
-    match (program.respond!)(InternalServer.from_host_request(request), Server.State.for_host({})) {
+    match (program.respond!)(roc_request, context) {
         Ok(outcome) => InternalServer.to_host_outcome(outcome)
         Err(ServerErr(msg)) => {
             Stderr.line!("ServerErr: ${msg}") ?? {}
@@ -170,10 +164,14 @@ respond_for_host! = |request|
             { status: 500, headers: [], body: [], stop: False, exit_code: 0 }
         }
     }
+}
 
-shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Model) => Try({}, I64)
-shutdown_for_host! = |reason, boxed_model|
-    match (program.shutdown!)(InternalServer.from_host_shutdown_reason(reason), Box.unbox(boxed_model)) {
+shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Context) => Try({}, I64)
+shutdown_for_host! = |reason, boxed_context| {
+    shutdown_reason = InternalServer.from_host_shutdown_reason(reason)
+    context = Box.unbox(boxed_context)
+
+    match (program.shutdown!)(shutdown_reason, context) {
         Ok({}) => Ok({})
         Err(Exit(code)) => Err(code)
         Err(other) => {
@@ -181,3 +179,4 @@ shutdown_for_host! = |reason, boxed_model|
             Err(1)
         }
     }
+}

@@ -1,4 +1,4 @@
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -8,13 +8,11 @@ import pf.Stdout
 import pf.Url
 import http.Response
 
-Model : {}
-Action : {}
-Result : {}
+Context : {}
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = ||
     match run_tests!() {
         Ok(_) => {
@@ -75,11 +73,10 @@ expect_true : Bool, Str -> Try({}, [FailedExpectation(Str)])
 expect_true = |condition, message|
     if condition { Ok({}) } else { Err(FailedExpectation(message)) }
 
-transition = Server.no_transition
 
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_, _state|
     Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("I am a test."))))
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

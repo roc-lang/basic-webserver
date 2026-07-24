@@ -1,4 +1,4 @@
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -89,7 +89,7 @@ display_form_data! = |req| {
     }
 }
 
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, _state|
     match req.method() {
         GET => Ok(Server.respond(form_page))
@@ -97,17 +97,14 @@ respond! = |req, _state|
         _ => Ok(Server.respond(Response.from_status(405)))
     }
 
-# Model is produced by `init!`.
-Model : {}
-Action : {}
-Result : {}
+# Context is produced by `init!` and shared with every request.
+Context : {}
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, model: {} })
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || Ok({ config: Server.default_config, context: {} })
 
-transition = Server.no_transition
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

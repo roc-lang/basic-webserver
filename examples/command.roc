@@ -1,4 +1,4 @@
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -12,13 +12,11 @@ import http.Response
 
 # To run this example: check the root README.md
 
-Model : {}
-Action : {}
-Result : {}
+Context : {}
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
     result! = || {
         # Simplest way to execute a command (prints to your terminal).
@@ -62,7 +60,7 @@ init! = || {
     }
 
     match result!() {
-        Ok(_) => Ok({ config: Server.default_config, model: {} })
+        Ok(_) => Ok({ config: Server.default_config, context: {} })
         Err(err) => {
             Stderr.line!("Error running commands: ${Str.inspect(err)}") ?? {}
             Err(Exit(1))
@@ -70,9 +68,8 @@ init! = || {
     }
 }
 
-transition = Server.no_transition
 
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, _state| {
     time = Utc.to_iso_8601(Utc.now!())
 
@@ -83,5 +80,5 @@ respond! = |req, _state| {
     }
 }
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

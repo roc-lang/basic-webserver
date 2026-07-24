@@ -7,7 +7,6 @@ use crate::abi::{
 use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
-use crate::state::{clear_roc_state_client, start_roc_state, RocValueBox};
 use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::{BodyExt, Full};
@@ -26,7 +25,6 @@ struct RuntimeConfig {
     body_max_bytes: u64,
     body_chunk_bytes: usize,
     body_buffered_chunks: usize,
-    state_queue_capacity: usize,
     drain_timeout: Duration,
     hook_timeout: Duration,
 }
@@ -42,26 +40,53 @@ impl RuntimeConfig {
         if config.body_buffered_chunks == 0 {
             return Err("request body buffered chunk count must be non-zero".to_owned());
         }
-        if config.state_queue_capacity == 0 {
-            return Err("state queue capacity must be non-zero".to_owned());
-        }
-
         Ok(Self {
             host,
             port: config.port,
             body_max_bytes: config.body_max_bytes,
             body_chunk_bytes: config.body_chunk_bytes as usize,
             body_buffered_chunks: config.body_buffered_chunks as usize,
-            state_queue_capacity: config.state_queue_capacity as usize,
             drain_timeout: Duration::from_millis(config.drain_timeout_ms),
             hook_timeout: Duration::from_millis(config.hook_timeout_ms),
         })
     }
 }
 
+/// The one Roc-owned application context retained for the server lifetime.
+///
+/// Rust never dereferences this opaque pointer. Each handler atomically retains
+/// one owned Roc reference immediately before calling Roc, and the provided Roc
+/// wrapper consumes that reference. The root reference is consumed by
+/// `shutdown!` only after all request handlers have drained.
+struct RocContext {
+    root: RocBox,
+}
+
+impl RocContext {
+    fn new(root: RocBox) -> Self {
+        debug_assert!(!root.is_null(), "Roc initialized with a null context box");
+        Self { root }
+    }
+
+    fn retain_for_request(&self) -> RocBox {
+        debug_assert!(!self.root.is_null(), "Roc context root must remain live");
+        // SAFETY: `root` is the live reference returned by `init!`. Generated
+        // Roc ARC uses atomic refcounts for a box shared across host threads.
+        unsafe { incref_box(self.root, 1) };
+        self.root
+    }
+}
+
+// SAFETY: Rust treats the pointer as opaque and immutable. Sharing performs
+// only generated atomic ARC operations; mutation is neither exposed nor
+// performed through this wrapper.
+unsafe impl Send for RocContext {}
+unsafe impl Sync for RocContext {}
+
 #[derive(Clone)]
 struct ServerContext {
     config: Arc<RuntimeConfig>,
+    roc_context: Arc<RocContext>,
     bodies: Arc<BodyRegistry>,
     requests: RequestTracker,
     shutdown: ShutdownController,
@@ -74,23 +99,24 @@ pub fn start() -> i32 {
         InitForHostResultTag::Err => return exit_code_to_i32(init_result.payload_err()),
     };
 
-    let model = initialized.model;
+    let raw_context = initialized.context;
     let config = match RuntimeConfig::from_roc(initialized.config) {
         Ok(config) => config,
         Err(detail) => {
             return finish_shutdown(
                 ShutdownReason::StartupFailed(detail),
-                model,
+                raw_context,
                 Duration::from_secs(10),
             );
         }
     };
 
-    let state = start_roc_state(model, config.state_queue_capacity);
+    let roc_context = Arc::new(RocContext::new(raw_context));
     let bodies = install_registry(config.body_buffered_chunks);
     let shutdown = ShutdownController::new();
     let context = ServerContext {
         config: Arc::new(config.clone()),
+        roc_context: Arc::clone(&roc_context),
         bodies,
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
@@ -106,13 +132,16 @@ pub fn start() -> i32 {
         }
     };
 
-    clear_roc_state_client();
-    let RocValueBox(final_model) = state.stop();
     clear_registry();
-    finish_shutdown(reason, final_model, config.hook_timeout)
+    debug_assert_eq!(
+        Arc::strong_count(&roc_context),
+        1,
+        "all request and connection context references must drain before shutdown"
+    );
+    finish_shutdown(reason, roc_context.root, config.hook_timeout)
 }
 
-fn finish_shutdown(reason: ShutdownReason, model: RocBox, hook_timeout: Duration) -> i32 {
+fn finish_shutdown(reason: ShutdownReason, context: RocBox, hook_timeout: Duration) -> i32 {
     let default_exit_code = reason.default_exit_code();
     let (tag, detail) = shutdown_reason_to_host(&reason);
     let raw_reason = ServerShutdownReason {
@@ -134,7 +163,7 @@ fn finish_shutdown(reason: ShutdownReason, model: RocBox, hook_timeout: Duration
         })
         .expect("failed to start shutdown watchdog");
 
-    let result = unsafe { roc_shutdown_for_host(raw_reason, model) };
+    let result = unsafe { roc_shutdown_for_host(raw_reason, context) };
     let _ = finished_sender.send(());
     let _ = watchdog.join();
 
@@ -224,8 +253,11 @@ fn request_to_roc(
     }
 }
 
-fn call_roc(request: ServerRequest) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
-    let response = unsafe { roc_respond_for_host(request) };
+fn call_roc(
+    request: ServerRequest,
+    context: RocBox,
+) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
+    let response = unsafe { roc_respond_for_host(request, context) };
     response_to_hyper(response)
 }
 
@@ -292,13 +324,15 @@ async fn handle_req(
 
     let body_limit = context.config.body_max_bytes;
     let bodies = Arc::clone(&context.bodies);
+    let roc_context = Arc::clone(&context.roc_context);
     let handled = spawn_blocking(move || {
         // These guards intentionally live in the non-cancellable blocking task.
         // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
-        // stopped using its body or state capability.
+        // stopped using its body or immutable application context.
         let _active_request = active_request;
         let roc_request = request_to_roc(parts, body_id, body_limit, declared_length);
-        let result = call_roc(roc_request);
+        let request_context = roc_context.retain_for_request();
+        let result = call_roc(roc_request, request_context);
         bodies.expire(body_id);
         result
     })
@@ -408,7 +442,7 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         );
 
         // spawn_blocking Roc handlers cannot be safely preempted. Running the
-        // shutdown hook or dropping the model while one may still use state
+        // shutdown hook or dropping the context while one may still use it
         // would be unsound, so the configured drain deadline is a hard process
         // deadline and intentionally skips application shutdown cleanup.
         std::process::exit(1);

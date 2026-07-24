@@ -33,7 +33,6 @@ InternalServer :: [].{
 		body_max_bytes : U64,
 		body_chunk_bytes : U32,
 		body_buffered_chunks : U16,
-		state_queue_capacity : U32,
 		drain_timeout_ms : U64,
 		hook_timeout_ms : U64,
 	}
@@ -79,7 +78,6 @@ InternalServer :: [].{
 		body_max_bytes: config.request_bodies.max_bytes,
 		body_chunk_bytes: config.request_bodies.chunk_bytes,
 		body_buffered_chunks: config.request_bodies.buffered_chunks,
-		state_queue_capacity: config.state_queue_capacity,
 		drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
 		hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
 	}

@@ -21,7 +21,6 @@ mod request_body;
 mod roc_platform_abi;
 mod shutdown;
 mod sqlite;
-mod state;
 mod stdio;
 mod tcp;
 mod time;

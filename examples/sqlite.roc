@@ -1,4 +1,4 @@
-app [Model, program] {
+app [Context, program] {
     pf: platform "../platform/main.roc",
     http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -19,29 +19,23 @@ import http.Response
 #     status TEXT NOT NULL
 # );
 
-# The database path is resolved once at startup and stored in the Model.
-Model : { db_path : Path.Path }
-Action : [GetDbPath]
-Result : [DbPath(Path.Path)]
+# The database path is resolved once at startup and stored in the Context.
+Context : { db_path : Path.Path }
 
-program = { init!, transition, respond!, shutdown! }
+program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, model : Model }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
     db_path =
         match Env.var!("DB_PATH") {
             Ok(path) => Path.from_os_str(path)
             Err(_) => Path.utf8("./examples/todos.db")
         }
-    Ok({ config: Server.default_config, model: { db_path: db_path } })
+    Ok({ config: Server.default_config, context: { db_path: db_path } })
 }
 
-transition : Action, Model -> { model : Model, result : Result }
-transition = |GetDbPath, model| { model, result: DbPath(model.db_path) }
-
-respond! : Server.Request, Server.State(Action, Result) => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_request, state| {
-    DbPath(db_path) = state.apply!(GetDbPath) ? |_| ServerErr("Server is stopping")
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |_request, { db_path }| {
     match query_todos_by_status!(db_path, "completed") {
         Ok(todos) => {
             lines = todos.map(|todo| Str.inspect(todo))
@@ -56,7 +50,7 @@ respond! = |_request, state| {
     }
 }
 
-shutdown! : Server.ShutdownReason, Model => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})
 
 Todo : { id : Str, status : TodoStatus, task : Str }

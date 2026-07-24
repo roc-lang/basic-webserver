@@ -28,7 +28,6 @@ Server :: [].{
 			chunk_bytes : U32,
 			buffered_chunks : U16,
 		},
-		state_queue_capacity : U32,
 		graceful_shutdown : {
 			drain_timeout_ms : U64,
 			hook_timeout_ms : U64,
@@ -36,9 +35,9 @@ Server :: [].{
 	}
 
 	## Safe defaults: loopback-only, a 1 MiB request limit, one buffered 64 KiB
-	## chunk, a bounded state queue, and bounded graceful shutdown. Exceeding the
-	## drain deadline forces process exit without running the shutdown hook,
-	## because a request handler may still be using the application model.
+	## chunk, and bounded graceful shutdown. Exceeding the drain deadline forces
+	## process exit without running the shutdown hook, because a request handler
+	## may still be using the application context.
 	default_config : Config
 	default_config = {
 		listen: { host: "127.0.0.1", port: 8000 },
@@ -47,7 +46,6 @@ Server :: [].{
 			chunk_bytes: default_body_chunk_bytes,
 			buffered_chunks: default_buffered_body_chunks,
 		},
-		state_queue_capacity: 1024,
 		graceful_shutdown: {
 			drain_timeout_ms: 30_000,
 			hook_timeout_ms: 10_000,
@@ -159,20 +157,6 @@ Server :: [].{
 			}
 	}
 
-	## A typed capability for applying linearizable application-state actions.
-	## Only the pure `program.transition` function is serialized; request I/O
-	## remains concurrent.
-	State(action, result) := [State].{
-
-		apply! : State(action, result), action => Try(result, [ServerStopping])
-		apply! = |_, action_value|
-			Host.state_apply!(Box.box(action_value)).map_ok(Box.unbox)
-
-		## Create the capability passed to each request handler.
-		for_host : {} -> State(action, result)
-		for_host = |_| State
-	}
-
 	## A successful request outcome. StopAfter sends its response while beginning
 	## graceful shutdown; the first shutdown cause wins.
 	Outcome : [
@@ -198,7 +182,4 @@ Server :: [].{
 		RuntimeFailed(Str),
 	]
 
-	## Reducer for an application that does not use mutable server state.
-	no_transition : {}, model -> { model : model, result : {} }
-	no_transition = |_, model| { model, result: {} }
 }

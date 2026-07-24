@@ -13,6 +13,8 @@
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(dead_code)]
+#![allow(improper_ctypes)]
+#![allow(improper_ctypes_definitions)]
 
 use core::ffi::c_void;
 use core::sync::atomic::{fence, AtomicIsize, Ordering};
@@ -30,6 +32,74 @@ pub struct RocDec {
 
 const _: [(); 16] = [(); core::mem::size_of::<RocDec>()];
 const _: [(); 16] = [(); core::mem::align_of::<RocDec>()];
+
+#[cfg(target_arch = "x86_64")]
+type RocU8x16Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI8x16Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU16x8Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI16x8Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU32x4Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI32x4Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU64x2Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI64x2Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "aarch64")]
+type RocU8x16Native = core::arch::aarch64::uint8x16_t;
+#[cfg(target_arch = "aarch64")]
+type RocI8x16Native = core::arch::aarch64::int8x16_t;
+#[cfg(target_arch = "aarch64")]
+type RocU16x8Native = core::arch::aarch64::uint16x8_t;
+#[cfg(target_arch = "aarch64")]
+type RocI16x8Native = core::arch::aarch64::int16x8_t;
+#[cfg(target_arch = "aarch64")]
+type RocU32x4Native = core::arch::aarch64::uint32x4_t;
+#[cfg(target_arch = "aarch64")]
+type RocI32x4Native = core::arch::aarch64::int32x4_t;
+#[cfg(target_arch = "aarch64")]
+type RocU64x2Native = core::arch::aarch64::uint64x2_t;
+#[cfg(target_arch = "aarch64")]
+type RocI64x2Native = core::arch::aarch64::int64x2_t;
+#[cfg(target_arch = "wasm32")]
+type RocU8x16Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI8x16Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU16x8Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI16x8Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU32x4Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI32x4Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU64x2Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI64x2Native = core::arch::wasm32::v128;
+
+macro_rules! roc_simd_type {
+    ($name:ident, $native:ident) => {
+        #[repr(transparent)]
+        #[derive(Clone, Copy)]
+        pub struct $name(pub $native);
+        const _: [(); 16] = [(); core::mem::size_of::<$name>()];
+        const _: [(); 16] = [(); core::mem::align_of::<$name>()];
+    };
+}
+roc_simd_type!(RocU8x16, RocU8x16Native);
+roc_simd_type!(RocI8x16, RocI8x16Native);
+roc_simd_type!(RocU16x8, RocU16x8Native);
+roc_simd_type!(RocI16x8, RocI16x8Native);
+roc_simd_type!(RocU32x4, RocU32x4Native);
+roc_simd_type!(RocI32x4, RocI32x4Native);
+roc_simd_type!(RocU64x2, RocU64x2Native);
+roc_simd_type!(RocI64x2, RocI64x2Native);
+
 
 /// Runtime representation of an opaque `Box(T)` value.
 pub type RocBox = *mut c_void;
@@ -1256,129 +1326,98 @@ const _: () = assert!(core::mem::size_of::<AnonStruct2782504baf739389>() == 32, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct2782504baf739389>() == 8, "AnonStruct2782504baf739389 alignment mismatch");
 
-/// Element type for __AnonStruct_23d066919f2edbe8
+/// Element type for __AnonStruct_1f12a65955b54fe1
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct23d066919f2edbe8 {
+pub struct AnonStruct1f12a65955b54fe1 {
     pub init_bang: *mut c_void,
     pub respond_bang: *mut c_void,
     pub shutdown_bang: *mut c_void,
-    pub transition: *mut c_void,
 }
 
-/// Element type for __AnonStruct_23d066919f2edbe8
+/// Element type for __AnonStruct_1f12a65955b54fe1
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct23d066919f2edbe8 {
+pub struct AnonStruct1f12a65955b54fe1 {
     pub init_bang: *mut c_void,
     pub respond_bang: *mut c_void,
     pub shutdown_bang: *mut c_void,
-    pub transition: *mut c_void,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct23d066919f2edbe8>() == 32, "AnonStruct23d066919f2edbe8 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 24, "AnonStruct1f12a65955b54fe1 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct23d066919f2edbe8>() == 8, "AnonStruct23d066919f2edbe8 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 8, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct23d066919f2edbe8>() == 16, "AnonStruct23d066919f2edbe8 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, "AnonStruct1f12a65955b54fe1 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct23d066919f2edbe8>() == 4, "AnonStruct23d066919f2edbe8 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_cdb3403b9d31de47
+/// Element type for __AnonStruct_ea80353a63cc5671
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructCdb3403b9d31de47 {
-    pub config: AnonStruct33606278b7ec2382,
-    pub model: RocBox,
+pub struct AnonStructEa80353a63cc5671 {
+    pub config: AnonStruct7ee3db66af86e63c,
+    pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_cdb3403b9d31de47
+/// Element type for __AnonStruct_ea80353a63cc5671
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructCdb3403b9d31de47 {
-    pub config: AnonStruct33606278b7ec2382,
-    pub model: RocBox,
+pub struct AnonStructEa80353a63cc5671 {
+    pub config: AnonStruct7ee3db66af86e63c,
+    pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructCdb3403b9d31de47>() == 72, "AnonStructCdb3403b9d31de47 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructEa80353a63cc5671>() == 64, "AnonStructEa80353a63cc5671 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructCdb3403b9d31de47>() == 8, "AnonStructCdb3403b9d31de47 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructEa80353a63cc5671>() == 8, "AnonStructEa80353a63cc5671 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructCdb3403b9d31de47>() == 56, "AnonStructCdb3403b9d31de47 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructEa80353a63cc5671>() == 56, "AnonStructEa80353a63cc5671 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructCdb3403b9d31de47>() == 8, "AnonStructCdb3403b9d31de47 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructEa80353a63cc5671>() == 8, "AnonStructEa80353a63cc5671 alignment mismatch");
 
-/// Element type for __AnonStruct_33606278b7ec2382
+/// Element type for __AnonStruct_7ee3db66af86e63c
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct33606278b7ec2382 {
+pub struct AnonStruct7ee3db66af86e63c {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
     pub host: RocStr,
     pub body_chunk_bytes: u32,
-    pub state_queue_capacity: u32,
     pub body_buffered_chunks: u16,
     pub port: u16,
 }
 
-/// Element type for __AnonStruct_33606278b7ec2382
+/// Element type for __AnonStruct_7ee3db66af86e63c
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct33606278b7ec2382 {
+pub struct AnonStruct7ee3db66af86e63c {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
     pub host: RocStr,
     pub body_chunk_bytes: u32,
-    pub state_queue_capacity: u32,
     pub body_buffered_chunks: u16,
     pub port: u16,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct33606278b7ec2382>() == 64, "AnonStruct33606278b7ec2382 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct7ee3db66af86e63c>() == 56, "AnonStruct7ee3db66af86e63c size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct33606278b7ec2382>() == 8, "AnonStruct33606278b7ec2382 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct7ee3db66af86e63c>() == 8, "AnonStruct7ee3db66af86e63c alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct33606278b7ec2382>() == 48, "AnonStruct33606278b7ec2382 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct7ee3db66af86e63c>() == 48, "AnonStruct7ee3db66af86e63c size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct33606278b7ec2382>() == 8, "AnonStruct33606278b7ec2382 alignment mismatch");
-
-/// Element type for __AnonStruct_ff9b81c732bd7dac
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStructFf9b81c732bd7dac {
-    pub model: RocBox,
-    pub result: RocBox,
-}
-
-/// Element type for __AnonStruct_ff9b81c732bd7dac
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AnonStructFf9b81c732bd7dac {
-    pub model: RocBox,
-    pub result: RocBox,
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructFf9b81c732bd7dac>() == 16, "AnonStructFf9b81c732bd7dac size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructFf9b81c732bd7dac>() == 8, "AnonStructFf9b81c732bd7dac alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructFf9b81c732bd7dac>() == 8, "AnonStructFf9b81c732bd7dac size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructFf9b81c732bd7dac>() == 4, "AnonStructFf9b81c732bd7dac alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct7ee3db66af86e63c>() == 8, "AnonStruct7ee3db66af86e63c alignment mismatch");
 
 /// Element type for __AnonStruct_9618161a745c1367
 #[cfg(target_pointer_width = "32")]
@@ -3581,71 +3620,6 @@ const _: () = assert!(core::mem::offset_of!(HostRequestBodyReadAllResult, tag) =
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostStateApplyResultTag {
-    Err = 0,
-    Ok = 1,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union HostStateApplyResultPayload {
-    pub err: [u8; 0],
-    pub ok: core::mem::ManuallyDrop<RocBox>,
-}
-
-#[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResultPayloadAlignment;
-
-/// Tag union: Try
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResult {
-    pub _payload_alignment: [HostStateApplyResultPayloadAlignment; 0],
-    pub payload: [u8; 4],
-    pub tag: HostStateApplyResultTag,
-}
-
-/// Tag union: Try
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyResult {
-    pub payload: HostStateApplyResultPayload,
-    pub tag: HostStateApplyResultTag,
-}
-
-impl HostStateApplyResult {
-    #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocBox {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocBox) }
-    }
-
-    #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocBox {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
-    }
-
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostStateApplyResult>() == 16, "HostStateApplyResult size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostStateApplyResult>() == 8, "HostStateApplyResult alignment mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostStateApplyResult, tag) == 8, "HostStateApplyResult tag offset mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostStateApplyResult>() == 8, "HostStateApplyResult size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostStateApplyResult>() == 4, "HostStateApplyResult alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostStateApplyResult, tag) == 4, "HostStateApplyResult tag offset mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPathTypeResultTag {
     Err = 0,
     Ok = 1,
@@ -4466,7 +4440,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStructCdb3403b9d31de47>,
+    pub ok: core::mem::ManuallyDrop<AnonStructEa80353a63cc5671>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -4505,23 +4479,23 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStructCdb3403b9d31de47 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructCdb3403b9d31de47) }
+    pub fn payload_ok(&self) -> AnonStructEa80353a63cc5671 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructEa80353a63cc5671) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStructCdb3403b9d31de47 {
+    pub fn payload_ok(&self) -> AnonStructEa80353a63cc5671 {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 80, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 72, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 72, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 64, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 64, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
@@ -5541,15 +5515,6 @@ pub struct HostSqliteStepArgs {
     pub arg0: *mut u64,
 }
 
-/// Arguments for Host.state_apply!
-/// Roc signature: Box(rigid) => Try(Box(rigid), [ServerStopping])
-/// Refcounted fields are owned by the hosted function.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostStateApplyArgs {
-    pub arg0: RocBox,
-}
-
 /// Arguments for Host.stderr_line!
 /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
@@ -5820,9 +5785,8 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStructCdb3403b9d31de47;
-pub type InitForHostOkConfig = AnonStruct33606278b7ec2382;
-pub type TransitionForHost = AnonStructFf9b81c732bd7dac;
+pub type InitForHostOk = AnonStructEa80353a63cc5671;
+pub type InitForHostOkConfig = AnonStruct7ee3db66af86e63c;
 pub type RespondForHostArg0 = AnonStruct9618161a745c1367;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
 pub type RespondForHost = AnonStruct6f3dea2f169284fc;
@@ -7314,41 +7278,6 @@ impl HostRequestBodyReadAllResult {
     }
 }
 
-impl HostStateApplyResult {
-    /// Recursively decrement Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted payload.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        let _ = roc_host;
-        match value.tag {
-            HostStateApplyResultTag::Err => {},
-            HostStateApplyResultTag::Ok => {
-                let payload = value.payload_ok();
-                unsafe { decref_box(payload as RocBox, roc_host); }
-            },
-        }
-    }
-
-    /// Increment Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        let _ = amount;
-        match value.tag {
-            HostStateApplyResultTag::Err => {},
-            HostStateApplyResultTag::Ok => {
-                let payload = value.payload_ok();
-                unsafe { incref_box(payload as RocBox, amount); }
-            },
-        }
-    }
-}
-
 impl HostPathTypeResult {
     /// Recursively decrement Roc-owned payloads.
     ///
@@ -7843,7 +7772,7 @@ impl HostTcpWriteResult {
     }
 }
 
-impl AnonStruct23d066919f2edbe8 {
+impl AnonStruct1f12a65955b54fe1 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7901,7 +7830,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStructCdb3403b9d31de47 {
+impl AnonStructEa80353a63cc5671 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7909,7 +7838,7 @@ impl AnonStructCdb3403b9d31de47 {
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
         unsafe { value.config.decref(roc_host); }
-        unsafe { decref_box(value.model as RocBox, roc_host); }
+        unsafe { decref_box(value.context as RocBox, roc_host); }
     }
 
     /// Increment Roc-owned fields.
@@ -7920,11 +7849,11 @@ impl AnonStructCdb3403b9d31de47 {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.config.incref(amount); }
-        unsafe { incref_box(value.model as RocBox, amount); }
+        unsafe { incref_box(value.context as RocBox, amount); }
     }
 }
 
-impl AnonStruct33606278b7ec2382 {
+impl AnonStruct7ee3db66af86e63c {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -7942,29 +7871,6 @@ impl AnonStruct33606278b7ec2382 {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.host.incref(amount); }
-    }
-}
-
-impl AnonStructFf9b81c732bd7dac {
-    /// Recursively decrement Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted field.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        unsafe { decref_box(value.model as RocBox, roc_host); }
-        unsafe { decref_box(value.result as RocBox, roc_host); }
-    }
-
-    /// Increment Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        unsafe { incref_box(value.model as RocBox, amount); }
-        unsafe { incref_box(value.result as RocBox, amount); }
     }
 }
 
@@ -8282,10 +8188,6 @@ unsafe extern "C" {
     /// Roc signature: Host.SqliteStmt => Try(Bool, { code : I64, message : Str })
     pub fn hosted_sqlite_step(arg0: *mut u64) -> HostSqliteStepResult;
 
-    /// Hosted symbol for Host.state_apply!
-    /// Roc signature: Box(rigid) => Try(Box(rigid), [ServerStopping])
-    pub fn hosted_state_apply(arg0: RocBox) -> HostStateApplyResult;
-
     /// Hosted symbol for Host.stderr_line!
     /// Roc signature: Str => Try({}, [StderrErr(IOErr)])
     pub fn hosted_stderr_line(arg0: RocStr) -> HostStderrLineResult;
@@ -8471,11 +8373,8 @@ unsafe extern "C" {
     /// Entrypoint: init_for_host!
     pub fn roc_init_for_host() -> InitForHostResult;
 
-    /// Entrypoint: transition_for_host
-    pub fn roc_transition_for_host(arg0: RocBox, arg1: RocBox) -> AnonStructFf9b81c732bd7dac;
-
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367) -> AnonStruct6f3dea2f169284fc;
+    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367, arg1: RocBox) -> AnonStruct6f3dea2f169284fc;
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

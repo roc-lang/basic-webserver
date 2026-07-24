@@ -9,12 +9,12 @@ spawn $env(TESTS_DIR)server-lifecycle
 expect "Listening on <http://127.0.0.1:8000>\r\n" {
     set response [exec curl -sS http://127.0.0.1:8000]
 
-    if {$response ne "updates=3"} {
-        puts stderr "\nExpected lifecycle response 'updates=3', got '$response'."
+    if {$response ne "context=lifecycle context"} {
+        puts stderr "\nExpected lifecycle response 'context=lifecycle context', got '$response'."
         exit 1
     }
 
-    expect "shutdown hook: ApplicationRequested, final model: 3\r\n" {
+    expect "shutdown hook: ApplicationRequested, context: lifecycle context\r\n" {
         expect {
             "shutdown hook:" {
                 puts stderr "\nshutdown! ran more than once."

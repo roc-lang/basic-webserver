@@ -103,8 +103,6 @@ Host := [].{
     request_body_read! : U64, U64 => Try(RequestBodyRead, RequestBodyErr)
     request_body_read_all! : U64, U64 => Try(List(U8), RequestBodyErr)
 
-    state_apply! : Box(a) => Try(Box(b), [ServerStopping])
-
     path_type! : RawPath => Try(PathType, IOErr)
 
     sqlite_prepare! : RawPath, Str => Try(SqliteStmt, InternalSqlite.SqliteError)
