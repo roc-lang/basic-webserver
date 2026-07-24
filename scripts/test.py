@@ -35,6 +35,7 @@ DEFAULT_ARTIFACT_DIR = ROOT / "dist" / "example-binaries"
 STAGES = ("fmt", "check", "test", "build", "run")
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
+PORTABLE_TEXT_SUFFIXES = {".html", ".json", ".py", ".roc"}
 TARGET_PLATFORMS = {
     "x64mac": "darwin",
     "arm64mac": "darwin",
@@ -61,6 +62,16 @@ def fail(message: str) -> None:
 
 def normalize_text(value: str) -> str:
     return value.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def portable_text_bytes(path: Path) -> bytes:
+    return normalize_text(path.read_text(encoding="utf-8")).encode("utf-8")
+
+
+def portable_file_bytes(path: Path) -> bytes:
+    if path.suffix in PORTABLE_TEXT_SUFFIXES:
+        return portable_text_bytes(path)
+    return path.read_bytes()
 
 
 def command(*args: str | Path, cwd: Path = ROOT) -> None:
@@ -928,7 +939,7 @@ def compare_results(directory: Path) -> None:
 
 
 def spec_hash() -> str:
-    return hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest()
+    return hashlib.sha256(portable_text_bytes(SPEC_PATH)).hexdigest()
 
 
 def examples_hash() -> str:
@@ -942,7 +953,7 @@ def examples_hash() -> str:
     for path in sorted(paths):
         digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(portable_file_bytes(path))
         digest.update(b"\0")
     return digest.hexdigest()
 

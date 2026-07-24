@@ -62,6 +62,20 @@ class SpecValidationTests(unittest.TestCase):
         self.assertEqual(test.normalize_text("a\r\nb\r"), "a\nb\n")
         self.assertNotEqual(b"a\r\nb", b"a\nb")
 
+    def test_portable_text_bytes_ignore_checkout_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            source = directory / "source.roc"
+            source.write_bytes(b"first\r\nsecond\r")
+            self.assertEqual(
+                test.portable_file_bytes(source), b"first\nsecond\n"
+            )
+            database = directory / "database.db"
+            database.write_bytes(b"first\r\nsecond\r")
+            self.assertEqual(
+                test.portable_file_bytes(database), b"first\r\nsecond\r"
+            )
+
     def test_artifact_manifest_round_trip(self) -> None:
         defaults, apps = test.load_spec()
         with tempfile.TemporaryDirectory() as raw_directory:
