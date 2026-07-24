@@ -4,7 +4,6 @@ app [Context, program] {
 }
 
 import pf.Stdout
-import pf.Stderr
 import pf.Server
 import pf.Path
 import pf.Utc
@@ -14,27 +13,17 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
-	result! = || {
-		file = Path.utf8("LICENSE")
+	file = Path.utf8("LICENSE")
 
-		time_modified = Utc.to_iso_8601(Path.time_modified!(file)?)
-		time_accessed = Utc.to_iso_8601(Path.time_accessed!(file)?)
-		time_created = Utc.to_iso_8601(Path.time_created!(file)?)
+	time_modified = Utc.to_iso_8601(Path.time_modified!(file)?)
+	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file)?)
+	time_created = Utc.to_iso_8601(Path.time_created!(file)?)
 
-		Stdout.line!("${Path.display(file)} file time metadata:\n    Modified: ${time_modified}\n    Accessed: ${time_accessed}\n    Created: ${time_created}")?
+	Stdout.line!("${Path.display(file)} file time metadata:\n    Modified: ${time_modified}\n    Accessed: ${time_accessed}\n    Created: ${time_created}")?
 
-		Ok({})
-	}
-
-	match result!() {
-		Ok(_) => Ok({ config: Server.default_config, context: {} })
-		Err(err) => {
-			Stderr.line!("Error reading file time metadata: ${Str.inspect(err)}") ?? {}
-			Err(Exit(1))
-		}
-	}
+	Ok({ config: Server.default_config, context: {} })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])

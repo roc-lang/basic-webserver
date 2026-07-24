@@ -10,8 +10,11 @@ import Path
 # a hosted declaration, and (b) does not unify an associated `:` type alias (e.g.
 # `Value`) with the structural tag union it aliases when used as a function
 # parameter, nor support open tag-union extension (`[Tag]ext`) in annotations. So
-# the decoders are left unannotated and all decoder errors live in one closed set
-# of tags (see DecodeErr below for the documented shape).
+# the public decoder combinators rely on inferred structural types and all decoder
+# errors live in one closed set of tags (see DecodeErr below for the documented
+# shape). Helpers whose types can be expressed without those structural aliases
+# are annotated; the remaining decoder pipeline stays inferred because annotating
+# its open rows is not supported by the current compiler.
 ## Execute SQLite statements and decode rows using either one-shot or reusable
 ## prepared APIs. Application code works with the public `Value`, `Binding`,
 ## `Stmt`, and `ErrCode` types below; raw host ABI records remain internal.
@@ -124,8 +127,8 @@ Sqlite :: [].{
 		Unknown(I64),
 	]
 
-	## Documented shape of the errors a decoder can produce (the decoders below are
-	## left unannotated and infer a subset of these structurally):
+	## Documented shape of the errors a decoder can produce (the decoder combinators
+	## infer a subset of these structurally):
 	## ```
 	## [
 	##     NoSuchField(Str),

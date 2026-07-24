@@ -108,6 +108,8 @@ create_todo! = |db_path, params| {
 	Ok(json_response([todo]))
 }
 
+# The statement type supplied to row decoders is host-internal, so this top-level
+# decoder cannot name its inferred type from application code.
 decode_todo = |cols|
 	|stmt| {
 		id = Sqlite.i64("id")(cols)(stmt)?

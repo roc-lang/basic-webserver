@@ -54,7 +54,7 @@ display_uploaded_image! = |req| {
 		})
 			? |err| ServerErr("Failed to parse multipart form-data: ${Str.inspect(err)}")
 
-	match List.first(parts) {
+	match parts.first() {
 		Ok(part) => {
 			img = base64_encode(part.data)
 			page = 
@@ -122,13 +122,13 @@ base64_bytes = |remaining, out|
 		[] => out
 
 		[a] =>
-			List.concat(out, base64_quad(a, 0, 0, 1))
+			out.concat(base64_quad(a, 0, 0, 1))
 
 		[a, b] =>
-			List.concat(out, base64_quad(a, b, 0, 2))
+			out.concat(base64_quad(a, b, 0, 2))
 
 		[a, b, c, ..] =>
-			base64_bytes(List.drop_first(remaining, 3), List.concat(out, base64_quad(a, b, c, 3)))
+			base64_bytes(remaining.drop_first(3), out.concat(base64_quad(a, b, c, 3)))
 		}
 
 base64_quad : U8, U8, U8, U64 -> List(U8)

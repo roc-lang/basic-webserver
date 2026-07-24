@@ -9,6 +9,7 @@ OsStr := [
 	UnixBytes(List(U8)),
 	WindowsU16s(List(U16)),
 ].{
+
 	## The structural representation used only at native host boundaries.
 	## `OsStr` remains the single public operating-system string abstraction.
 	Raw : [Utf8(Str), UnixBytes(List(U8)), WindowsU16s(List(U16))]
@@ -244,9 +245,17 @@ is_surrogate = |unit| unit >= 0xD800 and unit <= 0xDFFF
 
 ## Inspection identifies the representation and preserves invalid raw units.
 expect Str.inspect(OsStr.utf8("a\nb")) == "OsStr.utf8(\"a\\nb\")"
+
+## Unix text inspection uses the canonical UTF-8 representation.
 expect Str.inspect(OsStr.unix("abc")) == "OsStr.utf8(\"abc\")"
+
+## Unix byte inspection preserves invalid UTF-8.
 expect Str.inspect(OsStr.unix_bytes([97, 255, 98])) == "OsStr.unix_bytes([97, 255, 98])"
+
+## Windows text inspection uses the canonical UTF-8 representation.
 expect Str.inspect(OsStr.windows("abc")) == "OsStr.utf8(\"abc\")"
+
+## Windows unit inspection preserves invalid UTF-16.
 expect Str.inspect(OsStr.windows_u16s([0xD800, 97])) == "OsStr.windows_u16s([55296, 97])"
 
 ## Interpolation creates a UTF-8 representation.
@@ -259,5 +268,9 @@ expect {
 
 ## Equality and hashing agree for losslessly equivalent constructors.
 expect OsStr.utf8("abc") == OsStr.unix("abc")
+
+## Equivalent UTF-8 and Windows strings compare equally.
 expect OsStr.utf8("abc") == OsStr.windows_u16s([97, 98, 99])
+
+## Equivalent raw strings produce matching dictionary hashes.
 expect Dict.single(OsStr.unix_bytes([97, 255]), "found").get(OsStr.unix_bytes([97, 255])) == Ok("found")

@@ -229,6 +229,7 @@ to_host_cmd = |Cmd(cmd)| {
 	stderr_limit_bytes: cmd.stderr_limit_bytes,
 }
 
+## Command inspection preserves escaped arguments and environment variables.
 expect {
 	cmd = Cmd.new_str("echo\nnext")
 		.arg_str("hello world")
@@ -238,13 +239,22 @@ expect {
 	Str.inspect(cmd) == "Cmd({ program: OsStr.utf8(\"echo\\nnext\"), args: [OsStr.utf8(\"hello world\")], envs: [{ name: OsStr.utf8(\"NAME\"), value: OsStr.utf8(\"Roc\") }], clear_envs: True })"
 }
 
+## Host conversion preserves non-UTF-8 command arguments and environment variables.
 expect {
 	cmd = Cmd.new(OsStr.unix_bytes([112, 255]))
 		.arg(OsStr.windows_u16s([97, 0xD800]))
 		.env(OsStr.unix_bytes([75, 255]), OsStr.windows_u16s([86, 0xD800]))
 	host_cmd = to_host_cmd(cmd)
 
-	host_cmd.program == UnixBytes([112, 255]) and
-		host_cmd.args == [WindowsU16s([97, 0xD800])] and
-			host_cmd.envs == [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 0xD800]) }]
+	actual = 
+		\\program: ${Str.inspect(host_cmd.program)}
+		\\args: ${Str.inspect(host_cmd.args)}
+		\\envs: ${Str.inspect(host_cmd.envs)}
+
+	expected = 
+		\\program: UnixBytes([112, 255])
+		\\args: [WindowsU16s([97, 55296])]
+		\\envs: [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 55296]) }]
+
+	actual == expected
 }

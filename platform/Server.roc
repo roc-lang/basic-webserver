@@ -32,32 +32,36 @@ Server :: [].{
 	## Opaque runtime configuration returned from the application's `init!`
 	## function. Use the builders below so future server settings can be added
 	## without invalidating application record construction.
-	Config := [Config({
-		listen : { host : Str, port : U16 },
-		limits : {
+	Config := [
+		Config(
+			{
+				listen : { host : Str, port : U16 },
+				limits : {
 
-			## The listener applies TCP accept backpressure while this many
-			## connections are active.
-			max_connections : U32,
+					## The listener applies TCP accept backpressure while this many
+					## connections are active.
+					max_connections : U32,
 
-			## At most this many Roc request handlers execute concurrently.
-			max_handlers : U16,
+					## At most this many Roc request handlers execute concurrently.
+					max_handlers : U16,
 
-			## Requests beyond the active-handler limit may wait in this finite
-			## queue. Once it is full, new requests receive 503 and the
-			## connection is closed. Zero disables queueing.
-			max_queued_handlers : U16,
-		},
-		request_bodies : {
-			max_bytes : U64,
-			chunk_bytes : U32,
-			buffered_chunks : U16,
-		},
-		graceful_shutdown : {
-			drain_timeout_ms : U64,
-			hook_timeout_ms : U64,
-		},
-	})].{
+					## Requests beyond the active-handler limit may wait in this finite
+					## queue. Once it is full, new requests receive 503 and the
+					## connection is closed. Zero disables queueing.
+					max_queued_handlers : U16,
+				},
+				request_bodies : {
+					max_bytes : U64,
+					chunk_bytes : U32,
+					buffered_chunks : U16,
+				},
+				graceful_shutdown : {
+					drain_timeout_ms : U64,
+					hook_timeout_ms : U64,
+				},
+			},
+		),
+	].{
 
 		## Accessors used by the platform's host conversion layer.
 		get_listen : Config -> { host : Str, port : U16 }
@@ -115,11 +119,15 @@ Server :: [].{
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
-	Body := [Body({
-		host_id : U64,
-		limit_bytes : U64,
-		content_length : [Unknown, Known(U64)],
-	})].{
+	Body := [
+		Body(
+			{
+				host_id : U64,
+				limit_bytes : U64,
+				content_length : [Unknown, Known(U64)],
+			},
+		),
+	].{
 		Read : [Chunk(List(U8)), End]
 
 		## A typed failure while consuming an inbound request body.
@@ -158,7 +166,11 @@ Server :: [].{
 		## may only be narrowed, never widened beyond the server configuration.
 		with_limit : Body, U64 -> Body
 		with_limit = |Body(raw), requested_limit| {
-			next_limit = if requested_limit < raw.limit_bytes { requested_limit } else { raw.limit_bytes }
+			next_limit = if requested_limit < raw.limit_bytes {
+				requested_limit
+			} else {
+				raw.limit_bytes
+			}
 			Body({ ..raw, limit_bytes: next_limit })
 		}
 

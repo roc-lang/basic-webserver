@@ -165,7 +165,7 @@ Url :: {
 	append_path_segments : Url, List(Str) -> Url
 	append_path_segments = |url, segments| {
 		suffix = Str.join_with(segments.map(percent_encode), "/")
-		next_path =
+		next_path = 
 			if Str.is_empty(suffix) {
 				url.path
 			} else if url.path == "/" {
@@ -192,7 +192,7 @@ Url :: {
 	append_query_param : Url, Str, Str -> Url
 	append_query_param = |url, key, value| {
 		pair = Str.concat(Str.concat(form_encode(key), "="), form_encode(value))
-		next_query =
+		next_query = 
 			match url.query {
 				None => pair
 				Some("") => pair
@@ -233,7 +233,7 @@ Url :: {
 	## Unicode but must otherwise already obey URL query syntax.
 	with_query : Url, [None, Some(Str)] -> Try(Url, ParseErr)
 	with_query = |url, option| {
-		next_query_option =
+		next_query_option = 
 			match option {
 				None => Ok(None)
 				Some(raw) =>
@@ -259,7 +259,7 @@ Url :: {
 	## Some("") produces a present empty fragment. Unicode is percent-encoded.
 	with_fragment : Url, [None, Some(Str)] -> Try(Url, ParseErr)
 	with_fragment = |url, option| {
-		next_fragment_option =
+		next_fragment_option = 
 			match option {
 				None => Ok(None)
 				Some(raw) =>
@@ -285,7 +285,7 @@ Url :: {
 
 parse_absolute : Str -> Try(Url, Url.ParseErr)
 parse_absolute = |input| {
-	scheme_parts =
+	scheme_parts = 
 		match split_first(input, "://") {
 			Found(parts) => Ok(parts)
 			NotFound =>
@@ -295,7 +295,7 @@ parse_absolute = |input| {
 					Err(MissingScheme)
 				}
 			}?
-	scheme =
+	scheme = 
 		match ascii_lower(scheme_parts.before) {
 			"http" => Ok(Http)
 			"https" => Ok(Https)
@@ -330,7 +330,7 @@ parse_authority = |authority, scheme| {
 			Found({ before, after }) => {
 				raw_ipv6 = drop_prefix(before, "[")
 				host = validate_ipv6(raw_ipv6)?
-				port =
+				port = 
 					if Str.is_empty(after) {
 						Ok(None)
 					} else if starts_with(after, ":") {
@@ -342,13 +342,13 @@ parse_authority = |authority, scheme| {
 			}
 		}
 	} else {
-		{ raw_host, raw_port } =
+		{ raw_host, raw_port } = 
 			match split_last(authority, ":") {
 				Found({ before, after }) => { raw_host: before, raw_port: Some(after) }
 				NotFound => { raw_host: authority, raw_port: None }
 			}
 		host = validate_host(raw_host)?
-		port =
+		port = 
 			match raw_port {
 				None => Ok(None)
 				Some(raw) => parse_port(raw, scheme)
@@ -363,7 +363,7 @@ validate_host = |raw_host| {
 		Err(EmptyHost)
 	} else if List.any(Str.to_utf8(raw_host), |byte| byte > 127) {
 		Err(InternationalHostUnsupported)
-	} else if List.all(Str.to_utf8(raw_host), |byte| is_digit(byte) or byte == 46) {
+	} else if Str.to_utf8(raw_host).all(|byte| is_digit(byte) or byte == 46) {
 		validate_ipv4(raw_host)
 	} else {
 		validate_dns_name(raw_host)
@@ -374,17 +374,16 @@ validate_dns_name : Str -> Try(Str, [InvalidHost(Str), ..])
 validate_dns_name = |raw_host| {
 	host = ascii_lower(raw_host)
 	labels = Str.split_on(host, ".")
-	valid =
-		List.len(Str.to_utf8(host)) <= 253 and
-			List.all(
-				labels,
+	valid = 
+		Str.to_utf8(host).len() <= 253 and
+			labels.all(
 				|label| {
 					bytes = Str.to_utf8(label)
-					len = List.len(bytes)
+					len = bytes.len()
 					len > 0 and len <= 63 and
 						is_alphanumeric(first_or_zero(bytes)) and
 							is_alphanumeric(last_or_zero(bytes)) and
-								List.all(bytes, |byte| is_alphanumeric(byte) or byte == 45)
+								bytes.all(|byte| is_alphanumeric(byte) or byte == 45)
 				},
 			)
 	if valid {
@@ -397,7 +396,7 @@ validate_dns_name = |raw_host| {
 validate_ipv4 : Str -> Try(Str, [InvalidIpv4(Str), ..])
 validate_ipv4 = |raw_host| {
 	parts = Str.split_on(raw_host, ".")
-	if List.len(parts) != 4 {
+	if parts.len() != 4 {
 		Err(InvalidIpv4(raw_host))
 	} else {
 		match parse_ipv4_parts(parts, []) {
@@ -414,60 +413,60 @@ parse_ipv4_parts = |parts, out|
 		[first, .. as rest] => {
 			# An IPv4 component can contain at most three decimal digits. Check
 			# that before accumulating into U64 so hostile input cannot overflow.
-			if List.len(Str.to_utf8(first)) > 3 {
+			if Str.to_utf8(first).len() > 3 {
 				Err(BadIpv4Part)
 			} else {
 				match parse_decimal(first) {
-				Ok(value) =>
-					if value <= 255 {
-						parse_ipv4_parts(rest, out.append(value))
-					} else {
-						Err(BadIpv4Part)
-					}
-				Err(_) => Err(BadIpv4Part)
-			}
+					Ok(value) =>
+						if value <= 255 {
+							parse_ipv4_parts(rest, out.append(value))
+						} else {
+							Err(BadIpv4Part)
+						}
+					Err(_) => Err(BadIpv4Part)
+				}
 			}
 		}
-		}
+	}
 
 parse_port : Str, [Http, Https] -> Try([None, Some(U16)], [InvalidPort(Str), PortOutOfRange(U64), ..])
 parse_port = |raw, scheme| {
 	# A valid U16 port has at most five decimal digits. Reject longer input
 	# before parsing so decimal accumulation cannot overflow U64.
-	if List.len(Str.to_utf8(raw)) > 5 {
+	if Str.to_utf8(raw).len() > 5 {
 		Err(InvalidPort(raw))
 	} else {
 		match parse_decimal(raw) {
-		Err(_) => Err(InvalidPort(raw))
-		Ok(value) =>
-			if value > 65535 {
-				Err(PortOutOfRange(value))
-			} else {
-				port = U64.to_u16_wrap(value)
-				is_default =
-					match scheme {
-						Http => port == 80
-						Https => port == 443
-					}
-				Ok(
-					if is_default {
-						None
-					} else {
-						Some(port)
-					},
-				)
+			Err(_) => Err(InvalidPort(raw))
+			Ok(value) =>
+				if value > 65535 {
+					Err(PortOutOfRange(value))
+				} else {
+					port = U64.to_u16_wrap(value)
+					is_default = 
+						match scheme {
+							Http => port == 80
+							Https => port == 443
+						}
+					Ok(
+						if is_default {
+							None
+						} else {
+							Some(port)
+						},
+					)
+				}
 			}
-		}
 	}
 }
 
 parse_decimal : Str -> Try(U64, [NotDecimal])
 parse_decimal = |raw| {
 	bytes = Str.to_utf8(raw)
-	if List.is_empty(bytes) or Bool.not(List.all(bytes, is_digit)) {
+	if bytes.is_empty() or Bool.not(bytes.all(is_digit)) {
 		Err(NotDecimal)
 	} else {
-		Ok(List.fold(bytes, 0, |acc, byte| acc * 10 + U8.to_u64(byte - 48)))
+		Ok(bytes.fold(0, |acc, byte| acc * 10 + U8.to_u64(byte - 48)))
 	}
 }
 
@@ -479,11 +478,11 @@ parse_decimal = |raw| {
 validate_ipv6 : Str -> Try(Str, [InvalidIpv6(Str), ..])
 validate_ipv6 = |raw| {
 	pieces = Str.split_on(raw, "::")
-	if List.len(pieces) > 2 {
+	if pieces.len() > 2 {
 		Err(InvalidIpv6(raw))
-	} else if List.len(pieces) == 1 {
+	} else if pieces.len() == 1 {
 		groups = parse_ipv6_side(raw)?
-		if List.len(groups) == 8 {
+		if groups.len() == 8 {
 			Ok(serialize_ipv6(groups))
 		} else {
 			Err(InvalidIpv6(raw))
@@ -491,11 +490,11 @@ validate_ipv6 = |raw| {
 	} else {
 		left = parse_ipv6_side(get_or_empty(pieces, 0))?
 		right = parse_ipv6_side(get_or_empty(pieces, 1))?
-		count = List.len(left) + List.len(right)
+		count = left.len() + right.len()
 		if count >= 8 {
 			Err(InvalidIpv6(raw))
 		} else {
-			groups = List.concat(List.concat(left, List.repeat(0, 8 - count)), right)
+			groups = left.concat(List.repeat(0, 8 - count)).concat(right)
 			Ok(serialize_ipv6(groups))
 		}
 	}
@@ -515,10 +514,10 @@ parse_hex_groups = |parts, out|
 		[] => Ok(out)
 		[first, .. as rest] => {
 			bytes = Str.to_utf8(first)
-			if List.is_empty(bytes) or List.len(bytes) > 4 or Bool.not(List.all(bytes, is_hex)) {
+			if bytes.is_empty() or bytes.len() > 4 or Bool.not(bytes.all(is_hex)) {
 				Err(InvalidIpv6(first))
 			} else {
-				value = List.fold(bytes, 0, |acc, byte| acc * 16 + U8.to_u16(hex_value(byte)))
+				value = bytes.fold(0, |acc, byte| acc * 16 + U8.to_u16(hex_value(byte)))
 				parse_hex_groups(rest, out.append(value))
 			}
 		}
@@ -548,12 +547,12 @@ u16_to_hex_help = |value, digits| {
 
 parse_suffix : Str -> Try({ fragment : [None, Some(Str)], path : Str, query : [None, Some(Str)] }, Url.ParseErr)
 parse_suffix = |suffix| {
-	{ before_fragment, fragment } =
+	{ before_fragment, fragment } = 
 		match split_first(suffix, "#") {
 			Found({ before, after }) => { before_fragment: before, fragment: Some(after) }
 			NotFound => { before_fragment: suffix, fragment: None }
 		}
-	{ raw_path, query } =
+	{ raw_path, query } = 
 		match split_first(before_fragment, "?") {
 			Found({ before, after }) => { raw_path: before, query: Some(after) }
 			NotFound => { raw_path: before_fragment, query: None }
@@ -593,12 +592,12 @@ validate_component = |raw, kind|
 
 validate_component_help : List(U8), [Fragment, Path, Query], U64, List(U8) -> Try(List(U8), Url.ParseErr)
 validate_component_help = |bytes, kind, index, out| {
-	if index >= List.len(bytes) {
+	if index >= bytes.len() {
 		Ok(out)
 	} else {
 		byte = get_or_zero(bytes, index)
 		if byte == 37 {
-			if index + 2 >= List.len(bytes) or Bool.not(is_hex(get_or_zero(bytes, index + 1))) or Bool.not(is_hex(get_or_zero(bytes, index + 2))) {
+			if index + 2 >= bytes.len() or Bool.not(is_hex(get_or_zero(bytes, index + 1))) or Bool.not(is_hex(get_or_zero(bytes, index + 2))) {
 				Err(InvalidPercentEncoding(index))
 			} else {
 				next = out.append(37)
@@ -641,7 +640,7 @@ resolve_reference = |base, reference| {
 		Err(MissingScheme)
 	} else {
 		relative = parse_relative(reference)?
-		next_path =
+		next_path = 
 			if Str.is_empty(relative.path) {
 				base.path
 			} else if starts_with(relative.path, "/") {
@@ -649,7 +648,7 @@ resolve_reference = |base, reference| {
 			} else {
 				normalize_path(Str.concat(path_directory(base.path), relative.path))
 			}
-		next_query =
+		next_query = 
 			match relative.query {
 				Some(value) => Some(value)
 				None => if Str.is_empty(relative.path) {
@@ -673,12 +672,12 @@ resolve_reference = |base, reference| {
 
 parse_relative : Str -> Try({ fragment : [None, Some(Str)], path : Str, query : [None, Some(Str)] }, Url.ParseErr)
 parse_relative = |reference| {
-	{ before_fragment, fragment } =
+	{ before_fragment, fragment } = 
 		match split_first(reference, "#") {
 			Found({ before, after }) => { before_fragment: before, fragment: Some(after) }
 			NotFound => { before_fragment: reference, fragment: None }
 		}
-	{ raw_path, query } =
+	{ raw_path, query } = 
 		match split_first(before_fragment, "?") {
 			Found({ before, after }) => { raw_path: before, query: Some(after) }
 			NotFound => { raw_path: before_fragment, query: None }
@@ -712,7 +711,7 @@ normalize_segments = |segments, out|
 		[] => out
 		["", .. as rest] => normalize_segments(rest, out)
 		[first, .. as rest] if is_single_dot_segment(first) => normalize_segments(rest, out)
-		[first, .. as rest] if is_double_dot_segment(first) => normalize_segments(rest, List.drop_last(out, 1))
+		[first, .. as rest] if is_double_dot_segment(first) => normalize_segments(rest, out.drop_last(1))
 		[first, .. as rest] => normalize_segments(rest, out.append(first))
 	}
 
@@ -728,31 +727,31 @@ is_double_dot_segment = |segment|
 path_directory : Str -> Str
 path_directory = |path_str| {
 	parts = Str.split_on(path_str, "/")
-	if List.len(parts) <= 2 {
+	if parts.len() <= 2 {
 		"/"
 	} else {
-		Str.concat(Str.join_with(List.drop_last(parts, 1), "/"), "/")
+		Str.concat(Str.join_with(parts.drop_last(1), "/"), "/")
 	}
 }
 
 serialize : Url, Bool -> Str
 serialize = |url, include_fragment| {
-	scheme_str =
+	scheme_str = 
 		match url.scheme {
 			Http => "http"
 			Https => "https"
 		}
-	port_str =
+	port_str = 
 		match url.port {
 			None => ""
 			Some(value) => Str.concat(":", U16.to_str(value))
 		}
-	query_str =
+	query_str = 
 		match url.query {
 			None => ""
 			Some(value) => Str.concat("?", value)
 		}
-	fragment_str =
+	fragment_str = 
 		if include_fragment {
 			match url.fragment {
 				None => ""
@@ -781,8 +780,7 @@ serialize = |url, include_fragment| {
 percent_encode : Str -> Str
 percent_encode = |input|
 	Str.from_utf8_lossy(
-		List.fold(
-			Str.to_utf8(input),
+		Str.to_utf8(input).fold(
 			[],
 			|out, byte|
 				if is_unreserved(byte) {
@@ -796,8 +794,7 @@ percent_encode = |input|
 form_encode : Str -> Str
 form_encode = |input|
 	Str.from_utf8_lossy(
-		List.fold(
-			Str.to_utf8(input),
+		Str.to_utf8(input).fold(
 			[],
 			|out, byte|
 				if byte == 32 {
@@ -815,13 +812,13 @@ form_decode = |input| Str.from_utf8_lossy(form_decode_help(Str.to_utf8(input), 0
 
 form_decode_help : List(U8), U64, List(U8) -> List(U8)
 form_decode_help = |bytes, index, out| {
-	if index >= List.len(bytes) {
+	if index >= bytes.len() {
 		out
 	} else {
 		byte = get_or_zero(bytes, index)
 		if byte == 43 {
 			form_decode_help(bytes, index + 1, out.append(32))
-		} else if byte == 37 and index + 2 < List.len(bytes) and is_hex(get_or_zero(bytes, index + 1)) and is_hex(get_or_zero(bytes, index + 2)) {
+		} else if byte == 37 and index + 2 < bytes.len() and is_hex(get_or_zero(bytes, index + 1)) and is_hex(get_or_zero(bytes, index + 2)) {
 			decoded = hex_value(get_or_zero(bytes, index + 1)) * 16 + hex_value(get_or_zero(bytes, index + 2))
 			form_decode_help(bytes, index + 3, out.append(decoded))
 		} else {
@@ -837,14 +834,14 @@ split_authority : Str -> { authority : Str, suffix : Str }
 split_authority = |after_scheme| {
 	bytes = Str.to_utf8(after_scheme)
 	index = first_delimiter(bytes, 0)
-	authority = Str.from_utf8_lossy(List.sublist(bytes, { start: 0, len: index }))
-	suffix = Str.from_utf8_lossy(List.sublist(bytes, { start: index, len: List.len(bytes) - index }))
+	authority = Str.from_utf8_lossy(bytes.sublist({ start: 0, len: index }))
+	suffix = Str.from_utf8_lossy(bytes.sublist({ start: index, len: bytes.len() - index }))
 	{ authority, suffix }
 }
 
 first_delimiter : List(U8), U64 -> U64
 first_delimiter = |bytes, index| {
-	if index >= List.len(bytes) {
+	if index >= bytes.len() {
 		index
 	} else {
 		byte = get_or_zero(bytes, index)
@@ -959,19 +956,19 @@ first_or_zero = |list| get_or_zero(list, 0)
 
 last_or_zero : List(U8) -> U8
 last_or_zero = |list|
-	if List.is_empty(list) {
+	if list.is_empty() {
 		0
 	} else {
-		get_or_zero(list, List.len(list) - 1)
+		get_or_zero(list, list.len() - 1)
 	}
 
 trim_brackets : Str -> Str
 trim_brackets = |str| {
 	bytes = Str.to_utf8(str)
-	if List.len(bytes) < 2 {
+	if bytes.len() < 2 {
 		""
 	} else {
-		Str.from_utf8_lossy(List.sublist(bytes, { start: 1, len: List.len(bytes) - 2 }))
+		Str.from_utf8_lossy(bytes.sublist({ start: 1, len: bytes.len() - 2 }))
 	}
 }
 
@@ -992,7 +989,7 @@ ends_with = |str, suffix| {
 		True
 	} else {
 		parts = Str.split_on(str, suffix)
-		match parts.get(List.len(parts) - 1) {
+		match parts.get(parts.len() - 1) {
 			Ok(last) => Str.is_empty(last)
 			Err(_) => False
 		}
@@ -1002,15 +999,15 @@ ends_with = |str, suffix| {
 drop_prefix : Str, Str -> Str
 drop_prefix = |str, prefix| {
 	parts = Str.split_on(str, prefix)
-	Str.join_with(List.drop_first(parts, 1), prefix)
+	Str.join_with(parts.drop_first(1), prefix)
 }
 
 split_first : Str, Str -> [Found({ after : Str, before : Str }), NotFound]
 split_first = |str, separator| {
 	parts = Str.split_on(str, separator)
-	if List.len(parts) > 1 {
+	if parts.len() > 1 {
 		match parts.get(0) {
-			Ok(before) => Found({ before, after: Str.join_with(List.drop_first(parts, 1), separator) })
+			Ok(before) => Found({ before, after: Str.join_with(parts.drop_first(1), separator) })
 			Err(_) => NotFound
 		}
 	} else {
@@ -1021,9 +1018,9 @@ split_first = |str, separator| {
 split_last : Str, Str -> [Found({ after : Str, before : Str }), NotFound]
 split_last = |str, separator| {
 	parts = Str.split_on(str, separator)
-	if List.len(parts) > 1 {
-		match parts.get(List.len(parts) - 1) {
-			Ok(after) => Found({ before: Str.join_with(List.drop_last(parts, 1), separator), after })
+	if parts.len() > 1 {
+		match parts.get(parts.len() - 1) {
+			Ok(after) => Found({ before: Str.join_with(parts.drop_last(1), separator), after })
 			Err(_) => NotFound
 		}
 	} else {
@@ -1035,84 +1032,108 @@ split_last = |str, separator| {
 # web-platform-tests/url/resources/urltestdata.json at WPT commit
 # dc97e7bed3096ac9e0e591ab5fa22e7fb8844ead (BSD-3-Clause).
 
+## Parsing canonicalizes the scheme, host, default port, and dot segments.
 expect
 	match Url.parse("HTTP://Example.COM:80/a/../b") {
 		Ok(url) => Url.to_str(url) == "http://example.com/b"
 		Err(_) => False
 	}
 
+## Parsing removes the default HTTPS port and supplies a root path.
 expect
 	match Url.parse("https://example.com:443") {
 		Ok(url) => Url.scheme(url) == Https and Url.host(url) == "example.com" and Url.port(url) == None and Url.path(url) == "/"
 		Err(_) => False
 	}
 
+## Parsing canonicalizes IPv4 decimal components.
 expect
 	match Url.parse("https://127.000.000.001:8443/") {
 		Ok(url) => Url.to_str(url) == "https://127.0.0.1:8443/"
 		Err(_) => False
 	}
 
+## Parsing expands and canonicalizes an IPv6 loopback address.
 expect
 	match Url.parse("http://[::1]:8080/") {
 		Ok(url) => Url.host(url) == "0:0:0:0:0:0:0:1" and Url.to_str(url) == "http://[0:0:0:0:0:0:0:1]:8080/"
 		Err(_) => False
 	}
 
+## Parsing percent-encodes Unicode URL components.
 expect
 	match Url.parse("https://example.com/café?q=naïve#résumé") {
 		Ok(url) => Url.to_str(url) == "https://example.com/caf%C3%A9?q=na%C3%AFve#r%C3%A9sum%C3%A9"
 		Err(_) => False
 	}
 
+## Parsing normalizes hexadecimal percent escapes to uppercase.
 expect
 	match Url.parse("https://example.com/%7euser") {
 		Ok(url) => Url.to_str(url) == "https://example.com/%7Euser"
 		Err(_) => False
 	}
 
+## Parsing requires an explicit scheme.
 expect Url.parse("example.com") == Err(MissingScheme)
 
+## Parsing rejects non-hierarchical URLs without an authority.
 expect Url.parse("mailto:user@example.com") == Err(MissingAuthority)
 
+## Parsing rejects unsupported URL schemes.
 expect Url.parse("ftp://example.com") == Err(UnsupportedScheme("ftp"))
 
+## Parsing rejects credentials in the URL authority.
 expect Url.parse("https://user:secret@example.com") == Err(CredentialsNotAllowed)
 
+## Parsing rejects internationalized hostnames until IDNA is supported.
 expect Url.parse("https://münich.example") == Err(InternationalHostUnsupported)
 
+## Parsing rejects an empty host.
 expect Url.parse("https://") == Err(EmptyHost)
 
+## Parsing rejects DNS labels that begin with a hyphen.
 expect Url.parse("https://-example.com") == Err(InvalidHost("-example.com"))
 
+## Parsing rejects empty DNS labels.
 expect Url.parse("https://example..com") == Err(InvalidHost("example..com"))
 
+## Parsing rejects IPv4 components above 255.
 expect Url.parse("https://127.0.0.256") == Err(InvalidIpv4("127.0.0.256"))
 
+## Parsing requires exactly four IPv4 components.
 expect Url.parse("https://127.0.0") == Err(InvalidIpv4("127.0.0"))
 
+## Parsing rejects malformed IPv6 compression.
 expect
 	match Url.parse("https://[:::1]") {
 		Err(InvalidIpv6(_)) => True
 		_ => False
 	}
 
+## Parsing rejects non-decimal ports.
 expect Url.parse("https://example.com:wat") == Err(InvalidPort("wat"))
 
+## Parsing rejects ports above the U16 range.
 expect Url.parse("https://example.com:70000") == Err(PortOutOfRange(70000))
 
+## Parsing rejects non-hexadecimal percent escapes.
 expect Url.parse("https://example.com/%zz") == Err(InvalidPercentEncoding(1))
 
+## Parsing rejects spaces in URL syntax.
 expect Url.parse("https://example.com/a b") == Err(InvalidCharacter(32))
 
+## Parsing rejects backslashes in URL syntax.
 expect Url.parse("https://example.com/a\\b") == Err(InvalidCharacter(92))
 
+## Parsing distinguishes present empty query and fragment components.
 expect
 	match Url.parse("https://example.com/?#") {
 		Ok(url) => Url.query(url) == Some("") and Url.fragment(url) == Some("")
 		Err(_) => False
 	}
 
+## Builder helpers encode path segments and repeated query parameters.
 expect
 	match Url.parse("https://example.com/") {
 		Err(_) => False
@@ -1125,6 +1146,7 @@ expect
 		}
 	}
 
+## Relative resolution replaces path, query, and fragment components.
 expect
 	match Url.parse("https://example.com/a/b?old=1#old") {
 		Err(_) => False
@@ -1135,6 +1157,7 @@ expect
 			}
 		}
 
+## Query-only resolution preserves the base path.
 expect
 	match Url.parse("https://example.com/a/b?old=1#old") {
 		Err(_) => False
@@ -1145,6 +1168,7 @@ expect
 			}
 		}
 
+## Fragment-only resolution preserves the base path and query.
 expect
 	match Url.parse("https://example.com/a/b?old=1") {
 		Err(_) => False
@@ -1155,6 +1179,7 @@ expect
 			}
 		}
 
+## Absolute-path resolution removes dot segments.
 expect
 	match Url.parse("https://example.com/a/b") {
 		Err(_) => False
@@ -1165,96 +1190,118 @@ expect
 			}
 		}
 
+## Removing a fragment preserves the remaining URL components.
 expect
 	match Url.parse("https://example.com/a?x=1#frag") {
 		Err(_) => False
 		Ok(url) => Url.to_str(Url.without_fragment(url)) == "https://example.com/a?x=1"
 	}
 
+## Quoted URL literals parse and supply a root path.
 expect
 	match Url.from_quote("https://example.com") {
 		Ok(url) => Url.to_str(url) == "https://example.com/"
 		Err(_) => False
 	}
 
+## Port zero is valid and path dot segments normalize.
 expect
 	match Url.parse("http://localhost:0/a/./b/../../c/") {
 		Ok(url) => Url.port(url) == Some(0) and Url.to_str(url) == "http://localhost:0/c/"
 		Err(_) => False
 	}
 
+## The largest U16 port is valid.
 expect
 	match Url.parse("https://example.com:65535") {
 		Ok(url) => Url.port(url) == Some(65535) and Url.to_str(url) == "https://example.com:65535/"
 		Err(_) => False
 	}
 
+## Parsing rejects an empty explicit port.
 expect Url.parse("https://example.com:") == Err(InvalidPort(""))
 
+## Parsing rejects the first port above the U16 range.
 expect Url.parse("https://example.com:65536") == Err(PortOutOfRange(65536))
 
+## Parsing rejects decimal ports that overflow U64.
 expect Url.parse("https://example.com:18446744073709551616") == Err(InvalidPort("18446744073709551616"))
 
+## Parsing rejects IPv4 components that overflow U64.
 expect Url.parse("https://18446744073709551616.0.0.1") == Err(InvalidIpv4("18446744073709551616.0.0.1"))
 
+## Parsing rejects underscores in DNS names.
 expect Url.parse("https://example_com") == Err(InvalidHost("example_com"))
 
+## Parsing rejects trailing DNS dots in the strict URL subset.
 expect Url.parse("https://example.com.") == Err(InvalidHost("example.com."))
 
+## Parsing canonicalizes full IPv6 addresses.
 expect
 	match Url.parse("http://[2001:0DB8:0000:0000:0000:ff00:0042:8329]/") {
 		Ok(url) => Url.host(url) == "2001:db8:0:0:0:ff00:42:8329" and Url.to_str(url) == "http://[2001:db8:0:0:0:ff00:42:8329]/"
 		Err(_) => False
 	}
 
+## Parsing expands an all-zero IPv6 address.
 expect
 	match Url.parse("http://[::]/") {
 		Ok(url) => Url.host(url) == "0:0:0:0:0:0:0:0"
 		Err(_) => False
 	}
 
+## Parsing rejects IPv6 addresses with too few uncompressed groups.
 expect
 	match Url.parse("http://[1:2:3:4:5:6:7]/") {
 		Err(InvalidIpv6(_)) => True
 		_ => False
 	}
 
+## Parsing rejects IPv6 addresses with too many groups.
 expect
 	match Url.parse("http://[1:2:3:4:5:6:7:8:9]/") {
 		Err(InvalidIpv6(_)) => True
 		_ => False
 	}
 
+## Parsing rejects embedded IPv4 syntax in IPv6 addresses.
 expect
 	match Url.parse("http://[::ffff:192.0.2.1]/") {
 		Err(InvalidIpv6(_)) => True
 		_ => False
 	}
 
+## Parsing normalizes valid percent escapes in paths.
 expect
 	match Url.parse("https://example.com/a/%2f/%aa") {
 		Ok(url) => Url.path(url) == "/a/%2F/%AA"
 		Err(_) => False
 	}
 
+## Path normalization treats encoded double dots as parent segments.
 expect
 	match Url.parse("https://example.com/safe/%2e%2e/admin") {
 		Ok(url) => Url.to_str(url) == "https://example.com/admin"
 		Err(_) => False
 	}
 
+## Path normalization recognizes mixed encoded dot segments.
 expect
 	match Url.parse("https://example.com/a/.%2e/b/%2E/c") {
 		Ok(url) => Url.to_str(url) == "https://example.com/b/c"
 		Err(_) => False
 	}
 
+## Parsing rejects a percent sign without hexadecimal digits.
 expect Url.parse("https://example.com/%") == Err(InvalidPercentEncoding(1))
 
+## Parsing rejects a one-digit percent escape.
 expect Url.parse("https://example.com/%0") == Err(InvalidPercentEncoding(1))
 
+## Parsing rejects unsafe angle brackets.
 expect Url.parse("https://example.com/<unsafe>") == Err(InvalidCharacter(60))
 
+## Parsing keeps reserved query and fragment delimiters in their components.
 expect
 	match Url.parse("https://example.com/path?reserved=%23%26/?#fragment/?") {
 		Ok(url) =>
@@ -1264,18 +1311,21 @@ expect
 		Err(_) => False
 	}
 
+## Query-pair decoding handles plus signs, Unicode, flags, and repeated keys.
 expect
 	match Url.parse("https://example.com/?name=Roc+Lang&letter=%C3%A9&flag&name=again") {
 		Ok(url) => Url.query_pairs(url) == [("name", "Roc Lang"), ("letter", "é"), ("flag", ""), ("name", "again")]
 		Err(_) => False
 	}
 
+## An empty query contains no query pairs.
 expect
 	match Url.parse("https://example.com/?") {
 		Ok(url) => Url.query_pairs(url) == []
 		Err(_) => False
 	}
 
+## Appending path segments preserves the existing query and fragment.
 expect
 	match Url.parse("https://example.com/base?old=1#frag") {
 		Err(_) => False
@@ -1285,12 +1335,14 @@ expect
 		}
 	}
 
+## Appending no path segments leaves a URL unchanged.
 expect
 	match Url.parse("https://example.com/base") {
 		Err(_) => False
 		Ok(url) => Url.append_path_segments(url, []) == url
 	}
 
+## Removing a query preserves the fragment.
 expect
 	match Url.parse("https://example.com/path?old=1#frag") {
 		Err(_) => False
@@ -1301,6 +1353,7 @@ expect
 			}
 		}
 
+## Setting a query percent-encodes Unicode while preserving query syntax.
 expect
 	match Url.parse("https://example.com/path") {
 		Err(_) => False
@@ -1311,12 +1364,14 @@ expect
 			}
 		}
 
+## Setting a query rejects fragment delimiters.
 expect
 	match Url.parse("https://example.com/path") {
 		Err(_) => False
 		Ok(url) => Url.with_query(url, Some("bad#query")) == Err(InvalidCharacter(35))
 	}
 
+## Removing a fragment preserves the path.
 expect
 	match Url.parse("https://example.com/path#old") {
 		Err(_) => False
@@ -1327,6 +1382,7 @@ expect
 			}
 		}
 
+## Setting a fragment percent-encodes Unicode while preserving fragment syntax.
 expect
 	match Url.parse("https://example.com/path") {
 		Err(_) => False
@@ -1337,12 +1393,14 @@ expect
 			}
 		}
 
+## Setting a fragment rejects backslashes.
 expect
 	match Url.parse("https://example.com/path") {
 		Err(_) => False
 		Ok(url) => Url.with_fragment(url, Some("bad\\fragment")) == Err(InvalidCharacter(92))
 	}
 
+## Resolving an empty reference drops the base fragment.
 expect
 	match Url.parse("https://example.com/a/b?old=1#old") {
 		Err(_) => False
@@ -1353,6 +1411,7 @@ expect
 			}
 		}
 
+## Relative resolution cannot traverse above the URL root.
 expect
 	match Url.parse("https://example.com/a/b") {
 		Err(_) => False
@@ -1363,6 +1422,7 @@ expect
 			}
 		}
 
+## Absolute URL resolution canonicalizes the replacement URL.
 expect
 	match Url.parse("https://example.com/a/b") {
 		Err(_) => False
@@ -1373,18 +1433,21 @@ expect
 			}
 		}
 
+## Resolution rejects scheme-relative references.
 expect
 	match Url.parse("https://example.com/a/b") {
 		Err(_) => False
 		Ok(base) => Url.resolve(base, "//other.example/x") == Err(MissingScheme)
 	}
 
+## Resolution rejects unsupported absolute schemes.
 expect
 	match Url.parse("https://example.com/a/b") {
 		Err(_) => False
 		Ok(base) => Url.resolve(base, "ftp://other.example/x") == Err(MissingScheme)
 	}
 
+## Invalid quoted URL literals return a useful literal error.
 expect
 	match Url.from_quote("not a url") {
 		Err(BadQuotedBytes(message)) => Str.contains(message, "http:// or https://")
@@ -1423,6 +1486,7 @@ expect {
 	}
 }
 
+## Generic parsers reject encoded strings that are not valid URLs.
 expect {
 	decoded : Try(Url, [InvalidJson(Str)])
 	decoded = Json.parse("\"not a url\"")

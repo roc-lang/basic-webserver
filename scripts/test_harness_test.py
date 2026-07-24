@@ -6,11 +6,28 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_platform_validation_formats_and_tests_the_platform(self) -> None:
+        with mock.patch.object(test, "command") as run:
+            test.validate_platform_sources("custom-roc")
+
+        self.assertEqual(
+            run.call_args_list,
+            [
+                mock.call(
+                    "custom-roc", "fmt", "--check", test.ROOT / "platform"
+                ),
+                mock.call(
+                    "custom-roc", "test", test.ROOT / "platform" / "main.roc"
+                ),
+            ],
+        )
+
     def test_platform_and_harness_targets_match(self) -> None:
         self.assertEqual(set(test.declared_targets()), set(test.TARGETS))
 

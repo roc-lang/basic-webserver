@@ -189,9 +189,9 @@
           ],
           "stdout_contains": [
             "LICENSE file permissions:",
-            "Executable: Bool.false",
-            "Readable: Bool.true",
-            "Writable: Bool.true"
+            "Executable: False",
+            "Readable: True",
+            "Writable: True"
           ]
         }
       ]

@@ -82,8 +82,10 @@ Tcp :: [].{
 	## Represents errors that can occur when performing an effect with a `Stream`.
 	StreamErr : [
 		StreamNotFound,
+
 		## Another handler is currently reading from or writing to this stream.
 		StreamBusy,
+
 		## A materialized read requested or encountered more than 8 MiB.
 		ReadLimitExceeded,
 		PermissionDenied,
@@ -141,6 +143,7 @@ Tcp :: [].{
 
 # ---- internal helpers (module-private) -----------------------------------------
 
+parse_connect_err : Str -> Tcp.ConnectErr
 parse_connect_err = |err|
 	match err {
 		"ErrorKind::PermissionDenied" => PermissionDenied
@@ -153,6 +156,7 @@ parse_connect_err = |err|
 		other => Unrecognized(other)
 	}
 
+parse_stream_err : Str -> Tcp.StreamErr
 parse_stream_err = |err|
 	match err {
 		"StreamNotFound" => StreamNotFound

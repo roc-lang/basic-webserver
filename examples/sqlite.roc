@@ -66,7 +66,8 @@ query_todos_by_status! = |db_path, status|
 
 # A row decoder is `List(Str) -> (Stmt => Try(a, err))`; the new compiler does not
 # support the record-builder (`<-`) sugar, so we combine the leaf decoders by hand.
-# This stays unannotated because the inferred decoder error union is compiler-heavy.
+# The statement type in this callback is host-internal and is intentionally not
+# exposed by the platform, so this top-level decoder cannot name its inferred type.
 decode_todo = |cols|
 	|stmt| {
 		id = Sqlite.i64("id")(cols)(stmt)?
@@ -78,7 +79,7 @@ decode_todo = |cols|
 
 TodoStatus : [Todo, Completed, InProgress]
 
-# This stays unannotated so `ParseError` can merge with decoder errors above.
+decode_todo_status : Str -> Try(TodoStatus, [ParseError(Str), ..])
 decode_todo_status = |status_str|
 	match status_str {
 		"todo" => Ok(Todo)

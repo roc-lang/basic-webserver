@@ -81,17 +81,19 @@ Env := [].{
 	## Windows, where environment variable names are case-insensitive.
 	dict! : () => List({ name : OsStr, value : OsStr })
 	dict! = ||
-		Host.env_dict!().map(|variable| {
-			name: OsStr.from_raw(variable.name),
-			value: OsStr.from_raw(variable.value),
-		})
+		Host.env_dict!().map(
+			|variable| {
+				name: OsStr.from_raw(variable.name),
+				value: OsStr.from_raw(variable.value),
+			},
+		)
 
 	## Return the architecture and operating system for this host build.
 	platform! : () => { arch : ARCH, os : OS }
 	platform! = || {
 		from_host = Host.env_current_arch_os!("")
 
-		arch =
+		arch = 
 			match from_host.arch {
 				"x86" => X86
 				"x86_64" => X64
@@ -100,7 +102,7 @@ Env := [].{
 				other => OTHER(other)
 			}
 
-		os =
+		os = 
 			match from_host.os {
 				"linux" => LINUX
 				"macos" => MACOS

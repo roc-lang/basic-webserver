@@ -1072,6 +1072,13 @@ def load_artifact_builds(
     return builds
 
 
+def validate_platform_sources(roc: str) -> None:
+    print("==> fmt platform", flush=True)
+    command(roc, "fmt", "--check", ROOT / "platform")
+    print("==> test platform", flush=True)
+    command(roc, "test", ROOT / "platform" / "main.roc")
+
+
 def validate_sources(
     roc: str,
     defaults: dict[str, bool],
@@ -1081,6 +1088,9 @@ def validate_sources(
 ) -> None:
     if VALIDATION_ROOT.exists():
         shutil.rmtree(VALIDATION_ROOT)
+
+    validate_platform_sources(roc)
+
     for stage in ("fmt", "check", "test"):
         for app in apps:
             if not stage_enabled(defaults, app, stage):

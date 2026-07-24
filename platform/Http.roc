@@ -161,7 +161,7 @@ Http :: [].{
 # private prevents get!/get_utf8! from exposing an impossible InvalidUrl error.
 send_validated! : Request.Request, Http.Config => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
 send_validated! = |request, config| {
-	host_response =
+	host_response = 
 		match Host.http_send_request!(InternalHttp.to_host_request(request, config.timeout_millis(), config.max_response_bytes())) {
 			Ok(response) => response
 			Err(InvalidRequest(detail)) => return Err(InvalidRequest(detail))
