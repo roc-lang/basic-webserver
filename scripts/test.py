@@ -961,6 +961,7 @@ def write_manifest(
     binaries: dict[str, Path],
     artifact_dir: Path,
     build_id: str = "local",
+    examples_sha256: str | None = None,
 ) -> None:
     if re.fullmatch(r"[A-Za-z0-9_.-]+", build_id) is None:
         fail(f"Invalid build identity {build_id!r}")
@@ -969,7 +970,7 @@ def write_manifest(
         "target": target,
         "build_id": build_id,
         "spec_sha256": spec_hash(),
-        "examples_sha256": examples_hash(),
+        "examples_sha256": examples_sha256 or examples_hash(),
         "binaries": {
             source: str(path.relative_to(target_dir).as_posix())
             for source, path in sorted(binaries.items())
@@ -1103,6 +1104,7 @@ def build_artifacts(
     *,
     build_id: str = "local",
     use_local_readme_platform: bool = True,
+    examples_sha256: str | None = None,
 ) -> dict[str, Path]:
     prepare_artifact_output(target, artifact_dir)
     binaries: dict[str, Path] = {}
@@ -1129,7 +1131,13 @@ def build_artifacts(
         f"--target={target}",
         f"--output={artifact_dir / target / ('readme' + executable_suffix(target))}",
     )
-    write_manifest(target, binaries, artifact_dir, build_id)
+    write_manifest(
+        target,
+        binaries,
+        artifact_dir,
+        build_id,
+        examples_sha256,
+    )
     return binaries
 
 
@@ -1144,6 +1152,11 @@ def main() -> None:
     parser.add_argument("--roc", default=os.environ.get("ROC", "roc"))
     parser.add_argument("--target", choices=declared_targets())
     parser.add_argument(
+        "--all-targets",
+        action="store_true",
+        help="build every declared target sequentially",
+    )
+    parser.add_argument(
         "--build-id",
         default=os.environ.get("BASIC_WEBSERVER_BUILD_ID", "local"),
         help="stable identity of the machine that produced a binary artifact",
@@ -1153,6 +1166,10 @@ def main() -> None:
         choices=("local", "declared"),
         default="local",
         help="use the checkout platform or preserve the README platform URL",
+    )
+    parser.add_argument(
+        "--examples-sha256",
+        help="hash of the original sources when building rewritten bundle consumers",
     )
     parser.add_argument(
         "--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR
@@ -1170,9 +1187,34 @@ def main() -> None:
         return
 
     defaults, apps = load_spec()
-    target = args.target or detect_native_target()
     artifact_dir = args.artifact_dir.resolve()
     use_local_readme_platform = args.readme_platform == "local"
+
+    if args.all_targets:
+        if args.target is not None:
+            parser.error("--all-targets and --target are mutually exclusive")
+        if args.operation != "build":
+            parser.error("--all-targets requires --operation build")
+        total = 0
+        for build_target in declared_targets():
+            binaries = build_artifacts(
+                args.roc,
+                build_target,
+                artifact_dir,
+                defaults,
+                apps,
+                build_id=args.build_id,
+                use_local_readme_platform=use_local_readme_platform,
+                examples_sha256=args.examples_sha256,
+            )
+            total += len(binaries)
+        print(
+            f"\nBuilt {total} applications across "
+            f"{len(declared_targets())} targets."
+        )
+        return
+
+    target = args.target or detect_native_target()
 
     if args.operation == "run" and target != detect_native_target():
         fail(
@@ -1201,6 +1243,7 @@ def main() -> None:
             apps,
             build_id=args.build_id,
             use_local_readme_platform=use_local_readme_platform,
+            examples_sha256=args.examples_sha256,
         )
         if args.operation == "build":
             print(f"\nBuilt {len(binaries)} applications for {target}.")

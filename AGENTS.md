@@ -49,12 +49,12 @@ cross-platform HTTP specification suite:
 python scripts/test.py
 ```
 
-CI splits this into reusable phases so every supported compiler host
-cross-builds every target. Native runner jobs then execute every independently
-built artifact set for their target rather than rebuilding before execution:
+Release validation bundles the platform once. Five compiler-host jobs consume
+that bundle and each cross-build every target; five native runner jobs then
+execute every independently built artifact set for their target:
 ```
 python scripts/test.py --operation validate
-python scripts/test.py --operation build --target x64musl --build-id linux-x64 --artifact-dir dist/example-binaries
+python scripts/test_bundle.py --operation build-all --bundle-path BUNDLE --build-id linux-x64 --artifact-dir dist/example-binaries
 python scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
 ```
 

@@ -143,8 +143,9 @@ active example, then drives its real HTTP listener using the cases in
 `scripts/test_spec.json`. The same cases and expected results run on Linux,
 macOS, and Windows; it does not require Expect or curl.
 
-CI first builds the host inputs for every supported Roc target. Every supported
-compiler host then cross-builds all active examples for every target. Fresh
+Release validation bundles the current platform once, including the host inputs
+for every supported Roc target. Five compiler-host jobs consume that exact
+bundle and each cross-build all active examples for every target. Five fresh
 native runner jobs download and execute every independently produced binary set
 for their target. Artifact manifests bind each set to its compiler host, target,
 example sources, and test specification, ensuring the runtime suite exercises

@@ -65,7 +65,6 @@ jobs:
     outputs:
       release_version: ${{ steps.validate.outputs.release_version }}
       docs_version: ${{ steps.validate.outputs.docs_version }}
-      test_matrix: ${{ steps.bundles.outputs.test_matrix }}
 
     steps:
       - name: Checkout
@@ -115,9 +114,6 @@ jobs:
       - name: Build platform for all targets
         run: python scripts/build.py --all
 
-      - name: Validate package
-        run: python scripts/test.py
-
       - name: Resolve previous release
         if: github.event_name == 'workflow_dispatch'
         id: previous
@@ -141,11 +137,9 @@ jobs:
         run: python scripts/bundle.py --output-dir dist
 
       - name: Prepare release bundle metadata
-        id: bundles
         uses: roc-lang/release-package/actions/prepare-bundles@d2560ead9f724bfaabfbc8134b8895e120171064
         with:
           bundle_glob: dist/*.tar.zst
-          test_os_json: '["macos-15","macos-15-intel","ubuntu-22.04","windows-2025"]'
 
       - name: Upload release bundles
         uses: actions/upload-artifact@v7
@@ -163,18 +157,27 @@ jobs:
             .release/bump-output.txt
             .release/previous-url.txt
             .release/release-bundles.json
-            .release/test-matrix.json
           if-no-files-found: error
           retention-days: 7
 
-  test-bundles:
-    name: Test ${{ matrix.bundle_name }} bundle (${{ matrix.os }})
-    needs: [rust-version, build]
-    runs-on: ${{ matrix.os }}
+  build-examples:
+    name: Build every target on ${{ matrix.builder.id }}
+    needs: build
+    runs-on: ${{ matrix.builder.os }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.build.outputs.test_matrix) }}
+        builder:
+          - id: linux-x64
+            os: ubuntu-24.04
+          - id: linux-arm64
+            os: ubuntu-24.04-arm
+          - id: macos-x64
+            os: macos-26-intel
+          - id: macos-arm64
+            os: macos-26
+          - id: windows-x64
+            os: windows-2025
 
     steps:
       - name: Checkout
@@ -183,25 +186,112 @@ jobs:
       - name: Install Roc
         uses: ./.github/actions/setup-roc
 
-      - name: Install Rust
-        shell: bash
-        run: |
-          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
-          rustup default "${{ needs.rust-version.outputs.version }}"
-
-      - name: Download release bundles
+      - name: Download bundled platform
         uses: actions/download-artifact@v8
         with:
           name: release-bundles
-          path: .release/test-bundles
+          path: .release/bundles
 
-      - name: Test release bundle
-        uses: roc-lang/release-package/actions/test-bundle@d2560ead9f724bfaabfbc8134b8895e120171064
+      - name: Cross-compile every example for every target
+        run: >-
+          python scripts/test_bundle.py
+          --operation build-all
+          --bundle-dir .release/bundles
+          --build-id "${{ matrix.builder.id }}"
+          --artifact-dir dist/example-binaries
+
+      - name: Upload x64 Linux binaries
+        uses: actions/upload-artifact@v7
         with:
-          test_bundle_command: python scripts/test_bundle.py --bundle-path
-          bundle_path: .release/test-bundles/${{ matrix.artifact_file }}
-          bundle_name: ${{ matrix.bundle_name }}
-          release_version: ${{ needs.build.outputs.release_version }}
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64musl
+          path: dist/example-binaries/x64musl
+          if-no-files-found: error
+
+      - name: Upload Arm64 Linux binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-arm64musl
+          path: dist/example-binaries/arm64musl
+          if-no-files-found: error
+
+      - name: Upload x64 macOS binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64mac
+          path: dist/example-binaries/x64mac
+          if-no-files-found: error
+
+      - name: Upload Arm64 macOS binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-arm64mac
+          path: dist/example-binaries/arm64mac
+          if-no-files-found: error
+
+      - name: Upload x64 Windows binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: basic-webserver-example-binaries-${{ matrix.builder.id }}-x64win
+          path: dist/example-binaries/x64win
+          if-no-files-found: error
+
+  run-examples:
+    name: Run every ${{ matrix.target }} build
+    needs: build-examples
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x64musl
+          - os: ubuntu-24.04-arm
+            target: arm64musl
+          - os: macos-26-intel
+            target: x64mac
+          - os: macos-26
+            target: arm64mac
+          - os: windows-2025
+            target: x64win
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download every build for the native target
+        uses: actions/download-artifact@v8
+        with:
+          pattern: basic-webserver-example-binaries-*-${{ matrix.target }}
+          path: dist/example-binaries
+
+      - name: Run every independently built binary set
+        run: python scripts/test.py --operation run --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
+
+      - name: Upload runtime conformance results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spec-results-${{ matrix.target }}
+          path: target/spec/results-*.json
+          if-no-files-found: error
+
+  cross-platform-conformance:
+    name: Compare cross-platform runtime coverage
+    needs: run-examples
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download runtime results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spec-results-*
+          path: target/spec-results
+
+      - name: Verify all 25 target/build combinations ran the same cases
+        run: python scripts/test.py --operation compare --results-dir target/spec-results
 
   build-docs:
     name: Validate release docs
@@ -243,7 +333,7 @@ jobs:
     needs:
       - build
       - build-docs
-      - test-bundles
+      - cross-platform-conformance
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
