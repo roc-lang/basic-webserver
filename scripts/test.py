@@ -441,17 +441,22 @@ def prepare_memcheck_binaries(
 
         binary = binary_dir / source.stem
         print(f"==> memcheck build {app['path']} (x64glibc)", flush=True)
-        # Roc's current --debug DWARF is rejected by Valgrind 3.22. The host
-        # archive retains Rust debug information, which covers the native
-        # allocator, FFI, Hyper, and Tokio coordination under test.
+        # TODO: Investigate these Roc compiler bugs upstream, then restore the
+        # LLVM speed backend without stripping debug information. The speed
+        # backend can currently require several GiB while specializing one
+        # application, and Valgrind 3.22 rejects the dev backend's DWARF.
+        # Use the small native dev backend and remove only its debug sections
+        # for now. The symbol table and executable host/ABI code remain
+        # available to Memcheck.
         command(
             roc,
             "build",
             copied_source,
             "--target=x64glibc",
-            "--opt=speed",
+            "--opt=dev",
             f"--output={binary}",
         )
+        command("strip", "--strip-debug", binary)
         binaries[str(app["path"])] = binary
     return binaries
 
