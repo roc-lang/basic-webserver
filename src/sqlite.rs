@@ -1,8 +1,8 @@
 use core::ffi::c_void;
 use core::mem::ManuallyDrop;
 use std::ffi::{c_char, c_int, CStr, CString};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
-use std::thread::ThreadId;
 
 use crate::abi::{
     roc_host, SqliteHostBindResult, SqliteHostBindResultPayload, SqliteHostBindResultTag,
@@ -27,9 +27,21 @@ type SqliteBindings = HostSqliteBindArg1;
 const SQLITE_BUSY_TIMEOUT_MS: c_int = 1_000;
 const MAX_OPEN_SQLITE_STATEMENTS: usize = 64;
 
+static NEXT_STATEMENT_LEASE_OWNER: AtomicU64 = AtomicU64::new(1);
+
+std::thread_local! {
+    static STATEMENT_LEASE_OWNER: u64 = NEXT_STATEMENT_LEASE_OWNER
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        .expect("SQLite statement lease owner ID space exhausted");
+}
+
+fn current_statement_lease_owner() -> u64 {
+    STATEMENT_LEASE_OWNER.with(|owner| *owner)
+}
+
 #[derive(Default)]
 struct StatementLease {
-    owner: Option<ThreadId>,
+    owner: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,14 +55,14 @@ impl StatementLease {
         if self.owner.is_some() {
             Err(StatementLeaseError::Busy)
         } else {
-            self.owner = Some(std::thread::current().id());
+            self.owner = Some(current_statement_lease_owner());
             Ok(())
         }
     }
 
     fn validate(&self) -> Result<(), StatementLeaseError> {
         match self.owner {
-            Some(owner) if owner == std::thread::current().id() => Ok(()),
+            Some(owner) if owner == current_statement_lease_owner() => Ok(()),
             Some(_) => Err(StatementLeaseError::Busy),
             None => Err(StatementLeaseError::NotStarted),
         }
