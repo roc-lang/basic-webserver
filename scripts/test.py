@@ -46,6 +46,19 @@ TARGET_PLATFORMS = {
 }
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
+HTTP2_CLIENT_PREFACE = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+HTTP2_FRAME_DATA = 0x0
+HTTP2_FRAME_HEADERS = 0x1
+HTTP2_FRAME_RST_STREAM = 0x3
+HTTP2_FRAME_SETTINGS = 0x4
+HTTP2_FRAME_PUSH_PROMISE = 0x5
+HTTP2_FRAME_PING = 0x6
+HTTP2_FRAME_GOAWAY = 0x7
+HTTP2_FRAME_CONTINUATION = 0x9
+HTTP2_FLAG_END_STREAM = 0x1
+HTTP2_FLAG_ACK = 0x1
+HTTP2_FLAG_END_HEADERS = 0x4
+HTTP2_MAX_TEST_BODY_BYTES = 1024 * 1024
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
@@ -203,6 +216,35 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
         for item in fixtures
     ):
         fail(f"{owner}: fixtures must contain source/dest string objects")
+    http2_requests = case.get("http2_requests", [])
+    if not isinstance(http2_requests, list):
+        fail(f"{owner}: http2_requests must be an array")
+    http2_names: set[str] = set()
+    for index, request in enumerate(http2_requests, 1):
+        if not isinstance(request, dict):
+            fail(f"{owner}: HTTP/2 request {index} must be an object")
+        request_name = request.get("name")
+        if not isinstance(request_name, str) or not request_name:
+            fail(f"{owner}: HTTP/2 request {index} needs a non-empty name")
+        if request_name in http2_names:
+            fail(f"{owner}: duplicate HTTP/2 request name {request_name!r}")
+        http2_names.add(request_name)
+        if request.get("raw", False):
+            fail(f"{owner}: raw HTTP/2 requests are not supported")
+        if "status" in request:
+            fail(f"{owner}: HTTP/2 test requests do not decode response headers")
+    completion_order = case.get("http2_completion_order", [])
+    if not isinstance(completion_order, list) or not all(
+        isinstance(name, str) for name in completion_order
+    ):
+        fail(f"{owner}: http2_completion_order must be an array of names")
+    if len(completion_order) != len(set(completion_order)):
+        fail(f"{owner}: http2_completion_order names must be unique")
+    if set(completion_order) != http2_names:
+        fail(
+            f"{owner}: http2_completion_order must name every HTTP/2 request "
+            "exactly once"
+        )
 
 
 def load_spec() -> tuple[dict[str, bool], list[dict[str, object]]]:
@@ -771,6 +813,263 @@ def request_body(request: dict[str, object]) -> tuple[bytes, list[tuple[str, str
     return bytes(body), headers
 
 
+# Native artifact runners intentionally require only Python's standard library,
+# so this focused prior-knowledge client implements just enough HTTP/2 and HPACK
+# to open concurrent request streams and validate their bodies and completion.
+def http2_frame(frame_type: int, flags: int, stream_id: int, payload: bytes) -> bytes:
+    if len(payload) > 0xFFFFFF:
+        fail("HTTP/2 test frame payload exceeds the protocol maximum")
+    if stream_id < 0 or stream_id > 0x7FFFFFFF:
+        fail(f"invalid HTTP/2 stream identifier {stream_id}")
+    return (
+        len(payload).to_bytes(3, "big")
+        + bytes((frame_type, flags))
+        + stream_id.to_bytes(4, "big")
+        + payload
+    )
+
+
+def hpack_integer(value: int, prefix_bits: int, first_byte: int = 0) -> bytes:
+    prefix_max = (1 << prefix_bits) - 1
+    if value < prefix_max:
+        return bytes((first_byte | value,))
+    encoded = bytearray((first_byte | prefix_max,))
+    value -= prefix_max
+    while value >= 128:
+        encoded.append((value & 0x7F) | 0x80)
+        value >>= 7
+    encoded.append(value)
+    return bytes(encoded)
+
+
+def hpack_string(value: str) -> bytes:
+    encoded = value.encode("utf-8")
+    return hpack_integer(len(encoded), 7) + encoded
+
+
+def hpack_request_headers(
+    port: int, request: dict[str, object], body: bytes, headers: list[tuple[str, str]]
+) -> bytes:
+    method = str(request.get("method", "GET")).upper()
+    target = str(request.get("target", "/"))
+    if not target.startswith("/"):
+        fail(f"HTTP/2 test request target must start with '/': {target!r}")
+
+    block = bytearray()
+    if method == "GET":
+        block.append(0x82)  # Indexed static-table entry 2, :method GET.
+    elif method == "POST":
+        block.append(0x83)  # Indexed static-table entry 3, :method POST.
+    else:
+        block.extend(hpack_integer(2, 4))
+        block.extend(hpack_string(method))
+    block.append(0x86)  # Indexed static-table entry 6, :scheme http.
+    if target == "/":
+        block.append(0x84)  # Indexed static-table entry 4, :path /.
+    else:
+        block.extend(hpack_integer(4, 4))
+        block.extend(hpack_string(target))
+    block.extend(hpack_integer(1, 4))  # Literal :authority, without indexing.
+    block.extend(hpack_string(f"127.0.0.1:{port}"))
+
+    names = {name.lower() for name, _ in headers}
+    if body and "content-length" not in names:
+        headers.append(("content-length", str(len(body))))
+    for raw_name, value in headers:
+        name = raw_name.lower()
+        if name in {"connection", "keep-alive", "proxy-connection", "upgrade"}:
+            fail(f"connection-specific header {raw_name!r} is invalid in HTTP/2")
+        block.append(0)  # Literal header with a new name, without indexing.
+        block.extend(hpack_string(name))
+        block.extend(hpack_string(value))
+    return bytes(block)
+
+
+def receive_exact(sock: socket.socket, length: int, deadline: float) -> bytes:
+    data = bytearray()
+    while len(data) < length:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            fail("timed out waiting for an HTTP/2 frame")
+        sock.settimeout(remaining)
+        try:
+            chunk = sock.recv(length - len(data))
+        except TimeoutError:
+            fail("timed out waiting for an HTTP/2 frame")
+        if not chunk:
+            fail("HTTP/2 connection closed before every stream completed")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def receive_http2_frame(
+    sock: socket.socket, deadline: float
+) -> tuple[int, int, int, bytes]:
+    header = receive_exact(sock, 9, deadline)
+    length = int.from_bytes(header[0:3], "big")
+    frame_type = header[3]
+    flags = header[4]
+    stream_id = int.from_bytes(header[5:9], "big") & 0x7FFFFFFF
+    return frame_type, flags, stream_id, receive_exact(sock, length, deadline)
+
+
+def http2_data_fragment(flags: int, payload: bytes) -> bytes:
+    if flags & 0x8 == 0:
+        return payload
+    if not payload:
+        fail("truncated padded HTTP/2 DATA frame")
+    padding = payload[0]
+    if padding + 1 > len(payload):
+        fail("invalid HTTP/2 DATA padding")
+    return payload[1 : len(payload) - padding]
+
+
+def assert_http2_response(
+    request: dict[str, object], body: bytes, owner: str
+) -> None:
+    if "expect_body_hex" in request:
+        expected = bytes.fromhex(str(request["expect_body_hex"]))
+        if body != expected:
+            fail(f"{owner}: response body expected {expected!r}, got {body!r}")
+    elif "expect_body" in request:
+        expected = str(request["expect_body"]).encode()
+        if body != expected:
+            fail(f"{owner}: response body expected {expected!r}, got {body!r}")
+    assertion_text(
+        owner,
+        "response body",
+        body.decode("utf-8", errors="replace"),
+        request,
+        "body_",
+    )
+
+
+def run_http2_exchanges(
+    port: int,
+    exchanges: list[object],
+    expected_completion_order: list[object],
+    owner: str,
+    timeout: float,
+) -> None:
+    requests: dict[int, dict[str, object]] = {}
+    names: dict[int, str] = {}
+    outbound = bytearray(HTTP2_CLIENT_PREFACE)
+    outbound.extend(http2_frame(HTTP2_FRAME_SETTINGS, 0, 0, b""))
+    for index, raw_exchange in enumerate(exchanges):
+        assert isinstance(raw_exchange, dict)
+        stream_id = index * 2 + 1
+        body, headers = request_body(raw_exchange)
+        header_block = hpack_request_headers(port, raw_exchange, body, headers)
+        flags = HTTP2_FLAG_END_HEADERS
+        if not body:
+            flags |= HTTP2_FLAG_END_STREAM
+        outbound.extend(http2_frame(HTTP2_FRAME_HEADERS, flags, stream_id, header_block))
+        if body:
+            outbound.extend(
+                http2_frame(HTTP2_FRAME_DATA, HTTP2_FLAG_END_STREAM, stream_id, body)
+            )
+        requests[stream_id] = raw_exchange
+        names[stream_id] = str(raw_exchange["name"])
+
+    bodies = {stream_id: bytearray() for stream_id in requests}
+    completion_order: list[str] = []
+    completed: set[int] = set()
+    headers_end_stream: set[int] = set()
+    deadline = time.monotonic() + timeout
+
+    try:
+        sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    except OSError as error:
+        fail(f"{owner}: failed to connect HTTP/2 test client: {error}")
+    with sock:
+        sock.sendall(outbound)
+        while len(completed) < len(requests):
+            frame_type, flags, stream_id, payload = receive_http2_frame(sock, deadline)
+            if frame_type == HTTP2_FRAME_SETTINGS:
+                if stream_id != 0:
+                    fail("HTTP/2 SETTINGS frame used a non-zero stream")
+                if flags & HTTP2_FLAG_ACK:
+                    if payload:
+                        fail("HTTP/2 SETTINGS acknowledgement had a payload")
+                else:
+                    if len(payload) % 6 != 0:
+                        fail("HTTP/2 SETTINGS payload was malformed")
+                    sock.sendall(
+                        http2_frame(
+                            HTTP2_FRAME_SETTINGS, HTTP2_FLAG_ACK, 0, b""
+                        )
+                    )
+                continue
+            if frame_type == HTTP2_FRAME_PING:
+                if stream_id != 0 or len(payload) != 8:
+                    fail("HTTP/2 PING frame was malformed")
+                if flags & HTTP2_FLAG_ACK == 0:
+                    sock.sendall(
+                        http2_frame(HTTP2_FRAME_PING, HTTP2_FLAG_ACK, 0, payload)
+                    )
+                continue
+            if frame_type == HTTP2_FRAME_GOAWAY:
+                error_code = (
+                    int.from_bytes(payload[4:8], "big") if len(payload) >= 8 else -1
+                )
+                fail(f"HTTP/2 server sent GOAWAY with error code {error_code}")
+            if frame_type == HTTP2_FRAME_PUSH_PROMISE:
+                fail("HTTP/2 server unexpectedly sent PUSH_PROMISE")
+            if frame_type == HTTP2_FRAME_RST_STREAM:
+                error_code = int.from_bytes(payload, "big") if len(payload) == 4 else -1
+                fail(
+                    f"HTTP/2 stream {stream_id} was reset with error code "
+                    f"{error_code}"
+                )
+            if frame_type not in {
+                HTTP2_FRAME_DATA,
+                HTTP2_FRAME_HEADERS,
+                HTTP2_FRAME_CONTINUATION,
+            }:
+                continue
+            if stream_id not in requests:
+                fail(f"HTTP/2 response used unknown stream {stream_id}")
+
+            if frame_type == HTTP2_FRAME_DATA:
+                bodies[stream_id].extend(http2_data_fragment(flags, payload))
+                if len(bodies[stream_id]) > HTTP2_MAX_TEST_BODY_BYTES:
+                    fail(
+                        f"HTTP/2 stream {stream_id} exceeded the test client's "
+                        f"{HTTP2_MAX_TEST_BODY_BYTES}-byte response limit"
+                    )
+            elif (
+                frame_type == HTTP2_FRAME_HEADERS
+                and flags & HTTP2_FLAG_END_STREAM
+            ):
+                headers_end_stream.add(stream_id)
+
+            stream_ended = (
+                frame_type == HTTP2_FRAME_DATA and flags & HTTP2_FLAG_END_STREAM
+            ) or (
+                stream_id in headers_end_stream
+                and frame_type in {HTTP2_FRAME_HEADERS, HTTP2_FRAME_CONTINUATION}
+                and flags & HTTP2_FLAG_END_HEADERS
+            )
+            if stream_ended:
+                if stream_id in completed:
+                    fail(f"HTTP/2 stream {stream_id} ended more than once")
+                completed.add(stream_id)
+                completion_order.append(names[stream_id])
+
+    for stream_id, request in requests.items():
+        assert_http2_response(
+            request,
+            bytes(bodies[stream_id]),
+            f"{owner} HTTP/2 stream {names[stream_id]!r}",
+        )
+    expected_names = [str(name) for name in expected_completion_order]
+    if completion_order != expected_names:
+        fail(
+            f"{owner}: HTTP/2 completion order expected {expected_names!r}, "
+            f"got {completion_order!r}"
+        )
+
+
 def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None:
     body, headers = request_body(request)
     method = str(request.get("method", "GET"))
@@ -962,6 +1261,20 @@ def run_server_case(
                 if not isinstance(concurrent, list):
                     fail(f"{owner}: concurrent_requests must be an array")
                 run_concurrent_http_exchanges(port, concurrent, owner, timeout)
+                http2_requests = case.get("http2_requests", [])
+                http2_completion_order = case.get("http2_completion_order", [])
+                if not isinstance(http2_requests, list):
+                    fail(f"{owner}: http2_requests must be an array")
+                if not isinstance(http2_completion_order, list):
+                    fail(f"{owner}: http2_completion_order must be an array")
+                if http2_requests:
+                    run_http2_exchanges(
+                        port,
+                        http2_requests,
+                        http2_completion_order,
+                        owner,
+                        timeout,
+                    )
                 if case.get("expect_exit", False):
                     try:
                         process.wait(timeout=timeout)

@@ -1,10 +1,10 @@
 //! Tokio/Hyper server lifecycle and the provided Roc application entrypoints.
 
 use crate::abi::{
-    decref_server_response, roc_host, ServerConfig, ServerHeader, ServerRequest, ServerResponse,
-    ServerShutdownReason,
+    roc_host, ServerConfig, ServerHeader, ServerRequest, ServerResponse, ServerShutdownReason,
 };
 use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
+use crate::request_parts::{request_target, RequestPartsBacking};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
 use bytes::Bytes;
@@ -320,16 +320,67 @@ fn request_to_roc(
     declared_length: Option<u64>,
 ) -> ServerRequest {
     let roc_host = roc_host();
+    let backing = match RequestPartsBacking::new(parts) {
+        Ok(backing) => backing,
+        Err(parts) => {
+            return request_to_roc_copied(*parts, body_id, body_limit, declared_length, roc_host);
+        }
+    };
+    let method_tag = method_to_tag(backing.method());
+    let mut backing_references = 0;
+    let method_ext = if method_tag == 2 {
+        backing_references += 1;
+        backing.roc_str(backing.method().as_str())
+    } else {
+        RocStr::empty()
+    };
+    let headers = unsafe { RocList::<ServerHeader>::allocate(backing.headers().len(), roc_host) };
+    for (index, (name, value)) in backing.headers().iter().enumerate() {
+        let header = ServerHeader {
+            name: backing.roc_str(name.as_str()),
+            value: backing.roc_str(
+                value
+                    .to_str()
+                    .expect("request headers are validated before Roc conversion"),
+            ),
+        };
+        // SAFETY: `headers` allocated exactly HeaderMap::len() uninitialized
+        // elements, and HeaderMap iteration yields that many entries.
+        unsafe { headers.elements.add(index).write(header) };
+    }
+    backing_references += headers.len() * 2;
+    let target = backing.roc_str(backing.target());
+    backing_references += 1;
+    backing.install(backing_references);
+
+    ServerRequest {
+        body_id,
+        body_limit_bytes: body_limit,
+        content_length: declared_length.unwrap_or_default(),
+        headers,
+        method_ext,
+        target,
+        content_length_known: declared_length.is_some(),
+        method: method_tag,
+    }
+}
+
+fn request_to_roc_copied(
+    parts: hyper::http::request::Parts,
+    body_id: u64,
+    body_limit: u64,
+    declared_length: Option<u64>,
+    roc_host: &RocHost,
+) -> ServerRequest {
     let method_tag = method_to_tag(&parts.method);
     let method_ext = if method_tag == 2 {
         RocStr::from_str(parts.method.as_str(), roc_host)
     } else {
         RocStr::empty()
     };
-    let headers: Vec<ServerHeader> = parts
-        .headers
-        .iter()
-        .map(|(name, value)| ServerHeader {
+    let headers = unsafe { RocList::<ServerHeader>::allocate(parts.headers.len(), roc_host) };
+    for (index, (name, value)) in parts.headers.iter().enumerate() {
+        let header = ServerHeader {
             name: RocStr::from_str(name.as_str(), roc_host),
             value: RocStr::from_str(
                 value
@@ -337,16 +388,20 @@ fn request_to_roc(
                     .expect("request headers are validated before Roc conversion"),
                 roc_host,
             ),
-        })
-        .collect();
+        };
+        // SAFETY: `headers` allocated exactly HeaderMap::len() uninitialized
+        // elements, and HeaderMap iteration yields that many entries.
+        unsafe { headers.elements.add(index).write(header) };
+    }
+    let target = request_target(&parts);
 
     ServerRequest {
         body_id,
         body_limit_bytes: body_limit,
         content_length: declared_length.unwrap_or_default(),
-        headers: unsafe { RocList::<ServerHeader>::from_slice(&headers, roc_host) },
+        headers,
         method_ext,
-        target: RocStr::from_str(&parts.uri.to_string(), roc_host),
+        target: RocStr::from_str(target, roc_host),
         content_length_known: declared_length.is_some(),
         method: method_tag,
     }
@@ -366,12 +421,38 @@ fn response_to_hyper(response: ServerResponse) -> (hyper::Response<Full<Bytes>>,
     for header in response.headers.as_slice() {
         builder = builder.header(header.name.as_str(), header.value.as_str());
     }
-    let body = Bytes::copy_from_slice(response.body.as_slice());
+    let body = Bytes::from_owner(RocResponseOwner { response });
     let hyper_response = builder
         .body(Full::new(body))
         .unwrap_or_else(|_| internal_server_error("Failed to build response"));
-    decref_server_response(response, roc_host());
     (hyper_response, stop_code)
+}
+
+/// Owns every Roc reference in a response while Hyper may still transmit the
+/// body. This is intentionally the whole response rather than just its body:
+/// generated recursive decref remains the single source of truth, and keeping
+/// the small header descriptors alive until body completion is bounded.
+struct RocResponseOwner {
+    response: ServerResponse,
+}
+
+impl AsRef<[u8]> for RocResponseOwner {
+    fn as_ref(&self) -> &[u8] {
+        self.response.body.as_slice()
+    }
+}
+
+// SAFETY: `roc_respond_for_host` has returned, so these Roc allocations are
+// immutable. Their ARC slots are atomic, and the shared RocHost deallocator is
+// thread-safe. Hyper may therefore move the owner to a transport worker.
+unsafe impl Send for RocResponseOwner {}
+
+impl Drop for RocResponseOwner {
+    fn drop(&mut self) {
+        // SAFETY: this owner contains exactly the references returned by Roc,
+        // and Bytes drops its owner exactly once after its last clone.
+        unsafe { self.response.decref(roc_host()) };
+    }
 }
 
 fn internal_server_error(message: &str) -> hyper::Response<Full<Bytes>> {
@@ -699,6 +780,111 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         assert!(!request_headers_are_utf8(&headers));
+    }
+
+    #[test]
+    fn absolute_uri_target_is_normalized_to_path_and_query() {
+        let request = hyper::Request::builder()
+            .method(hyper::Method::GET)
+            .uri("http://example.test/a/path?from=h2")
+            .body(())
+            .unwrap();
+        let (parts, _) = request.into_parts();
+        assert_eq!(request_target(&parts), "/a/path?from=h2");
+    }
+
+    #[test]
+    fn connect_target_preserves_authority_form() {
+        let request = hyper::Request::builder()
+            .method(hyper::Method::CONNECT)
+            .uri("upstream.example:443")
+            .body(())
+            .unwrap();
+        let (parts, _) = request.into_parts();
+        assert_eq!(request_target(&parts), "upstream.example:443");
+    }
+
+    #[tokio::test]
+    async fn request_metadata_and_escaped_response_body_share_hyper_storage() {
+        static INITIALIZE: std::sync::Once = std::sync::Once::new();
+        INITIALIZE.call_once(crate::abi::initialize_roc_host);
+
+        let request = hyper::Request::builder()
+            .method("PROPFIND")
+            .uri("/a/long/request/target?with=a-query")
+            .header("x-long-request-header", "a sufficiently long header value")
+            .body(())
+            .unwrap();
+        let original_target_ptr = request.uri().path_and_query().unwrap().as_str().as_ptr();
+        let original_headers: Vec<(*const u8, *const u8)> = request
+            .headers()
+            .iter()
+            .map(|(name, value)| (name.as_str().as_ptr(), value.as_bytes().as_ptr()))
+            .collect();
+        let (parts, _) = request.into_parts();
+
+        let roc_request = request_to_roc(parts, 1, 4096, None);
+        assert_eq!(crate::request_parts::active_backings(), 1);
+        assert!(roc_request.target.is_seamless_slice());
+        assert_eq!(roc_request.target.as_u8_ptr(), original_target_ptr);
+        assert!(roc_request.method_ext.is_seamless_slice());
+        assert_eq!(roc_request.method_ext.as_str(), "PROPFIND");
+        for (header, (name_ptr, value_ptr)) in
+            roc_request.headers.as_slice().iter().zip(original_headers)
+        {
+            assert!(header.name.is_seamless_slice());
+            assert!(header.value.is_seamless_slice());
+            assert_eq!(header.name.as_u8_ptr(), name_ptr);
+            assert_eq!(header.value.as_u8_ptr(), value_ptr);
+            assert_eq!(
+                header.name.capacity_or_alloc_ptr,
+                roc_request.target.capacity_or_alloc_ptr
+            );
+            assert_eq!(
+                header.value.capacity_or_alloc_ptr,
+                roc_request.target.capacity_or_alloc_ptr
+            );
+        }
+
+        // Model Roc returning `Str.to_utf8(request.target)`: the output list
+        // owns one additional reference to the same request-parts backing.
+        let target = roc_request.target;
+        unsafe { target.incref(1) };
+        let escaped_body = RocListWith::<u8, false> {
+            elements: target.bytes,
+            length: target.len(),
+            capacity_or_alloc_ptr: target.capacity_or_alloc_ptr,
+        };
+        let escaped_ptr = escaped_body.elements;
+
+        unsafe { roc_request.decref(roc_host()) };
+        assert_eq!(
+            crate::request_parts::active_backings(),
+            1,
+            "the escaped response slice must keep request metadata alive"
+        );
+
+        let roc_response = ServerResponse {
+            exit_code: 0,
+            body: escaped_body,
+            headers: RocList::empty(),
+            status: 200,
+            stop: false,
+        };
+        let (response, stop_code) = response_to_hyper(roc_response);
+        assert_eq!(stop_code, None);
+        assert_eq!(crate::request_parts::active_backings(), 1);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body.as_ptr(), escaped_ptr);
+        assert_eq!(body.as_ref(), b"/a/long/request/target?with=a-query");
+        assert_eq!(crate::request_parts::active_backings(), 1);
+        drop(body);
+        assert_eq!(
+            crate::request_parts::active_backings(),
+            0,
+            "Hyper's final Bytes drop must release the escaped Roc slice"
+        );
     }
 
     #[test]

@@ -418,7 +418,12 @@
               "timeout": 4
             },
             {
-              "launch_after_ms": 150,
+              "launch_after_ms": 50,
+              "expect_body": "Response delayed by 1 second",
+              "timeout": 4
+            },
+            {
+              "launch_after_ms": 100,
               "expect_body": "Response delayed by 1 second",
               "timeout": 4
             },
@@ -428,6 +433,19 @@
               "expect_body": "Server is overloaded"
             }
           ],
+          "http2_requests": [
+            {
+              "name": "slow",
+              "target": "/",
+              "expect_body": "Response delayed by 1 second"
+            },
+            {
+              "name": "fast",
+              "target": "/fast",
+              "expect_body": "Immediate response"
+            }
+          ],
+          "http2_completion_order": ["fast", "slow"],
           "stdout_contains": ["Sleeping for 1 second..."]
         }
       ]

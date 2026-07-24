@@ -180,6 +180,7 @@ pub(crate) extern "C" fn routed_roc_dealloc(
     use crate::host_resource::DeallocRoute;
 
     for route_resource in [
+        crate::request_parts::route_dealloc,
         crate::sqlite::route_resource_dealloc,
         crate::file::route_resource_dealloc,
         crate::tcp::route_resource_dealloc,
@@ -203,7 +204,8 @@ pub extern "C" fn roc_dealloc(ptr: *mut c_void, alignment: usize) {
 }
 
 fn is_host_resource_address(ptr: *const c_void) -> bool {
-    crate::sqlite::contains_resource_address(ptr)
+    crate::request_parts::contains_address(ptr)
+        || crate::sqlite::contains_resource_address(ptr)
         || crate::file::contains_resource_address(ptr)
         || crate::tcp::contains_resource_address(ptr)
 }
@@ -245,12 +247,6 @@ pub extern "C" fn roc_expect_failed(bytes: *const u8, len: usize) {
 #[no_mangle]
 pub extern "C" fn roc_crashed(bytes: *const u8, len: usize) {
     DefaultHandlers::roc_crashed(roc_host_ptr(), bytes, len);
-}
-
-pub(crate) fn decref_server_response(value: ServerResponse, roc_host: &RocHost) {
-    // SAFETY: `roc_respond_for_host` returned one owned reference for every
-    // refcounted field in the response.
-    unsafe { value.decref(roc_host) };
 }
 
 #[cfg(target_pointer_width = "32")]

@@ -21,7 +21,7 @@ init! = ||
 			Server.default_config,
 			{
 				max_connections: 4,
-				max_handlers: 1,
+				max_handlers: 2,
 				max_queued_handlers: 1,
 			},
 		),
@@ -29,13 +29,16 @@ init! = ||
 	})
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |_, _state| {
-	Stdout.line!("Sleeping for 1 second...")
-		? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
-	Sleep.millis!(1000)
+respond! = |request, _state|
+	if request.target() == "/fast" {
+		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Immediate response"))))
+	} else {
+		Stdout.line!("Sleeping for 1 second...")
+			? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
+		Sleep.millis!(1000)
 
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Response delayed by 1 second"))))
-}
+		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Response delayed by 1 second"))))
+	}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

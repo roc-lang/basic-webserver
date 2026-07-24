@@ -21,6 +21,7 @@ mod http_server;
 mod os_str;
 mod path;
 mod request_body;
+mod request_parts;
 mod roc_platform_abi;
 mod shutdown;
 mod sqlite;
@@ -37,15 +38,19 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 pub fn rust_main() -> i32 {
     abi::initialize_roc_host();
     let exit_code = http_server::start();
-    let live_resources =
-        sqlite::active_resources() + file::active_resources() + tcp::active_resources();
+    let live_resources = sqlite::active_resources()
+        + file::active_resources()
+        + tcp::active_resources()
+        + request_parts::active_backings();
     if live_resources != 0 {
         eprintln!(
-            "host resource lifecycle error: {live_resources} opaque resources remained after \
-             shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={})",
+            "host resource lifecycle error: {live_resources} native resources remained after \
+             shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={}, \
+             request_backings={})",
             sqlite::resource_high_water(),
             file::resource_high_water(),
             tcp::resource_high_water(),
+            request_parts::high_water(),
         );
         1
     } else {

@@ -12,6 +12,40 @@ from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_http2_request_headers_use_prior_knowledge_hpack(self) -> None:
+        block = test.hpack_request_headers(
+            8000,
+            {"method": "GET", "target": "/fast"},
+            b"",
+            [],
+        )
+
+        self.assertEqual(block[:3], b"\x82\x86\x04")
+        self.assertIn(b"/fast", block)
+        self.assertIn(b"127.0.0.1:8000", block)
+
+    def test_http2_frame_encodes_the_wire_header(self) -> None:
+        frame = test.http2_frame(
+            test.HTTP2_FRAME_HEADERS,
+            test.HTTP2_FLAG_END_HEADERS | test.HTTP2_FLAG_END_STREAM,
+            3,
+            b"abc",
+        )
+
+        self.assertEqual(frame, b"\x00\x00\x03\x01\x05\x00\x00\x00\x03abc")
+
+    def test_http2_completion_order_must_cover_every_named_request(self) -> None:
+        case = {
+            "name": "multiplexed",
+            "http2_requests": [{"name": "slow"}, {"name": "fast"}],
+            "http2_completion_order": ["fast"],
+        }
+
+        with self.assertRaisesRegex(
+            test.TestFailure, "must name every HTTP/2 request"
+        ):
+            test.validate_case("examples/sleep.roc", case, set())
+
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             log = Path(raw_directory) / "memcheck.log"
