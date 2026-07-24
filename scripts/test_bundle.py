@@ -6,6 +6,7 @@ import functools
 import os
 import re
 import subprocess
+import sys
 import threading
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -81,7 +82,7 @@ def main() -> None:
             update_apps([ROOT / "examples"], bundle_url)
             update_readme(bundle_url)
             subprocess.run(
-                [str(ROOT / "ci" / "all_tests.sh")],
+                [sys.executable, str(ROOT / "scripts" / "test.py")],
                 cwd=ROOT,
                 env=os.environ.copy(),
                 check=True,

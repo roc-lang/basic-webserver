@@ -48,7 +48,7 @@ jobs:
         run: cargo test --locked
 
       - name: Format, check, and test Roc examples
-        run: ./scripts/test.py --operation validate
+        run: python scripts/test.py --operation validate
 
   build-examples:
     name: build examples (${{ matrix.target }})
@@ -100,12 +100,10 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Build host static library
-        shell: bash
-        run: ./build.sh --target "${{ matrix.target }}"
+        run: python scripts/build.py --target "${{ matrix.target }}"
 
       - name: Cross-compile every Roc example
-        shell: bash
-        run: ./scripts/test.py --operation build --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
+        run: python scripts/test.py --operation build --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
 
       - name: Upload example binaries
         uses: actions/upload-artifact@v7
@@ -143,8 +141,7 @@ jobs:
           path: dist/example-binaries/${{ matrix.target }}
 
       - name: Run native spec cases
-        shell: bash
-        run: ./scripts/test.py --operation run --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
+        run: python scripts/test.py --operation run --target "${{ matrix.target }}" --artifact-dir dist/example-binaries
 
       - name: Upload runtime conformance results
         if: always()
@@ -168,4 +165,4 @@ jobs:
           path: target/spec-results
 
       - name: Verify every target ran the same cases
-        run: python3 scripts/check_test_results.py target/spec-results
+        run: python scripts/test.py --operation compare --results-dir target/spec-results

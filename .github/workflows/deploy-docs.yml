@@ -6,9 +6,8 @@ on:
       - main
     paths:
       - ".github/workflows/deploy-docs.yml"
-      - "docs/**"
       - "platform/**"
-      - "scripts/restore_release_docs.sh"
+      - "www/**"
   workflow_dispatch:
 
 concurrency:
@@ -41,10 +40,10 @@ jobs:
         with:
           version: nightly-new-compiler
 
-      - name: Restore released docs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./scripts/restore_release_docs.sh temp_docs
+      - name: Create Pages tree
+        run: |
+          mkdir -p temp_docs
+          cp -R www/. temp_docs/
 
       - name: Generate main branch docs
         env:

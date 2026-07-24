@@ -100,8 +100,8 @@ def musl_build_env(rust_target: str) -> dict[str, str]:
 
     key = rust_target.replace("-", "_")
     env["ZIG_CC_TARGET"] = zig_target
-    env[f"CC_{key}"] = str(ROOT / "ci" / "zig-cc.sh")
-    env[f"AR_{key}"] = str(ROOT / "ci" / "zig-ar.sh")
+    env[f"CC_{key}"] = str(ROOT / "scripts" / "zig_cc.py")
+    env[f"AR_{key}"] = "zig ar"
     env[f"CFLAGS_{key}"] = "-Wno-error"
     print(f"  (using zig cc for {rust_target})")
     return env

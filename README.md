@@ -112,20 +112,20 @@ If you'd like to contribute, check out our [group chat](https://roc.zulipchat.co
 
 If you have cloned this repository and want to run the examples without using a packaged release, build the platform first:
 
-```bash
-./build.sh
+```sh
+python scripts/build.py
 ```
 
 Then run examples with `roc examples/hello-web.roc`.
 
-Use `./build.sh --target <target>` to build a specific host library, or
-`./build.sh --all` to build all macOS and Linux host libraries. Windows host
+Use `python scripts/build.py --target <target>` to build a specific host library, or
+`python scripts/build.py --all` to build all macOS and Linux host libraries. Windows host
 inputs must be built on Windows. Release packages use `.tar.zst` assets.
 
 Run the complete local verification suite with:
 
-```bash
-./ci/all_tests.sh
+```sh
+python scripts/test.py
 ```
 
 The suite uses Python's standard library to format, check, test, and build each
@@ -140,7 +140,7 @@ sources, and test specification, ensuring the runtime tests exercise the
 cross-target build outputs rather than silently rebuilding them.
 
 To build a release-format package after assembling all target inputs, run
-`./scripts/bundle.py --output-dir dist`. Windows inputs must be built on a
+`python scripts/bundle.py --output-dir dist`. Windows inputs must be built on a
 Windows host; the release workflow combines them with the macOS and Linux
 inputs automatically.
 

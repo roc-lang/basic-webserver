@@ -53,10 +53,10 @@ curl_form_output.txt
 !platform/targets/*/crt1.o
 !platform/targets/*/libc.a
 !platform/targets/*/libunwind.a
-# Host libraries are rebuilt by build.sh and are NOT committed.
+# Host libraries are rebuilt by scripts/build.py and are NOT committed.
 platform/targets/*/libhost.a
 platform/targets/*/host.lib
-# Windows SDK import libraries are copied by build.sh and are NOT committed.
+# Windows SDK import libraries are copied by scripts/build.py and are NOT committed.
 platform/targets/*/ws2_32.lib
 platform/targets/*/bcrypt.lib
 platform/targets/*/advapi32.lib

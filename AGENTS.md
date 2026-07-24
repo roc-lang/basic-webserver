@@ -38,30 +38,30 @@ compiler is no longer supported.
 Build the host static library for the native target (writes `libhost.a` or
 `host.lib` under `platform/targets/<target>/`):
 ```
-./build.sh                  # native target
-./build.sh --target TARGET  # one specific target
-./build.sh --all            # targets buildable from this host OS
+python scripts/build.py                  # native target
+python scripts/build.py --target TARGET  # one specific target
+python scripts/build.py --all            # targets buildable from this host OS
 ```
 
 Format, check, test, build, and run every active example through the
 cross-platform HTTP specification suite:
 ```
-./ci/all_tests.sh
+python scripts/test.py
 ```
 
 CI splits this into reusable phases so it tests the uploaded cross-target
 artifacts rather than rebuilding before execution:
 ```
-./scripts/test.py --operation validate
-./scripts/test.py --operation build --target x64musl --artifact-dir dist/example-binaries
-./scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
+python scripts/test.py --operation validate
+python scripts/test.py --operation build --target x64musl --artifact-dir dist/example-binaries
+python scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
 ```
 
 Regenerate the committed Rust glue after changing `platform/main.roc`'s
 `hosted`/`provides` blocks (needs a roc source checkout for `RustGlue.roc`):
 ```
-ROC_SRC=/path/to/roc ./ci/regenerate_glue.sh          # write
-ROC_SRC=/path/to/roc ./ci/regenerate_glue.sh --check  # fail if stale
+ROC_SRC=/path/to/roc python scripts/regenerate_glue.py          # write
+ROC_SRC=/path/to/roc python scripts/regenerate_glue.py --check  # fail if stale
 ```
 
 # Tests
@@ -82,9 +82,12 @@ roc build examples/hello-web.roc
 ```
 
 Files with a `.todoroc` extension are intentionally skipped migration backlog.
-Active `.roc` examples should pass `./ci/all_tests.sh` on every supported OS.
+Active `.roc` examples should pass `python scripts/test.py` on every supported OS.
 
 # Style
 
 - Prefer simple solutions.
 - Try to achieve a single source of truth when sensible.
+- Keep repository automation in `scripts/` and write it in portable Python.
+  Extend an existing entrypoint when the responsibility fits; add a script only
+  when it owns a distinct reusable workflow.

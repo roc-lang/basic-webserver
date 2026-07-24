@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable child process used by the command example."""
+"""Portable child process used by examples/command.roc."""
 
 from __future__ import annotations
 

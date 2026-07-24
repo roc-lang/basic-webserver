@@ -35,6 +35,13 @@ DEFAULT_ARTIFACT_DIR = ROOT / "dist" / "example-binaries"
 STAGES = ("fmt", "check", "test", "build", "run")
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
+TARGET_PLATFORMS = {
+    "x64mac": "darwin",
+    "arm64mac": "darwin",
+    "x64musl": "linux",
+    "arm64musl": "linux",
+    "x64win": "windows",
+}
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
 
@@ -777,18 +784,81 @@ def write_results(target: str, results: list[dict[str, object]]) -> None:
     print(f"Results: {path.relative_to(ROOT)}")
 
 
+def compare_results(directory: Path) -> None:
+    paths = sorted(directory.rglob("results-*.json"))
+    expected_targets = set(declared_targets())
+    if expected_targets != set(TARGET_PLATFORMS):
+        fail(
+            "Platform/result target mismatch; "
+            f"platform={sorted(expected_targets)}, "
+            f"results={sorted(TARGET_PLATFORMS)}"
+        )
+
+    expected_cases: set[tuple[str, str]] | None = None
+    actual_targets: set[str] = set()
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        target = data.get("target")
+        if target not in expected_targets:
+            fail(f"{path}: unknown target {target!r}")
+        if target in actual_targets:
+            fail(f"{path}: duplicate results for {target}")
+        actual_targets.add(target)
+
+        expected_platform = TARGET_PLATFORMS[str(target)]
+        if data.get("platform") != expected_platform:
+            fail(
+                f"{path}: {target} ran on {data.get('platform')!r}, "
+                f"expected {expected_platform!r}"
+            )
+
+        cases = data.get("cases")
+        if not isinstance(cases, list):
+            fail(f"{path}: cases must be an array")
+        identities: set[tuple[str, str]] = set()
+        for case in cases:
+            if not isinstance(case, dict):
+                fail(f"{path}: invalid case result")
+            identity = (str(case.get("app")), str(case.get("case")))
+            if identity in identities:
+                fail(f"{path}: duplicate result for {identity}")
+            identities.add(identity)
+            status = case.get("status")
+            if status not in ("passed", "skipped"):
+                fail(f"{path}: {identity} has status {status!r}")
+            if status == "skipped" and (
+                not case.get("reason") or not case.get("issue")
+            ):
+                fail(f"{path}: {identity} has an unexplained skip")
+
+        if expected_cases is None:
+            expected_cases = identities
+        elif identities != expected_cases:
+            fail(
+                f"{path}: runtime case mismatch; "
+                f"missing={sorted(expected_cases - identities)}, "
+                f"extra={sorted(identities - expected_cases)}"
+            )
+        print(f"{path}: {target} accounted for {len(identities)} cases")
+
+    if actual_targets != expected_targets:
+        fail(f"Missing target results: {sorted(expected_targets - actual_targets)}")
+
+
 def spec_hash() -> str:
     return hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest()
 
 
 def examples_hash() -> str:
     digest = hashlib.sha256()
-    for path in sorted(
+    paths = [
         item
         for item in (ROOT / "examples").iterdir()
         if item.is_file() and item.suffix != ".todoroc"
-    ):
-        digest.update(path.name.encode("utf-8"))
+    ]
+    paths.append(ROOT / "scripts" / "command_helper.py")
+    for path in sorted(paths):
+        digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
@@ -918,7 +988,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--operation",
-        choices=("all", "validate", "build", "run"),
+        choices=("all", "validate", "build", "run", "compare"),
         default="all",
         help="run the complete suite or one reusable phase",
     )
@@ -927,7 +997,17 @@ def main() -> None:
     parser.add_argument(
         "--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR
     )
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=ROOT / "target" / "spec-results",
+        help="directory containing per-target result manifests for compare",
+    )
     args = parser.parse_args()
+
+    if args.operation == "compare":
+        compare_results(args.results_dir.resolve())
+        return
 
     defaults, apps = load_spec()
     target = args.target or detect_native_target()

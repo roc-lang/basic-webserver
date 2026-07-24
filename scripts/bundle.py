@@ -165,7 +165,8 @@ def main() -> None:
         rust_licenses_target.unlink(missing_ok=True)
         raise SystemExit(
             "Platform inputs exceed Roc's default 100 MiB transitive dependency limit: "
-            f"{unpacked_size} bytes. Rebuild Linux hosts with ./build.sh --all "
+            f"{unpacked_size} bytes. Rebuild Linux hosts with "
+            "python scripts/build.py --all "
             "so their archives are stripped."
         )
 

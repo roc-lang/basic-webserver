@@ -115,10 +115,10 @@ jobs:
           fi
 
       - name: Build platform for all targets
-        run: ./scripts/build.py --all
+        run: python scripts/build.py --all
 
       - name: Validate package
-        run: ./ci/all_tests.sh
+        run: python scripts/test.py
 
       - name: Resolve previous release
         if: github.event_name == 'workflow_dispatch'
@@ -140,7 +140,7 @@ jobs:
           previous_url: ${{ steps.previous.outputs.previous_url }}
 
       - name: Bundle platform
-        run: ./scripts/bundle.py --output-dir dist
+        run: python scripts/bundle.py --output-dir dist
 
       - name: Prepare release bundle metadata
         id: bundles
@@ -199,17 +199,7 @@ jobs:
           name: release-bundles
           path: .release/test-bundles
 
-      - name: Test release bundle (Unix)
-        if: matrix.os != 'windows-2025'
-        uses: roc-lang/release-package/actions/test-bundle@d2560ead9f724bfaabfbc8134b8895e120171064
-        with:
-          test_bundle_command: ./scripts/test_bundle.py --bundle-path
-          bundle_path: .release/test-bundles/${{ matrix.artifact_file }}
-          bundle_name: ${{ matrix.bundle_name }}
-          release_version: ${{ needs.build.outputs.release_version }}
-
-      - name: Test release bundle (Windows)
-        if: matrix.os == 'windows-2025'
+      - name: Test release bundle
         uses: roc-lang/release-package/actions/test-bundle@d2560ead9f724bfaabfbc8134b8895e120171064
         with:
           test_bundle_command: python scripts/test_bundle.py --bundle-path
@@ -218,7 +208,7 @@ jobs:
           release_version: ${{ needs.build.outputs.release_version }}
 
   build-docs:
-    name: Build docs archive
+    name: Validate release docs
     needs: build
     runs-on: ubuntu-latest
 
@@ -254,19 +244,6 @@ jobs:
           docs_root: docs-site
           docs_version: ${{ needs.build.outputs.docs_version }}
 
-      - name: Archive versioned docs
-        env:
-          DOCS_VERSION: ${{ needs.build.outputs.docs_version }}
-        run: tar -czf docs.tar.gz -C docs-site "$DOCS_VERSION"
-
-      - name: Upload docs archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: platform-docs
-          path: docs.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-
   publish-release:
     name: Publish GitHub release
     needs:
@@ -296,11 +273,6 @@ jobs:
           name: release-metadata
           path: .release
 
-      - name: Download docs archive
-        uses: actions/download-artifact@v8
-        with:
-          name: platform-docs
-
       - name: Make release notes
         uses: roc-lang/release-package/actions/make-release-notes@d2560ead9f724bfaabfbc8134b8895e120171064
         with:
@@ -312,7 +284,6 @@ jobs:
         uses: roc-lang/release-package/actions/publish-release@48ccc909bd8f6ba60feb1d33d8b6ac1dc1c7af36
         with:
           release_version: ${{ needs.build.outputs.release_version }}
-          additional_assets: docs.tar.gz
           github_token: ${{ github.token }}
 
   publish-docs:
@@ -349,38 +320,13 @@ jobs:
       - name: Derive release bundle URL and update examples
         env:
           RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
-        run: |
-          bundle_url="$(python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          bundles = json.loads(Path(".release/release-bundles.json").read_text(encoding="utf-8"))
-          if len(bundles) != 1:
-              raise SystemExit(f"expected exactly one release bundle, found {len(bundles)}")
-
-          artifact_file = bundles[0]["artifact_file"]
-          print(
-              f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/"
-              f"download/{os.environ['RELEASE_VERSION']}/{artifact_file}"
-          )
-          PY
-          )"
-          ./scripts/update_app_platform_urls.py \
-            --platform-url "$bundle_url" \
-            examples
+        run: >-
+          python scripts/update_app_platform_urls.py
+          --release-manifest .release/release-bundles.json
+          examples
 
       - name: Validate updated examples
-        run: |
-          for example in examples/*.roc; do
-            roc check "$example" --no-cache
-            roc test "$example" --no-cache
-          done
-
-      - name: Restore published versioned docs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./scripts/restore_release_docs.sh www
+        run: python scripts/test.py --operation validate
 
       - name: Snapshot existing docs
         uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064
@@ -415,14 +361,16 @@ jobs:
           release_version: ${{ needs.build.outputs.release_version }}
           paths: |
             examples
+            www
           branch_prefix: release-followup
           base_branch: ${{ github.event.repository.default_branch }}
-          commit_message: Update examples for ${{ needs.build.outputs.release_version }}
-          pr_title: Update examples for ${{ needs.build.outputs.release_version }}
+          commit_message: Update docs and examples for ${{ needs.build.outputs.release_version }}
+          pr_title: Update docs and examples for ${{ needs.build.outputs.release_version }}
           pr_body: |
             Release follow-up for ${{ needs.build.outputs.release_version }}.
 
-            Updates checked-in examples to the published platform bundle.
+            Updates checked-in examples and versioned docs for the published
+            platform bundle.
           github_token: ${{ github.token }}
 
       - name: Create Pages tree

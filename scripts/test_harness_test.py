@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts import test
+from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
@@ -98,6 +100,54 @@ class SpecValidationTests(unittest.TestCase):
                 test.load_artifact_binaries(
                     "x64musl", artifact_dir, defaults, apps
                 )
+
+    def test_compare_results_requires_every_target(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            for target, platform_name in test.TARGET_PLATFORMS.items():
+                target_dir = directory / target
+                target_dir.mkdir()
+                (target_dir / f"results-{target}.json").write_text(
+                    json.dumps(
+                        {
+                            "target": target,
+                            "platform": platform_name,
+                            "cases": [
+                                {
+                                    "app": "examples/hello-web.roc",
+                                    "case": "semantic-http",
+                                    "status": "passed",
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                test.compare_results(directory)
+
+            (directory / "x64win" / "results-x64win.json").unlink()
+            with self.assertRaisesRegex(test.TestFailure, "Missing target results"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    test.compare_results(directory)
+
+    def test_release_platform_url_uses_prepared_bundle_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            manifest = Path(raw_directory) / "release-bundles.json"
+            manifest.write_text(
+                json.dumps([{"artifact_file": "basic-webserver.tar.zst"}]),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                update_app_platform_urls.release_platform_url(
+                    manifest,
+                    "1.2.3",
+                    "roc-lang/basic-webserver",
+                ),
+                "https://github.com/roc-lang/basic-webserver/releases/"
+                "download/1.2.3/basic-webserver.tar.zst",
+            )
 
 
 if __name__ == "__main__":
