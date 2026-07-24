@@ -40,6 +40,7 @@ jobs:
         run: |
           rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
           rustup default "${{ needs.rust-version.outputs.version }}"
+          rustup component add rustfmt
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
