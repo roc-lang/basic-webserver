@@ -68,7 +68,7 @@ Tcp :: [].{
 	}
 
 	## Represents errors that can occur when connecting to a remote host.
-	ConnectErr : [
+	ConnectErr(a) : [
 
 		## The host already retains its maximum of 64 TCP streams.
 		CapacityExhausted,
@@ -80,10 +80,11 @@ Tcp :: [].{
 		TimedOut,
 		Unsupported,
 		Unrecognized(Str),
+		..a,
 	]
 
 	## Represents errors that can occur when performing an effect with a `Stream`.
-	StreamErr : [
+	StreamErr(a) : [
 		StreamNotFound,
 
 		## Another handler is currently reading from or writing to this stream.
@@ -99,6 +100,7 @@ Tcp :: [].{
 		OutOfMemory,
 		BrokenPipe,
 		Unrecognized(Str),
+		..a,
 	]
 
 	## Opens a TCP connection to a remote host.
@@ -147,7 +149,7 @@ Tcp :: [].{
 
 # ---- internal helpers (module-private) -----------------------------------------
 
-parse_connect_err : Str -> Tcp.ConnectErr
+parse_connect_err : Str -> Tcp.ConnectErr(a)
 parse_connect_err = |err|
 	match err {
 		"StreamCapacityExhausted" => CapacityExhausted
@@ -161,7 +163,7 @@ parse_connect_err = |err|
 		other => Unrecognized(other)
 	}
 
-parse_stream_err : Str -> Tcp.StreamErr
+parse_stream_err : Str -> Tcp.StreamErr(a)
 parse_stream_err = |err|
 	match err {
 		"StreamNotFound" => StreamNotFound
