@@ -7,12 +7,12 @@ app [Context, program] {
 import pf.Server
 import pf.Cmd
 import pf.Env
-import pf.Path exposing [Path]
+import pf.Path
 import pf.Utc
 import pf.Stdout
 import http.Response
 
-Context : { helper : Str, python : Str, examples_dir : Path, scripts_dir : Path }
+Context : { helper : Str, python : Str, examples_dir : Path.Path, scripts_dir : Path.Path }
 
 program = { init!, respond!, shutdown! }
 
@@ -101,7 +101,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 		}
 	}
 
-command_cwd_response : Str, Str, Path => Try(Server.Outcome, [ServerErr(Str), ..])
+command_cwd_response : Str, Str, Path.Path => Try(Server.Outcome, [ServerErr(Str), ..])
 command_cwd_response = |python, helper, working_dir| {
 	output = Cmd.new_str(python)
 		.args_str([helper, "cwd", "0.2"])

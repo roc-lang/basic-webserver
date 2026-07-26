@@ -1,7 +1,7 @@
 import IOErr
 import Host
 import OsStr
-import Path exposing [Path]
+import Path
 
 ## Build and run finite child processes with native-safe programs, arguments,
 ## and environment values. Programs execute directly without a shell. Commands
@@ -28,7 +28,7 @@ Cmd := [
 			clear_envs : Bool,
 			envs : List({ name : OsStr, value : OsStr }),
 			program : OsStr,
-			working_dir : [Inherit, Set(Path)],
+			working_dir : [Inherit, Set(Path.Path)],
 			timeout_ms : U64,
 			stdout_limit_bytes : U64,
 			stderr_limit_bytes : U64,
@@ -153,7 +153,7 @@ Cmd := [
 	## this includes a bare program name that would otherwise use PATH lookup.
 	## Missing, inaccessible, or invalid directories are reported through the
 	## corresponding `FailedToGetExitCode` or `FailedToGetExitCodeB` error.
-	with_working_dir : Cmd, Path -> Cmd
+	with_working_dir : Cmd, Path.Path -> Cmd
 	with_working_dir = |Cmd(cmd), path| Cmd({ ..cmd, working_dir: Set(path) })
 
 	## Set the total deadline, including bounded admission wait. Zero is
