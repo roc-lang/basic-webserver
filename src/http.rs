@@ -113,6 +113,14 @@ struct OutboundHttp {
 static OUTBOUND_HTTP: Mutex<Option<Arc<OutboundHttp>>> = Mutex::new(None);
 static OUTBOUND_GATE: BoundedGate = BoundedGate::new(MAX_ACTIVE_OUTBOUND, MAX_QUEUED_OUTBOUND);
 
+fn wait_for_dns_shutdown(runtime: &tokio::runtime::Runtime, dns_gate: &AsyncBoundedGate) -> bool {
+    runtime.block_on(async {
+        tokio::time::timeout(NATIVE_SHUTDOWN_TIMEOUT, dns_gate.wait_for_idle())
+            .await
+            .is_ok()
+    })
+}
+
 fn outbound_http() -> Arc<OutboundHttp> {
     let mut shared = OUTBOUND_HTTP
         .lock()
@@ -184,12 +192,7 @@ pub(crate) fn shutdown() {
         dns_gate,
     } = outbound;
     drop(client);
-    let resolvers_drained = runtime
-        .block_on(tokio::time::timeout(
-            NATIVE_SHUTDOWN_TIMEOUT,
-            dns_gate.wait_for_idle(),
-        ))
-        .is_ok();
+    let resolvers_drained = wait_for_dns_shutdown(&runtime, &dns_gate);
     if !resolvers_drained {
         eprintln!(
             "outbound HTTP name resolution did not finish within {:?}; process exit is the hard stop",
@@ -725,6 +728,17 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(1), resolver.gate.wait_for_idle())
             .await
             .expect("blocking DNS lookup did not release capacity");
+    }
+
+    #[test]
+    fn dns_shutdown_wait_enters_its_runtime_before_constructing_the_timer() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let gate = AsyncBoundedGate::new(1, 0);
+
+        assert!(wait_for_dns_shutdown(&runtime, &gate));
     }
 
     #[test]
