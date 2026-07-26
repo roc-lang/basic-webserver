@@ -14,6 +14,7 @@ mod cmd;
 mod dir;
 mod env;
 mod file;
+mod file_server;
 mod host_resource;
 mod http;
 mod http_error;

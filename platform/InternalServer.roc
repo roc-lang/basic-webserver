@@ -25,6 +25,14 @@ InternalServer :: [].{
 		body : List(U8),
 		stop : Bool,
 		exit_code : I64,
+		kind : U8,
+		file_root_id : Str,
+		file_relative : Str,
+		file_disposition : U8,
+		file_download_name : Str,
+		file_cache_override : Bool,
+		file_cache_tag : U8,
+		file_cache_max_age_seconds : U32,
 	}
 
 	ConfigToHost : {
@@ -38,6 +46,30 @@ InternalServer :: [].{
 		max_connections : U32,
 		max_handlers : U16,
 		max_queued_handlers : U16,
+		file_roots : List(
+			{
+				id : Str,
+				path_tag : U8,
+				path_utf8 : Str,
+				path_unix_bytes : List(U8),
+				path_windows_u16s : List(U16),
+				cache_tag : U8,
+				cache_max_age_seconds : U32,
+			},
+		),
+		native_routes : List(
+			{
+				at : Str,
+				root_id : Str,
+				kind : U8,
+				relative : Str,
+				cache_override : Bool,
+				cache_tag : U8,
+				cache_max_age_seconds : U32,
+			},
+		),
+		file_max_concurrent : U16,
+		file_chunk_bytes : U32,
 	}
 
 	ShutdownReasonFromHost : {
@@ -64,17 +96,37 @@ InternalServer :: [].{
 
 	to_host_outcome : Server.Outcome -> OutcomeToHost
 	to_host_outcome = |outcome| {
-		{ response, stop, exit_code } = Server.Outcome.to_host(outcome)
-		response_to_host(response, stop, exit_code)
+		raw = Server.Outcome.to_host(outcome)
+		response_to_host(raw)
 	}
 
-	response_to_host : Response.Response, Bool, I64 -> OutcomeToHost
-	response_to_host = |response, stop, exit_code| {
-		status: Response.status(response),
-		headers: Response.headers(response).map(to_host_header),
-		body: Response.body(response),
-		stop,
-		exit_code,
+	response_to_host : {
+		kind : U8,
+		response : Response.Response,
+		stop : Bool,
+		exit_code : I64,
+		file_root_id : Str,
+		file_relative : Str,
+		file_disposition : U8,
+		file_download_name : Str,
+		file_cache_override : Bool,
+		file_cache_tag : U8,
+		file_cache_max_age_seconds : U32,
+	} -> OutcomeToHost
+	response_to_host = |raw| {
+		status: Response.status(raw.response),
+		headers: Response.headers(raw.response).map(to_host_header),
+		body: Response.body(raw.response),
+		stop: raw.stop,
+		exit_code: raw.exit_code,
+		kind: raw.kind,
+		file_root_id: raw.file_root_id,
+		file_relative: raw.file_relative,
+		file_disposition: raw.file_disposition,
+		file_download_name: raw.file_download_name,
+		file_cache_override: raw.file_cache_override,
+		file_cache_tag: raw.file_cache_tag,
+		file_cache_max_age_seconds: raw.file_cache_max_age_seconds,
 	}
 
 	to_host_config : Server.Config -> ConfigToHost
