@@ -60,7 +60,6 @@ platform "webserver"
 		"hosted_env_exe_path_windows": Host.env_exe_path_windows!,
 		"hosted_env_temp_dir": Host.env_temp_dir!,
 		"hosted_env_var": Host.env_var!,
-		"hosted_env_set_cwd": Host.env_set_cwd!,
 		"hosted_env_dict": Host.env_dict!,
 		"hosted_env_current_arch_os": Host.env_current_arch_os!,
 		"hosted_file_delete": Host.file_delete!,

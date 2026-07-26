@@ -15,7 +15,9 @@
           "name": "commands-and-request",
           "env": {
             "PYTHON": "{python}",
-            "COMMAND_HELPER": "{root}/scripts/command_helper.py"
+            "COMMAND_HELPER": "{root}/scripts/command_helper.py",
+            "COMMAND_EXAMPLES_DIR": "{root}/examples",
+            "COMMAND_SCRIPTS_DIR": "{root}/scripts"
           },
           "requests": [
             {
@@ -32,6 +34,17 @@
               "method": "GET",
               "target": "/output-limit",
               "expect_body": "Command output was limited."
+            }
+          ],
+          "concurrent_requests": [
+            {
+              "target": "/cwd-examples",
+              "expect_body": "examples\n"
+            },
+            {
+              "launch_after_ms": 20,
+              "target": "/cwd-scripts",
+              "expect_body": "scripts\n"
             }
           ],
           "stdout_contains": [

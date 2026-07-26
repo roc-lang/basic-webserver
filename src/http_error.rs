@@ -85,18 +85,37 @@ enum Phase {
     ReadingResponseBody,
 }
 
-/// Marker for a future custom resolver. The default Hyper resolver exposes its
-/// failures as `io::Error`, so `NotFound` is also treated as DNS failure.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum DnsErrorKind {
+    Failed,
+    Saturated,
+}
+
+/// Marker that preserves DNS failure and resolver saturation through Hyper's
+/// otherwise type-erased connector error chain.
 #[derive(Debug)]
 pub(crate) struct DnsError {
     detail: String,
+    kind: DnsErrorKind,
 }
 
 impl DnsError {
     pub(crate) fn new(detail: impl Into<String>) -> Self {
         Self {
             detail: detail.into(),
+            kind: DnsErrorKind::Failed,
         }
+    }
+
+    pub(crate) fn saturated() -> Self {
+        Self {
+            detail: "outbound HTTP name resolver capacity exhausted".into(),
+            kind: DnsErrorKind::Saturated,
+        }
+    }
+
+    fn is_saturated(&self) -> bool {
+        self.kind == DnsErrorKind::Saturated
     }
 }
 
@@ -218,6 +237,9 @@ fn classify(error: &(dyn Error + 'static), endpoint: &Endpoint, phase: Phase) ->
 
     if phase == Phase::Connecting {
         if let Some(error) = find_source::<DnsError>(error) {
+            if error.is_saturated() {
+                return TransportError::Saturated;
+            }
             return TransportError::DnsFailed {
                 host: endpoint.host.clone(),
                 detail: error.to_string(),
@@ -357,6 +379,14 @@ mod tests {
                 host: "example.test".into(),
                 detail: "name has no address".into(),
             }
+        );
+    }
+
+    #[test]
+    fn resolver_capacity_has_the_public_saturation_error() {
+        assert_eq!(
+            classify(&DnsError::saturated(), &endpoint(), Phase::Connecting),
+            TransportError::Saturated
         );
     }
 

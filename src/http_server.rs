@@ -177,6 +177,7 @@ struct ServerContext {
 pub fn start() -> i32 {
     let exit_code = start_inner();
     crate::http::shutdown();
+    crate::tcp::shutdown();
     exit_code
 }
 

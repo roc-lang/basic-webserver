@@ -1,12 +1,18 @@
 import IOErr
 import Host
 import OsStr
+import Path exposing [Path]
 
 ## Build and run finite child processes with native-safe programs, arguments,
 ## and environment values. Programs execute directly without a shell. Commands
-## inherit the host working directory and, unless clear_envs is used, the host
-## environment. exec!/exec_cmd! inherit standard streams; exec_output! captures
-## both streams with finite limits.
+## inherit the platform's fixed launch directory unless `with_working_dir` is
+## used and, unless clear_envs is used, the host environment. Relative working
+## directories and relative program paths are resolved against the fixed launch
+## directory, never against another command's configured directory. This
+## includes a bare program name, so use an absolute program to combine PATH
+## lookup with an explicit working directory.
+## exec!/exec_cmd! inherit standard streams; exec_output! captures both streams
+## with finite limits.
 ##
 ## ```roc
 ## output = Cmd.new_str("git")
@@ -22,6 +28,7 @@ Cmd := [
 			clear_envs : Bool,
 			envs : List({ name : OsStr, value : OsStr }),
 			program : OsStr,
+			working_dir : [Inherit, Set(Path)],
 			timeout_ms : U64,
 			stdout_limit_bytes : U64,
 			stderr_limit_bytes : U64,
@@ -75,7 +82,7 @@ Cmd := [
 		command = Cmd(cmd)
 		cmd_str = to_str(command)
 
-		match Host.cmd_exec_output!(to_host_cmd(command)) {
+		match Host.cmd_exec_output!(to_host_cmd(command), to_host_working_dir(command)) {
 			Ok({ stderr_bytes, stdout_bytes }) => {
 				stdout_utf8 = Str.from_utf8(stdout_bytes)
 					.map_err(|err| StdoutContainsInvalidUtf8({ cmd_str, err }))?
@@ -102,7 +109,7 @@ Cmd := [
 	## Execute a command and capture stdout and stderr without text conversion.
 	exec_output_bytes! : Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [NonZeroExitCodeB({ exit_code : I32, stdout_bytes : List(U8), stderr_bytes : List(U8) }), FailedToGetExitCodeB(IOErr), CommandTimedOutB(U64), CommandSaturatedB, StdoutLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), StderrLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), ..])
 	exec_output_bytes! = |Cmd(cmd)|
-		match Host.cmd_exec_output!(to_host_cmd(Cmd(cmd))) {
+		match Host.cmd_exec_output!(to_host_cmd(Cmd(cmd)), to_host_working_dir(Cmd(cmd))) {
 			Ok({ stderr_bytes, stdout_bytes }) => Ok({ stdout_bytes, stderr_bytes })
 			Err(NonZeroExitCode({ exit_code, stderr_bytes, stdout_bytes })) =>
 				Err(NonZeroExitCodeB({ exit_code, stdout_bytes, stderr_bytes }))
@@ -118,7 +125,7 @@ Cmd := [
 	exec_exit_code! = |Cmd(cmd)| {
 		command = to_str(Cmd(cmd))
 
-		match Host.cmd_exec_exit_code!(to_host_cmd(Cmd(cmd))) {
+		match Host.cmd_exec_exit_code!(to_host_cmd(Cmd(cmd)), to_host_working_dir(Cmd(cmd))) {
 			Ok(num) => Ok(num)
 			Err(FailedToGetExitCode(io_err)) => Err(FailedToGetExitCode({ command, err: io_err }))
 			Err(Timeout) => Err(CommandTimedOut({ command, timeout_ms: cmd.timeout_ms }))
@@ -133,10 +140,21 @@ Cmd := [
 		clear_envs: Bool.False,
 		envs: [],
 		program,
+		working_dir: Inherit,
 		timeout_ms: default_timeout_ms,
 		stdout_limit_bytes: default_output_limit_bytes,
 		stderr_limit_bytes: default_output_limit_bytes,
 	})
+
+	## Set this child's working directory without changing process-global state.
+	## A relative path is resolved against the platform's fixed launch directory.
+	## When this option is set, a relative program path is independently resolved
+	## against that same launch directory before the child directory is applied;
+	## this includes a bare program name that would otherwise use PATH lookup.
+	## Missing, inaccessible, or invalid directories are reported through the
+	## corresponding `FailedToGetExitCode` or `FailedToGetExitCodeB` error.
+	with_working_dir : Cmd, Path -> Cmd
+	with_working_dir = |Cmd(cmd), path| Cmd({ ..cmd, working_dir: Set(path) })
 
 	## Set the total deadline, including bounded admission wait. Zero is
 	## normalized to one millisecond.
@@ -221,7 +239,7 @@ Cmd := [
 	## Native values are never round-tripped through this lossy string.
 	to_str : Cmd -> Str
 	to_str = |Cmd(cmd)|
-		"Cmd({ program: ${Str.inspect(cmd.program)}, args: ${Str.inspect(cmd.args)}, envs: ${Str.inspect(cmd.envs)}, clear_envs: ${Str.inspect(cmd.clear_envs)} })"
+		"Cmd({ program: ${Str.inspect(cmd.program)}, args: ${Str.inspect(cmd.args)}, envs: ${Str.inspect(cmd.envs)}, clear_envs: ${Str.inspect(cmd.clear_envs)}, working_dir: ${Str.inspect(cmd.working_dir)} })"
 
 	## Use [`to_str`](#Cmd.to_str) when this command is inspected.
 	to_inspect : Cmd -> Str
@@ -244,32 +262,44 @@ to_host_cmd = |Cmd(cmd)| {
 	stderr_limit_bytes: cmd.stderr_limit_bytes,
 }
 
+to_host_working_dir : Cmd -> [Inherit, Set(OsStr.Raw)]
+to_host_working_dir = |Cmd(cmd)|
+	match cmd.working_dir {
+		Inherit => Inherit
+		Set(path) => Set(Path.to_raw(path))
+	}
+
 ## Command inspection preserves escaped arguments and environment variables.
 expect {
 	cmd = Cmd.new_str("echo\nnext")
 		.arg_str("hello world")
 		.env_str("NAME", "Roc")
 		.clear_envs()
+		.with_working_dir(Path.unix_bytes([119, 255]))
 
-	Str.inspect(cmd) == "Cmd({ program: OsStr.utf8(\"echo\\nnext\"), args: [OsStr.utf8(\"hello world\")], envs: [{ name: OsStr.utf8(\"NAME\"), value: OsStr.utf8(\"Roc\") }], clear_envs: True })"
+	Str.inspect(cmd) == "Cmd({ program: OsStr.utf8(\"echo\\nnext\"), args: [OsStr.utf8(\"hello world\")], envs: [{ name: OsStr.utf8(\"NAME\"), value: OsStr.utf8(\"Roc\") }], clear_envs: True, working_dir: Set(Path.unix_bytes([119, 255])) })"
 }
 
-## Host conversion preserves non-UTF-8 command arguments and environment variables.
+## Host conversion preserves non-UTF-8 command arguments, environment variables, and paths.
 expect {
 	cmd = Cmd.new(OsStr.unix_bytes([112, 255]))
 		.arg(OsStr.windows_u16s([97, 0xD800]))
 		.env(OsStr.unix_bytes([75, 255]), OsStr.windows_u16s([86, 0xD800]))
+		.with_working_dir(Path.windows_u16s([67, 58, 92, 0xD800]))
 	host_cmd = to_host_cmd(cmd)
+	host_working_dir = to_host_working_dir(cmd)
 
 	actual = 
 		\\program: ${Str.inspect(host_cmd.program)}
 		\\args: ${Str.inspect(host_cmd.args)}
 		\\envs: ${Str.inspect(host_cmd.envs)}
+		\\working_dir: ${Str.inspect(host_working_dir)}
 
 	expected = 
 		\\program: UnixBytes([112, 255])
 		\\args: [WindowsU16s([97, 55296])]
 		\\envs: [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 55296]) }]
+		\\working_dir: Set(WindowsU16s([67, 58, 92, 55296]))
 
 	actual == expected
 }

@@ -1,5 +1,5 @@
 use crate::abi::roc_host;
-use crate::bounded_gate::{AcquireError, BoundedGate};
+use crate::bounded_gate::{AcquireError, AsyncBoundedGate, BoundedGate};
 use crate::http_error::{
     classify_client_error, classify_response_error, DnsError, Endpoint, TransportError,
 };
@@ -7,6 +7,7 @@ use crate::roc_platform_abi::*;
 use hyper::body::Body;
 use std::future::Future;
 use std::mem::ManuallyDrop;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
@@ -21,6 +22,13 @@ type OutboundConnector = hyper_rustls::HttpsConnector<
     hyper_util::client::legacy::connect::HttpConnector<TypedDnsResolver>,
 >;
 type OutboundClient = hyper_util::client::legacy::Client<OutboundConnector, OutboundBody>;
+type ResolveFn = dyn Fn(String) -> std::io::Result<Vec<SocketAddr>> + Send + Sync;
+
+const MAX_ACTIVE_OUTBOUND: usize = 64;
+const MAX_QUEUED_OUTBOUND: usize = 256;
+const MAX_ACTIVE_HTTP_RESOLUTIONS: usize = 64;
+const MAX_QUEUED_HTTP_RESOLUTIONS: usize = 256;
+const NATIVE_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 struct RequestBuildError {
@@ -33,40 +41,65 @@ struct InternalResponse {
     body: bytes::Bytes,
 }
 
-/// Preserve the DNS phase in the source chain while retaining Hyper's default
-/// blocking `getaddrinfo` implementation.
+/// Bounded blocking `getaddrinfo` resolver. An active permit moves into the
+/// blocking closure, so dropping a timed-out request cannot under-account work
+/// which the operating system has already started.
 #[derive(Clone)]
 struct TypedDnsResolver {
-    inner: hyper_util::client::legacy::connect::dns::GaiResolver,
+    gate: AsyncBoundedGate,
+    resolve: Arc<ResolveFn>,
 }
 
 impl TypedDnsResolver {
     fn new() -> Self {
+        Self::with_resolver(
+            MAX_ACTIVE_HTTP_RESOLUTIONS,
+            MAX_QUEUED_HTTP_RESOLUTIONS,
+            |host| {
+                (host.as_str(), 0)
+                    .to_socket_addrs()
+                    .map(|addresses| addresses.collect())
+            },
+        )
+    }
+
+    fn with_resolver(
+        max_active: usize,
+        max_waiting: usize,
+        resolve: impl Fn(String) -> std::io::Result<Vec<SocketAddr>> + Send + Sync + 'static,
+    ) -> Self {
         Self {
-            inner: hyper_util::client::legacy::connect::dns::GaiResolver::new(),
+            gate: AsyncBoundedGate::new(max_active, max_waiting),
+            resolve: Arc::new(resolve),
         }
     }
 }
 
 impl Service<hyper_util::client::legacy::connect::dns::Name> for TypedDnsResolver {
-    type Response = hyper_util::client::legacy::connect::dns::GaiAddrs;
+    type Response = std::vec::IntoIter<SocketAddr>;
     type Error = DnsError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, context: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match self.inner.poll_ready(context) {
-            Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-            Poll::Ready(Err(error)) => Poll::Ready(Err(DnsError::new(error.to_string()))),
-            Poll::Pending => Poll::Pending,
-        }
+    fn poll_ready(&mut self, _context: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, name: hyper_util::client::legacy::connect::dns::Name) -> Self::Future {
-        let future = self.inner.call(name);
+        let hostname = name.as_str().to_owned();
+        let gate = self.gate.clone();
+        let resolve = Arc::clone(&self.resolve);
         Box::pin(async move {
-            future
-                .await
-                .map_err(|error| DnsError::new(error.to_string()))
+            let permit = gate.acquire().await.map_err(|error| match error {
+                AcquireError::Saturated | AcquireError::TimedOut => DnsError::saturated(),
+            })?;
+            tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                resolve(hostname)
+            })
+            .await
+            .map_err(|error| DnsError::new(format!("name resolver task failed: {error}")))?
+            .map(Vec::into_iter)
+            .map_err(|error| DnsError::new(error.to_string()))
         })
     }
 }
@@ -74,10 +107,11 @@ impl Service<hyper_util::client::legacy::connect::dns::Name> for TypedDnsResolve
 struct OutboundHttp {
     runtime: tokio::runtime::Runtime,
     client: OutboundClient,
+    dns_gate: AsyncBoundedGate,
 }
 
 static OUTBOUND_HTTP: Mutex<Option<Arc<OutboundHttp>>> = Mutex::new(None);
-static OUTBOUND_GATE: BoundedGate = BoundedGate::new(64, 256);
+static OUTBOUND_GATE: BoundedGate = BoundedGate::new(MAX_ACTIVE_OUTBOUND, MAX_QUEUED_OUTBOUND);
 
 fn outbound_http() -> Arc<OutboundHttp> {
     let mut shared = OUTBOUND_HTTP
@@ -100,7 +134,9 @@ fn outbound_http() -> Arc<OutboundHttp> {
             .build()
             .expect("failed to build outbound HTTP runtime");
 
-        let mut http = HttpConnector::new_with_resolver(TypedDnsResolver::new());
+        let resolver = TypedDnsResolver::new();
+        let dns_gate = resolver.gate.clone();
+        let mut http = HttpConnector::new_with_resolver(resolver);
         http.enforce_http(false);
         let https = HttpsConnectorBuilder::new()
             .with_webpki_roots()
@@ -114,7 +150,11 @@ fn outbound_http() -> Arc<OutboundHttp> {
         client_builder.retry_canceled_requests(false);
         let client = client_builder.build(https);
 
-        OutboundHttp { runtime, client }
+        OutboundHttp {
+            runtime,
+            client,
+            dns_gate,
+        }
     };
     let outbound = Arc::new(outbound);
     *shared = Some(Arc::clone(&outbound));
@@ -138,9 +178,25 @@ pub(crate) fn shutdown() {
             return;
         }
     };
-    let OutboundHttp { runtime, client } = outbound;
+    let OutboundHttp {
+        runtime,
+        client,
+        dns_gate,
+    } = outbound;
     drop(client);
-    runtime.shutdown_timeout(Duration::from_secs(1));
+    let resolvers_drained = runtime
+        .block_on(tokio::time::timeout(
+            NATIVE_SHUTDOWN_TIMEOUT,
+            dns_gate.wait_for_idle(),
+        ))
+        .is_ok();
+    if !resolvers_drained {
+        eprintln!(
+            "outbound HTTP name resolution did not finish within {:?}; process exit is the hard stop",
+            NATIVE_SHUTDOWN_TIMEOUT
+        );
+    }
+    runtime.shutdown_timeout(NATIVE_SHUTDOWN_TIMEOUT);
 }
 
 // Numeric method tags must match `to_host_method` in platform/InternalHttp.roc.
@@ -585,6 +641,8 @@ pub extern "C" fn hosted_http_send_request(
 mod tests {
     use super::*;
     use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Condvar;
 
     #[test]
     fn maps_host_method_tags_to_hyper_methods() {
@@ -627,6 +685,46 @@ mod tests {
             first.runtime.handle().runtime_flavor(),
             tokio::runtime::RuntimeFlavor::MultiThread
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn timed_out_dns_keeps_capacity_until_blocking_lookup_finishes() {
+        let release = Arc::new((Mutex::new(false), Condvar::new()));
+        let started = Arc::new(AtomicUsize::new(0));
+        let resolver_release = Arc::clone(&release);
+        let resolver_started = Arc::clone(&started);
+        let mut resolver = TypedDnsResolver::with_resolver(1, 1, move |_hostname| {
+            resolver_started.fetch_add(1, Ordering::SeqCst);
+            let (lock, available) = &*resolver_release;
+            let mut released = lock.lock().unwrap();
+            while !*released {
+                released = available.wait(released).unwrap();
+            }
+            Ok(vec![SocketAddr::from(([127, 0, 0, 1], 0))])
+        });
+
+        let first = resolver.call("first.test".parse().unwrap());
+        assert!(tokio::time::timeout(Duration::from_millis(20), first)
+            .await
+            .is_err());
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+
+        // Each later future can wait in the one bounded queue slot, but timing
+        // it out releases only that queue slot. No second blocking lookup starts.
+        for index in 0..8 {
+            let lookup = resolver.call(format!("queued-{index}.test").parse().unwrap());
+            assert!(tokio::time::timeout(Duration::from_millis(5), lookup)
+                .await
+                .is_err());
+        }
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+
+        let (lock, available) = &*release;
+        *lock.lock().unwrap() = true;
+        available.notify_all();
+        tokio::time::timeout(Duration::from_secs(1), resolver.gate.wait_for_idle())
+            .await
+            .expect("blocking DNS lookup did not release capacity");
     }
 
     #[test]

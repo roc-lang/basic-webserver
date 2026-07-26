@@ -1,5 +1,7 @@
 use core::mem::ManuallyDrop;
+use std::ffi::OsString;
 use std::io::{self, Read};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -80,7 +82,7 @@ fn copy_environment(
     }
 }
 
-fn cmd_to_std(cmd: &Cmd, roc_host: &RocHost) -> io::Result<Command> {
+fn cmd_to_std(cmd: &Cmd, working_dir: InheritOrSet, roc_host: &RocHost) -> io::Result<Command> {
     // Copy while borrowed, then release the complete hosted argument through
     // its generated recursive decref. A list allocation owns its elements only
     // once even when the list itself has multiple references; consuming every
@@ -88,12 +90,24 @@ fn cmd_to_std(cmd: &Cmd, roc_host: &RocHost) -> io::Result<Command> {
     let program = os_string_from_raw_borrowed(cmd.program);
     let arguments = copy_native_list(&cmd.args);
     let environment = copy_environment(&cmd.envs);
+    let clear_envs = cmd.clear_envs;
+    // The option is a separate hosted argument so the established by-value Cmd
+    // ABI remains compact. Copy its native payload before releasing both owned
+    // hosted arguments.
+    let owned_working_dir = match working_dir.tag {
+        InheritOrSetTag::Inherit => Ok(None),
+        InheritOrSetTag::Set => os_string_from_raw_borrowed(working_dir.payload_set()).map(Some),
+    };
     unsafe { (*cmd).decref(roc_host) };
+    unsafe { working_dir.decref(roc_host) };
 
-    let mut command = Command::new(program?);
+    let (program, working_dir) =
+        resolve_child_paths(program?, owned_working_dir?, crate::env::launch_dir()?)?;
+    let mut command = Command::new(program);
     command.args(arguments?);
+    command.current_dir(working_dir);
 
-    if cmd.clear_envs {
+    if clear_envs {
         command.env_clear();
     }
     for (name, value) in environment? {
@@ -110,6 +124,51 @@ fn cmd_to_std(cmd: &Cmd, roc_host: &RocHost) -> io::Result<Command> {
     }
 
     Ok(command)
+}
+
+fn resolve_child_paths(
+    program: OsString,
+    working_dir: Option<OsString>,
+    launch_dir: &Path,
+) -> io::Result<(OsString, PathBuf)> {
+    if !launch_dir.is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "platform launch directory is not absolute",
+        ));
+    }
+
+    let (program, working_dir) = match working_dir {
+        Some(working_dir) => {
+            let program =
+                resolve_from_launch(PathBuf::from(&program), launch_dir)?.into_os_string();
+            let working_dir = resolve_from_launch(PathBuf::from(working_dir), launch_dir)?;
+            (program, working_dir)
+        }
+        None => {
+            // Preserve normal PATH lookup while explicitly pinning the child to
+            // the launch directory instead of consulting ambient process state.
+            (program, launch_dir.to_path_buf())
+        }
+    };
+
+    Ok((program, working_dir))
+}
+
+fn resolve_from_launch(path: PathBuf, launch_dir: &Path) -> io::Result<PathBuf> {
+    let resolved = if path.is_relative() {
+        launch_dir.join(path)
+    } else {
+        path
+    };
+    if resolved.is_absolute() {
+        Ok(resolved)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path could not be resolved to an absolute path from the platform launch directory",
+        ))
+    }
 }
 
 fn deadline(timeout_ms: u64) -> Instant {
@@ -586,10 +645,13 @@ fn nonzero_output_error(
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_cmd_host_exec_exit_code(cmd: Cmd) -> CmdExitResult {
+pub extern "C" fn hosted_cmd_host_exec_exit_code(
+    cmd: Cmd,
+    working_dir: InheritOrSet,
+) -> CmdExitResult {
     let roc_host = roc_host();
     let deadline = deadline(cmd.timeout_ms);
-    let mut command = match cmd_to_std(&cmd, roc_host) {
+    let mut command = match cmd_to_std(&cmd, working_dir, roc_host) {
         Ok(command) => command,
         Err(error) => return try_cmd_exit_err(cmd_exit_error(RunError::Io(error), roc_host)),
     };
@@ -626,12 +688,15 @@ pub extern "C" fn hosted_cmd_host_exec_exit_code(cmd: Cmd) -> CmdExitResult {
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_cmd_host_exec_output(cmd: Cmd) -> CmdOutputResult {
+pub extern "C" fn hosted_cmd_host_exec_output(
+    cmd: Cmd,
+    working_dir: InheritOrSet,
+) -> CmdOutputResult {
     let roc_host = roc_host();
     let deadline = deadline(cmd.timeout_ms);
     let stdout_limit = cmd.stdout_limit_bytes;
     let stderr_limit = cmd.stderr_limit_bytes;
-    let command = match cmd_to_std(&cmd, roc_host) {
+    let command = match cmd_to_std(&cmd, working_dir, roc_host) {
         Ok(command) => command,
         Err(error) => return try_cmd_output_err(output_error(RunError::Io(error), roc_host)),
     };
@@ -708,5 +773,54 @@ mod tests {
         let output =
             run_captured(command, Instant::now() + Duration::from_secs(2), 1024, 1024).unwrap();
         assert_eq!(output.stdout, b"$(not-executed)");
+    }
+
+    #[test]
+    fn child_directory_does_not_change_relative_program_resolution() {
+        let launch = std::env::current_dir().unwrap();
+        let (program, working_dir) = resolve_child_paths(
+            OsString::from("bin/helper"),
+            Some(OsString::from("jobs/one")),
+            &launch,
+        )
+        .unwrap();
+
+        assert_eq!(PathBuf::from(program), launch.join("bin/helper"));
+        assert_eq!(working_dir, launch.join("jobs/one"));
+    }
+
+    #[test]
+    fn command_without_child_directory_preserves_path_lookup() {
+        let launch = std::env::current_dir().unwrap();
+        let (program, working_dir) =
+            resolve_child_paths(OsString::from("git"), None, &launch).unwrap();
+
+        assert_eq!(program, OsString::from("git"));
+        assert_eq!(working_dir, launch);
+    }
+
+    #[test]
+    fn invalid_launch_directory_is_typed() {
+        let error = resolve_child_paths(
+            OsString::from("helper"),
+            Some(OsString::from("jobs")),
+            Path::new("relative-launch"),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn missing_working_directory_is_typed() {
+        let missing = std::env::temp_dir().join(format!(
+            "basic-webserver-missing-cwd-{}",
+            std::process::id()
+        ));
+        assert!(!missing.exists());
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.current_dir(missing);
+
+        assert_eq!(command.spawn().unwrap_err().kind(), io::ErrorKind::NotFound);
     }
 }

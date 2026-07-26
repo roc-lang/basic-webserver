@@ -21,5 +21,8 @@ elif mode == "bytes":
     sys.stdout.buffer.write(b"x" * int(args[0]))
 elif mode == "sleep":
     time.sleep(float(args[0]))
+elif mode == "cwd":
+    time.sleep(float(args[0]))
+    sys.stdout.buffer.write((os.path.basename(os.getcwd()) + "\n").encode())
 else:
     raise SystemExit(f"unknown mode: {mode}")

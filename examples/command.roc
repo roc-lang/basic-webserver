@@ -1,17 +1,18 @@
 ## Demonstrates command execution, captured output, environment variables, timeouts, and output limits.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0-rc1/GfM5qZLcKYGA9XD4V7u1S4RjWrdfws29Uz2m86C7bmUC.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Server
 import pf.Cmd
 import pf.Env
+import pf.Path exposing [Path]
 import pf.Utc
 import pf.Stdout
 import http.Response
 
-Context : { helper : Str, python : Str }
+Context : { helper : Str, python : Str, examples_dir : Path, scripts_dir : Path }
 
 program = { init!, respond!, shutdown! }
 
@@ -19,6 +20,8 @@ init! : () => Try({ config : Server.Config, context : Context }, _)
 init! = || {
 	python = Env.var_str!("PYTHON")?
 	helper = Env.var_str!("COMMAND_HELPER")?
+	examples_dir = Path.utf8(Env.var_str!("COMMAND_EXAMPLES_DIR")?)
+	scripts_dir = Path.utf8(Env.var_str!("COMMAND_SCRIPTS_DIR")?)
 
 	# Simplest way to execute a command (prints to your terminal).
 	Cmd.exec_str!(python, [helper, "echo", "Hello"])?
@@ -57,12 +60,16 @@ init! = || {
 
 	Stdout.line!("{stderr_bytes: ${Str.inspect(cmd_output_bytes.stderr_bytes)}, stdout_bytes: ${Str.inspect(cmd_output_bytes.stdout_bytes)}}")?
 
-	Ok({ config: Server.default_config, context: { python, helper } })
+	Ok({ config: Server.default_config, context: { python, helper, examples_dir, scripts_dir } })
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |req, { python, helper }|
+respond! = |req, { python, helper, examples_dir, scripts_dir }|
 	match req.target() {
+		"/cwd-examples" =>
+			command_cwd_response(python, helper, examples_dir)
+		"/cwd-scripts" =>
+			command_cwd_response(python, helper, scripts_dir)
 		"/timeout" => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "sleep", "5"])
@@ -93,6 +100,19 @@ respond! = |req, { python, helper }|
 			}
 		}
 	}
+
+command_cwd_response : Str, Str, Path => Try(Server.Outcome, [ServerErr(Str), ..])
+command_cwd_response = |python, helper, working_dir| {
+	output = Cmd.new_str(python)
+		.args_str([helper, "cwd", "0.2"])
+		.with_working_dir(working_dir)
+		.exec_output!()
+
+	match output {
+		Ok({ stdout_utf8, .. }) => Ok(text_response(stdout_utf8))
+		Err(err) => Err(ServerErr("Working-directory command failed: ${Str.inspect(err)}"))
+	}
+}
 
 text_response : Str -> Server.Outcome
 text_response = |body| Server.respond(Response.from_status(200).with_body(Str.to_utf8(body)))

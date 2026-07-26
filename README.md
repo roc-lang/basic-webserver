@@ -121,10 +121,27 @@ The platform exposes typed modules for:
 Outbound HTTP calls default to a 30-second total deadline and an 8 MiB response
 body. At most 64 calls run and 256 wait for admission. The shared client pools
 connections, performs no hidden retries, and uses WebPKI roots for HTTPS.
+Blocking DNS lookups remain charged to a separate bounded resolver until the
+operating system returns, even if the request has already reported a timeout.
+A timeout means the caller stopped waiting; it does not undo native work that
+has already started.
 
 Commands execute an exact program and argument list without shell expansion.
 They default to a 30-second deadline and 1 MiB each of captured stdout and
-stderr. At most eight commands run and 32 wait for admission.
+stderr. At most eight commands run and 32 wait for admission. By default a
+child inherits the platform's fixed launch directory. `Cmd.with_working_dir`
+sets an immutable per-command directory with `Path`; relative working
+directories and relative executable paths are resolved against the fixed
+launch directory before the child is spawned. A bare executable name is also
+relative in this mode, so use an absolute executable when combining PATH lookup
+with an explicit working directory. Missing or inaccessible directories return
+the command API's typed I/O failure. Configuring one command never changes
+another command or the host process.
+
+`Env.set_cwd!` has been removed. Replace command uses with
+`Cmd.with_working_dir`. Applications that previously used it as a base for
+filesystem or SQLite paths should retain an explicit base `Path` in immutable
+startup context and join it into each operation.
 
 The generated [API documentation](https://roc-lang.github.io/basic-webserver/main/)
 contains the complete types, builders, limits, and error tags.
