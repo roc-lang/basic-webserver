@@ -642,6 +642,79 @@
       ]
     },
     {
+      "path": "examples/ndjson-ingest.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "streaming-events",
+          "env": {
+            "DB_PATH": "{temp}/events.db"
+          },
+          "requests": [
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"evt-1\",\"source\":\"sensor\",\"value\":1}\n{\"id\":\"evt-2\",\"source\":\"sensor\",\"value\":2}\n{\"id\":\"evt-3\",\"source\":\"sensor\",\"value\":3}\n",
+              "expect_body": "{\"committed\":3}"
+            },
+            {
+              "method": "GET",
+              "target": "/events/count",
+              "expect_body": "{\"count\":3}"
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "fragments": [
+                {
+                  "data": "POST /events HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/x-ndjson\r\nContent-Length: 44\r\nConnection: close\r\n\r\n{\"id\":\"raw-1\",\"source\":\"sen",
+                  "delay_ms": 10
+                },
+                {
+                  "data": "sor\",\"value\":9}\r",
+                  "delay_ms": 10
+                },
+                {
+                  "data": "\n"
+                }
+              ],
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "{\"committed\":1}"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"evt-1\",\"source\":\"sensor\",\"value\":1}\n{\"id\":\"evt-4\",\"source\":\"sensor\",\"value\":4}\n",
+              "expect_body": "{\"committed\":2}"
+            },
+            {
+              "method": "GET",
+              "target": "/events/count",
+              "expect_body": "{\"count\":5}"
+            },
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"truncated\",\"source\":\"sensor\",\"value\":5}",
+              "status": 400,
+              "body_contains": ["missing its final newline", "\"committed\":0"]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/server-lifecycle.roc",
       "mode": "server",
       "cases": [

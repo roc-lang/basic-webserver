@@ -525,6 +525,21 @@ Server :: [].{
 		read! = |Body(raw)|
 			Host.request_body_read!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
 
+		## Read every remaining chunk sequentially and thread request-local state
+		## through an effectful step function. The first step error stops reading;
+		## returning from the handler then cancels any unread request bytes.
+		fold_chunks! : Body, state, (state, List(U8) => Try(state, err)) => Try(state, [ChunkReadErr({ err : Err, state : state }), ChunkStepErr(err)])
+		fold_chunks! = |body, state, step!|
+			match read!(body) {
+				Ok(Chunk(chunk)) =>
+					match step!(state, chunk) {
+						Ok(next) => fold_chunks!(body, next, step!)
+						Err(err) => Err(ChunkStepErr(err))
+					}
+				Ok(End) => Ok(state)
+				Err(RequestBodyErr(err)) => Err(ChunkReadErr({ err, state }))
+			}
+
 		## Read all remaining bytes while enforcing this body's current limit.
 		## Prefer read! for large or incrementally processed payloads.
 		read_all! : Body => Try(List(U8), [RequestBodyErr(Err)])
