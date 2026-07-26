@@ -97,6 +97,12 @@
               "expect_body_hex": "00ff410a"
             },
             {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "seamless response",
+              "expect_body": "seamless response"
+            },
+            {
               "raw": true,
               "half_close": false,
               "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
@@ -106,9 +112,24 @@
               ]
             }
           ],
+          "concurrent_requests": [
+            {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "first concurrent body",
+              "expect_body": "first concurrent body"
+            },
+            {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "second concurrent body",
+              "expect_body": "second concurrent body"
+            }
+          ],
           "stdout_contains": [
             "POST /echo?kind=utf8",
-            "POST /binary"
+            "POST /binary",
+            "POST /first-chunk"
           ]
         }
       ]
@@ -486,13 +507,17 @@
           "http2_requests": [
             {
               "name": "slow",
-              "target": "/",
-              "expect_body": "Response delayed by 1 second"
+              "method": "POST",
+              "target": "/body-slow",
+              "body": "slow HTTP/2 body",
+              "expect_body": "slow HTTP/2 body"
             },
             {
               "name": "fast",
-              "target": "/fast",
-              "expect_body": "Immediate response"
+              "method": "POST",
+              "target": "/body-fast",
+              "body": "fast HTTP/2 body",
+              "expect_body": "fast HTTP/2 body"
             }
           ],
           "http2_completion_order": ["fast", "slow"],

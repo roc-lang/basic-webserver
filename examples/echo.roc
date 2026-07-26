@@ -22,8 +22,16 @@ respond! = |req, _context| {
 
 	Stdout.line!("${time} ${Str.inspect(req.method())} ${req.target()}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
-	body = req.body().with_limit(64 * 1024).read_all!()
-		? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+	body = if req.target() == "/first-chunk" {
+		match req.body().with_limit(64 * 1024).read!() {
+			Ok(Chunk(chunk)) => chunk
+			Ok(End) => []
+			Err(err) => return Err(ServerErr("Failed to read request body: ${Str.inspect(err)}"))
+		}
+	} else {
+		req.body().with_limit(64 * 1024).read_all!()
+			? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+	}
 	Ok(Server.respond(Response.from_status(200).with_body(body)))
 }
 

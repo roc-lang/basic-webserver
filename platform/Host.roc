@@ -59,6 +59,8 @@ Host := [].{
 
 	TcpStream :: Box(U64)
 
+	RequestBody :: Box(U64)
+
 	RequestBodyRead : [Chunk(List(U8)), End]
 
 	RequestBodyErr : [
@@ -119,8 +121,8 @@ Host := [].{
 
 	http_send_request! : InternalHttp.OutboundRequestToHost => Try(InternalHttp.OutboundResponseFromHost, InternalHttp.SendErr)
 
-	request_body_read! : U64, U64 => Try(RequestBodyRead, RequestBodyErr)
-	request_body_read_all! : U64, U64 => Try(List(U8), RequestBodyErr)
+	request_body_read! : RequestBody, U64 => Try(RequestBodyRead, RequestBodyErr)
+	request_body_read_all! : RequestBody, U64 => Try(List(U8), RequestBodyErr)
 
 	path_type! : RawPath => Try(PathType, IOErr)
 

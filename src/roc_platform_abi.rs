@@ -1472,14 +1472,14 @@ const _: () = assert!(core::mem::size_of::<AnonStructFf6f93028827ced0>() == 44, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStructFf6f93028827ced0>() == 4, "AnonStructFf6f93028827ced0 alignment mismatch");
 
-/// Element type for __AnonStruct_9618161a745c1367
+/// Element type for __AnonStruct_9bfbda88f35e6056
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct9618161a745c1367 {
-    pub body_id: u64,
+pub struct AnonStruct9bfbda88f35e6056 {
     pub body_limit_bytes: u64,
     pub content_length: u64,
+    pub body_handle: *mut u64,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub method_ext: RocStr,
     pub target: RocStr,
@@ -1487,14 +1487,14 @@ pub struct AnonStruct9618161a745c1367 {
     pub method: u8,
 }
 
-/// Element type for __AnonStruct_9618161a745c1367
+/// Element type for __AnonStruct_9bfbda88f35e6056
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct9618161a745c1367 {
-    pub body_id: u64,
+pub struct AnonStruct9bfbda88f35e6056 {
     pub body_limit_bytes: u64,
     pub content_length: u64,
+    pub body_handle: *mut u64,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub method_ext: RocStr,
     pub target: RocStr,
@@ -1503,13 +1503,13 @@ pub struct AnonStruct9618161a745c1367 {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct9618161a745c1367>() == 104, "AnonStruct9618161a745c1367 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct9bfbda88f35e6056>() == 104, "AnonStruct9bfbda88f35e6056 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct9618161a745c1367>() == 8, "AnonStruct9618161a745c1367 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct9bfbda88f35e6056>() == 8, "AnonStruct9bfbda88f35e6056 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct9618161a745c1367>() == 64, "AnonStruct9618161a745c1367 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct9bfbda88f35e6056>() == 64, "AnonStruct9bfbda88f35e6056 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct9618161a745c1367>() == 8, "AnonStruct9618161a745c1367 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct9bfbda88f35e6056>() == 8, "AnonStruct9bfbda88f35e6056 alignment mismatch");
 
 /// Element type for __AnonStruct_aeceb9ea017a78f4
 #[cfg(target_pointer_width = "32")]
@@ -5821,22 +5821,22 @@ const _: () = assert!(core::mem::size_of::<HostPathTypeArgs>() == 28, "HostPathT
 const _: () = assert!(core::mem::align_of::<HostPathTypeArgs>() == 4, "HostPathTypeArgs alignment mismatch");
 
 /// Arguments for Host.request_body_read!
-/// Roc signature: U64, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostRequestBodyReadArgs {
-    pub arg0: u64,
+    pub arg0: *mut u64,
     pub arg1: u64,
 }
 
 /// Arguments for Host.request_body_read_all!
-/// Roc signature: U64, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostRequestBodyReadAllArgs {
-    pub arg0: u64,
+    pub arg0: *mut u64,
     pub arg1: u64,
 }
 
@@ -6229,7 +6229,7 @@ pub type InitForHostOk = AnonStruct9d4feaaa75529fdc;
 pub type InitForHostOkConfig = AnonStructAeeb7f2cfe80f10;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeRoutes = AnonStructFf6f93028827ced0;
-pub type RespondForHostArg0 = AnonStruct9618161a745c1367;
+pub type RespondForHostArg0 = AnonStruct9bfbda88f35e6056;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
 pub type RespondForHost = AnonStructAeceb9ea017a78f4;
 pub type RespondForHostHeaders = AnonStruct82a96c5d55d63488;
@@ -8664,13 +8664,14 @@ impl AnonStructFf6f93028827ced0 {
     }
 }
 
-impl AnonStruct9618161a745c1367 {
+impl AnonStruct9bfbda88f35e6056 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted field.
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
+        unsafe { decref_box_with(value.body_handle as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
         {
             let list = value.headers;
             if list.has_one_ref() {
@@ -8692,6 +8693,7 @@ impl AnonStruct9618161a745c1367 {
     /// be balanced by later decrefs.
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
+        unsafe { incref_box(value.body_handle as RocBox, amount); }
         unsafe { value.headers.incref(amount); }
         unsafe { value.method_ext.incref(amount); }
         unsafe { value.target.incref(amount); }
@@ -8945,12 +8947,12 @@ unsafe extern "C" {
     pub fn hosted_path_type(arg0: HostPathTypeArgs) -> HostPathTypeResult;
 
     /// Hosted symbol for Host.request_body_read!
-    /// Roc signature: U64, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
-    pub fn hosted_request_body_read(arg0: u64, arg1: u64) -> HostRequestBodyReadResult;
+    /// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    pub fn hosted_request_body_read(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadResult;
 
     /// Hosted symbol for Host.request_body_read_all!
-    /// Roc signature: U64, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
-    pub fn hosted_request_body_read_all(arg0: u64, arg1: u64) -> HostRequestBodyReadAllResult;
+    /// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    pub fn hosted_request_body_read_all(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadAllResult;
 
     /// Hosted symbol for Host.sleep_millis!
     /// Roc signature: U64 => {}
@@ -9174,7 +9176,7 @@ unsafe extern "C" {
     pub fn roc_init_for_host() -> InitForHostResult;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
+    pub fn roc_respond_for_host(arg0: AnonStruct9bfbda88f35e6056, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

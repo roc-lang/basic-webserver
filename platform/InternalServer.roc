@@ -1,4 +1,5 @@
 import Server
+import Host
 import http.Header
 import http.Method
 import http.Response
@@ -13,7 +14,7 @@ InternalServer :: [].{
 		method_ext : Str,
 		headers : List(HostHeader),
 		target : Str,
-		body_id : U64,
+		body_handle : Host.RequestBody,
 		body_limit_bytes : U64,
 		content_length_known : Bool,
 		content_length : U64,
@@ -78,13 +79,13 @@ InternalServer :: [].{
 	}
 
 	from_host_request : RequestFromHost -> Server.Request
-	from_host_request = |{ method, method_ext, headers, target, body_id, body_limit_bytes, content_length_known, content_length }|
+	from_host_request = |{ method, method_ext, headers, target, body_handle, body_limit_bytes, content_length_known, content_length }|
 		Server.Request.from_host(
 			from_host_method(method, method_ext),
 			headers.map(from_host_header),
 			target,
 			Server.Body.from_host(
-				body_id,
+				body_handle,
 				body_limit_bytes,
 				if content_length_known {
 					Known(content_length)

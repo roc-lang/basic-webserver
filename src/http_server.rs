@@ -8,7 +8,7 @@ use crate::file_server::{
     full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, NativeRouteKind,
     NativeRouteSpec, ServerResponse,
 };
-use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
+use crate::request_body::{register as register_body, PumpError};
 use crate::request_parts::{request_target, RequestPartsBacking};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
@@ -272,7 +272,6 @@ unsafe impl Sync for RocContext {}
 struct ServerContext {
     config: Arc<RuntimeConfig>,
     roc_context: Arc<RocContext>,
-    bodies: Arc<BodyRegistry>,
     handlers: HandlerAdmission,
     requests: RequestTracker,
     shutdown: ShutdownController,
@@ -305,12 +304,10 @@ fn start_inner() -> i32 {
     };
 
     let roc_context = Arc::new(RocContext::new(raw_context));
-    let bodies = install_registry(config.body_buffered_chunks);
     let shutdown = ShutdownController::new();
     let context = ServerContext {
         config: Arc::new(config.clone()),
         roc_context: Arc::clone(&roc_context),
-        bodies,
         handlers: HandlerAdmission::new(config.max_handlers, config.max_queued_handlers),
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
@@ -327,7 +324,6 @@ fn start_inner() -> i32 {
         }
     };
 
-    clear_registry();
     debug_assert_eq!(
         Arc::strong_count(&roc_context),
         1,
@@ -420,7 +416,7 @@ fn request_headers_are_utf8(headers: &hyper::HeaderMap) -> bool {
 
 fn request_to_roc(
     parts: hyper::http::request::Parts,
-    body_id: u64,
+    body_handle: *mut u64,
     body_limit: u64,
     declared_length: Option<u64>,
 ) -> ServerRequest {
@@ -428,7 +424,13 @@ fn request_to_roc(
     let backing = match RequestPartsBacking::new(parts) {
         Ok(backing) => backing,
         Err(parts) => {
-            return request_to_roc_copied(*parts, body_id, body_limit, declared_length, roc_host);
+            return request_to_roc_copied(
+                *parts,
+                body_handle,
+                body_limit,
+                declared_length,
+                roc_host,
+            );
         }
     };
     let method_tag = method_to_tag(backing.method());
@@ -459,7 +461,7 @@ fn request_to_roc(
     backing.install(backing_references);
 
     ServerRequest {
-        body_id,
+        body_handle,
         body_limit_bytes: body_limit,
         content_length: declared_length.unwrap_or_default(),
         headers,
@@ -472,7 +474,7 @@ fn request_to_roc(
 
 fn request_to_roc_copied(
     parts: hyper::http::request::Parts,
-    body_id: u64,
+    body_handle: *mut u64,
     body_limit: u64,
     declared_length: Option<u64>,
     roc_host: &RocHost,
@@ -501,7 +503,7 @@ fn request_to_roc_copied(
     let target = request_target(&parts);
 
     ServerRequest {
-        body_id,
+        body_handle,
         body_limit_bytes: body_limit,
         content_length: declared_length.unwrap_or_default(),
         headers,
@@ -581,6 +583,7 @@ fn outcome_from_roc(response: RocServerResponse) -> RocOutcome {
 }
 
 fn response_to_hyper(response: RocServerResponse) -> ServerResponse {
+    crate::request_body::validate_response_body(&response.body);
     let mut builder = hyper::Response::builder().status(response.status);
     for header in response.headers.as_slice() {
         builder = builder.header(header.name.as_str(), header.value.as_str());
@@ -693,8 +696,12 @@ async fn handle_req(
     let (parts, body) = request.into_parts();
     let file_method = parts.method.clone();
     let file_headers = parts.headers.clone();
-    let registration = context.bodies.register(context.config.body_max_bytes);
-    let body_id = registration.id;
+    let registration = register_body(
+        context.config.body_max_bytes,
+        context.config.body_buffered_chunks,
+        declared_length,
+        roc_host(),
+    );
     let stream = body
         .into_data_stream()
         .map(|frame| frame.map_err(request_body_error));
@@ -702,7 +709,7 @@ async fn handle_req(
     tokio::spawn(async move { registration.pump.run(stream, chunk_bytes).await });
 
     let body_limit = context.config.body_max_bytes;
-    let bodies = Arc::clone(&context.bodies);
+    let body_handle = registration.handle;
     let roc_context = Arc::clone(&context.roc_context);
     let handler_request = Arc::clone(&active_request);
     let handled = spawn_blocking(move || {
@@ -712,10 +719,15 @@ async fn handle_req(
         // context.
         let _active_request = handler_request;
         let _active_handler = active_handler;
-        let roc_request = request_to_roc(parts, body_id, body_limit, declared_length);
+        let roc_request = request_to_roc(
+            parts,
+            body_handle.retain_for_roc(),
+            body_limit,
+            declared_length,
+        );
         let request_context = roc_context.retain_for_request();
         let result = call_roc(roc_request, request_context);
-        bodies.expire(body_id);
+        body_handle.expire();
         result
     })
     .await;
@@ -740,7 +752,6 @@ async fn handle_req(
             internal_server_error("500 Internal Server Error")
         }
         Err(error) => {
-            context.bodies.expire(body_id);
             eprintln!("Recovered from calling Roc: {error:?}");
             internal_server_error("500 Internal Server Error")
         }
@@ -857,10 +868,9 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
     .await;
 
     if drained.is_err() {
-        context.bodies.cancel_all();
         connections.abort_all();
         eprintln!(
-            "Graceful drain exceeded {:?}; request bodies were cancelled and connections aborted; forcing process exit without running the Roc shutdown hook",
+            "Graceful drain exceeded {:?}; connections were aborted; forcing process exit without running the Roc shutdown hook",
             context.config.drain_timeout
         );
 
@@ -939,6 +949,12 @@ async fn watch_signals(shutdown: ShutdownController) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn initialize_test_host() {
+        static INITIALIZE: std::sync::Once = std::sync::Once::new();
+        INITIALIZE.call_once(crate::abi::initialize_roc_host);
+    }
 
     #[test]
     fn method_tags_match_internal_server_contract() {
@@ -1008,8 +1024,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_metadata_and_escaped_response_body_share_hyper_storage() {
-        static INITIALIZE: std::sync::Once = std::sync::Once::new();
-        INITIALIZE.call_once(crate::abi::initialize_roc_host);
+        initialize_test_host();
 
         let request = hyper::Request::builder()
             .method("PROPFIND")
@@ -1025,7 +1040,7 @@ mod tests {
             .collect();
         let (parts, _) = request.into_parts();
 
-        let roc_request = request_to_roc(parts, 1, 4096, None);
+        let roc_request = request_to_roc(parts, core::ptr::null_mut(), 4096, None);
         assert_eq!(crate::request_parts::active_backings(), 1);
         assert!(roc_request.target.is_seamless_slice());
         assert_eq!(roc_request.target.as_u8_ptr(), original_target_ptr);
@@ -1094,6 +1109,58 @@ mod tests {
             0,
             "Hyper's final Bytes drop must release the escaped Roc slice"
         );
+    }
+
+    struct DropOwner {
+        bytes: &'static [u8],
+        drops: Arc<AtomicUsize>,
+    }
+
+    impl AsRef<[u8]> for DropOwner {
+        fn as_ref(&self) -> &[u8] {
+            self.bytes
+        }
+    }
+
+    impl Drop for DropOwner {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
+    #[tokio::test]
+    async fn seamless_request_chunk_escapes_until_hyper_finishes_the_response() {
+        initialize_test_host();
+        let drops = Arc::new(AtomicUsize::new(0));
+        let bytes = Bytes::from_owner(DropOwner {
+            bytes: b"escaped body chunk",
+            drops: Arc::clone(&drops),
+        });
+        let original_ptr = bytes.as_ptr();
+        let response = RocServerResponse {
+            exit_code: 0,
+            body: crate::request_body::seamless_chunk_for_test(bytes),
+            file_download_name: RocStr::empty(),
+            file_relative: RocStr::empty(),
+            file_root_id: RocStr::empty(),
+            headers: RocList::empty(),
+            file_cache_max_age_seconds: 0,
+            status: 200,
+            file_cache_override: false,
+            file_cache_tag: 0,
+            file_disposition: 0,
+            kind: 0,
+            stop: false,
+        };
+
+        let response = response_to_hyper(response);
+        assert_eq!(drops.load(Ordering::Acquire), 0);
+        let transmitted = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(transmitted.as_ptr(), original_ptr);
+        assert_eq!(transmitted.as_ref(), b"escaped body chunk");
+        assert_eq!(drops.load(Ordering::Acquire), 0);
+        drop(transmitted);
+        assert_eq!(drops.load(Ordering::Acquire), 1);
     }
 
     #[test]

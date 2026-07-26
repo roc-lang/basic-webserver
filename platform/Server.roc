@@ -471,7 +471,7 @@ Server :: [].{
 	Body := [
 		Body(
 			{
-				host_id : U64,
+				host : Host.RequestBody,
 				limit_bytes : U64,
 				content_length : [Unknown, Known(U64)],
 			},
@@ -494,9 +494,9 @@ Server :: [].{
 		to_inspect = |_| "Server.Body(<stream>)"
 
 		## Platform ABI conversion hook; not an application API.
-		from_host : U64, U64, [Unknown, Known(U64)] -> Body
-		from_host = |host_id, limit_bytes, content_length|
-			Body({ host_id, limit_bytes, content_length })
+		from_host : Host.RequestBody, U64, [Unknown, Known(U64)] -> Body
+		from_host = |host, limit_bytes, content_length|
+			Body({ host, limit_bytes, content_length })
 
 		## The maximum number of bytes this request body may deliver.
 		limit : Body -> U64
@@ -523,13 +523,13 @@ Server :: [].{
 		## once. Concurrent reads of one body return ConcurrentRead.
 		read! : Body => Try(Read, [RequestBodyErr(Err)])
 		read! = |Body(raw)|
-			Host.request_body_read!(raw.host_id, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
+			Host.request_body_read!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
 
 		## Read all remaining bytes while enforcing this body's current limit.
 		## Prefer read! for large or incrementally processed payloads.
 		read_all! : Body => Try(List(U8), [RequestBodyErr(Err)])
 		read_all! = |Body(raw)|
-			Host.request_body_read_all!(raw.host_id, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
+			Host.request_body_read_all!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
 	}
 
 	## An inbound server request. Its body is always streaming; use

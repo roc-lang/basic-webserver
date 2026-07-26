@@ -139,6 +139,44 @@ pub(crate) fn contains_address(ptr: *const c_void) -> bool {
         .is_some_and(|heap| heap.contains_address(ptr))
 }
 
+pub(crate) fn validate_seamless_range(
+    allocation_ptr: *mut u8,
+    range_ptr: *const u8,
+    range_length: usize,
+) {
+    let resource = unsafe {
+        request_parts()
+            .get(allocation_ptr.cast::<u64>())
+            .unwrap_or_else(|_| {
+                eprintln!("fatal: stale request metadata seamless allocation");
+                std::process::abort();
+            })
+    };
+    let range_start = range_ptr as usize;
+    let range_end = range_start.checked_add(range_length).unwrap_or_else(|| {
+        eprintln!("fatal: request metadata seamless range overflow");
+        std::process::abort();
+    });
+    let contains = |bytes: &[u8]| {
+        let start = bytes.as_ptr() as usize;
+        let Some(end) = start.checked_add(bytes.len()) else {
+            return false;
+        };
+        start <= range_start && range_end <= end
+    };
+    let parts = &resource.parts;
+    let valid = contains(parts.method.as_str().as_bytes())
+        || contains(request_target(parts).as_bytes())
+        || parts
+            .headers
+            .iter()
+            .any(|(name, value)| contains(name.as_str().as_bytes()) || contains(value.as_bytes()));
+    if !valid {
+        eprintln!("fatal: seamless response slice escapes its request metadata backing");
+        std::process::abort();
+    }
+}
+
 pub(crate) fn active_backings() -> usize {
     REQUEST_PARTS.get().map_or(0, HostResourceHeap::active)
 }
