@@ -172,6 +172,14 @@ internal_server_error = {
 	body: Str.to_utf8("Internal Server Error"),
 	stop: False,
 	exit_code: 0,
+	kind: 0,
+	file_root_id: "",
+	file_relative: "",
+	file_disposition: 0,
+	file_download_name: "",
+	file_cache_override: False,
+	file_cache_tag: 0,
+	file_cache_max_age_seconds: 0,
 }
 
 shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Context) => Try({}, I64)

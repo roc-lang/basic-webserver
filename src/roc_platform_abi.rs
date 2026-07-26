@@ -1320,75 +1320,157 @@ const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_e340dbd21a9f8d48
+/// Element type for __AnonStruct_9d4feaaa75529fdc
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructE340dbd21a9f8d48 {
-    pub config: AnonStructF0688567cca5fbf7,
+pub struct AnonStruct9d4feaaa75529fdc {
+    pub config: AnonStructAeeb7f2cfe80f10,
     pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_e340dbd21a9f8d48
+/// Element type for __AnonStruct_9d4feaaa75529fdc
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructE340dbd21a9f8d48 {
-    pub config: AnonStructF0688567cca5fbf7,
+pub struct AnonStruct9d4feaaa75529fdc {
+    pub config: AnonStructAeeb7f2cfe80f10,
     pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructE340dbd21a9f8d48>() == 72, "AnonStructE340dbd21a9f8d48 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct9d4feaaa75529fdc>() == 128, "AnonStruct9d4feaaa75529fdc size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructE340dbd21a9f8d48>() == 8, "AnonStructE340dbd21a9f8d48 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct9d4feaaa75529fdc>() == 8, "AnonStruct9d4feaaa75529fdc alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructE340dbd21a9f8d48>() == 64, "AnonStructE340dbd21a9f8d48 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct9d4feaaa75529fdc>() == 96, "AnonStruct9d4feaaa75529fdc size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructE340dbd21a9f8d48>() == 8, "AnonStructE340dbd21a9f8d48 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct9d4feaaa75529fdc>() == 8, "AnonStruct9d4feaaa75529fdc alignment mismatch");
 
-/// Element type for __AnonStruct_f0688567cca5fbf7
+/// Element type for __AnonStruct_aeeb7f2cfe80f10
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF0688567cca5fbf7 {
+pub struct AnonStructAeeb7f2cfe80f10 {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
+    pub file_roots: RocList<AnonStruct3b01e35488cb00dc>,
     pub host: RocStr,
+    pub native_routes: RocList<AnonStructFf6f93028827ced0>,
     pub body_chunk_bytes: u32,
+    pub file_chunk_bytes: u32,
     pub max_connections: u32,
     pub body_buffered_chunks: u16,
+    pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
     pub port: u16,
 }
 
-/// Element type for __AnonStruct_f0688567cca5fbf7
+/// Element type for __AnonStruct_aeeb7f2cfe80f10
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF0688567cca5fbf7 {
+pub struct AnonStructAeeb7f2cfe80f10 {
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
     pub hook_timeout_ms: u64,
+    pub file_roots: RocList<AnonStruct3b01e35488cb00dc>,
     pub host: RocStr,
+    pub native_routes: RocList<AnonStructFf6f93028827ced0>,
     pub body_chunk_bytes: u32,
+    pub file_chunk_bytes: u32,
     pub max_connections: u32,
     pub body_buffered_chunks: u16,
+    pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
     pub port: u16,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructF0688567cca5fbf7>() == 64, "AnonStructF0688567cca5fbf7 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructAeeb7f2cfe80f10>() == 120, "AnonStructAeeb7f2cfe80f10 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructF0688567cca5fbf7>() == 8, "AnonStructF0688567cca5fbf7 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructAeeb7f2cfe80f10>() == 8, "AnonStructAeeb7f2cfe80f10 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructF0688567cca5fbf7>() == 56, "AnonStructF0688567cca5fbf7 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructAeeb7f2cfe80f10>() == 88, "AnonStructAeeb7f2cfe80f10 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructF0688567cca5fbf7>() == 8, "AnonStructF0688567cca5fbf7 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructAeeb7f2cfe80f10>() == 8, "AnonStructAeeb7f2cfe80f10 alignment mismatch");
+
+/// Element type for __AnonStruct_3b01e35488cb00dc
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct3b01e35488cb00dc {
+    pub id: RocStr,
+    pub path_unix_bytes: RocListWith<u8, false>,
+    pub path_utf8: RocStr,
+    pub path_windows_u16s: RocListWith<u16, false>,
+    pub cache_max_age_seconds: u32,
+    pub cache_tag: u8,
+    pub path_tag: u8,
+}
+
+/// Element type for __AnonStruct_3b01e35488cb00dc
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct3b01e35488cb00dc {
+    pub id: RocStr,
+    pub path_unix_bytes: RocListWith<u8, false>,
+    pub path_utf8: RocStr,
+    pub path_windows_u16s: RocListWith<u16, false>,
+    pub cache_max_age_seconds: u32,
+    pub cache_tag: u8,
+    pub path_tag: u8,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct3b01e35488cb00dc>() == 104, "AnonStruct3b01e35488cb00dc size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct3b01e35488cb00dc>() == 8, "AnonStruct3b01e35488cb00dc alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct3b01e35488cb00dc>() == 56, "AnonStruct3b01e35488cb00dc size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct3b01e35488cb00dc>() == 4, "AnonStruct3b01e35488cb00dc alignment mismatch");
+
+/// Element type for __AnonStruct_ff6f93028827ced0
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructFf6f93028827ced0 {
+    pub at: RocStr,
+    pub relative: RocStr,
+    pub root_id: RocStr,
+    pub cache_max_age_seconds: u32,
+    pub cache_override: bool,
+    pub cache_tag: u8,
+    pub kind: u8,
+}
+
+/// Element type for __AnonStruct_ff6f93028827ced0
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructFf6f93028827ced0 {
+    pub at: RocStr,
+    pub relative: RocStr,
+    pub root_id: RocStr,
+    pub cache_max_age_seconds: u32,
+    pub cache_override: bool,
+    pub cache_tag: u8,
+    pub kind: u8,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStructFf6f93028827ced0>() == 80, "AnonStructFf6f93028827ced0 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStructFf6f93028827ced0>() == 8, "AnonStructFf6f93028827ced0 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStructFf6f93028827ced0>() == 44, "AnonStructFf6f93028827ced0 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStructFf6f93028827ced0>() == 4, "AnonStructFf6f93028827ced0 alignment mismatch");
 
 /// Element type for __AnonStruct_9618161a745c1367
 #[cfg(target_pointer_width = "32")]
@@ -1429,38 +1511,54 @@ const _: () = assert!(core::mem::size_of::<AnonStruct9618161a745c1367>() == 64, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct9618161a745c1367>() == 8, "AnonStruct9618161a745c1367 alignment mismatch");
 
-/// Element type for __AnonStruct_6f3dea2f169284fc
+/// Element type for __AnonStruct_aeceb9ea017a78f4
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct6f3dea2f169284fc {
+pub struct AnonStructAeceb9ea017a78f4 {
     pub exit_code: i64,
     pub body: RocListWith<u8, false>,
+    pub file_download_name: RocStr,
+    pub file_relative: RocStr,
+    pub file_root_id: RocStr,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
+    pub file_cache_max_age_seconds: u32,
     pub status: u16,
+    pub file_cache_override: bool,
+    pub file_cache_tag: u8,
+    pub file_disposition: u8,
+    pub kind: u8,
     pub stop: bool,
 }
 
-/// Element type for __AnonStruct_6f3dea2f169284fc
+/// Element type for __AnonStruct_aeceb9ea017a78f4
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct6f3dea2f169284fc {
+pub struct AnonStructAeceb9ea017a78f4 {
     pub exit_code: i64,
     pub body: RocListWith<u8, false>,
+    pub file_download_name: RocStr,
+    pub file_relative: RocStr,
+    pub file_root_id: RocStr,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
+    pub file_cache_max_age_seconds: u32,
     pub status: u16,
+    pub file_cache_override: bool,
+    pub file_cache_tag: u8,
+    pub file_disposition: u8,
+    pub kind: u8,
     pub stop: bool,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct6f3dea2f169284fc>() == 64, "AnonStruct6f3dea2f169284fc size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructAeceb9ea017a78f4>() == 144, "AnonStructAeceb9ea017a78f4 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct6f3dea2f169284fc>() == 8, "AnonStruct6f3dea2f169284fc alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructAeceb9ea017a78f4>() == 8, "AnonStructAeceb9ea017a78f4 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct6f3dea2f169284fc>() == 40, "AnonStruct6f3dea2f169284fc size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructAeceb9ea017a78f4>() == 80, "AnonStructAeceb9ea017a78f4 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct6f3dea2f169284fc>() == 8, "AnonStruct6f3dea2f169284fc alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructAeceb9ea017a78f4>() == 8, "AnonStructAeceb9ea017a78f4 alignment mismatch");
 
 /// Element type for __AnonStruct_628b43fd33b27733
 #[cfg(target_pointer_width = "32")]
@@ -4814,7 +4912,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStructE340dbd21a9f8d48>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct9d4feaaa75529fdc>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -4828,7 +4926,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 64],
+    pub payload: [u8; 96],
     pub tag: InitForHostResultTag,
 }
 
@@ -4853,29 +4951,29 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStructE340dbd21a9f8d48 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructE340dbd21a9f8d48) }
+    pub fn payload_ok(&self) -> AnonStruct9d4feaaa75529fdc {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct9d4feaaa75529fdc) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStructE340dbd21a9f8d48 {
+    pub fn payload_ok(&self) -> AnonStruct9d4feaaa75529fdc {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 80, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 136, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 72, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 128, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 72, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 104, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 64, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 96, "InitForHostResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -6220,11 +6318,13 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStructE340dbd21a9f8d48;
-pub type InitForHostOkConfig = AnonStructF0688567cca5fbf7;
+pub type InitForHostOk = AnonStruct9d4feaaa75529fdc;
+pub type InitForHostOkConfig = AnonStructAeeb7f2cfe80f10;
+pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
+pub type InitForHostOkConfigNativeRoutes = AnonStructFf6f93028827ced0;
 pub type RespondForHostArg0 = AnonStruct9618161a745c1367;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
-pub type RespondForHost = AnonStruct6f3dea2f169284fc;
+pub type RespondForHost = AnonStructAeceb9ea017a78f4;
 pub type RespondForHostHeaders = AnonStruct82a96c5d55d63488;
 pub type ShutdownForHostArg0 = AnonStruct628b43fd33b27733;
 
@@ -8539,7 +8639,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStructE340dbd21a9f8d48 {
+impl AnonStruct9d4feaaa75529fdc {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -8562,14 +8662,34 @@ impl AnonStructE340dbd21a9f8d48 {
     }
 }
 
-impl AnonStructF0688567cca5fbf7 {
+impl AnonStructAeeb7f2cfe80f10 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted field.
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
+        {
+            let list = value.file_roots;
+            if list.has_one_ref() {
+                for item_ref in list.allocation_items() {
+                    let item = *item_ref;
+                        unsafe { item.decref(roc_host); }
+                }
+            }
+            unsafe { list.decref(roc_host); }
+        }
         unsafe { value.host.decref(roc_host); }
+        {
+            let list = value.native_routes;
+            if list.has_one_ref() {
+                for item_ref in list.allocation_items() {
+                    let item = *item_ref;
+                        unsafe { item.decref(roc_host); }
+                }
+            }
+            unsafe { list.decref(roc_host); }
+        }
     }
 
     /// Increment Roc-owned fields.
@@ -8579,7 +8699,61 @@ impl AnonStructF0688567cca5fbf7 {
     /// be balanced by later decrefs.
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
+        unsafe { value.file_roots.incref(amount); }
         unsafe { value.host.incref(amount); }
+        unsafe { value.native_routes.incref(amount); }
+    }
+}
+
+impl AnonStruct3b01e35488cb00dc {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.id.decref(roc_host); }
+        unsafe { value.path_unix_bytes.decref(roc_host); }
+        unsafe { value.path_utf8.decref(roc_host); }
+        unsafe { value.path_windows_u16s.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.id.incref(amount); }
+        unsafe { value.path_unix_bytes.incref(amount); }
+        unsafe { value.path_utf8.incref(amount); }
+        unsafe { value.path_windows_u16s.incref(amount); }
+    }
+}
+
+impl AnonStructFf6f93028827ced0 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.at.decref(roc_host); }
+        unsafe { value.relative.decref(roc_host); }
+        unsafe { value.root_id.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.at.incref(amount); }
+        unsafe { value.relative.incref(amount); }
+        unsafe { value.root_id.incref(amount); }
     }
 }
 
@@ -8617,7 +8791,7 @@ impl AnonStruct9618161a745c1367 {
     }
 }
 
-impl AnonStruct6f3dea2f169284fc {
+impl AnonStructAeceb9ea017a78f4 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -8625,6 +8799,9 @@ impl AnonStruct6f3dea2f169284fc {
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
         unsafe { value.body.decref(roc_host); }
+        unsafe { value.file_download_name.decref(roc_host); }
+        unsafe { value.file_relative.decref(roc_host); }
+        unsafe { value.file_root_id.decref(roc_host); }
         {
             let list = value.headers;
             if list.has_one_ref() {
@@ -8645,6 +8822,9 @@ impl AnonStruct6f3dea2f169284fc {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.body.incref(amount); }
+        unsafe { value.file_download_name.incref(amount); }
+        unsafe { value.file_relative.incref(amount); }
+        unsafe { value.file_root_id.incref(amount); }
         unsafe { value.headers.incref(amount); }
     }
 }
@@ -9091,7 +9271,7 @@ unsafe extern "C" {
     pub fn roc_init_for_host() -> InitForHostResult;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367, arg1: RocBox) -> AnonStruct6f3dea2f169284fc;
+    pub fn roc_respond_for_host(arg0: AnonStruct9618161a745c1367, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

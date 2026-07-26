@@ -1,7 +1,12 @@
 //! Tokio/Hyper server lifecycle and the provided Roc application entrypoints.
 
 use crate::abi::{
-    roc_host, ServerConfig, ServerHeader, ServerRequest, ServerResponse, ServerShutdownReason,
+    roc_host, ServerConfig, ServerFileRoot, ServerHeader, ServerNativeRoute, ServerRequest,
+    ServerResponse as RocServerResponse, ServerShutdownReason,
+};
+use crate::file_server::{
+    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, NativeRouteKind,
+    NativeRouteSpec, ServerResponse,
 };
 use crate::request_body::{clear_registry, install_registry, BodyRegistry, PumpError};
 use crate::request_parts::{request_target, RequestPartsBacking};
@@ -9,19 +14,22 @@ use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
 use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
-use http_body_util::{BodyExt, Full};
+use http_body_util::BodyExt;
+#[cfg(test)]
+use http_body_util::Full;
 use hyper::header::CONTENT_LENGTH;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::{spawn_blocking, JoinSet};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct RuntimeConfig {
     host: String,
     port: u16,
@@ -33,33 +41,60 @@ struct RuntimeConfig {
     body_buffered_chunks: usize,
     drain_timeout: Duration,
     hook_timeout: Duration,
+    files: FileService,
 }
 
 impl RuntimeConfig {
     fn from_roc(config: ServerConfig) -> Result<Self, String> {
-        let host = config.host.as_str().to_owned();
-        unsafe { config.host.decref(roc_host()) };
-
-        if config.body_chunk_bytes == 0 {
-            return Err("request body chunk size must be non-zero".to_owned());
-        }
-        if config.body_buffered_chunks == 0 {
-            return Err("request body buffered chunk count must be non-zero".to_owned());
-        }
-        let (max_connections, max_handlers) =
-            validate_concurrency_limits(config.max_connections, config.max_handlers)?;
-        Ok(Self {
-            host,
-            port: config.port,
-            max_connections,
-            max_handlers,
-            max_queued_handlers: config.max_queued_handlers as usize,
-            body_max_bytes: config.body_max_bytes,
-            body_chunk_bytes: config.body_chunk_bytes as usize,
-            body_buffered_chunks: config.body_buffered_chunks as usize,
-            drain_timeout: Duration::from_millis(config.drain_timeout_ms),
-            hook_timeout: Duration::from_millis(config.hook_timeout_ms),
-        })
+        let result = (|| {
+            if config.body_chunk_bytes == 0 {
+                return Err("request body chunk size must be non-zero".to_owned());
+            }
+            if config.body_buffered_chunks == 0 {
+                return Err("request body buffered chunk count must be non-zero".to_owned());
+            }
+            if config.file_chunk_bytes > 1024 * 1024 {
+                return Err("file transfer chunk size cannot exceed 1 MiB".to_owned());
+            }
+            let (max_connections, max_handlers) =
+                validate_concurrency_limits(config.max_connections, config.max_handlers)?;
+            let roots = config
+                .file_roots
+                .as_slice()
+                .iter()
+                .map(file_root_from_roc)
+                .collect::<Result<Vec<_>, _>>()?;
+            let routes = config
+                .native_routes
+                .as_slice()
+                .iter()
+                .map(native_route_from_roc)
+                .collect::<Result<Vec<_>, _>>()?;
+            let files = FileService::activate(
+                roots,
+                routes,
+                config.file_max_concurrent as usize,
+                config.file_chunk_bytes as usize,
+            )?;
+            Ok(Self {
+                host: config.host.as_str().to_owned(),
+                port: config.port,
+                max_connections,
+                max_handlers,
+                max_queued_handlers: config.max_queued_handlers as usize,
+                body_max_bytes: config.body_max_bytes,
+                body_chunk_bytes: config.body_chunk_bytes as usize,
+                body_buffered_chunks: config.body_buffered_chunks as usize,
+                drain_timeout: Duration::from_millis(config.drain_timeout_ms),
+                hook_timeout: Duration::from_millis(config.hook_timeout_ms),
+                files,
+            })
+        })();
+        // SAFETY: every Roc-owned field in the ABI config is borrowed only
+        // inside the closure above and this consumes the one reference returned
+        // by `init!` on both success and failure.
+        unsafe { config.decref(roc_host()) };
+        result
     }
 
     fn max_http2_streams_per_connection(&self) -> u32 {
@@ -72,6 +107,75 @@ impl RuntimeConfig {
             .try_into()
             .expect("validated handler capacity fits in u32")
     }
+}
+
+fn file_root_from_roc(root: &ServerFileRoot) -> Result<FileRootSpec, String> {
+    let path = path_buf_from_file_root(root)?;
+    Ok(FileRootSpec {
+        id: root.id.as_str().to_owned(),
+        path,
+        cache: CachePolicy::from_abi(root.cache_tag, root.cache_max_age_seconds)?,
+    })
+}
+
+fn path_buf_from_file_root(root: &ServerFileRoot) -> Result<PathBuf, String> {
+    match root.path_tag {
+        0 if root.path_unix_bytes.is_empty() && root.path_windows_u16s.is_empty() => {
+            Ok(PathBuf::from(root.path_utf8.as_str()))
+        }
+        1 if root.path_utf8.is_empty() && root.path_windows_u16s.is_empty() => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::ffi::OsStringExt;
+                Ok(PathBuf::from(std::ffi::OsString::from_vec(
+                    root.path_unix_bytes.as_slice().to_vec(),
+                )))
+            }
+            #[cfg(not(unix))]
+            {
+                Err("a Unix file-root path was supplied on a non-Unix target".to_owned())
+            }
+        }
+        2 if root.path_utf8.is_empty() && root.path_unix_bytes.is_empty() => {
+            #[cfg(windows)]
+            {
+                use std::os::windows::ffi::OsStringExt;
+                Ok(PathBuf::from(std::ffi::OsString::from_wide(
+                    root.path_windows_u16s.as_slice(),
+                )))
+            }
+            #[cfg(not(windows))]
+            {
+                Err("a Windows file-root path was supplied on a non-Windows target".to_owned())
+            }
+        }
+        _ => Err("malformed native file-root path".to_owned()),
+    }
+}
+
+fn native_route_from_roc(route: &ServerNativeRoute) -> Result<NativeRouteSpec, String> {
+    let kind = match route.kind {
+        0 => NativeRouteKind::Prefix,
+        1 => NativeRouteKind::Exact,
+        _ => return Err("invalid native route kind".to_owned()),
+    };
+    let cache = if route.cache_override {
+        Some(CachePolicy::from_abi(
+            route.cache_tag,
+            route.cache_max_age_seconds,
+        )?)
+    } else if route.cache_tag == 0 && route.cache_max_age_seconds == 0 {
+        None
+    } else {
+        return Err("malformed native route cache override".to_owned());
+    };
+    Ok(NativeRouteSpec {
+        at: route.at.as_str().to_owned(),
+        root_id: route.root_id.as_str().to_owned(),
+        kind,
+        relative: route.relative.as_str().to_owned(),
+        cache,
+    })
 }
 
 fn validate_concurrency_limits(
@@ -407,25 +511,83 @@ fn request_to_roc_copied(
     }
 }
 
-fn call_roc(
-    request: ServerRequest,
-    context: RocBox,
-) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
+fn call_roc(request: ServerRequest, context: RocBox) -> RocOutcome {
     let response = unsafe { roc_respond_for_host(request, context) };
-    response_to_hyper(response)
+    outcome_from_roc(response)
 }
 
-fn response_to_hyper(response: ServerResponse) -> (hyper::Response<Full<Bytes>>, Option<i64>) {
-    let stop_code = response.stop.then_some(response.exit_code);
+enum RocOutcome {
+    Ordinary(ServerResponse, Option<i64>),
+    File(FilePlan),
+    Invalid(String),
+}
+
+fn outcome_from_roc(response: RocServerResponse) -> RocOutcome {
+    match response.kind {
+        0 => {
+            let stop_code = response.stop.then_some(response.exit_code);
+            RocOutcome::Ordinary(response_to_hyper(response), stop_code)
+        }
+        1 => {
+            let root_id = response.file_root_id.as_str().to_owned();
+            let relative = response.file_relative.as_str().to_owned();
+            let disposition = match response.file_disposition {
+                0 if response.file_download_name.is_empty() => Disposition::Inline,
+                1 => Disposition::Attachment(response.file_download_name.as_str().to_owned()),
+                _ => {
+                    unsafe { response.decref(roc_host()) };
+                    return RocOutcome::Invalid(
+                        "Roc returned a malformed file disposition".to_owned(),
+                    );
+                }
+            };
+            let cache = if response.file_cache_override {
+                match CachePolicy::from_abi(
+                    response.file_cache_tag,
+                    response.file_cache_max_age_seconds,
+                ) {
+                    Ok(cache) => Some(cache),
+                    Err(detail) => {
+                        unsafe { response.decref(roc_host()) };
+                        return RocOutcome::Invalid(detail);
+                    }
+                }
+            } else if response.file_cache_tag == 0 && response.file_cache_max_age_seconds == 0 {
+                None
+            } else {
+                unsafe { response.decref(roc_host()) };
+                return RocOutcome::Invalid(
+                    "Roc returned a malformed file cache override".to_owned(),
+                );
+            };
+            let valid = !response.stop
+                && response.status == 500
+                && response.body.is_empty()
+                && response.headers.is_empty();
+            unsafe { response.decref(roc_host()) };
+            if !valid {
+                return RocOutcome::Invalid(
+                    "Roc returned a malformed file response plan".to_owned(),
+                );
+            }
+            RocOutcome::File(FilePlan::authorized(root_id, relative, disposition, cache))
+        }
+        _ => {
+            unsafe { response.decref(roc_host()) };
+            RocOutcome::Invalid("Roc returned an unknown response-plan kind".to_owned())
+        }
+    }
+}
+
+fn response_to_hyper(response: RocServerResponse) -> ServerResponse {
     let mut builder = hyper::Response::builder().status(response.status);
     for header in response.headers.as_slice() {
         builder = builder.header(header.name.as_str(), header.value.as_str());
     }
     let body = Bytes::from_owner(RocResponseOwner { response });
-    let hyper_response = builder
-        .body(Full::new(body))
-        .unwrap_or_else(|_| internal_server_error("Failed to build response"));
-    (hyper_response, stop_code)
+    builder
+        .body(full_body(body))
+        .unwrap_or_else(|_| internal_server_error("Failed to build response"))
 }
 
 /// Owns every Roc reference in a response while Hyper may still transmit the
@@ -433,7 +595,7 @@ fn response_to_hyper(response: ServerResponse) -> (hyper::Response<Full<Bytes>>,
 /// generated recursive decref remains the single source of truth, and keeping
 /// the small header descriptors alive until body completion is bounded.
 struct RocResponseOwner {
-    response: ServerResponse,
+    response: RocServerResponse,
 }
 
 impl AsRef<[u8]> for RocResponseOwner {
@@ -455,40 +617,40 @@ impl Drop for RocResponseOwner {
     }
 }
 
-fn internal_server_error(message: &str) -> hyper::Response<Full<Bytes>> {
+fn internal_server_error(message: &str) -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-        .body(Full::new(Bytes::copy_from_slice(message.as_bytes())))
+        .body(full_body(Bytes::copy_from_slice(message.as_bytes())))
         .expect("static 500 response is valid")
 }
 
-fn service_unavailable() -> hyper::Response<Full<Bytes>> {
+fn service_unavailable() -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
-        .body(Full::new(Bytes::from_static(b"Server is shutting down")))
+        .body(full_body(Bytes::from_static(b"Server is shutting down")))
         .expect("static 503 response is valid")
 }
 
-fn overloaded() -> hyper::Response<Full<Bytes>> {
+fn overloaded() -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
-        .body(Full::new(Bytes::from_static(b"Server is overloaded")))
+        .body(full_body(Bytes::from_static(b"Server is overloaded")))
         .expect("static 503 response is valid")
 }
 
-fn invalid_request_headers() -> hyper::Response<Full<Bytes>> {
+fn invalid_request_headers() -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::BAD_REQUEST)
-        .body(Full::new(Bytes::from_static(
+        .body(full_body(Bytes::from_static(
             b"Request header values must be valid UTF-8",
         )))
         .expect("static 400 response is valid")
 }
 
-fn payload_too_large(limit: u64) -> hyper::Response<Full<Bytes>> {
+fn payload_too_large(limit: u64) -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::PAYLOAD_TOO_LARGE)
-        .body(Full::new(Bytes::from(format!(
+        .body(full_body(Bytes::from(format!(
             "Request body exceeds the {limit}-byte limit"
         ))))
         .expect("static 413 response is valid")
@@ -497,11 +659,21 @@ fn payload_too_large(limit: u64) -> hyper::Response<Full<Bytes>> {
 async fn handle_req(
     request: hyper::Request<hyper::body::Incoming>,
     context: ServerContext,
-) -> hyper::Response<Full<Bytes>> {
+) -> ServerResponse {
     let active_request = match context.requests.begin() {
-        Some(active) => active,
+        Some(active) => Arc::new(active),
         None => return service_unavailable(),
     };
+
+    if let Some(plan) = context.config.files.route(request.uri().path()) {
+        let (parts, body) = request.into_parts();
+        drop(body);
+        return context
+            .config
+            .files
+            .serve(plan, parts.method, parts.headers, active_request)
+            .await;
+    }
 
     if !request_headers_are_utf8(request.headers()) {
         return invalid_request_headers();
@@ -518,6 +690,8 @@ async fn handle_req(
     };
 
     let (parts, body) = request.into_parts();
+    let file_method = parts.method.clone();
+    let file_headers = parts.headers.clone();
     let registration = context.bodies.register(context.config.body_max_bytes);
     let body_id = registration.id;
     let stream = body
@@ -529,12 +703,13 @@ async fn handle_req(
     let body_limit = context.config.body_max_bytes;
     let bodies = Arc::clone(&context.bodies);
     let roc_context = Arc::clone(&context.roc_context);
+    let handler_request = Arc::clone(&active_request);
     let handled = spawn_blocking(move || {
         // These guards intentionally live in the non-cancellable blocking task.
         // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
         // stopped using its handler slot, body, or immutable application
         // context.
-        let _active_request = active_request;
+        let _active_request = handler_request;
         let _active_handler = active_handler;
         let roc_request = request_to_roc(parts, body_id, body_limit, declared_length);
         let request_context = roc_context.retain_for_request();
@@ -545,13 +720,24 @@ async fn handle_req(
     .await;
 
     match handled {
-        Ok((response, Some(exit_code))) => {
+        Ok(RocOutcome::Ordinary(response, Some(exit_code))) => {
             context
                 .shutdown
                 .request(ShutdownReason::ApplicationRequested { exit_code });
             response
         }
-        Ok((response, None)) => response,
+        Ok(RocOutcome::Ordinary(response, None)) => response,
+        Ok(RocOutcome::File(plan)) => {
+            context
+                .config
+                .files
+                .serve(plan, file_method, file_headers, active_request)
+                .await
+        }
+        Ok(RocOutcome::Invalid(detail)) => {
+            eprintln!("Invalid Roc response plan: {detail}");
+            internal_server_error("500 Internal Server Error")
+        }
         Err(error) => {
             context.bodies.expire(body_id);
             eprintln!("Recovered from calling Roc: {error:?}");
@@ -561,8 +747,8 @@ async fn handle_req(
 }
 
 async fn handle_panics(
-    future: impl Future<Output = hyper::Response<Full<Bytes>>>,
-) -> Result<hyper::Response<Full<Bytes>>, Infallible> {
+    future: impl Future<Output = ServerResponse>,
+) -> Result<ServerResponse, Infallible> {
     match AssertUnwindSafe(future).catch_unwind().await {
         Ok(response) => Ok(response),
         Err(_) => Ok(internal_server_error("Panic detected")),
@@ -684,6 +870,17 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         std::process::exit(1);
     }
 
+    debug_assert_eq!(
+        context.config.files.active_transfers(),
+        0,
+        "all native file transfers must drain before shutdown"
+    );
+    if context.config.files.high_water_transfers() > 0 {
+        eprintln!(
+            "Native file transfer high-water mark: {}",
+            context.config.files.high_water_transfers()
+        );
+    }
     signal_task.abort();
     reason
 }
@@ -868,15 +1065,22 @@ mod tests {
             "the escaped response slice must keep request metadata alive"
         );
 
-        let roc_response = ServerResponse {
+        let roc_response = RocServerResponse {
             exit_code: 0,
             body: escaped_body,
+            file_download_name: RocStr::empty(),
+            file_relative: RocStr::empty(),
+            file_root_id: RocStr::empty(),
             headers: RocList::empty(),
+            file_cache_max_age_seconds: 0,
             status: 200,
+            file_cache_override: false,
+            file_cache_tag: 0,
+            file_disposition: 0,
+            kind: 0,
             stop: false,
         };
-        let (response, stop_code) = response_to_hyper(roc_response);
-        assert_eq!(stop_code, None);
+        let response = response_to_hyper(roc_response);
         assert_eq!(crate::request_parts::active_backings(), 1);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -1008,6 +1212,7 @@ mod tests {
             body_buffered_chunks: 1,
             drain_timeout: Duration::from_secs(30),
             hook_timeout: Duration::from_secs(10),
+            files: FileService::activate(Vec::new(), Vec::new(), 1, 1024).unwrap(),
         };
         assert_eq!(config.max_http2_streams_per_connection(), 96);
     }

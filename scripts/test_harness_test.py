@@ -177,6 +177,36 @@ class SpecValidationTests(unittest.TestCase):
                 test.portable_file_bytes(database), b"first\r\nsecond\r"
             )
 
+    def test_generated_fixtures_are_bounded_and_reproducible(self) -> None:
+        case = {
+            "fixtures": [
+                {
+                    "dest": "{temp}/text.txt",
+                    "text": "hello",
+                    "mtime_unix": 1_700_000_000,
+                },
+                {"dest": "{temp}/bytes.bin", "hex": "00ff10"},
+                {
+                    "dest": "{temp}/large.bin",
+                    "repeat": "abc",
+                    "size_bytes": 65_539,
+                },
+            ]
+        }
+        with tempfile.TemporaryDirectory() as raw_directory:
+            temp = Path(raw_directory)
+            test.install_fixtures(case, test.ROOT, temp)
+
+            self.assertEqual((temp / "text.txt").read_text(), "hello")
+            self.assertEqual(
+                int((temp / "text.txt").stat().st_mtime), 1_700_000_000
+            )
+            self.assertEqual((temp / "bytes.bin").read_bytes(), b"\x00\xff\x10")
+            large = (temp / "large.bin").read_bytes()
+            self.assertEqual(len(large), 65_539)
+            self.assertEqual(large[:9], b"abcabcabc")
+            self.assertEqual(large[-4:], b"aabc")
+
     def test_artifact_manifest_round_trip(self) -> None:
         defaults, apps = test.load_spec()
         with tempfile.TemporaryDirectory() as raw_directory:

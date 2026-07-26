@@ -7,6 +7,7 @@ use std::sync::Mutex;
 const TOKEN_INDEX_BITS: u32 = 16;
 const TOKEN_INDEX_MASK: u64 = (1_u64 << TOKEN_INDEX_BITS) - 1;
 const MAX_GENERATION: u64 = u64::MAX >> TOKEN_INDEX_BITS;
+const DEBUG_FREED_REFCOUNT: isize = 0xDEADBEEFDEADBEEFu64 as isize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReserveError {
@@ -161,7 +162,17 @@ impl<T> HostResourceHeap<T> {
         };
         let slot = &self.slots[index];
         let mut state = self.lock_state();
-        if state.slots[index] != SlotState::Live || slot.refcount.load(Ordering::Acquire) != 0 {
+        let refcount = slot.refcount.load(Ordering::Acquire);
+        // Roc's debug runtime poisons the final refcount immediately before it
+        // invokes the host deallocator. Optimized runtimes leave it at zero.
+        // Slot state still makes a second deallocation unambiguously corrupt.
+        if state.slots[index] != SlotState::Live
+            || (refcount != 0 && refcount != DEBUG_FREED_REFCOUNT)
+        {
+            eprintln!(
+                "host resource deallocation invariant failed: index={index}, state={:?}, refcount={}",
+                state.slots[index], refcount
+            );
             return DeallocRoute::Corrupt;
         }
         let token = unsafe { *slot.token.get() };
@@ -413,6 +424,23 @@ mod tests {
         let handle = heap.reserve().unwrap().insert(42);
         assert_eq!(unsafe { *heap.get(handle).unwrap() }, 42);
         assert_eq!(final_dealloc(&heap, handle), DeallocRoute::Deallocated);
+    }
+
+    #[test]
+    fn debug_runtime_refcount_poison_is_a_valid_final_deallocation() {
+        let heap = HostResourceHeap::<usize>::new(1);
+        let handle = heap.reserve().unwrap().insert(42);
+        let base = unsafe { handle.cast::<u8>().sub(core::mem::size_of::<isize>()) };
+        unsafe {
+            (*(base.cast::<AtomicIsize>())).store(DEBUG_FREED_REFCOUNT, Ordering::Release);
+        }
+
+        assert_eq!(heap.route_dealloc(base.cast()), DeallocRoute::Deallocated);
+        assert_eq!(
+            heap.route_dealloc(base.cast()),
+            DeallocRoute::Corrupt,
+            "slot state must still reject a duplicate debug deallocation"
+        );
     }
 
     #[test]

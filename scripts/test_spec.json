@@ -622,6 +622,378 @@
       ]
     },
     {
+      "path": "examples/static-files.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "public-routes-bypass-roc",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/assets/hello.txt",
+              "text": "hello asset",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/assets/favicon.ico",
+              "hex": "000102",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/assets/large.bin",
+              "repeat": "z",
+              "size_bytes": 8388609,
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/downloads/placeholder.txt",
+              "text": "unused"
+            }
+          ],
+          "requests": [
+            {
+              "target": "/assets/hello.txt?v=1",
+              "expect_body": "hello asset",
+              "response_headers": {
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=3600",
+                "Content-Disposition": "inline",
+                "Content-Length": "11",
+                "Content-Type": "text/plain; charset=utf-8",
+                "Last-Modified": "Tue, 14 Nov 2023 22:13:20 GMT"
+              }
+            },
+            {
+              "method": "HEAD",
+              "target": "/assets/hello.txt",
+              "expect_body": "",
+              "response_headers": {
+                "Content-Length": "11"
+              }
+            },
+            {
+              "target": "/favicon.ico",
+              "expect_body_hex": "000102",
+              "response_headers": {
+                "Content-Type": "image/x-icon"
+              }
+            },
+            {
+              "target": "/assets/large.bin",
+              "expect_body_bytes": 8388609,
+              "response_headers": {
+                "Content-Length": "8388609"
+              }
+            }
+          ],
+          "stdout_regex": [
+            "\\AListening on <http://[^\\n]+>\\n\\Z"
+          ]
+        },
+        {
+          "name": "authorized-file-policy",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/downloads/reports/annual report.txt",
+              "text": "authorized report",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/assets/placeholder.txt",
+              "text": "unused"
+            }
+          ],
+          "requests": [
+            {
+              "target": "/download?token=secret",
+              "expect_body": "authorized report",
+              "response_headers": {
+                "Cache-Control": "no-store",
+                "Content-Disposition": "attachment; filename=\"annual report.txt\"; filename*=UTF-8''annual%20report.txt",
+                "Content-Length": "17",
+                "Content-Type": "text/plain; charset=utf-8"
+              }
+            },
+            {
+              "target": "/download",
+              "status": 403,
+              "expect_body": "Download denied"
+            }
+          ],
+          "stdout_contains": [
+            "Roc handled /download?token=secret",
+            "Roc handled /download"
+          ]
+        },
+        {
+          "name": "owned-route-security-and-methods",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/assets/hello.txt",
+              "text": "hello asset"
+            },
+            {
+              "dest": "{temp}/assets/.hidden",
+              "text": "hidden"
+            },
+            {
+              "dest": "{temp}/assets/subdir/inside.txt",
+              "text": "inside"
+            },
+            {
+              "dest": "{temp}/downloads/placeholder.txt",
+              "text": "unused"
+            }
+          ],
+          "requests": [
+            {
+              "target": "/assets/missing.txt",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/subdir",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/.hidden",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/%2e%2e/hello.txt",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/subdir%2Finside.txt",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/subdir%5Cinside.txt",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/C:%5Csecret.txt",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/%FF",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "method": "POST",
+              "target": "/assets/hello.txt",
+              "status": 405,
+              "expect_body": "Method Not Allowed",
+              "response_headers": {
+                "Allow": "GET, HEAD"
+              }
+            },
+            {
+              "target": "/assets2/hello.txt",
+              "status": 404,
+              "expect_body": "Roc fallback"
+            }
+          ],
+          "stdout_contains": [
+            "Roc handled /assets2/hello.txt"
+          ]
+        },
+        {
+          "name": "conditional-and-range-semantics",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/assets/hello.txt",
+              "text": "hello asset",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/assets/empty.bin",
+              "hex": "",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/assets/data.unknown",
+              "hex": "00ff",
+              "mtime_unix": 1700000000
+            },
+            {
+              "dest": "{temp}/downloads/placeholder.txt",
+              "text": "unused"
+            }
+          ],
+          "requests": [
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "If-None-Match": "*"
+              },
+              "status": 304,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "If-Match": "\"bogus\""
+              },
+              "status": 412,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "If-Unmodified-Since": "Wed, 01 Jan 2020 00:00:00 GMT"
+              },
+              "status": 412,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "If-Modified-Since": "Wed, 01 Jan 2025 00:00:00 GMT"
+              },
+              "status": 304,
+              "expect_body": ""
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "If-None-Match": "\"bogus\"",
+                "If-Modified-Since": "Wed, 01 Jan 2025 00:00:00 GMT"
+              },
+              "expect_body": "hello asset"
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=0-4"
+              },
+              "status": 206,
+              "expect_body": "hello",
+              "response_headers": {
+                "Content-Length": "5",
+                "Content-Range": "bytes 0-4/11"
+              }
+            },
+            {
+              "method": "HEAD",
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=-5"
+              },
+              "status": 206,
+              "expect_body": "",
+              "response_headers": {
+                "Content-Length": "5",
+                "Content-Range": "bytes 6-10/11"
+              }
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=6-"
+              },
+              "status": 206,
+              "expect_body": "asset"
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=99-"
+              },
+              "status": 416,
+              "expect_body": "",
+              "response_headers": {
+                "Content-Range": "bytes */11"
+              }
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=0-1,4-5"
+              },
+              "expect_body": "hello asset"
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=0-4",
+                "If-Range": "Wed, 01 Jan 2025 00:00:00 GMT"
+              },
+              "status": 206,
+              "expect_body": "hello"
+            },
+            {
+              "target": "/assets/hello.txt",
+              "headers": {
+                "Range": "bytes=0-4",
+                "If-Range": "W/\"bogus\""
+              },
+              "expect_body": "hello asset"
+            },
+            {
+              "target": "/assets/empty.bin",
+              "expect_body": "",
+              "response_headers": {
+                "Content-Length": "0"
+              }
+            },
+            {
+              "target": "/assets/data.unknown",
+              "expect_body_hex": "00ff",
+              "response_headers": {
+                "Content-Type": "application/octet-stream"
+              }
+            }
+          ],
+          "stdout_regex": [
+            "\\AListening on <http://[^\\n]+>\\n\\Z"
+          ]
+        },
+        {
+          "name": "http2-native-files",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/assets/one.txt",
+              "text": "one"
+            },
+            {
+              "dest": "{temp}/downloads/placeholder.txt",
+              "text": "unused"
+            }
+          ],
+          "http2_requests": [
+            {
+              "name": "one",
+              "target": "/assets/one.txt",
+              "expect_body": "one"
+            }
+          ],
+          "http2_completion_order": [
+            "one"
+          ],
+          "stdout_regex": [
+            "\\AListening on <http://[^\\n]+>\\n\\Z"
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/tcp.roc",
       "mode": "server",
       "cases": [

@@ -120,6 +120,8 @@ pub(crate) type HostIOErrPayloadType = IOErrPayload;
 pub(crate) type HostIOErrTagType = IOErrTag;
 
 pub(crate) type ServerConfig = InitForHostOkConfig;
+pub(crate) type ServerFileRoot = InitForHostOkConfigFileRoots;
+pub(crate) type ServerNativeRoute = InitForHostOkConfigNativeRoutes;
 pub(crate) type ServerRequest = RespondForHostArg0;
 pub(crate) type ServerResponse = RespondForHost;
 pub(crate) type ServerHeader = RespondForHostArg0Headers;

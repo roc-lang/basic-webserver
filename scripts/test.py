@@ -60,6 +60,7 @@ HTTP2_FLAG_END_STREAM = 0x1
 HTTP2_FLAG_ACK = 0x1
 HTTP2_FLAG_END_HEADERS = 0x4
 HTTP2_MAX_TEST_BODY_BYTES = 1024 * 1024
+MAX_GENERATED_FIXTURE_BYTES = 64 * 1024 * 1024
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
@@ -209,14 +210,34 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
     ):
         fail(f"{owner}: env must be an object of strings")
     fixtures = case.get("fixtures", [])
-    if not isinstance(fixtures, list) or not all(
-        isinstance(item, dict)
-        and set(item) == {"source", "dest"}
-        and isinstance(item["source"], str)
-        and isinstance(item["dest"], str)
-        for item in fixtures
-    ):
-        fail(f"{owner}: fixtures must contain source/dest string objects")
+    if not isinstance(fixtures, list):
+        fail(f"{owner}: fixtures must be an array")
+    for fixture in fixtures:
+        if not isinstance(fixture, dict) or not isinstance(fixture.get("dest"), str):
+            fail(f"{owner}: every fixture needs a string dest")
+        keys = set(fixture)
+        allowed_metadata = {"dest", "mtime_unix"}
+        content_keys = keys - allowed_metadata
+        valid_content = (
+            content_keys == {"source"} and isinstance(fixture["source"], str)
+        ) or (
+            content_keys == {"text"} and isinstance(fixture["text"], str)
+        ) or (
+            content_keys == {"hex"} and isinstance(fixture["hex"], str)
+        ) or (
+            content_keys == {"repeat", "size_bytes"}
+            and isinstance(fixture["repeat"], str)
+            and bool(fixture["repeat"])
+            and isinstance(fixture["size_bytes"], int)
+            and 0 <= fixture["size_bytes"] <= MAX_GENERATED_FIXTURE_BYTES
+        )
+        if not valid_content:
+            fail(
+                f"{owner}: fixture content must be source, text, hex, "
+                "or repeat with size_bytes up to 64 MiB"
+            )
+        if "mtime_unix" in fixture and not isinstance(fixture["mtime_unix"], int):
+            fail(f"{owner}: fixture mtime_unix must be an integer")
     http2_requests = case.get("http2_requests", [])
     if not isinstance(http2_requests, list):
         fail(f"{owner}: http2_requests must be an array")
@@ -564,10 +585,28 @@ def install_fixtures(case: dict[str, object], source: Path, temp: Path) -> None:
     assert isinstance(fixtures, list)
     for fixture in fixtures:
         assert isinstance(fixture, dict)
-        src = Path(expanded(str(fixture["source"]), source, temp))
         dest = Path(expanded(str(fixture["dest"]), source, temp))
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+        if "source" in fixture:
+            src = Path(expanded(str(fixture["source"]), source, temp))
+            shutil.copy2(src, dest)
+        elif "text" in fixture:
+            dest.write_text(str(fixture["text"]), encoding="utf-8", newline="")
+        elif "hex" in fixture:
+            dest.write_bytes(bytes.fromhex(str(fixture["hex"])))
+        else:
+            pattern = str(fixture["repeat"]).encode()
+            size = int(fixture["size_bytes"])
+            with dest.open("wb") as output:
+                block = (pattern * (65536 // len(pattern) + 1))[:65536]
+                remaining = size
+                while remaining:
+                    chunk = block[:remaining]
+                    output.write(chunk)
+                    remaining -= len(chunk)
+        if "mtime_unix" in fixture:
+            timestamp = int(fixture["mtime_unix"])
+            os.utime(dest, (timestamp, timestamp))
 
 
 def assertion_text(
@@ -1133,6 +1172,13 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
         expected = str(request["expect_body"]).encode()
         if response_body != expected:
             fail(f"{owner}: response body expected {expected!r}, got {response_body!r}")
+    if "expect_body_bytes" in request:
+        expected_length = int(request["expect_body_bytes"])
+        if len(response_body) != expected_length:
+            fail(
+                f"{owner}: response body expected {expected_length} bytes, "
+                f"got {len(response_body)}"
+            )
     body_text = response_body.decode("utf-8", errors="replace")
     assertion_text(owner, "response body", body_text, request, "body_")
 
