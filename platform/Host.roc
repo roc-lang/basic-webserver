@@ -81,8 +81,8 @@ Host := [].{
 		StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }),
 	]
 
-	cmd_exec_exit_code! : Cmd => Try(I32, CmdExecErr)
-	cmd_exec_output! : Cmd => Try(CmdOutputSuccess, CmdOutputErr)
+	cmd_exec_exit_code! : Cmd, [Inherit, Set(OsStr.Raw)] => Try(I32, CmdExecErr)
+	cmd_exec_output! : Cmd, [Inherit, Set(OsStr.Raw)] => Try(CmdOutputSuccess, CmdOutputErr)
 
 	dir_create! : RawPath => Try({}, [DirErr(IOErr)])
 	dir_create_all! : RawPath => Try({}, [DirErr(IOErr)])
@@ -97,7 +97,6 @@ Host := [].{
 	env_exe_path_unix! : Str => Try(List(U8), [EnvErr(IOErr)])
 	env_exe_path_windows! : Str => Try(List(U16), [EnvErr(IOErr)])
 	env_temp_dir! : Str => RawPath
-	env_set_cwd! : RawPath => Try({}, [EnvErr(IOErr)])
 	env_dict! : () => List(RawEnvVar)
 	env_current_arch_os! : Str => Platform
 

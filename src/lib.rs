@@ -37,6 +37,7 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 }
 
 pub fn rust_main() -> i32 {
+    env::initialize_launch_dir();
     abi::initialize_roc_host();
     let exit_code = http_server::start();
     let live_resources = sqlite::active_resources()

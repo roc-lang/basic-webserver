@@ -38,7 +38,6 @@ impl_into_raw_path!(
     HostDirDeleteAllArgs,
     HostDirDeleteEmptyArgs,
     HostDirListArgs,
-    HostEnvSetCwdArgs,
     HostFileDeleteArgs,
     HostFileIsExecutableArgs,
     HostFileIsReadableArgs,

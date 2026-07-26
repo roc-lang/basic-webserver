@@ -1893,6 +1893,71 @@ const _: () = assert!(core::mem::align_of::<UnixBytesOrUtf8OrWindowsU16s>() == 4
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(UnixBytesOrUtf8OrWindowsU16s, tag) == 12, "UnixBytesOrUtf8OrWindowsU16s tag offset mismatch");
 
+/// Tag discriminant for InheritOrSet.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InheritOrSetTag {
+    Inherit = 0,
+    Set = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union InheritOrSetPayload {
+    pub inherit: [u8; 0],
+    pub set: core::mem::ManuallyDrop<UnixBytesOrUtf8OrWindowsU16s>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(4))]
+#[derive(Clone, Copy)]
+pub struct InheritOrSetPayloadAlignment;
+
+/// Tag union: InheritOrSet
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct InheritOrSet {
+    pub _payload_alignment: [InheritOrSetPayloadAlignment; 0],
+    pub payload: [u8; 16],
+    pub tag: InheritOrSetTag,
+}
+
+/// Tag union: InheritOrSet
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct InheritOrSet {
+    pub payload: InheritOrSetPayload,
+    pub tag: InheritOrSetTag,
+}
+
+impl InheritOrSet {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_set(&self) -> UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_set(&self) -> UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.set) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<InheritOrSet>() == 40, "InheritOrSet size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<InheritOrSet>() == 8, "InheritOrSet alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(InheritOrSet, tag) == 32, "InheritOrSet tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<InheritOrSet>() == 20, "InheritOrSet size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<InheritOrSet>() == 4, "InheritOrSet alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(InheritOrSet, tag) == 16, "InheritOrSet tag offset mismatch");
+
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2587,71 +2652,6 @@ const _: () = assert!(core::mem::size_of::<HostEnvCwdWindowsResult>() == 20, "Ho
 const _: () = assert!(core::mem::align_of::<HostEnvCwdWindowsResult>() == 4, "HostEnvCwdWindowsResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostEnvCwdWindowsResult, tag) == 16, "HostEnvCwdWindowsResult tag offset mismatch");
-
-/// Tag discriminant for Try.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostEnvSetCwdResultTag {
-    Err = 0,
-    Ok = 1,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union HostEnvSetCwdResultPayload {
-    pub err: core::mem::ManuallyDrop<IOErr>,
-    pub ok: [u8; 0],
-}
-
-#[cfg(target_pointer_width = "32")]
-#[repr(align(4))]
-#[derive(Clone, Copy)]
-pub struct HostEnvSetCwdResultPayloadAlignment;
-
-/// Tag union: Try
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostEnvSetCwdResult {
-    pub _payload_alignment: [HostEnvSetCwdResultPayloadAlignment; 0],
-    pub payload: [u8; 16],
-    pub tag: HostEnvSetCwdResultTag,
-}
-
-/// Tag union: Try
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostEnvSetCwdResult {
-    pub payload: HostEnvSetCwdResultPayload,
-    pub tag: HostEnvSetCwdResultTag,
-}
-
-impl HostEnvSetCwdResult {
-    #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
-    }
-
-    #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
-    }
-
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostEnvSetCwdResult>() == 40, "HostEnvSetCwdResult size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostEnvSetCwdResult>() == 8, "HostEnvSetCwdResult alignment mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(HostEnvSetCwdResult, tag) == 32, "HostEnvSetCwdResult tag offset mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostEnvSetCwdResult>() == 20, "HostEnvSetCwdResult size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostEnvSetCwdResult>() == 4, "HostEnvSetCwdResult alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(HostEnvSetCwdResult, tag) == 16, "HostEnvSetCwdResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -5101,86 +5101,24 @@ const _: () = assert!(core::mem::size_of::<HostEnvTempDirRetRecord>() == 28, "Ho
 const _: () = assert!(core::mem::align_of::<HostEnvTempDirRetRecord>() == 4, "HostEnvTempDirRetRecord alignment mismatch");
 
 /// Arguments for Host.cmd_exec_exit_code!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 }, [Inherit, Set([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))])] => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
 /// Refcounted fields are owned by the hosted function.
-#[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecExitCodeArgs {
-    pub stderr_limit_bytes: u64,
-    pub stdout_limit_bytes: u64,
-    pub timeout_ms: u64,
-    pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
-    pub envs: RocList<AnonStruct4028312a23fce46c>,
-    pub program: UnixBytesOrUtf8OrWindowsU16s,
-    pub clear_envs: bool,
-}
-
-/// Arguments for Host.cmd_exec_exit_code!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
-/// Refcounted fields are owned by the hosted function.
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostCmdExecExitCodeArgs {
-    pub stderr_limit_bytes: u64,
-    pub stdout_limit_bytes: u64,
-    pub timeout_ms: u64,
-    pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
-    pub envs: RocList<AnonStruct4028312a23fce46c>,
-    pub program: UnixBytesOrUtf8OrWindowsU16s,
-    pub clear_envs: bool,
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 112, "HostCmdExecExitCodeArgs size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 8, "HostCmdExecExitCodeArgs alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecExitCodeArgs>() == 72, "HostCmdExecExitCodeArgs size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecExitCodeArgs>() == 8, "HostCmdExecExitCodeArgs alignment mismatch");
-
-/// Arguments for Host.cmd_exec_output!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
-/// Refcounted fields are owned by the hosted function.
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostCmdExecOutputArgs {
-    pub stderr_limit_bytes: u64,
-    pub stdout_limit_bytes: u64,
-    pub timeout_ms: u64,
-    pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
-    pub envs: RocList<AnonStruct4028312a23fce46c>,
-    pub program: UnixBytesOrUtf8OrWindowsU16s,
-    pub clear_envs: bool,
+    pub arg0: AnonStructE09af2c5b0324fa8,
+    pub arg1: InheritOrSet,
 }
 
 /// Arguments for Host.cmd_exec_output!
-/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
+/// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 }, [Inherit, Set([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))])] => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
 /// Refcounted fields are owned by the hosted function.
-#[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostCmdExecOutputArgs {
-    pub stderr_limit_bytes: u64,
-    pub stdout_limit_bytes: u64,
-    pub timeout_ms: u64,
-    pub args: RocList<UnixBytesOrUtf8OrWindowsU16s>,
-    pub envs: RocList<AnonStruct4028312a23fce46c>,
-    pub program: UnixBytesOrUtf8OrWindowsU16s,
-    pub clear_envs: bool,
+    pub arg0: AnonStructE09af2c5b0324fa8,
+    pub arg1: InheritOrSet,
 }
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 112, "HostCmdExecOutputArgs size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 8, "HostCmdExecOutputArgs alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostCmdExecOutputArgs>() == 72, "HostCmdExecOutputArgs size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostCmdExecOutputArgs>() == 8, "HostCmdExecOutputArgs alignment mismatch");
 
 /// Arguments for Host.dir_create!
 /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [DirErr(IOErr)])
@@ -5400,39 +5338,6 @@ pub struct HostEnvExePathWindowsArgs {
 pub struct HostEnvIsWindowsArgs {
     pub arg0: RocStr,
 }
-
-/// Arguments for Host.env_set_cwd!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [EnvErr(IOErr)])
-/// Refcounted fields are owned by the hosted function.
-#[cfg(target_pointer_width = "32")]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostEnvSetCwdArgs {
-    pub unix_bytes: RocListWith<u8, false>,
-    pub windows_u16s: RocListWith<u16, false>,
-    pub is_windows: bool,
-}
-
-/// Arguments for Host.env_set_cwd!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [EnvErr(IOErr)])
-/// Refcounted fields are owned by the hosted function.
-#[cfg(not(target_pointer_width = "32"))]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HostEnvSetCwdArgs {
-    pub unix_bytes: RocListWith<u8, false>,
-    pub windows_u16s: RocListWith<u16, false>,
-    pub is_windows: bool,
-}
-
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<HostEnvSetCwdArgs>() == 56, "HostEnvSetCwdArgs size mismatch");
-#[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<HostEnvSetCwdArgs>() == 8, "HostEnvSetCwdArgs alignment mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<HostEnvSetCwdArgs>() == 28, "HostEnvSetCwdArgs size mismatch");
-#[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<HostEnvSetCwdArgs>() == 4, "HostEnvSetCwdArgs alignment mismatch");
 
 /// Arguments for Host.env_temp_dir!
 /// Roc signature: Str => { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) }
@@ -6141,6 +6046,9 @@ pub type HostCmdExecExitCodeArg0Args = UnixBytesOrUtf8OrWindowsU16s;
 pub type HostCmdExecExitCodeArg0ArgsPayload = UnixBytesOrUtf8OrWindowsU16sPayload;
 pub type HostCmdExecExitCodeArg0ArgsTag = UnixBytesOrUtf8OrWindowsU16sTag;
 pub type HostCmdExecExitCodeArg0Envs = AnonStruct4028312a23fce46c;
+pub type InheritOrSetSet = UnixBytesOrUtf8OrWindowsU16s;
+pub type InheritOrSetSetPayload = UnixBytesOrUtf8OrWindowsU16sPayload;
+pub type InheritOrSetSetTag = UnixBytesOrUtf8OrWindowsU16sTag;
 pub type HostCmdExecExitCodeErr = FailedToGetExitCodeOrSaturatedOrTimeout;
 pub type HostCmdExecExitCodeErrPayload = FailedToGetExitCodeOrSaturatedOrTimeoutPayload;
 pub type HostCmdExecExitCodeErrTag = FailedToGetExitCodeOrSaturatedOrTimeoutTag;
@@ -6182,7 +6090,6 @@ pub type HostEnvExePathUnixResultTag = HostEnvCwdUnixResultTag;
 pub type HostEnvExePathWindowsResult = HostEnvCwdWindowsResult;
 pub type HostEnvExePathWindowsResultPayload = HostEnvCwdWindowsResultPayload;
 pub type HostEnvExePathWindowsResultTag = HostEnvCwdWindowsResultTag;
-pub type HostEnvSetCwdArg0 = AnonStruct2e21b53659f79626;
 pub type HostEnvTempDir = AnonStruct2e21b53659f79626;
 pub type HostEnvVarErr = EnvErrOrVarNotFound;
 pub type HostEnvVarErrPayload = EnvErrOrVarNotFoundPayload;
@@ -6561,6 +6468,41 @@ impl AnonStruct4028312a23fce46c {
         let value = self;
         unsafe { value.name.incref(amount); }
         unsafe { value.value.incref(amount); }
+    }
+}
+
+impl InheritOrSet {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            InheritOrSetTag::Inherit => {},
+            InheritOrSetTag::Set => {
+                let payload = value.payload_set();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            InheritOrSetTag::Inherit => {},
+            InheritOrSetTag::Set => {
+                let payload = value.payload_set();
+                unsafe { payload.incref(amount); }
+            },
+        }
     }
 }
 
@@ -7050,41 +6992,6 @@ impl HostEnvCwdWindowsResult {
                 let payload = value.payload_ok();
                 unsafe { payload.incref(amount); }
             },
-        }
-    }
-}
-
-impl HostEnvSetCwdResult {
-    /// Recursively decrement Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted payload.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        let _ = roc_host;
-        match value.tag {
-            HostEnvSetCwdResultTag::Err => {
-                let payload = value.payload_err();
-                unsafe { payload.decref(roc_host); }
-            },
-            HostEnvSetCwdResultTag::Ok => {},
-        }
-    }
-
-    /// Increment Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must point at live Roc allocations. The retained references must
-    /// be balanced by later decrefs.
-    pub unsafe fn incref(self, amount: isize) {
-        let value = self;
-        let _ = amount;
-        match value.tag {
-            HostEnvSetCwdResultTag::Err => {
-                let payload = value.payload_err();
-                unsafe { payload.incref(amount); }
-            },
-            HostEnvSetCwdResultTag::Ok => {},
         }
     }
 }
@@ -8902,12 +8809,12 @@ unsafe extern "C" {
 #[allow(improper_ctypes)]
 unsafe extern "C" {
     /// Hosted symbol for Host.cmd_exec_exit_code!
-    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
-    pub fn hosted_cmd_host_exec_exit_code(arg0: HostCmdExecExitCodeArgs) -> HostCmdExecExitCodeResult;
+    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 }, [Inherit, Set([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))])] => Try(I32, [FailedToGetExitCode(IOErr), Saturated, Timeout])
+    pub fn hosted_cmd_host_exec_exit_code(arg0: AnonStructE09af2c5b0324fa8, arg1: InheritOrSet) -> HostCmdExecExitCodeResult;
 
     /// Hosted symbol for Host.cmd_exec_output!
-    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 } => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
-    pub fn hosted_cmd_host_exec_output(arg0: HostCmdExecOutputArgs) -> HostCmdExecOutputResult;
+    /// Roc signature: { args : List([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))]), clear_envs : Bool, envs : List({ name : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], value : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))] }), program : [UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))], stderr_limit_bytes : U64, stdout_limit_bytes : U64, timeout_ms : U64 }, [Inherit, Set([UnixBytes(List(U8)), Utf8(Str), WindowsU16s(List(U16))])] => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [FailedToGetExitCode(IOErr), NonZeroExitCode({ exit_code : I32, stderr_bytes : List(U8), stdout_bytes : List(U8) }), Saturated, StderrTooLarge({ limit_bytes : U64, received_at_least : U64 }), StdoutTooLarge({ limit_bytes : U64, received_at_least : U64 }), Timeout])
+    pub fn hosted_cmd_host_exec_output(arg0: AnonStructE09af2c5b0324fa8, arg1: InheritOrSet) -> HostCmdExecOutputResult;
 
     /// Hosted symbol for Host.dir_create!
     /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [DirErr(IOErr)])
@@ -8956,10 +8863,6 @@ unsafe extern "C" {
     /// Hosted symbol for Host.env_is_windows!
     /// Roc signature: Str => Bool
     pub fn hosted_env_is_windows(arg0: RocStr) -> bool;
-
-    /// Hosted symbol for Host.env_set_cwd!
-    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({}, [EnvErr(IOErr)])
-    pub fn hosted_env_set_cwd(arg0: HostEnvSetCwdArgs) -> HostEnvSetCwdResult;
 
     /// Hosted symbol for Host.env_temp_dir!
     /// Roc signature: Str => { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) }

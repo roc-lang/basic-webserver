@@ -37,9 +37,6 @@ pub(crate) type EnvUnixPathResultTag = HostEnvCwdUnixResultTag;
 pub(crate) type EnvWindowsPathResult = HostEnvCwdWindowsResult;
 pub(crate) type EnvWindowsPathResultPayload = HostEnvCwdWindowsResultPayload;
 pub(crate) type EnvWindowsPathResultTag = HostEnvCwdWindowsResultTag;
-pub(crate) type EnvUnitResult = HostEnvSetCwdResult;
-pub(crate) type EnvUnitResultPayload = HostEnvSetCwdResultPayload;
-pub(crate) type EnvUnitResultTag = HostEnvSetCwdResultTag;
 
 pub(crate) type FileBytesResult = HostFileReadBytesResult;
 pub(crate) type FileBytesResultPayload = HostFileReadBytesResultPayload;

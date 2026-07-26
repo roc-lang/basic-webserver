@@ -36,7 +36,8 @@ Env := [].{
 			Err(EnvErr(err)) => Err(EnvErr(err))
 		}
 
-	## Read the process current working directory as a byte-preserving Path.
+	## Read the byte-preserving directory inherited when the platform launched.
+	## The platform never changes this process-global directory.
 	cwd! : () => Try(Path, [CwdUnavailable, ..])
 	cwd! = || {
 		if Host.env_is_windows!("") {
@@ -51,14 +52,6 @@ Env := [].{
 			}
 		}
 	}
-
-	## Change the process current working directory.
-	set_cwd! : Path => Try({}, [InvalidCwd(IOErr), ..])
-	set_cwd! = |path|
-		match Host.env_set_cwd!(InternalPath.to_host_raw!(path)) {
-			Ok(done) => Ok(done)
-			Err(EnvErr(err)) => Err(InvalidCwd(err))
-		}
 
 	## Return the path to the currently running executable.
 	exe_path! : () => Try(Path, [ExePathUnavailable, ..])

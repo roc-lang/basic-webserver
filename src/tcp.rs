@@ -246,7 +246,15 @@ fn run_resolver_with_deadline(
     deadline: Instant,
     resolve: impl FnOnce() -> io::Result<Vec<SocketAddr>> + Send + 'static,
 ) -> io::Result<Vec<SocketAddr>> {
-    let permit = TCP_RESOLUTION_GATE.acquire(deadline).map_err(|error| {
+    run_resolver_with_gate(&TCP_RESOLUTION_GATE, deadline, resolve)
+}
+
+fn run_resolver_with_gate(
+    gate: &'static BoundedGate,
+    deadline: Instant,
+    resolve: impl FnOnce() -> io::Result<Vec<SocketAddr>> + Send + 'static,
+) -> io::Result<Vec<SocketAddr>> {
+    let permit = gate.acquire(deadline).map_err(|error| {
         let message = match error {
             AcquireError::Saturated => "TCP name resolver capacity exhausted",
             AcquireError::TimedOut => "TCP name resolution deadline exceeded",
@@ -271,6 +279,17 @@ fn run_resolver_with_deadline(
         Err(mpsc::RecvTimeoutError::Disconnected) => {
             Err(io::Error::other("TCP name resolver stopped unexpectedly"))
         }
+    }
+}
+
+/// Account for resolver threads that may have outlived a public TCP timeout.
+/// `getaddrinfo` is not cancellable, so process exit is the hard-stop policy.
+pub(crate) fn shutdown() {
+    let timeout = Duration::from_secs(1);
+    if !TCP_RESOLUTION_GATE.wait_for_idle(Instant::now() + timeout) {
+        eprintln!(
+            "TCP name resolution did not finish within {timeout:?}; process exit is the hard stop"
+        );
     }
 }
 
@@ -502,6 +521,10 @@ mod tests {
     use super::*;
     use std::io::Cursor;
     use std::net::TcpListener;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Condvar};
+
+    static TEST_RESOLUTION_GATE: BoundedGate = BoundedGate::new(1, 0);
 
     #[test]
     fn read_until_includes_delimiter() {
@@ -561,11 +584,42 @@ mod tests {
 
     #[test]
     fn name_resolution_honors_its_deadline() {
-        let result = run_resolver_with_deadline(Instant::now() + Duration::from_millis(10), || {
-            thread::sleep(Duration::from_millis(100));
-            Ok(Vec::new())
-        });
-
+        let release = Arc::new((Mutex::new(false), Condvar::new()));
+        let started = Arc::new(AtomicUsize::new(0));
+        let resolver_release = Arc::clone(&release);
+        let resolver_started = Arc::clone(&started);
+        let result = run_resolver_with_gate(
+            &TEST_RESOLUTION_GATE,
+            Instant::now() + Duration::from_millis(10),
+            move || {
+                resolver_started.fetch_add(1, Ordering::SeqCst);
+                let (lock, available) = &*resolver_release;
+                let mut released = lock.lock().unwrap();
+                while !*released {
+                    released = available.wait(released).unwrap();
+                }
+                Ok(Vec::new())
+            },
+        );
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+
+        // The timed-out resolver still owns the only active permit. Repeated
+        // calls are rejected without spawning detached resolver threads.
+        for _ in 0..8 {
+            let error = run_resolver_with_gate(
+                &TEST_RESOLUTION_GATE,
+                Instant::now() + Duration::from_millis(10),
+                || Ok(Vec::new()),
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("capacity exhausted"));
+        }
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+
+        let (lock, available) = &*release;
+        *lock.lock().unwrap() = true;
+        available.notify_all();
+        assert!(TEST_RESOLUTION_GATE.wait_for_idle(Instant::now() + Duration::from_secs(1)));
     }
 }

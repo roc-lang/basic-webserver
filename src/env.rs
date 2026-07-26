@@ -1,18 +1,41 @@
 use core::mem::ManuallyDrop;
 use std::env as std_env;
 use std::ffi::OsString;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use crate::abi::{
-    io_err_from_io, roc_host, EnvUnitResult, EnvUnitResultPayload, EnvUnitResultTag,
-    EnvUnixPathResult, EnvUnixPathResultPayload, EnvUnixPathResultTag, EnvWindowsPathResult,
-    EnvWindowsPathResultPayload, EnvWindowsPathResultTag, RawPath,
+    io_err_from_io, roc_host, EnvUnixPathResult, EnvUnixPathResultPayload, EnvUnixPathResultTag,
+    EnvWindowsPathResult, EnvWindowsPathResultPayload, EnvWindowsPathResultTag, RawPath,
 };
 use crate::os_str::{os_string_from_raw, raw_os_str_from_os_str, validate_env_key, RawOsStr};
-use crate::path::{
-    path_buf_from_raw_path, raw_path_from_path_buf, unix_bytes_from_path_buf,
-    windows_u16s_from_path_buf,
-};
+use crate::path::{raw_path_from_path_buf, unix_bytes_from_path_buf, windows_u16s_from_path_buf};
 use crate::roc_platform_abi::*;
+
+#[derive(Debug)]
+struct LaunchDirError {
+    kind: io::ErrorKind,
+    detail: String,
+}
+
+static LAUNCH_DIR: OnceLock<Result<PathBuf, LaunchDirError>> = OnceLock::new();
+
+pub(crate) fn initialize_launch_dir() {
+    let _ = launch_dir();
+}
+
+pub(crate) fn launch_dir() -> io::Result<&'static Path> {
+    match LAUNCH_DIR.get_or_init(|| {
+        std_env::current_dir().map_err(|error| LaunchDirError {
+            kind: error.kind(),
+            detail: error.to_string(),
+        })
+    }) {
+        Ok(path) => Ok(path.as_path()),
+        Err(error) => Err(io::Error::new(error.kind, error.detail.clone())),
+    }
+}
 
 fn try_env_var_ok(value: RawOsStr) -> HostEnvVarResult {
     HostEnvVarResult {
@@ -47,22 +70,6 @@ fn env_var_env_err(error: IOErr) -> EnvErrOrVarNotFound {
             env_err: ManuallyDrop::new(error),
         },
         tag: EnvErrOrVarNotFoundTag::EnvErr,
-    }
-}
-
-fn try_env_unit_ok() -> EnvUnitResult {
-    EnvUnitResult {
-        payload: EnvUnitResultPayload { ok: [] },
-        tag: EnvUnitResultTag::Ok,
-    }
-}
-
-fn try_env_unit_err(error: IOErr) -> EnvUnitResult {
-    EnvUnitResult {
-        payload: EnvUnitResultPayload {
-            err: ManuallyDrop::new(error),
-        },
-        tag: EnvUnitResultTag::Err,
     }
 }
 
@@ -115,8 +122,8 @@ pub extern "C" fn hosted_env_cwd_unix(dummy: RocStr) -> EnvUnixPathResult {
     let roc_host = roc_host();
     unsafe { dummy.decref(roc_host) };
 
-    match std_env::current_dir() {
-        Ok(path) => try_env_unix_path_ok(unix_bytes_from_path_buf(path, roc_host)),
+    match launch_dir() {
+        Ok(path) => try_env_unix_path_ok(unix_bytes_from_path_buf(path.to_path_buf(), roc_host)),
         Err(error) => try_env_unix_path_err(io_err_from_io(&error, roc_host)),
     }
 }
@@ -126,8 +133,10 @@ pub extern "C" fn hosted_env_cwd_windows(dummy: RocStr) -> EnvWindowsPathResult 
     let roc_host = roc_host();
     unsafe { dummy.decref(roc_host) };
 
-    match std_env::current_dir() {
-        Ok(path) => try_env_windows_path_ok(windows_u16s_from_path_buf(path, roc_host)),
+    match launch_dir() {
+        Ok(path) => {
+            try_env_windows_path_ok(windows_u16s_from_path_buf(path.to_path_buf(), roc_host))
+        }
         Err(error) => try_env_windows_path_err(io_err_from_io(&error, roc_host)),
     }
 }
@@ -182,19 +191,6 @@ pub extern "C" fn hosted_env_var(name: RawOsStr) -> HostEnvVarResult {
             key.as_os_str(),
             roc_host,
         ))),
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn hosted_env_set_cwd(path: HostEnvSetCwdArgs) -> EnvUnitResult {
-    let roc_host = roc_host();
-    let path = match path_buf_from_raw_path(path, roc_host) {
-        Ok(path) => path,
-        Err(error) => return try_env_unit_err(io_err_from_io(&error, roc_host)),
-    };
-    match std_env::set_current_dir(path) {
-        Ok(()) => try_env_unit_ok(),
-        Err(error) => try_env_unit_err(io_err_from_io(&error, roc_host)),
     }
 }
 
