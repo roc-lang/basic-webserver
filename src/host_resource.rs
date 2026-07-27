@@ -7,7 +7,6 @@ use std::sync::Mutex;
 const TOKEN_INDEX_BITS: u32 = 16;
 const TOKEN_INDEX_MASK: u64 = (1_u64 << TOKEN_INDEX_BITS) - 1;
 const MAX_GENERATION: u64 = u64::MAX >> TOKEN_INDEX_BITS;
-const DEBUG_FREED_REFCOUNT: isize = 0xDEADBEEFDEADBEEFu64 as isize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReserveError {
@@ -154,32 +153,40 @@ impl<T> HostResourceHeap<T> {
     /// Route a Roc allocation-base pointer to this heap.
     pub(crate) fn route_dealloc(&self, ptr: *mut c_void) -> DeallocRoute {
         let Some(index) = self.base_index(ptr) else {
-            return if self.contains_address(ptr) {
-                DeallocRoute::Corrupt
-            } else {
-                DeallocRoute::NotOwned
-            };
+            if self.contains_address(ptr) {
+                let start = self.slots.as_ptr() as usize;
+                eprintln!(
+                    "host resource deallocation pointer is not a slot base: offset={}, stride={}",
+                    ptr as usize - start,
+                    core::mem::size_of::<ResourceSlot<T>>()
+                );
+                return DeallocRoute::Corrupt;
+            }
+            return DeallocRoute::NotOwned;
         };
         let slot = &self.slots[index];
         let mut state = self.lock_state();
         let refcount = slot.refcount.load(Ordering::Acquire);
-        // Roc's debug runtime poisons the final refcount immediately before it
-        // invokes the host deallocator. Optimized runtimes leave it at zero.
-        // Slot state still makes a second deallocation unambiguously corrupt.
         if state.slots[index] != SlotState::Live
-            || (refcount != 0 && refcount != DEBUG_FREED_REFCOUNT)
+            || !crate::roc_alloc::is_finalized_roc_refcount(refcount)
         {
             eprintln!(
-                "host resource deallocation invariant failed: index={index}, state={:?}, refcount={}",
+                "host resource slot {index} cannot be finalized: state={:?}, refcount={}",
                 state.slots[index], refcount
             );
             return DeallocRoute::Corrupt;
         }
         let token = unsafe { *slot.token.get() };
         let Some((token_index, generation)) = decode_token(token) else {
+            eprintln!("host resource slot {index} has an invalid lifecycle token");
             return DeallocRoute::Corrupt;
         };
         if token_index != index || state.generations[index] != generation {
+            eprintln!(
+                "host resource slot {index} token mismatch: token_index={token_index}, \
+                 token_generation={generation}, live_generation={}",
+                state.generations[index]
+            );
             return DeallocRoute::Corrupt;
         }
 
@@ -424,23 +431,6 @@ mod tests {
         let handle = heap.reserve().unwrap().insert(42);
         assert_eq!(unsafe { *heap.get(handle).unwrap() }, 42);
         assert_eq!(final_dealloc(&heap, handle), DeallocRoute::Deallocated);
-    }
-
-    #[test]
-    fn debug_runtime_refcount_poison_is_a_valid_final_deallocation() {
-        let heap = HostResourceHeap::<usize>::new(1);
-        let handle = heap.reserve().unwrap().insert(42);
-        let base = unsafe { handle.cast::<u8>().sub(core::mem::size_of::<isize>()) };
-        unsafe {
-            (*(base.cast::<AtomicIsize>())).store(DEBUG_FREED_REFCOUNT, Ordering::Release);
-        }
-
-        assert_eq!(heap.route_dealloc(base.cast()), DeallocRoute::Deallocated);
-        assert_eq!(
-            heap.route_dealloc(base.cast()),
-            DeallocRoute::Corrupt,
-            "slot state must still reject a duplicate debug deallocation"
-        );
     }
 
     #[test]

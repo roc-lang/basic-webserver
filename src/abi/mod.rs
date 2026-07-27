@@ -155,6 +155,7 @@ pub(crate) fn initialize_roc_host() {
     // Generated Rust helpers release Roc allocations through this vtable,
     // while compiled Roc calls the exported symbols below. Both paths must
     // route opaque resource boxes through the same finalizer heaps.
+    host.roc_alloc = crate::roc_alloc::roc_alloc;
     host.roc_dealloc = routed_roc_dealloc;
     host.roc_realloc = routed_roc_realloc;
     ROC_HOST
@@ -178,7 +179,7 @@ pub(crate) fn roc_host() -> &'static RocHost {
 
 #[no_mangle]
 pub extern "C" fn roc_alloc(length: usize, alignment: usize) -> *mut c_void {
-    DefaultAllocators::roc_alloc(roc_host_ptr(), length, alignment)
+    crate::roc_alloc::roc_alloc(roc_host_ptr(), length, alignment)
 }
 
 pub(crate) extern "C" fn routed_roc_dealloc(
@@ -188,23 +189,28 @@ pub(crate) extern "C" fn routed_roc_dealloc(
 ) {
     use crate::host_resource::DeallocRoute;
 
-    for route_resource in [
-        crate::request_parts::route_dealloc,
-        crate::sqlite::route_resource_dealloc,
-        crate::file::route_resource_dealloc,
-        crate::tcp::route_resource_dealloc,
+    for (resource_kind, route_resource) in [
+        (
+            "request metadata",
+            crate::request_parts::route_dealloc as fn(*mut c_void) -> DeallocRoute,
+        ),
+        ("SQLite", crate::sqlite::route_resource_dealloc),
+        ("file reader", crate::file::route_resource_dealloc),
+        ("TCP stream", crate::tcp::route_resource_dealloc),
     ] {
         let route = route_resource(ptr);
         match route {
             DeallocRoute::NotOwned => {}
             DeallocRoute::Deallocated => return,
             DeallocRoute::Corrupt => {
-                eprintln!("fatal: invalid or duplicate host resource deallocation");
+                eprintln!(
+                    "fatal: invalid or duplicate {resource_kind} resource deallocation at {ptr:p}"
+                );
                 std::process::abort();
             }
         }
     }
-    DefaultAllocators::roc_dealloc(roc_host, ptr, alignment);
+    crate::roc_alloc::roc_dealloc(roc_host, ptr, alignment);
 }
 
 #[no_mangle]
@@ -229,7 +235,7 @@ pub(crate) extern "C" fn routed_roc_realloc(
         eprintln!("fatal: Roc attempted to reallocate an opaque host resource");
         std::process::abort();
     }
-    DefaultAllocators::roc_realloc(roc_host, ptr, new_length, alignment)
+    crate::roc_alloc::roc_realloc(roc_host, ptr, new_length, alignment)
 }
 
 #[no_mangle]

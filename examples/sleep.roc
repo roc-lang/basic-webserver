@@ -28,9 +28,19 @@ init! = ||
 	})
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |request, _context|
-	if request.target() == "/fast" {
+respond! = |request, _context| {
+	target = request.target()
+	if target == "/fast" {
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Immediate response"))))
+	} else if target == "/body-fast" {
+		body = request.body().read_all!()
+			? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+		Ok(Server.respond(Response.from_status(200).with_body(body)))
+	} else if target == "/body-slow" {
+		body = request.body().read_all!()
+			? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+		Sleep.millis!(1000)
+		Ok(Server.respond(Response.from_status(200).with_body(body)))
 	} else {
 		Stdout.line!("Sleeping for 1 second...")
 			? |err| ServerErr("Failed to write to stdout: ${Str.inspect(err)}")
@@ -38,6 +48,7 @@ respond! = |request, _context|
 
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Response delayed by 1 second"))))
 	}
+}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})

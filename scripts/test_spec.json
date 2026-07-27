@@ -97,6 +97,12 @@
               "expect_body_hex": "00ff410a"
             },
             {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "seamless response",
+              "expect_body": "seamless response"
+            },
+            {
               "raw": true,
               "half_close": false,
               "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
@@ -106,9 +112,24 @@
               ]
             }
           ],
+          "concurrent_requests": [
+            {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "first concurrent body",
+              "expect_body": "first concurrent body"
+            },
+            {
+              "method": "POST",
+              "target": "/first-chunk",
+              "body": "second concurrent body",
+              "expect_body": "second concurrent body"
+            }
+          ],
           "stdout_contains": [
             "POST /echo?kind=utf8",
-            "POST /binary"
+            "POST /binary",
+            "POST /first-chunk"
           ]
         }
       ]
@@ -486,13 +507,17 @@
           "http2_requests": [
             {
               "name": "slow",
-              "target": "/",
-              "expect_body": "Response delayed by 1 second"
+              "method": "POST",
+              "target": "/body-slow",
+              "body": "slow HTTP/2 body",
+              "expect_body": "slow HTTP/2 body"
             },
             {
               "name": "fast",
-              "target": "/fast",
-              "expect_body": "Immediate response"
+              "method": "POST",
+              "target": "/body-fast",
+              "body": "fast HTTP/2 body",
+              "expect_body": "fast HTTP/2 body"
             }
           ],
           "http2_completion_order": ["fast", "slow"],
@@ -611,6 +636,79 @@
               "target": "/missing",
               "status": 404,
               "expect_body": "URL Not Found (404)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "examples/ndjson-ingest.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "streaming-events",
+          "env": {
+            "DB_PATH": "{temp}/events.db"
+          },
+          "requests": [
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"evt-1\",\"source\":\"sensor\",\"value\":1}\n{\"id\":\"evt-2\",\"source\":\"sensor\",\"value\":2}\n{\"id\":\"evt-3\",\"source\":\"sensor\",\"value\":3}\n",
+              "expect_body": "{\"committed\":3}"
+            },
+            {
+              "method": "GET",
+              "target": "/events/count",
+              "expect_body": "{\"count\":3}"
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "fragments": [
+                {
+                  "data": "POST /events HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/x-ndjson\r\nContent-Length: 44\r\nConnection: close\r\n\r\n{\"id\":\"raw-1\",\"source\":\"sen",
+                  "delay_ms": 10
+                },
+                {
+                  "data": "sor\",\"value\":9}\r",
+                  "delay_ms": 10
+                },
+                {
+                  "data": "\n"
+                }
+              ],
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "{\"committed\":1}"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"evt-1\",\"source\":\"sensor\",\"value\":1}\n{\"id\":\"evt-4\",\"source\":\"sensor\",\"value\":4}\n",
+              "expect_body": "{\"committed\":2}"
+            },
+            {
+              "method": "GET",
+              "target": "/events/count",
+              "expect_body": "{\"count\":5}"
+            },
+            {
+              "method": "POST",
+              "target": "/events",
+              "headers": {
+                "Content-Type": "application/x-ndjson"
+              },
+              "body": "{\"id\":\"truncated\",\"source\":\"sensor\",\"value\":5}",
+              "status": 400,
+              "body_contains": ["missing its final newline", "\"committed\":0"]
             }
           ]
         }
