@@ -72,6 +72,33 @@ Host := [].{
 		RequestFinished,
 		ConcurrentRead,
 		Cancelled,
+		Timeout,
+		Stopping,
+	]
+
+	BodySinkSuccess : {
+		bytes_written : U64,
+		digest : [NotComputed, Sha256Digest(List(U8))],
+	}
+
+	BodySinkErr : [
+		TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+		Timeout,
+		ClientDisconnected,
+		InvalidBody(Str),
+		RequestFinished,
+		ConcurrentRead,
+		Cancelled,
+		Saturated,
+		Stopping,
+		DestinationExists,
+		InvalidRoot,
+		InvalidRelativeFile,
+		PermissionDenied,
+		StorageFull,
+		Filesystem(Str),
+		PublishFailed(Str),
+		CleanupFailed(Str),
 	]
 
 	ReadinessSetErr : [InvalidReadiness, StaleReadiness, ServerStopping]
@@ -127,6 +154,7 @@ Host := [].{
 
 	request_body_read! : RequestBody, U64 => Try(RequestBodyRead, RequestBodyErr)
 	request_body_read_all! : RequestBody, U64 => Try(List(U8), RequestBodyErr)
+	request_body_write_file! : RequestBody, U64, Str, Str, U8 => Try(BodySinkSuccess, BodySinkErr)
 
 	readiness_create! : Bool => Try(Readiness, [ReadinessCapacityExhausted])
 	readiness_set! : Readiness, Bool => Try({}, ReadinessSetErr)

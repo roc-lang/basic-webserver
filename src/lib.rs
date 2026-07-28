@@ -8,6 +8,7 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+mod body_sink;
 mod bounded_gate;
 mod capability;
 mod cmd;

@@ -675,7 +675,7 @@ fn not_found() -> Prepared {
     Prepared::without_body(StatusCode::NOT_FOUND, headers)
 }
 
-fn validate_root_id(id: &str) -> Result<(), String> {
+pub(crate) fn validate_root_id(id: &str) -> Result<(), String> {
     if id.is_empty()
         || id.len() > 64
         || !id

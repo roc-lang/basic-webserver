@@ -105,6 +105,7 @@ platform "webserver"
 		"hosted_request_body_read_all": Host.request_body_read_all!,
 		"hosted_readiness_create": Host.readiness_create!,
 		"hosted_readiness_set": Host.readiness_set!,
+		"hosted_request_body_write_file": Host.request_body_write_file!,
 	}
 	targets: {
 		inputs_dir: "targets/",

@@ -3,7 +3,9 @@
 use crate::abi::{
     roc_host, ServerConfig, ServerFileRoot, ServerHeader, ServerNativeFileRoute,
     ServerReadinessRoute, ServerRequest, ServerResponse as RocServerResponse, ServerShutdownReason,
+    ServerWritableRoot,
 };
+use crate::body_sink::{BodySinkService, WritableRootSpec};
 use crate::compression::{
     apply_content_coding, encode_bytes, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
@@ -50,6 +52,7 @@ struct RuntimeConfig {
     hook_timeout: Duration,
     files: FileService,
     routes: NativeRouter,
+    body_sinks: BodySinkService,
 }
 
 impl RuntimeConfig {
@@ -90,6 +93,12 @@ impl RuntimeConfig {
                 .iter()
                 .map(readiness_route_from_roc)
                 .collect::<Result<Vec<_>, _>>()?;
+            let writable_roots = config
+                .writable_roots
+                .as_slice()
+                .iter()
+                .map(writable_root_from_roc)
+                .collect::<Result<Vec<_>, _>>()?;
             let files = FileService::activate(
                 roots,
                 config.file_max_concurrent as usize,
@@ -97,6 +106,11 @@ impl RuntimeConfig {
             )?;
             let routes =
                 NativeRouter::activate(&files, file_routes, liveness_routes, readiness_routes)?;
+            let body_sinks = BodySinkService::activate(
+                writable_roots,
+                config.body_sink_max_concurrent as usize,
+                Duration::from_millis(config.body_sink_timeout_ms),
+            )?;
             Ok(Self {
                 host: config.host.as_str().to_owned(),
                 port: config.port,
@@ -110,6 +124,7 @@ impl RuntimeConfig {
                 hook_timeout: Duration::from_millis(config.hook_timeout_ms),
                 files,
                 routes,
+                body_sinks,
             })
         })();
         // SAFETY: every Roc-owned field in the ABI config is borrowed only
@@ -143,38 +158,68 @@ fn file_root_from_roc(root: &ServerFileRoot) -> Result<FileRootSpec, String> {
 }
 
 fn path_buf_from_file_root(root: &ServerFileRoot) -> Result<PathBuf, String> {
-    match root.path_tag {
-        0 if root.path_unix_bytes.is_empty() && root.path_windows_u16s.is_empty() => {
-            Ok(PathBuf::from(root.path_utf8.as_str()))
-        }
-        1 if root.path_utf8.is_empty() && root.path_windows_u16s.is_empty() => {
+    path_buf_from_roc(
+        root.path_tag,
+        root.path_utf8.as_str(),
+        root.path_unix_bytes.as_slice(),
+        root.path_windows_u16s.as_slice(),
+        "file-root",
+    )
+}
+
+fn path_buf_from_roc(
+    tag: u8,
+    utf8: &str,
+    unix_bytes: &[u8],
+    windows_u16s: &[u16],
+    authority_kind: &str,
+) -> Result<PathBuf, String> {
+    match tag {
+        0 if unix_bytes.is_empty() && windows_u16s.is_empty() => Ok(PathBuf::from(utf8)),
+        1 if utf8.is_empty() && windows_u16s.is_empty() => {
             #[cfg(unix)]
             {
                 use std::os::unix::ffi::OsStringExt;
                 Ok(PathBuf::from(std::ffi::OsString::from_vec(
-                    root.path_unix_bytes.as_slice().to_vec(),
+                    unix_bytes.to_vec(),
                 )))
             }
             #[cfg(not(unix))]
             {
-                Err("a Unix file-root path was supplied on a non-Unix target".to_owned())
+                Err(format!(
+                    "a Unix {authority_kind} path was supplied on a non-Unix target"
+                ))
             }
         }
-        2 if root.path_utf8.is_empty() && root.path_unix_bytes.is_empty() => {
+        2 if utf8.is_empty() && unix_bytes.is_empty() => {
             #[cfg(windows)]
             {
                 use std::os::windows::ffi::OsStringExt;
-                Ok(PathBuf::from(std::ffi::OsString::from_wide(
-                    root.path_windows_u16s.as_slice(),
-                )))
+                Ok(PathBuf::from(std::ffi::OsString::from_wide(windows_u16s)))
             }
             #[cfg(not(windows))]
             {
-                Err("a Windows file-root path was supplied on a non-Windows target".to_owned())
+                Err(format!(
+                    "a Windows {authority_kind} path was supplied on a non-Windows target"
+                ))
             }
         }
-        _ => Err("malformed native file-root path".to_owned()),
+        _ => Err(format!("malformed {authority_kind} path")),
     }
+}
+
+fn writable_root_from_roc(root: &ServerWritableRoot) -> Result<WritableRootSpec, String> {
+    let path = path_buf_from_roc(
+        root.path_tag,
+        root.path_utf8.as_str(),
+        root.path_unix_bytes.as_slice(),
+        root.path_windows_u16s.as_slice(),
+        "writable-root",
+    )?;
+    Ok(WritableRootSpec {
+        id: root.id.as_str().to_owned(),
+        path,
+    })
 }
 
 fn native_file_route_from_roc(route: &ServerNativeFileRoute) -> Result<FileRouteSpec, String> {
@@ -774,6 +819,8 @@ async fn handle_req(
         context.config.body_buffered_chunks,
         declared_length,
         roc_host(),
+        context.config.body_sinks.clone(),
+        context.shutdown.clone(),
     );
     let stream = body
         .into_data_stream()
@@ -964,6 +1011,17 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         eprintln!(
             "Native file transfer high-water mark: {}",
             context.config.files.high_water_transfers()
+        );
+    }
+    debug_assert_eq!(
+        context.config.body_sinks.active_sinks(),
+        0,
+        "all request-body sinks must drain before shutdown"
+    );
+    if context.config.body_sinks.high_water_sinks() > 0 {
+        eprintln!(
+            "Request-body sink high-water mark: {}",
+            context.config.body_sinks.high_water_sinks()
         );
     }
     signal_task.abort();
@@ -1400,6 +1458,7 @@ mod tests {
             hook_timeout: Duration::from_secs(10),
             files,
             routes,
+            body_sinks: BodySinkService::activate(Vec::new(), 1, Duration::from_secs(30)).unwrap(),
         };
         assert_eq!(config.max_http2_streams_per_connection(), 98);
     }
