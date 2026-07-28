@@ -46,6 +46,25 @@ Server :: [].{
 	default_buffered_body_chunks : U16
 	default_buffered_body_chunks = 1
 
+	## Default maximum normalized request-target size: 8 KiB.
+	default_request_target_limit_bytes : U32
+	default_request_target_limit_bytes = 8 * 1024
+
+	## Default maximum decoded request-header list size: 32 KiB.
+	##
+	## Each ordinary field costs its decoded name bytes, value bytes, and the
+	## 32-byte per-field overhead defined for HTTP/2 header-list accounting.
+	## HTTP/1 uses the same accounting so both protocols expose one contract.
+	default_request_header_limit_bytes : U32
+	default_request_header_limit_bytes = 32 * 1024
+
+	## Default maximum number of ordinary request-header fields.
+	##
+	## Repeated fields each count once. HTTP/2 pseudo-fields are represented by
+	## the request method and target and do not consume this field-count budget.
+	default_request_header_limit_fields : U16
+	default_request_header_limit_fields = 100
+
 	## Default maximum number of concurrently active connections.
 	default_max_connections : U32
 	default_max_connections = 256
@@ -329,6 +348,21 @@ Server :: [].{
 					chunk_bytes : U32,
 					buffered_chunks : U16,
 				},
+				request_metadata : {
+
+					## Inclusive byte limit for the normalized request target,
+					## including its query string.
+					max_target_bytes : U32,
+
+					## Inclusive decoded header-list limit. Each ordinary field
+					## costs name bytes + value bytes + 32, independently of HTTP/1
+					## wire framing or HTTP/2 HPACK compression.
+					max_header_bytes : U32,
+
+					## Inclusive ordinary-field count. Repeated fields count
+					## separately and retain their received order after admission.
+					max_header_fields : U16,
+				},
 				graceful_shutdown : {
 					drain_timeout_ms : U64,
 					hook_timeout_ms : U64,
@@ -352,6 +386,9 @@ Server :: [].{
 			body_max_bytes : U64,
 			body_chunk_bytes : U32,
 			body_buffered_chunks : U16,
+			request_target_max_bytes : U32,
+			request_header_max_bytes : U32,
+			request_header_max_fields : U16,
 			drain_timeout_ms : U64,
 			hook_timeout_ms : U64,
 			max_connections : U32,
@@ -388,6 +425,9 @@ Server :: [].{
 			body_max_bytes: config.request_bodies.max_bytes,
 			body_chunk_bytes: config.request_bodies.chunk_bytes,
 			body_buffered_chunks: config.request_bodies.buffered_chunks,
+			request_target_max_bytes: config.request_metadata.max_target_bytes,
+			request_header_max_bytes: config.request_metadata.max_header_bytes,
+			request_header_max_fields: config.request_metadata.max_header_fields,
 			drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
 			hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
 			max_connections: config.limits.max_connections,
@@ -400,11 +440,23 @@ Server :: [].{
 		}
 	}
 
-	## Safe defaults: loopback-only; finite connection, handler, and handler
-	## queue limits; a 1 MiB request limit; one buffered 64 KiB chunk; and
-	## bounded graceful shutdown. Exceeding the drain deadline forces process
-	## exit without running the shutdown hook, because a request handler may
-	## still be using the application context.
+	## Safe defaults: loopback-only; finite connection, handler, handler queue,
+	## request-target, request-header, and request-body limits; one buffered
+	## 64 KiB body chunk; and bounded graceful shutdown.
+	##
+	## Request metadata limits are exact and checked before native route
+	## selection or Roc. Target overflow returns 414 and header byte/count
+	## overflow returns 431 whenever the protocol parser can safely construct a
+	## response. HTTP/1 closes after a parser-level overflow. An initial HTTP/2
+	## request beyond the advertised hard decoding envelope receives a
+	## header-only 431; an overflow that cannot safely receive a response resets
+	## only the affected stream. Zero values, target limits above 65,534 bytes,
+	## header limits above 1 MiB, and field limits above 1,024 fail startup
+	## before the listener is bound.
+	##
+	## Exceeding the drain deadline forces process exit without running the
+	## shutdown hook, because a request handler may still be using the
+	## application context.
 	default_config : Config
 	default_config = Config({
 		listen: { host: "127.0.0.1", port: 8000 },
@@ -417,6 +469,11 @@ Server :: [].{
 			max_bytes: default_body_limit_bytes,
 			chunk_bytes: default_body_chunk_bytes,
 			buffered_chunks: default_buffered_body_chunks,
+		},
+		request_metadata: {
+			max_target_bytes: default_request_target_limit_bytes,
+			max_header_bytes: default_request_header_limit_bytes,
+			max_header_fields: default_request_header_limit_fields,
 		},
 		graceful_shutdown: {
 			drain_timeout_ms: 30_000,
@@ -447,6 +504,12 @@ Server :: [].{
 	with_request_body_limit : Config, U64 -> Config
 	with_request_body_limit = |Config(config), max_bytes|
 		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
+
+	## Set the exact, finite request-target and decoded request-header budgets.
+	## Invalid values fail startup atomically before the listener is bound.
+	with_request_metadata_limits : Config, { max_target_bytes : U32, max_header_bytes : U32, max_header_fields : U16 } -> Config
+	with_request_metadata_limits = |Config(config), request_metadata|
+		Config({ ..config, request_metadata })
 
 	## Set the request-drain deadline and final shutdown-hook deadline.
 	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config

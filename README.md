@@ -80,6 +80,9 @@ The defaults are finite so overload has deliberate behavior:
 | Active connections | 256 |
 | Concurrent Roc handlers | 32 |
 | Queued handlers | 64 |
+| Request target | 8 KiB |
+| Decoded request headers | 32 KiB |
+| Request header fields | 100 |
 | Request body | 1 MiB |
 | Request body chunk | 64 KiB |
 | Buffered body chunks per request | 1 |
@@ -89,6 +92,9 @@ The defaults are finite so overload has deliberate behavior:
 When every handler and queue slot is occupied, new requests receive HTTP 503.
 Applications can change these limits with the `Server.Config` builders and can
 narrow an individual body limit with `request.body().with_limit(...)`.
+Request-target and header limits are checked before host-native routing or Roc.
+Decoded header bytes use `name + value + 32` bytes per ordinary field for both
+HTTP versions, so HTTP/2 HPACK compression does not weaken the resource bound.
 
 The listener accepts HTTP/1.1 and cleartext prior-knowledge HTTP/2. It does not
 terminate TLS or perform public protocol negotiation; production deployments

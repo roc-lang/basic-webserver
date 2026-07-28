@@ -30,15 +30,13 @@ fn request_parts() -> &'static HostResourceHeap<RequestPartsResource> {
     REQUEST_PARTS.get_or_init(|| HostResourceHeap::new(MAX_LIVE_REQUEST_BACKINGS))
 }
 
-pub(crate) fn request_target(parts: &hyper::http::request::Parts) -> &str {
-    if parts.method == hyper::Method::CONNECT {
-        if let Some(authority) = parts.uri.authority() {
+pub(crate) fn request_target<'a>(method: &hyper::Method, uri: &'a hyper::Uri) -> &'a str {
+    if *method == hyper::Method::CONNECT {
+        if let Some(authority) = uri.authority() {
             return authority.as_str();
         }
     }
-    parts
-        .uri
-        .path_and_query()
+    uri.path_and_query()
         .map(hyper::http::uri::PathAndQuery::as_str)
         .unwrap_or("/")
 }
@@ -85,7 +83,7 @@ impl RequestPartsBacking {
     }
 
     pub(crate) fn target(&self) -> &str {
-        request_target(&self.resource.parts)
+        request_target(&self.resource.parts.method, &self.resource.parts.uri)
     }
 
     /// Construct one owned seamless Roc string descriptor into this backing.
@@ -166,7 +164,7 @@ pub(crate) fn validate_seamless_range(
     };
     let parts = &resource.parts;
     let valid = contains(parts.method.as_str().as_bytes())
-        || contains(request_target(parts).as_bytes())
+        || contains(request_target(&parts.method, &parts.uri).as_bytes())
         || parts
             .headers
             .iter()

@@ -22,6 +22,7 @@ mod http_server;
 mod os_str;
 mod path;
 mod request_body;
+mod request_limits;
 mod request_parts;
 mod roc_alloc;
 mod roc_platform_abi;

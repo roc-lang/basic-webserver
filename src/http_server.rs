@@ -9,6 +9,9 @@ use crate::file_server::{
     NativeRouteSpec, ServerResponse,
 };
 use crate::request_body::{register as register_body, PumpError};
+use crate::request_limits::{
+    RequestMetadataLimits, RequestMetadataRejection, HTTP1_MAX_HEAD_BYTES,
+};
 use crate::request_parts::{request_target, RequestPartsBacking};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
@@ -36,6 +39,7 @@ struct RuntimeConfig {
     max_connections: usize,
     max_handlers: usize,
     max_queued_handlers: usize,
+    request_metadata: RequestMetadataLimits,
     body_max_bytes: u64,
     body_chunk_bytes: usize,
     body_buffered_chunks: usize,
@@ -58,6 +62,11 @@ impl RuntimeConfig {
             }
             let (max_connections, max_handlers) =
                 validate_concurrency_limits(config.max_connections, config.max_handlers)?;
+            let request_metadata = RequestMetadataLimits::new(
+                config.request_target_max_bytes,
+                config.request_header_max_bytes,
+                config.request_header_max_fields,
+            )?;
             let roots = config
                 .file_roots
                 .as_slice()
@@ -82,6 +91,7 @@ impl RuntimeConfig {
                 max_connections,
                 max_handlers,
                 max_queued_handlers: config.max_queued_handlers as usize,
+                request_metadata,
                 body_max_bytes: config.body_max_bytes,
                 body_chunk_bytes: config.body_chunk_bytes as usize,
                 body_buffered_chunks: config.body_buffered_chunks as usize,
@@ -500,7 +510,7 @@ fn request_to_roc_copied(
         // elements, and HeaderMap iteration yields that many entries.
         unsafe { headers.elements.add(index).write(header) };
     }
-    let target = request_target(&parts);
+    let target = request_target(&parts.method, &parts.uri);
 
     ServerRequest {
         body_handle,
@@ -651,6 +661,34 @@ fn invalid_request_headers() -> ServerResponse {
         .expect("static 400 response is valid")
 }
 
+fn request_target_too_long(limit: usize) -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::URI_TOO_LONG)
+        .body(full_body(Bytes::from(format!(
+            "Request target exceeds the {limit}-byte limit"
+        ))))
+        .expect("static 414 response is valid")
+}
+
+fn request_headers_too_large(byte_limit: usize, field_limit: usize) -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE)
+        .body(full_body(Bytes::from(format!(
+            "Request headers exceed the {byte_limit}-byte or {field_limit}-field limit"
+        ))))
+        .expect("static 431 response is valid")
+}
+
+fn reject_request_metadata(rejection: RequestMetadataRejection) -> ServerResponse {
+    match rejection {
+        RequestMetadataRejection::TargetTooLong { limit } => request_target_too_long(limit),
+        RequestMetadataRejection::HeadersTooLarge {
+            byte_limit,
+            field_limit,
+        } => request_headers_too_large(byte_limit, field_limit),
+    }
+}
+
 fn payload_too_large(limit: u64) -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::PAYLOAD_TOO_LARGE)
@@ -668,6 +706,10 @@ async fn handle_req(
         Some(active) => Arc::new(active),
         None => return service_unavailable(),
     };
+
+    if let Err(rejection) = context.config.request_metadata.admit(&request) {
+        return reject_request_metadata(rejection);
+    }
 
     if let Some(plan) = context.config.files.route(request.uri().path()) {
         let (parts, body) = request.into_parts();
@@ -767,16 +809,29 @@ async fn handle_panics(
     }
 }
 
-fn connection_builder(max_http2_streams: u32) -> auto::Builder<TokioExecutor> {
+fn connection_builder(
+    max_http2_streams: u32,
+    request_metadata: RequestMetadataLimits,
+) -> auto::Builder<TokioExecutor> {
     let mut builder = auto::Builder::new(TokioExecutor::new());
-    builder.http2().max_concurrent_streams(max_http2_streams);
+    builder
+        .http1()
+        .max_headers(request_metadata.max_header_fields())
+        .max_buf_size(HTTP1_MAX_HEAD_BYTES);
+    builder
+        .http2()
+        .max_concurrent_streams(max_http2_streams)
+        .max_header_list_size(request_metadata.http2_max_header_list_size());
     builder
 }
 
 async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
     let io = TokioIo::new(stream);
     let service_context = context.clone();
-    let builder = connection_builder(context.config.max_http2_streams_per_connection());
+    let builder = connection_builder(
+        context.config.max_http2_streams_per_connection(),
+        context.config.request_metadata,
+    );
     let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request| {
@@ -1008,7 +1063,7 @@ mod tests {
             .body(())
             .unwrap();
         let (parts, _) = request.into_parts();
-        assert_eq!(request_target(&parts), "/a/path?from=h2");
+        assert_eq!(request_target(&parts.method, &parts.uri), "/a/path?from=h2");
     }
 
     #[test]
@@ -1019,7 +1074,10 @@ mod tests {
             .body(())
             .unwrap();
         let (parts, _) = request.into_parts();
-        assert_eq!(request_target(&parts), "upstream.example:443");
+        assert_eq!(
+            request_target(&parts.method, &parts.uri),
+            "upstream.example:443"
+        );
     }
 
     #[tokio::test]
@@ -1268,6 +1326,20 @@ mod tests {
     }
 
     #[test]
+    fn metadata_limit_responses_are_protocol_neutral() {
+        let target = request_target_too_long(64);
+        assert_eq!(target.status(), hyper::StatusCode::URI_TOO_LONG);
+        assert!(!target.headers().contains_key(hyper::header::CONNECTION));
+
+        let headers = request_headers_too_large(256, 4);
+        assert_eq!(
+            headers.status(),
+            hyper::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
+        );
+        assert!(!headers.headers().contains_key(hyper::header::CONNECTION));
+    }
+
+    #[test]
     fn http2_stream_limit_matches_the_complete_handler_budget() {
         let config = RuntimeConfig {
             host: "127.0.0.1".to_owned(),
@@ -1275,6 +1347,7 @@ mod tests {
             max_connections: 256,
             max_handlers: 32,
             max_queued_handlers: 64,
+            request_metadata: RequestMetadataLimits::new(8192, 32 * 1024, 100).unwrap(),
             body_max_bytes: 1024,
             body_chunk_bytes: 1024,
             body_buffered_chunks: 1,
@@ -1289,7 +1362,7 @@ mod tests {
     async fn auto_server_accepts_an_http2_prior_knowledge_request() {
         let (client_io, server_io) = tokio::io::duplex(4096);
         let server = tokio::spawn(async move {
-            connection_builder(8)
+            connection_builder(8, RequestMetadataLimits::new(8192, 32 * 1024, 100).unwrap())
                 .serve_connection(
                     TokioIo::new(server_io),
                     hyper::service::service_fn(
