@@ -1,9 +1,8 @@
 //! One immutable, startup-validated route table for every host-native route.
 
-use crate::file_server::{
-    empty_body, full_body, CachePolicy, FilePlan, FileService, ServerResponse,
-};
+use crate::file_server::{CachePolicy, FilePlan, FileService};
 use crate::readiness::ReadinessLease;
+use crate::response::{empty_body, full_body, ServerResponse};
 use bytes::Bytes;
 use hyper::header::{ALLOW, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Method, StatusCode};
