@@ -9,11 +9,14 @@ use crate::compression::{
     AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
 };
 use crate::file_server::{
-    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, NativeRouteKind,
-    NativeRouteSpec, ServerResponse,
+    CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, NativeRouteKind, NativeRouteSpec,
 };
 use crate::request_body::{register as register_body, PumpError};
 use crate::request_parts::{request_target, RequestPartsBacking};
+use crate::response::{
+    application_parts, finalize_response, full_body, safe_internal_server_error, RequestSemantics,
+    ServerResponse,
+};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
 use bytes::Bytes;
@@ -522,13 +525,17 @@ fn call_roc(
     request: ServerRequest,
     context: RocBox,
     accepted_encodings: AcceptedEncodings,
+    response_semantics: &RequestSemantics,
 ) -> RocOutcome {
     let response = unsafe { roc_respond_for_host(request, context) };
-    outcome_from_roc(response, accepted_encodings)
+    outcome_from_roc(response, accepted_encodings, response_semantics)
 }
 
 enum RocOutcome {
-    Ordinary(ServerResponse, Option<i64>),
+    Ordinary(
+        Result<ServerResponse, crate::response::ResponseError>,
+        Option<i64>,
+    ),
     File(FilePlan),
     Invalid(String),
 }
@@ -536,11 +543,19 @@ enum RocOutcome {
 fn outcome_from_roc(
     response: RocServerResponse,
     accepted_encodings: AcceptedEncodings,
+    response_semantics: &RequestSemantics,
 ) -> RocOutcome {
     match response.kind {
         0 => {
             let stop_code = response.stop.then_some(response.exit_code);
-            RocOutcome::Ordinary(response_to_hyper(response, accepted_encodings), stop_code)
+            RocOutcome::Ordinary(
+                response_to_hyper(
+                    RocResponseOwner { response },
+                    accepted_encodings,
+                    response_semantics,
+                ),
+                stop_code,
+            )
         }
         1 => {
             let root_id = response.file_root_id.as_str().to_owned();
@@ -594,39 +609,45 @@ fn outcome_from_roc(
 }
 
 fn response_to_hyper(
-    response: RocServerResponse,
+    owner: RocResponseOwner,
     accepted_encodings: AcceptedEncodings,
-) -> ServerResponse {
-    crate::request_body::validate_response_body(&response.body);
-    let mut builder = hyper::Response::builder().status(response.status);
-    for header in response.headers.as_slice() {
-        builder = builder.header(header.name.as_str(), header.value.as_str());
-    }
-    let head = match builder.body(()) {
-        Ok(head) => head,
-        Err(_) => {
-            unsafe { response.decref(roc_host()) };
-            return internal_server_error("Failed to build response");
-        }
-    };
+    request: &RequestSemantics,
+) -> Result<ServerResponse, crate::response::ResponseError> {
+    crate::request_body::validate_response_body(&owner.response.body);
+    let body_length = owner.response.body.len();
+    let (status, headers) = application_parts(
+        owner.response.status,
+        owner
+            .response
+            .headers
+            .as_slice()
+            .iter()
+            .map(|header| (header.name.as_str(), header.value.as_str())),
+        body_length as u64,
+        request,
+    )?;
+    let mut head = hyper::Response::new(());
+    *head.status_mut() = status;
+    *head.headers_mut() = headers;
     let (mut parts, ()) = head.into_parts();
-    let body_length = response.body.len();
     if body_length <= MAX_BUFFERED_COMPRESSION_BYTES
         && response_is_compressible(parts.status, &parts.headers, body_length as u64)
     {
         vary_on_accept_encoding(&mut parts.headers);
         if let Some(coding) = accepted_encodings.preferred() {
-            if let Ok(encoded) = encode_bytes(coding, response.body.as_slice()) {
+            if let Ok(encoded) = encode_bytes(coding, owner.response.body.as_slice()) {
                 if encoded.len() < body_length {
                     apply_content_coding(&mut parts.headers, coding, Some(encoded.len()));
-                    unsafe { response.decref(roc_host()) };
-                    return hyper::Response::from_parts(parts, full_body(Bytes::from(encoded)));
+                    return Ok(hyper::Response::from_parts(
+                        parts,
+                        full_body(Bytes::from(encoded)),
+                    ));
                 }
             }
         }
     }
-    let body = Bytes::from_owner(RocResponseOwner { response });
-    hyper::Response::from_parts(parts, full_body(body))
+    let body = Bytes::from_owner(owner);
+    Ok(hyper::Response::from_parts(parts, full_body(body)))
 }
 
 /// Owns every Roc reference in a response while Hyper may still transmit the
@@ -654,13 +675,6 @@ impl Drop for RocResponseOwner {
         // and Bytes drops its owner exactly once after its last clone.
         unsafe { self.response.decref(roc_host()) };
     }
-}
-
-fn internal_server_error(message: &str) -> ServerResponse {
-    hyper::Response::builder()
-        .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-        .body(full_body(Bytes::copy_from_slice(message.as_bytes())))
-        .expect("static 500 response is valid")
 }
 
 fn service_unavailable() -> ServerResponse {
@@ -695,9 +709,10 @@ fn payload_too_large(limit: u64) -> ServerResponse {
         .expect("static 413 response is valid")
 }
 
-async fn handle_req(
+async fn handle_req_unframed(
     request: hyper::Request<hyper::body::Incoming>,
     context: ServerContext,
+    response_semantics: &RequestSemantics,
 ) -> ServerResponse {
     let active_request = match context.requests.begin() {
         Some(active) => Arc::new(active),
@@ -748,6 +763,7 @@ async fn handle_req(
     let body_handle = registration.handle;
     let roc_context = Arc::clone(&context.roc_context);
     let handler_request = Arc::clone(&active_request);
+    let handler_response_semantics = response_semantics.clone();
     let handled = spawn_blocking(move || {
         // These guards intentionally live in the non-cancellable blocking task.
         // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
@@ -762,20 +778,32 @@ async fn handle_req(
             declared_length,
         );
         let request_context = roc_context.retain_for_request();
-        let result = call_roc(roc_request, request_context, accepted_encodings);
+        let result = call_roc(
+            roc_request,
+            request_context,
+            accepted_encodings,
+            &handler_response_semantics,
+        );
         body_handle.expire();
         result
     })
     .await;
 
     match handled {
-        Ok(RocOutcome::Ordinary(response, Some(exit_code))) => {
-            context
-                .shutdown
-                .request(ShutdownReason::ApplicationRequested { exit_code });
-            response
+        Ok(RocOutcome::Ordinary(response, stop_code)) => {
+            if let Some(exit_code) = stop_code {
+                context
+                    .shutdown
+                    .request(ShutdownReason::ApplicationRequested { exit_code });
+            }
+            match response {
+                Ok(response) => response,
+                Err(error) => {
+                    eprintln!("Invalid Roc response: {error}");
+                    safe_internal_server_error(response_semantics)
+                }
+            }
         }
-        Ok(RocOutcome::Ordinary(response, None)) => response,
         Ok(RocOutcome::File(plan)) => {
             context
                 .config
@@ -785,21 +813,37 @@ async fn handle_req(
         }
         Ok(RocOutcome::Invalid(detail)) => {
             eprintln!("Invalid Roc response plan: {detail}");
-            internal_server_error("500 Internal Server Error")
+            safe_internal_server_error(response_semantics)
         }
         Err(error) => {
             eprintln!("Recovered from calling Roc: {error:?}");
-            internal_server_error("500 Internal Server Error")
+            safe_internal_server_error(response_semantics)
+        }
+    }
+}
+
+async fn handle_req(
+    request: hyper::Request<hyper::body::Incoming>,
+    context: ServerContext,
+    response_semantics: RequestSemantics,
+) -> ServerResponse {
+    let response = handle_req_unframed(request, context, &response_semantics).await;
+    match finalize_response(response, &response_semantics) {
+        Ok(response) => response,
+        Err(error) => {
+            eprintln!("Invalid host response: {error}");
+            safe_internal_server_error(&response_semantics)
         }
     }
 }
 
 async fn handle_panics(
     future: impl Future<Output = ServerResponse>,
+    response_semantics: RequestSemantics,
 ) -> Result<ServerResponse, Infallible> {
     match AssertUnwindSafe(future).catch_unwind().await {
         Ok(response) => Ok(response),
-        Err(_) => Ok(internal_server_error("Panic detected")),
+        Err(_) => Ok(safe_internal_server_error(&response_semantics)),
     }
 }
 
@@ -816,7 +860,11 @@ async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext)
     let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request| {
-            handle_panics(handle_req(request, service_context.clone()))
+            let response_semantics = RequestSemantics::from_request(&request);
+            handle_panics(
+                handle_req(request, service_context.clone(), response_semantics.clone()),
+                response_semantics,
+            )
         }),
     );
     tokio::pin!(connection);
@@ -997,6 +1045,13 @@ mod tests {
         AcceptedEncodings::from_headers(&hyper::HeaderMap::new())
     }
 
+    fn get_http1_semantics() -> RequestSemantics {
+        RequestSemantics {
+            method: hyper::Method::GET,
+            version: hyper::Version::HTTP_11,
+        }
+    }
+
     #[test]
     fn method_tags_match_internal_server_contract() {
         assert_eq!(method_to_tag(&hyper::Method::CONNECT), 0);
@@ -1137,7 +1192,14 @@ mod tests {
             kind: 0,
             stop: false,
         };
-        let response = response_to_hyper(roc_response, no_compression());
+        let response = response_to_hyper(
+            RocResponseOwner {
+                response: roc_response,
+            },
+            no_compression(),
+            &get_http1_semantics(),
+        )
+        .unwrap();
         assert_eq!(crate::request_parts::active_backings(), 1);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -1194,7 +1256,12 @@ mod tests {
             stop: false,
         };
 
-        let response = response_to_hyper(response, no_compression());
+        let response = response_to_hyper(
+            RocResponseOwner { response },
+            no_compression(),
+            &get_http1_semantics(),
+        )
+        .unwrap();
         assert_eq!(drops.load(Ordering::Acquire), 0);
         let transmitted = response.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(transmitted.as_ptr(), original_ptr);
@@ -1229,17 +1296,59 @@ mod tests {
             "gzip, br, zstd".parse().unwrap(),
         );
 
-        let response =
-            response_to_hyper(response, AcceptedEncodings::from_headers(&request_headers));
+        let response = response_to_hyper(
+            RocResponseOwner { response },
+            AcceptedEncodings::from_headers(&request_headers),
+            &get_http1_semantics(),
+        )
+        .unwrap();
+        let response = finalize_response(response, &get_http1_semantics()).unwrap();
         assert_eq!(response.headers()[hyper::header::CONTENT_ENCODING], "zstd");
         assert_eq!(response.headers()[hyper::header::VARY], "Accept-Encoding");
+        let transmitted_length = response.headers()[CONTENT_LENGTH]
+            .to_str()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
         let encoded = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(encoded.len(), transmitted_length);
         let mut decoded = Vec::new();
         zstd::stream::read::Decoder::new(encoded.as_ref())
             .unwrap()
             .read_to_end(&mut decoded)
             .unwrap();
         assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn invalid_stop_after_keeps_its_shutdown_intent_and_uses_normal_validation() {
+        initialize_test_host();
+        let response = RocServerResponse {
+            exit_code: 17,
+            body: unsafe { RocListWith::<u8, false>::from_slice(b"not allowed", roc_host()) },
+            file_download_name: RocStr::empty(),
+            file_relative: RocStr::empty(),
+            file_root_id: RocStr::empty(),
+            headers: RocList::empty(),
+            file_cache_max_age_seconds: 0,
+            status: 204,
+            file_cache_override: false,
+            file_cache_tag: 0,
+            file_disposition: 0,
+            kind: 0,
+            stop: true,
+        };
+
+        let RocOutcome::Ordinary(response, stop_code) =
+            outcome_from_roc(response, no_compression(), &get_http1_semantics())
+        else {
+            panic!("StopAfter must remain an ordinary response");
+        };
+        assert_eq!(stop_code, Some(17));
+        assert_eq!(
+            response.unwrap_err().to_string(),
+            "status 204 No Content forbids response content"
+        );
     }
 
     #[test]

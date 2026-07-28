@@ -24,6 +24,7 @@ mod os_str;
 mod path;
 mod request_body;
 mod request_parts;
+mod response;
 mod roc_alloc;
 mod roc_platform_abi;
 mod shutdown;

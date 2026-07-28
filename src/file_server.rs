@@ -4,10 +4,11 @@ use crate::compression::{
     apply_content_coding, encoded_etag, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, ContentCoding, ContentEncoder,
 };
+use crate::response::{empty_body, full_body, ServerResponse};
 use crate::shutdown::ActiveRequest;
 use bytes::Bytes;
 use cap_primitives::fs::{open, open_ambient_dir, open_dir_nofollow, FollowSymlinks, OpenOptions};
-use http_body_util::{combinators::UnsyncBoxBody, BodyExt, Empty, Full};
+use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::header::{
     ACCEPT_RANGES, ALLOW, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_ENCODING, CONTENT_LENGTH,
@@ -26,26 +27,11 @@ use std::task::{Context, Poll};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit, Semaphore};
 
-pub(crate) type ServerBody = UnsyncBoxBody<Bytes, io::Error>;
-pub(crate) type ServerResponse = hyper::Response<ServerBody>;
-
 const MAX_FILE_ROOTS: usize = 64;
 const MAX_NATIVE_ROUTES: usize = 128;
 const MAX_ROUTE_PATH_BYTES: usize = 4 * 1024;
 const MAX_RELATIVE_PATH_BYTES: usize = 4 * 1024;
 const MAX_DOWNLOAD_NAME_CHARS: usize = 150;
-
-pub(crate) fn full_body(bytes: Bytes) -> ServerBody {
-    Full::new(bytes)
-        .map_err(|never| match never {})
-        .boxed_unsync()
-}
-
-pub(crate) fn empty_body() -> ServerBody {
-    Empty::<Bytes>::new()
-        .map_err(|never| match never {})
-        .boxed_unsync()
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CachePolicy {

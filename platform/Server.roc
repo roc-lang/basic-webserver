@@ -586,8 +586,21 @@ Server :: [].{
 			}
 	}
 
-	## A successful request outcome. StopAfter sends its response while beginning
-	## graceful shutdown; the first shutdown cause wins.
+	## A successful request outcome. Ordinary responses have one host-owned
+	## framing contract across HTTP/1.1 and HTTP/2. Header names and values must
+	## be valid; connection-specific fields and transfer coding are rejected.
+	## Content-Length is optional, but when present every value must agree with
+	## the complete returned body before host content coding. The host emits one
+	## canonical length for the bytes it will transmit.
+	##
+	## HEAD transmits no body but reports the returned representation's length.
+	## 204 and 304 require an empty body and no Content-Length; 205 also requires
+	## an empty body. Informational responses and successful CONNECT responses
+	## are unsupported. An invalid response is logged and replaced with a bounded
+	## 500 before any part of it is transmitted.
+	##
+	## StopAfter applies the same validation, sends the resulting response while
+	## beginning graceful shutdown, and preserves the first shutdown cause.
 	Outcome := [
 		Respond(Response.Response),
 		ServeFile(

@@ -687,6 +687,43 @@ Large or transport-oriented responses are represented by a closed set of typed
 native response plans, such as serving a file. The host streams those responses
 without moving their contents through Roc.
 
+### Response validation and framing
+
+The application response contract is independent of the HTTP wire version.
+Ordinary responses contain one status, a complete ordered header list, and a
+complete bounded representation body. The host validates the whole response
+before transmission and owns HTTP/1.1 and HTTP/2 message framing.
+
+Applications may select representation metadata, but they do not control
+connection state or transfer framing. Header names and values must use valid
+HTTP field syntax. `Connection`, `HTTP2-Settings`, `Keep-Alive`,
+`Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Trailer`, and fields
+nominated by `Connection` are rejected. `Content-Length` is host-owned: an
+application may omit it or assert the complete returned representation length,
+but repeated values must agree and the host emits one canonical length for the
+bytes it will transmit after content coding. Repeated non-framing fields retain
+their order; the platform does not impose application security-header policy
+or maintain a registry of repeatable extension fields.
+
+Method and status semantics are part of the common contract:
+
+- a `HEAD` handler returns the representation it would return for `GET`; the
+  host derives its metadata and transmits no content;
+- `204` and `304` require an empty body and no application-supplied
+  `Content-Length`;
+- `205` requires an empty body and is transmitted with a zero length;
+- standalone informational responses are invalid because the ordinary
+  one-response API cannot provide the final response that must follow them;
+- a successful ordinary `CONNECT` response is invalid because the platform
+  does not expose a tunnel outcome.
+
+An invalid application response is never partially transmitted. The host logs
+a diagnostic and substitutes a fixed, bounded `500 Internal Server Error`.
+`StopAfter` uses the same validation while preserving its graceful-shutdown
+intent. Native and host-generated responses pass through the same final
+invariants, while native streams with an unknown length leave the protocol
+framing choice to the host.
+
 ### Response content coding
 
 The host negotiates response compression from `Accept-Encoding` by default.

@@ -94,7 +94,8 @@ The listener accepts HTTP/1.1 and cleartext prior-knowledge HTTP/2. It does not
 terminate TLS or perform public protocol negotiation; production deployments
 normally put a reverse proxy or load balancer in front. Ordinary responses are
 complete in-memory values, while request bodies can be consumed as bounded
-streams.
+streams. The host validates response fields and owns framing for both protocol
+versions; see the [response design](design.md#response-validation-and-framing).
 
 Eligible responses of at least 1 KiB are compressed automatically when the
 client accepts Zstandard, Brotli, or gzip. The host negotiates quality weights,
