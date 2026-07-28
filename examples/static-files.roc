@@ -51,33 +51,34 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context| {
 	target = request.target()
-	Stdout.line!("Roc handled ${target}")
+	Stdout.line!("Roc handled ${Str.inspect(target)}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
-	if target == "/download?token=secret" {
-		Ok(
-			Server.file_response_with({
-				files: context.downloads,
-				relative: context.report,
-				disposition: Server.attachment("annual report.txt"),
-				cache: Server.override_cache(Server.no_store),
-			}),
-		)
-	} else if target == "/download" {
-		Ok(
-			Server.respond(
-				Response.from_status(403)
-					.with_body(Str.to_utf8("Download denied")),
-			),
-		)
-	} else {
-		Ok(
-			Server.respond(
-				Response.from_status(404)
-					.with_body(Str.to_utf8("Roc fallback")),
-			),
-		)
-	}
+	match target {
+		Resource({ raw_path: "/download", raw_query: Present("token=secret") }) =>
+			Ok(
+				Server.file_response_with({
+					files: context.downloads,
+					relative: context.report,
+					disposition: Server.attachment("annual report.txt"),
+					cache: Server.override_cache(Server.no_store),
+				}),
+			)
+		Resource({ raw_path: "/download", .. }) =>
+			Ok(
+				Server.respond(
+					Response.from_status(403)
+						.with_body(Str.to_utf8("Download denied")),
+				),
+			)
+		_ =>
+			Ok(
+				Server.respond(
+					Response.from_status(404)
+						.with_body(Str.to_utf8("Roc fallback")),
+				),
+			)
+		}
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

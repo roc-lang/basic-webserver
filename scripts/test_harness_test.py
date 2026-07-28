@@ -24,6 +24,25 @@ class SpecValidationTests(unittest.TestCase):
         self.assertIn(b"/fast", block)
         self.assertIn(b"127.0.0.1:8000", block)
 
+    def test_http2_authority_can_be_overridden_or_omitted(self) -> None:
+        overridden = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": "example.test:8443"},
+            b"",
+            [],
+        )
+        omitted = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": None},
+            b"",
+            [("host", "fallback.test")],
+        )
+
+        self.assertIn(b"example.test:8443", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", omitted)
+        self.assertIn(b"fallback.test", omitted)
+
     def test_http2_frame_encodes_the_wire_header(self) -> None:
         frame = test.http2_frame(
             test.HTTP2_FRAME_HEADERS,
@@ -98,6 +117,39 @@ class SpecValidationTests(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_local_app_source_rewrites_platform_and_copies_relative_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            examples = root / "examples"
+            examples.mkdir()
+            source = examples / "app.roc"
+            source.write_text(
+                'app [Model] { pf: platform "https://example.test/release.tar.zst" }\n',
+                encoding="utf-8",
+            )
+            (examples / "template.html").write_text("template", encoding="utf-8")
+            validation_root = root / "target" / "spec"
+
+            with (
+                mock.patch.object(test, "ROOT", root),
+                mock.patch.object(test, "VALIDATION_ROOT", validation_root),
+            ):
+                rewritten = test.app_source(source, use_local_platform=True)
+                declared = test.app_source(source, use_local_platform=False)
+
+            self.assertEqual(declared, source)
+            self.assertEqual(rewritten, validation_root / "apps" / "app.roc")
+            self.assertIn(
+                'platform "../../../platform/main.roc"',
+                rewritten.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                (validation_root / "apps" / "template.html").read_text(
+                    encoding="utf-8"
+                ),
+                "template",
+            )
 
     def test_platform_and_harness_targets_match(self) -> None:
         self.assertEqual(set(test.declared_targets()), set(test.TARGETS))

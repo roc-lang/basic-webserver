@@ -29,7 +29,11 @@ init! = ||
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, _context| {
-	target = request.target()
+	target = 
+		match request.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
 	if target == "/fast" {
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Immediate response"))))
 	} else if target == "/body-fast" {

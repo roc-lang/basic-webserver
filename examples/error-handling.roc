@@ -52,7 +52,7 @@ log_request! : Server.Request => Try({}, [FailedToLogRequest(_), ..])
 log_request! = |req| {
 	datetime = Utc.to_iso_8601(Utc.now!())
 
-	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${Str.inspect(req.target())}")
 		? |err| FailedToLogRequest(err)
 	Ok({})
 }

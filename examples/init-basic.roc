@@ -23,7 +23,7 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, gift| {
 	datetime = Utc.to_iso_8601(Utc.now!())
 
-	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${Str.inspect(req.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
 	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>init gave me ${gift}</b>"))))

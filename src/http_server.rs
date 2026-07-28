@@ -9,7 +9,8 @@ use crate::file_server::{
     NativeRouteSpec, ServerResponse,
 };
 use crate::request_body::{register as register_body, PumpError};
-use crate::request_parts::{request_target, RequestPartsBacking};
+use crate::request_parts::RequestPartsBacking;
+use crate::request_target::{RequestMetadata, TargetKind};
 use crate::roc_platform_abi::*;
 use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
 use bytes::Bytes;
@@ -416,16 +417,18 @@ fn request_headers_are_utf8(headers: &hyper::HeaderMap) -> bool {
 
 fn request_to_roc(
     parts: hyper::http::request::Parts,
+    metadata: RequestMetadata,
     body_handle: *mut u64,
     body_limit: u64,
     declared_length: Option<u64>,
 ) -> ServerRequest {
     let roc_host = roc_host();
-    let backing = match RequestPartsBacking::new(parts) {
+    let backing = match RequestPartsBacking::new(parts, metadata) {
         Ok(backing) => backing,
         Err(parts) => {
             return request_to_roc_copied(
                 *parts,
+                metadata,
                 body_handle,
                 body_limit,
                 declared_length,
@@ -456,17 +459,75 @@ fn request_to_roc(
         unsafe { headers.elements.add(index).write(header) };
     }
     backing_references += headers.len() * 2;
-    let target = backing.roc_str(backing.target());
-    backing_references += 1;
+    let mut target_path = RocStr::empty();
+    let mut target_query = RocStr::empty();
+    let mut target_authority_host = RocStr::empty();
+    let mut target_authority_port = 0;
+    let mut target_authority_port_present = false;
+    let mut target_query_present = false;
+    let target_tag = match backing.target_kind() {
+        TargetKind::Resource => {
+            let path = backing
+                .resource_path()
+                .expect("validated resource target must have a path");
+            target_path = if backing.resource_path_is_backed() {
+                backing_references += 1;
+                backing.roc_str(path)
+            } else {
+                // An absolute URI with no path normalizes to `/`. Hyper returns
+                // that static string, so it cannot borrow the request backing.
+                RocStr::from_str(path, roc_host)
+            };
+            if let Some(query) = backing.resource_query() {
+                target_query_present = true;
+                backing_references += 1;
+                target_query = backing.roc_str(query);
+            }
+            0
+        }
+        TargetKind::Authority => {
+            let authority = backing
+                .target_authority()
+                .expect("validated authority target must have an authority");
+            backing_references += 1;
+            target_authority_host = backing.roc_str(authority.host);
+            target_authority_port = authority.port.unwrap_or_default();
+            target_authority_port_present = authority.port.is_some();
+            1
+        }
+        TargetKind::Asterisk => 2,
+    };
+    let mut authority_host = RocStr::empty();
+    let mut authority_port = 0;
+    let mut authority_port_present = false;
+    let authority_present = if let Some(authority) = backing.effective_authority() {
+        backing_references += 1;
+        authority_host = backing.roc_str(authority.host);
+        authority_port = authority.port.unwrap_or_default();
+        authority_port_present = authority.port.is_some();
+        true
+    } else {
+        false
+    };
     backing.install(backing_references);
 
     ServerRequest {
+        authority_host,
+        authority_port,
+        authority_port_present,
+        authority_present,
         body_handle,
         body_limit_bytes: body_limit,
         content_length: declared_length.unwrap_or_default(),
         headers,
         method_ext,
-        target,
+        target_authority_host,
+        target_authority_port,
+        target_authority_port_present,
+        target_path,
+        target_query,
+        target_query_present,
+        target_tag,
         content_length_known: declared_length.is_some(),
         method: method_tag,
     }
@@ -474,6 +535,7 @@ fn request_to_roc(
 
 fn request_to_roc_copied(
     parts: hyper::http::request::Parts,
+    metadata: RequestMetadata,
     body_handle: *mut u64,
     body_limit: u64,
     declared_length: Option<u64>,
@@ -500,15 +562,50 @@ fn request_to_roc_copied(
         // elements, and HeaderMap iteration yields that many entries.
         unsafe { headers.elements.add(index).write(header) };
     }
-    let target = request_target(&parts);
+    let target_tag = match metadata.target_kind() {
+        TargetKind::Resource => 0,
+        TargetKind::Authority => 1,
+        TargetKind::Asterisk => 2,
+    };
+    let target_path = metadata
+        .resource_path(&parts.uri)
+        .map_or_else(RocStr::empty, |value| RocStr::from_str(value, roc_host));
+    let target_query = metadata
+        .resource_query(&parts.uri)
+        .map_or_else(RocStr::empty, |value| RocStr::from_str(value, roc_host));
+    let target_query_present = metadata.resource_query(&parts.uri).is_some();
+    let target_authority = metadata.target_authority(&parts.uri, &parts.headers);
+    let target_authority_host = target_authority.map_or_else(RocStr::empty, |value| {
+        RocStr::from_str(value.host, roc_host)
+    });
+    let target_authority_port = target_authority
+        .and_then(|value| value.port)
+        .unwrap_or_default();
+    let target_authority_port_present = target_authority.is_some_and(|value| value.port.is_some());
+    let authority = metadata.effective_authority(&parts.uri, &parts.headers);
+    let authority_host = authority.map_or_else(RocStr::empty, |value| {
+        RocStr::from_str(value.host, roc_host)
+    });
+    let authority_port = authority.and_then(|value| value.port).unwrap_or_default();
+    let authority_port_present = authority.is_some_and(|value| value.port.is_some());
 
     ServerRequest {
+        authority_host,
+        authority_port,
+        authority_port_present,
+        authority_present: authority.is_some(),
         body_handle,
         body_limit_bytes: body_limit,
         content_length: declared_length.unwrap_or_default(),
         headers,
         method_ext,
-        target: RocStr::from_str(target, roc_host),
+        target_authority_host,
+        target_authority_port,
+        target_authority_port_present,
+        target_path,
+        target_query,
+        target_query_present,
+        target_tag,
         content_length_known: declared_length.is_some(),
         method: method_tag,
     }
@@ -651,6 +748,15 @@ fn invalid_request_headers() -> ServerResponse {
         .expect("static 400 response is valid")
 }
 
+fn invalid_request_target() -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::BAD_REQUEST)
+        .body(full_body(Bytes::from_static(
+            b"Invalid request target or authority",
+        )))
+        .expect("static 400 response is valid")
+}
+
 fn payload_too_large(limit: u64) -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::PAYLOAD_TOO_LARGE)
@@ -669,7 +775,15 @@ async fn handle_req(
         None => return service_unavailable(),
     };
 
-    if let Some(plan) = context.config.files.route(request.uri().path()) {
+    let metadata = match RequestMetadata::validate(&request) {
+        Ok(metadata) => metadata,
+        Err(_) => return invalid_request_target(),
+    };
+
+    if let Some(plan) = metadata
+        .resource_path(request.uri())
+        .and_then(|path| context.config.files.route(path))
+    {
         let (parts, body) = request.into_parts();
         drop(body);
         return context
@@ -721,6 +835,7 @@ async fn handle_req(
         let _active_handler = active_handler;
         let roc_request = request_to_roc(
             parts,
+            metadata,
             body_handle.retain_for_roc(),
             body_limit,
             declared_length,
@@ -1000,28 +1115,6 @@ mod tests {
         assert!(!request_headers_are_utf8(&headers));
     }
 
-    #[test]
-    fn absolute_uri_target_is_normalized_to_path_and_query() {
-        let request = hyper::Request::builder()
-            .method(hyper::Method::GET)
-            .uri("http://example.test/a/path?from=h2")
-            .body(())
-            .unwrap();
-        let (parts, _) = request.into_parts();
-        assert_eq!(request_target(&parts), "/a/path?from=h2");
-    }
-
-    #[test]
-    fn connect_target_preserves_authority_form() {
-        let request = hyper::Request::builder()
-            .method(hyper::Method::CONNECT)
-            .uri("upstream.example:443")
-            .body(())
-            .unwrap();
-        let (parts, _) = request.into_parts();
-        assert_eq!(request_target(&parts), "upstream.example:443");
-    }
-
     #[tokio::test]
     async fn request_metadata_and_escaped_response_body_share_hyper_storage() {
         initialize_test_host();
@@ -1029,10 +1122,19 @@ mod tests {
         let request = hyper::Request::builder()
             .method("PROPFIND")
             .uri("/a/long/request/target?with=a-query")
+            .header(hyper::header::HOST, "metadata.example:8443")
             .header("x-long-request-header", "a sufficiently long header value")
             .body(())
             .unwrap();
+        let metadata = RequestMetadata::validate(&request).unwrap();
         let original_target_ptr = request.uri().path_and_query().unwrap().as_str().as_ptr();
+        let original_query_ptr = request.uri().query().unwrap().as_ptr();
+        let original_authority_ptr = request
+            .headers()
+            .get(hyper::header::HOST)
+            .unwrap()
+            .as_bytes()
+            .as_ptr();
         let original_headers: Vec<(*const u8, *const u8)> = request
             .headers()
             .iter()
@@ -1040,10 +1142,17 @@ mod tests {
             .collect();
         let (parts, _) = request.into_parts();
 
-        let roc_request = request_to_roc(parts, core::ptr::null_mut(), 4096, None);
+        let roc_request = request_to_roc(parts, metadata, core::ptr::null_mut(), 4096, None);
         assert_eq!(crate::request_parts::active_backings(), 1);
-        assert!(roc_request.target.is_seamless_slice());
-        assert_eq!(roc_request.target.as_u8_ptr(), original_target_ptr);
+        assert!(roc_request.target_path.is_seamless_slice());
+        assert_eq!(roc_request.target_path.as_u8_ptr(), original_target_ptr);
+        assert!(roc_request.target_query.is_seamless_slice());
+        assert_eq!(roc_request.target_query.as_u8_ptr(), original_query_ptr);
+        assert!(roc_request.authority_host.is_seamless_slice());
+        assert_eq!(
+            roc_request.authority_host.as_u8_ptr(),
+            original_authority_ptr
+        );
         assert!(roc_request.method_ext.is_seamless_slice());
         assert_eq!(roc_request.method_ext.as_str(), "PROPFIND");
         for (header, (name_ptr, value_ptr)) in
@@ -1055,17 +1164,17 @@ mod tests {
             assert_eq!(header.value.as_u8_ptr(), value_ptr);
             assert_eq!(
                 header.name.capacity_or_alloc_ptr,
-                roc_request.target.capacity_or_alloc_ptr
+                roc_request.target_path.capacity_or_alloc_ptr
             );
             assert_eq!(
                 header.value.capacity_or_alloc_ptr,
-                roc_request.target.capacity_or_alloc_ptr
+                roc_request.target_path.capacity_or_alloc_ptr
             );
         }
 
-        // Model Roc returning `Str.to_utf8(request.target)`: the output list
+        // Model Roc returning `Str.to_utf8(resource.raw_path)`: the output list
         // owns one additional reference to the same request-parts backing.
-        let target = roc_request.target;
+        let target = roc_request.target_path;
         unsafe { target.incref(1) };
         let escaped_body = RocListWith::<u8, false> {
             elements: target.bytes,
@@ -1101,7 +1210,7 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body.as_ptr(), escaped_ptr);
-        assert_eq!(body.as_ref(), b"/a/long/request/target?with=a-query");
+        assert_eq!(body.as_ref(), b"/a/long/request/target");
         assert_eq!(crate::request_parts::active_backings(), 1);
         drop(body);
         assert_eq!(
@@ -1109,6 +1218,29 @@ mod tests {
             0,
             "Hyper's final Bytes drop must release the escaped Roc slice"
         );
+    }
+
+    #[test]
+    fn asterisk_request_without_metadata_has_no_seamless_fields() {
+        initialize_test_host();
+        let request = hyper::Request::builder()
+            .method(hyper::Method::OPTIONS)
+            .uri("*")
+            .version(hyper::Version::HTTP_10)
+            .body(())
+            .unwrap();
+        let metadata = RequestMetadata::validate(&request).unwrap();
+        let (parts, _) = request.into_parts();
+
+        let roc_request = request_to_roc(parts, metadata, core::ptr::null_mut(), 4096, None);
+
+        assert_eq!(roc_request.target_tag, 2);
+        assert!(roc_request.headers.is_empty());
+        assert!(!roc_request.method_ext.is_seamless_slice());
+        assert!(!roc_request.target_path.is_seamless_slice());
+        assert!(!roc_request.target_query.is_seamless_slice());
+        assert!(!roc_request.target_authority_host.is_seamless_slice());
+        assert!(!roc_request.authority_host.is_seamless_slice());
     }
 
     struct DropOwner {

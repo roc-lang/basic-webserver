@@ -255,6 +255,9 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
             fail(f"{owner}: raw HTTP/2 requests are not supported")
         if "status" in request:
             fail(f"{owner}: HTTP/2 test requests do not decode response headers")
+        authority = request.get("authority", "")
+        if authority is not None and not isinstance(authority, str):
+            fail(f"{owner}: HTTP/2 authority must be a string or null")
     completion_order = case.get("http2_completion_order", [])
     if not isinstance(completion_order, list) or not all(
         isinstance(name, str) for name in completion_order
@@ -515,6 +518,32 @@ def readme_example(*, use_local_platform: bool = True) -> Path:
             count=1,
         )
     path = directory / "readme.roc"
+    path.write_text(rewritten, encoding="utf-8", newline="\n")
+    return path
+
+
+def app_source(source: Path, *, use_local_platform: bool) -> Path:
+    if not use_local_platform:
+        return source
+
+    directory = VALIDATION_ROOT / "apps"
+    directory.mkdir(parents=True, exist_ok=True)
+    for sibling in source.parent.iterdir():
+        if sibling.is_file() and sibling.suffix != ".roc":
+            shutil.copy2(sibling, directory / sibling.name)
+    rewritten = source.read_text(encoding="utf-8")
+    local_platform = os.path.relpath(
+        ROOT / "platform" / "main.roc", directory
+    ).replace(os.sep, "/")
+    rewritten, count = re.subn(
+        r'(?m)(\bplatform\s+)"[^"]+"',
+        lambda dependency: f'{dependency.group(1)}"{local_platform}"',
+        rewritten,
+        count=1,
+    )
+    if count != 1:
+        fail(f"{source}: expected exactly one platform dependency")
+    path = directory / source.name
     path.write_text(rewritten, encoding="utf-8", newline="\n")
     return path
 
@@ -910,8 +939,8 @@ def hpack_request_headers(
 ) -> bytes:
     method = str(request.get("method", "GET")).upper()
     target = str(request.get("target", "/"))
-    if not target.startswith("/"):
-        fail(f"HTTP/2 test request target must start with '/': {target!r}")
+    if not target.startswith("/") and not (method == "OPTIONS" and target == "*"):
+        fail(f"HTTP/2 test request target must be a resource path or OPTIONS '*': {target!r}")
 
     block = bytearray()
     if method == "GET":
@@ -927,8 +956,10 @@ def hpack_request_headers(
     else:
         block.extend(hpack_integer(4, 4))
         block.extend(hpack_string(target))
-    block.extend(hpack_integer(1, 4))  # Literal :authority, without indexing.
-    block.extend(hpack_string(f"127.0.0.1:{port}"))
+    authority = request.get("authority", f"127.0.0.1:{port}")
+    if authority is not None:
+        block.extend(hpack_integer(1, 4))  # Literal :authority, without indexing.
+        block.extend(hpack_string(str(authority)))
 
     names = {name.lower() for name, _ in headers}
     if body and "content-length" not in names:
@@ -1682,7 +1713,11 @@ def validate_sources(
             if stage == "fmt":
                 command(roc, "fmt", "--check", source)
             else:
-                command(roc, stage, source)
+                command(
+                    roc,
+                    stage,
+                    app_source(source, use_local_platform=use_local_readme_platform),
+                )
 
     readme = readme_example(use_local_platform=use_local_readme_platform)
     command(roc, "check", readme)
@@ -1711,7 +1746,7 @@ def build_artifacts(
         command(
             roc,
             "build",
-            source,
+            app_source(source, use_local_platform=use_local_readme_platform),
             f"--target={target}",
             f"--opt={build_optimization(app)}",
             f"--output={binary}",
@@ -1760,7 +1795,7 @@ def main() -> None:
         "--readme-platform",
         choices=("local", "declared"),
         default="local",
-        help="use the checkout platform or preserve the README platform URL",
+        help="use the checkout platform or preserve app and README platform URLs",
     )
     parser.add_argument(
         "--examples-sha256",

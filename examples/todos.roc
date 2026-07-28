@@ -9,7 +9,6 @@ import pf.Path
 import pf.Server
 import pf.Sqlite
 import pf.Stdout
-import pf.Url
 import pf.Utc
 import http.Response
 import "todos.html" as todo_html : List(U8)
@@ -65,8 +64,12 @@ handle_req! : Server.Request, Sqlite.Db => Try(Response, _)
 handle_req! = |req, db| {
 	log_request!(req)?
 
-	request_url = Url.resolve(todo_origin, req.target()) ? InvalidRequestTarget
-	path_parts = Str.split_on(Url.path(request_url), "/")
+	raw_path = 
+		match req.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
+	path_parts = Str.split_on(raw_path, "/")
 
 	match path_parts {
 		["", ""] => Ok(html_response(200, todo_html))
@@ -76,9 +79,6 @@ handle_req! = |req, db| {
 	}
 }
 
-todo_origin : Url
-todo_origin = "http://localhost"
-
 route_todos! : Sqlite.Db, Server.Request => Try(Response, _)
 route_todos! = |db, req|
 	match req.method() {
@@ -87,7 +87,7 @@ route_todos! = |db, req|
 		POST => create_todo_from_request!(db, req)
 
 		other_method =>
-			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${req.target()}"))
+			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${Str.inspect(req.target())}"))
 		}
 
 list_todos! : Sqlite.Db => Try(Response, _)
@@ -196,7 +196,7 @@ ensure_schema! = |db|
 log_request! : Server.Request => Try({}, _)
 log_request! = |req| {
 	datetime = Utc.to_iso_8601(Utc.now!())
-	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${Str.inspect(req.target())}")
 		? |err| StdoutErr(Str.inspect(err))
 	Ok({})
 }
