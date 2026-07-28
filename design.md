@@ -687,6 +687,35 @@ Large or transport-oriented responses are represented by a closed set of typed
 native response plans, such as serving a file. The host streams those responses
 without moving their contents through Roc.
 
+### Response content coding
+
+The host negotiates response compression from `Accept-Encoding` by default.
+It provides Zstandard, Brotli, and gzip for eligible ordinary and native file
+responses, preferring the client's quality weights and using identity when
+compression is not accepted or useful. At equal quality weights, the host
+prefers Zstandard, then Brotli, then gzip.
+
+Compression is a transport transformation, not application policy. The host:
+
+- does not recompress an application-selected content coding;
+- preserves byte-range semantics by serving range requests as identity;
+- does not compress bodyless, already compressed, or known incompressible
+  representations;
+- emits cache-correct `Vary` and representation metadata;
+- lets an application prevent transformation with `Cache-Control:
+  no-transform`.
+
+Ordinary response compression remains inside the bounded Roc handler execution
+domain, and its temporary encoded copy has a fixed input-size ceiling. Native
+file compression remains inside the bounded file-transfer domain and streams
+through finite chunks, so memory use does not scale with file size.
+
+Compressed request bodies are not decoded implicitly. A future request-decoding
+facility must define supported content codings, apply limits to decoded bytes,
+bound decoder memory and CPU, reject unsupported or stacked codings, and expose
+failures through the request-body contract. A compressed byte length alone is
+not a safe request resource bound.
+
 Roc-produced incremental response streams are not a goal. They require
 long-lived callbacks, cancellation, backpressure, and application scheduling
 semantics that would turn the platform into a broader asynchronous runtime.

@@ -82,12 +82,14 @@ Server :: [].{
 	## through to Roc. Query strings do not participate in route matching.
 	##
 	## Responses include a deterministic extension-based Content-Type (or
-	## application/octet-stream), Content-Length, Last-Modified when available,
-	## a weak ETag, Accept-Ranges, Content-Disposition, and the selected cache
-	## policy. Preconditions are evaluated before ranges. One byte range,
-	## including suffix and open-ended forms, is supported; malformed and
-	## multi-range requests are safely ignored, and valid unsatisfiable ranges
-	## return 416.
+	## application/octet-stream), Last-Modified when available, a weak ETag,
+	## Content-Disposition, and the selected cache policy. Identity responses
+	## include Content-Length and Accept-Ranges. Eligible full responses may
+	## instead stream Zstandard, Brotli, or gzip according to Accept-Encoding
+	## and include Vary: Accept-Encoding. Preconditions are evaluated before
+	## ranges. One byte range, including suffix and open-ended forms, is
+	## supported as identity; malformed and multi-range requests are safely
+	## ignored, and valid unsatisfiable ranges return 416.
 
 	## A small, typed cache policy for host-managed file responses.
 	CachePolicy := [NoStore, Revalidate, PrivateFor(U32), PublicFor(U32)].{
