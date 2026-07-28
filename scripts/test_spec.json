@@ -642,6 +642,20 @@
               "headers": {
                 "Content-Type": "application/json"
               },
+              "body": "{\"task\":\"'); DROP TABLE todos;--\",\"status\":\"completed\"}",
+              "body_contains": ["'); DROP TABLE todos;--", "completed"]
+            },
+            {
+              "method": "GET",
+              "target": "/todos",
+              "body_contains": ["Prepare for AoC", "Spec task", "'); DROP TABLE todos;--"]
+            },
+            {
+              "method": "POST",
+              "target": "/todos",
+              "headers": {
+                "Content-Type": "application/json"
+              },
               "body": "{}",
               "status": 400,
               "expect_body": "Expected JSON with string fields \"task\" and \"status\"."
