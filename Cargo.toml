@@ -40,6 +40,8 @@ hyper-util = { version = "=0.1.12", features = ["tokio", "client", "client-legac
 # backend, and WebPKI roots keep the static host self-contained for Roc linking.
 hyper-rustls = { version = "=0.27.6", default-features = false, features = ["http1", "http2", "tls12", "webpki-tokio", "ring"] }
 rustls = { version = "=0.23.41", default-features = false }
+serde = { version = "=1.0.219", features = ["derive"] }
+serde_json = "=1.0.140"
 tokio = { version = "=1.45.0", features = ["rt", "rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tower-service = "=0.3.3"
 

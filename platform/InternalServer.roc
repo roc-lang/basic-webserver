@@ -71,6 +71,11 @@ InternalServer :: [].{
 		),
 		file_max_concurrent : U16,
 		file_chunk_bytes : U32,
+		access_log_enabled : Bool,
+		access_log_target : U8,
+		access_log_buffer_events : U16,
+		metrics_enabled : Bool,
+		metrics_path : Str,
 	}
 
 	ShutdownReasonFromHost : {

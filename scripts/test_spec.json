@@ -413,10 +413,23 @@
               "method": "GET",
               "target": "/",
               "expect_body": "<b>Hello from server</b><br>"
+            },
+            {
+              "method": "GET",
+              "target": "/metrics",
+              "body_contains": [
+                "basic_webserver_http_requests_total{method=\"GET\",destination=\"roc\",completion=\"end_of_stream\"} 1",
+                "basic_webserver_http_requests_active 1",
+                "# EOF"
+              ],
+              "response_headers": {
+                "Content-Type": "application/openmetrics-text; version=1.0.0; charset=utf-8",
+                "Cache-Control": "no-store"
+              }
             }
           ],
-          "stdout_regex": [
-            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+          "stderr_regex": [
+            "\\{\"timestamp_unix_ms\":[0-9]+,\"duration_us\":[0-9]+,\"request_id\":\"[0-9a-f]{32}\",\"method\":\"GET\",\"status\":200,\"destination\":\"roc\",\"completion\":\"end_of_stream\"[^\\n]+\"target_path\":\"/\"\\}"
           ]
         },
         {

@@ -30,6 +30,7 @@ mod shutdown;
 mod sqlite;
 mod stdio;
 mod tcp;
+mod telemetry;
 mod time;
 
 #[cfg(not(test))]

@@ -116,6 +116,31 @@ then converted to a generic HTTP 500 response. Errors from `init!` and
 `shutdown!` are logged before the process exits. A Roc `crash` exits the whole
 server process.
 
+### Operational telemetry
+
+Access logging and metrics are opt-in host facilities configured during
+`init!`. The host observes a request through response-body end-of-stream,
+failure, or drop, so one terminal event covers Roc responses, native files,
+overload, early rejection, disconnect, and shutdown. End-of-stream means that
+the response body reached its terminal producer state; representation frames
+have been handed to Hyper, not confirmed on the physical network.
+
+`Server.json_lines_access_log` writes structured JSON Lines to standard error
+through a finite non-blocking queue. The default target policy logs no target;
+the optional path policy includes a length-bounded parsed path without its
+query string. Bodies, credentials, cookies, arbitrary headers, peer identity,
+user agents, and client-supplied request or trace identifiers are never
+included. Shutdown gives the queue one second to drain and does not wait
+indefinitely for a blocked standard-error sink.
+
+`Server.open_metrics` installs one native exact OpenMetrics route. Its labels
+come only from finite host enums: unknown methods collapse to `_OTHER`, Roc
+fallback uses one route class, and raw targets or other network-controlled
+values are never labels. The endpoint reports terminal request outcomes,
+duration, response representation bytes, active/high-water connections,
+requests, Roc handlers, handler queueing, native file transfers, rejection
+reasons, and dropped access-log events.
+
 ## Platform facilities
 
 The platform exposes typed modules for:

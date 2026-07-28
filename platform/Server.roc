@@ -305,6 +305,87 @@ Server :: [].{
 			cache: Override(cache),
 		})
 
+	## Privacy policy for the request target in structured access logs.
+	##
+	## Query strings are never logged. `PathWithoutQuery` records only the
+	## parsed URI path, truncated by the host to a finite byte limit.
+	LogTarget := [NoTarget, PathWithoutQuery].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : LogTarget -> U8
+		to_host = |policy|
+			match policy {
+				NoTarget => 0
+				PathWithoutQuery => 1
+			}
+	}
+
+	## Do not include a request target in access logs.
+	no_log_target : LogTarget
+	no_log_target = NoTarget
+
+	## Include the bounded parsed path, never its query string, in access logs.
+	path_without_query : LogTarget
+	path_without_query = PathWithoutQuery
+
+	## Host-owned access logging configuration.
+	##
+	## JSON Lines are written to standard error by a dedicated host thread.
+	## Request transport never waits for that thread: terminal events enter a
+	## finite queue, and overflow is counted by the metrics exporter. Shutdown
+	## gives the queue one second to drain; a blocked standard-error sink is
+	## detached so it cannot defeat the server's finite shutdown deadlines.
+	AccessLog := [
+		AccessLogOff,
+		JsonLines({ target : LogTarget, max_buffered_events : U16 }),
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : AccessLog -> { enabled : Bool, target : U8, buffer_events : U16 }
+		to_host = |access_log|
+			match access_log {
+				AccessLogOff => { enabled: Bool.False, target: 0, buffer_events: 0 }
+				JsonLines({ target, max_buffered_events }) => {
+					enabled: Bool.True,
+					target: LogTarget.to_host(target),
+					buffer_events: max_buffered_events,
+				}
+			}
+	}
+
+	## Disable access logging. This is the default.
+	no_access_log : AccessLog
+	no_access_log = AccessLogOff
+
+	## Write bounded structured request-completion events as JSON Lines to
+	## standard error. The buffer capacity must be non-zero.
+	json_lines_access_log : { target : LogTarget, max_buffered_events : U16 } -> AccessLog
+	json_lines_access_log = |config| JsonLines(config)
+
+	## Host-owned fixed-cardinality metrics export configuration.
+	Metrics := [MetricsOff, OpenMetrics({ at : Str })].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : Metrics -> { enabled : Bool, path : Str }
+		to_host = |metrics|
+			match metrics {
+				MetricsOff => { enabled: Bool.False, path: "" }
+				OpenMetrics({ at }) => { enabled: Bool.True, path: at }
+			}
+	}
+
+	## Disable the native metrics exporter. This is the default.
+	no_metrics : Metrics
+	no_metrics = MetricsOff
+
+	## Expose fixed-cardinality host metrics on one native exact path.
+	##
+	## The path must satisfy the same startup validation as native file routes
+	## and must not overlap one. GET and HEAD are supported; the response uses
+	## the OpenMetrics content type and `Cache-Control: no-store`.
+	open_metrics : { at : Str } -> Metrics
+	open_metrics = |config| OpenMetrics(config)
+
 	## Opaque runtime configuration returned from the application's `init!`
 	## function. Use the builders below so future server settings can be added
 	## without invalidating application record construction.
@@ -340,6 +421,10 @@ Server :: [].{
 				file_transfers : {
 					max_concurrent : U16,
 					chunk_bytes : U32,
+				},
+				operations : {
+					access_log : AccessLog,
+					metrics : Metrics,
 				},
 			},
 		),
@@ -383,22 +468,36 @@ Server :: [].{
 			),
 			file_max_concurrent : U16,
 			file_chunk_bytes : U32,
+			access_log_enabled : Bool,
+			access_log_target : U8,
+			access_log_buffer_events : U16,
+			metrics_enabled : Bool,
+			metrics_path : Str,
 		}
 		to_host = |Config(config)| {
-			host: config.listen.host,
-			port: config.listen.port,
-			body_max_bytes: config.request_bodies.max_bytes,
-			body_chunk_bytes: config.request_bodies.chunk_bytes,
-			body_buffered_chunks: config.request_bodies.buffered_chunks,
-			drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
-			hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
-			max_connections: config.limits.max_connections,
-			max_handlers: config.limits.max_handlers,
-			max_queued_handlers: config.limits.max_queued_handlers,
-			file_roots: config.file_roots.map(FileRoot.to_host),
-			native_routes: config.native_routes.map(NativeRoute.to_host),
-			file_max_concurrent: config.file_transfers.max_concurrent,
-			file_chunk_bytes: config.file_transfers.chunk_bytes,
+			access_log = AccessLog.to_host(config.operations.access_log)
+			metrics = Metrics.to_host(config.operations.metrics)
+			{
+				host: config.listen.host,
+				port: config.listen.port,
+				body_max_bytes: config.request_bodies.max_bytes,
+				body_chunk_bytes: config.request_bodies.chunk_bytes,
+				body_buffered_chunks: config.request_bodies.buffered_chunks,
+				drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
+				hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
+				max_connections: config.limits.max_connections,
+				max_handlers: config.limits.max_handlers,
+				max_queued_handlers: config.limits.max_queued_handlers,
+				file_roots: config.file_roots.map(FileRoot.to_host),
+				native_routes: config.native_routes.map(NativeRoute.to_host),
+				file_max_concurrent: config.file_transfers.max_concurrent,
+				file_chunk_bytes: config.file_transfers.chunk_bytes,
+				access_log_enabled: access_log.enabled,
+				access_log_target: access_log.target,
+				access_log_buffer_events: access_log.buffer_events,
+				metrics_enabled: metrics.enabled,
+				metrics_path: metrics.path,
+			}
 		}
 	}
 
@@ -429,6 +528,10 @@ Server :: [].{
 		file_transfers: {
 			max_concurrent: default_max_file_transfers,
 			chunk_bytes: default_file_chunk_bytes,
+		},
+		operations: {
+			access_log: AccessLogOff,
+			metrics: MetricsOff,
 		},
 	})
 
@@ -467,6 +570,16 @@ Server :: [].{
 	## owns at most one queued chunk and one active read buffer.
 	with_file_transfer_limits : Config, { max_concurrent : U16, chunk_bytes : U32 } -> Config
 	with_file_transfer_limits = |Config(config), file_transfers| Config({ ..config, file_transfers })
+
+	## Configure host-owned structured request-completion logging.
+	with_access_log : Config, AccessLog -> Config
+	with_access_log = |Config(config), access_log|
+		Config({ ..config, operations: { ..config.operations, access_log } })
+
+	## Configure the host-owned fixed-cardinality metrics exporter.
+	with_metrics : Config, Metrics -> Config
+	with_metrics = |Config(config), metrics|
+		Config({ ..config, operations: { ..config.operations, metrics } })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
