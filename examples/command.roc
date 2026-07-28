@@ -66,11 +66,11 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, { python, helper, examples_dir, scripts_dir }|
 	match req.target() {
-		"/cwd-examples" =>
+		Resource({ raw_path: "/cwd-examples", .. }) =>
 			command_cwd_response(python, helper, examples_dir)
-		"/cwd-scripts" =>
+		Resource({ raw_path: "/cwd-scripts", .. }) =>
 			command_cwd_response(python, helper, scripts_dir)
-		"/timeout" => {
+		Resource({ raw_path: "/timeout", .. }) => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "sleep", "5"])
 				.with_timeout_millis(20)
@@ -80,7 +80,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 				other => Err(ServerErr("Expected CommandTimedOut, got ${Str.inspect(other)}"))
 			}
 		}
-		"/output-limit" => {
+		Resource({ raw_path: "/output-limit", .. }) => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "bytes", "64"])
 				.with_stdout_limit(8)
@@ -94,7 +94,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 			time = Utc.to_iso_8601(Utc.now!())
 
 			# Log request time, method and URL through the helper process.
-			match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${req.target()}"]) {
+			match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${Str.inspect(req.target())}"]) {
 				Ok(_) => Ok(text_response("Command succeeded."))
 				Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
 			}

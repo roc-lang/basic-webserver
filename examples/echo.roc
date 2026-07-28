@@ -33,9 +33,32 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, _context| {
 	time = Utc.to_iso_8601(Utc.now!())
 
-	Stdout.line!("${time} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${time} ${Str.inspect(req.method())} ${Str.inspect(req.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
-	body = if req.target() == "/first-chunk" {
+
+	match header_value(req.headers(), "x-request-info") {
+		Present("describe") => return Ok(request_info_response(req))
+		Present("escape-path") =>
+			match req.target() {
+				Resource({ raw_path, .. }) =>
+					return Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(raw_path))))
+				_ => {}
+			}
+		Present("escape-authority") =>
+			match req.authority() {
+				Present(authority) =>
+					return Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(authority.host()))))
+				Absent => {}
+			}
+		_ => {}
+	}
+
+	raw_path =
+		match req.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
+	body = if raw_path == "/first-chunk" {
 		match req.body().with_limit(64 * 1024).read!() {
 			Ok(Chunk(chunk)) => chunk
 			Ok(End) => []
@@ -52,6 +75,58 @@ respond! = |req, _context| {
 	}
 	Ok(Server.respond(Response.from_status(200).with_body(body)))
 }
+
+request_info_response : Server.Request -> Server.Outcome
+request_info_response = |request| {
+	target = request.target()
+	target_text =
+		match target {
+			Resource({ raw_path, raw_query }) => {
+				query_text =
+					match raw_query {
+						Absent => "absent"
+						Present(query) => "present:${query}"
+					}
+				"target=resource\npath=${raw_path}\nquery=${query_text}"
+			}
+			Authority(authority) => "target=authority\n${authority_text(authority)}"
+			Asterisk => "target=asterisk"
+		}
+	effective_text =
+		match request.authority() {
+			Absent => "authority=absent"
+			Present(authority) => authority_text(authority)
+		}
+	status =
+		match target {
+			Authority(_) => 400
+			_ => 200
+		}
+	body = "${target_text}\n${effective_text}"
+	Server.respond(Response.from_status(status).with_body(Str.to_utf8(body)))
+}
+
+authority_text : Server.Authority -> Str
+authority_text = |authority| {
+	port_text =
+		match authority.port() {
+			Absent => "absent"
+			Present(port) => "present:${port.to_str()}"
+		}
+	"authority=present\nhost=${authority.host()}\nport=${port_text}"
+}
+
+header_value : List({ name : Str, value : Str }), Str -> [Absent, Present(Str)]
+header_value = |headers, wanted|
+	match headers {
+		[] => Absent
+		[{ name, value }, .. as rest] =>
+			if name == wanted {
+				Present(value)
+			} else {
+				header_value(rest, wanted)
+			}
+		}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})

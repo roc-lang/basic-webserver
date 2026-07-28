@@ -54,7 +54,7 @@
             "stdout_bytes: [72, 105, 10]"
           ],
           "stdout_regex": [
-            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET Resource"
           ]
         }
       ]
@@ -220,10 +220,180 @@
             }
           ],
           "stdout_contains": [
-            "POST /echo?kind=utf8",
-            "POST /binary",
-            "POST /first-chunk"
+            "POST Resource"
           ]
+        },
+        {
+          "name": "typed-http1-request-target",
+          "requests": [
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /request-info HTTP/1.1\r\nHost: example.test:8080\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "target=resource\npath=/request-info\nquery=absent\nauthority=present\nhost=example.test\nport=present:8080"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /request-info? HTTP/1.1\r\nHost: empty-query.test\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "target=resource\npath=/request-info\nquery=present:\nauthority=present\nhost=empty-query.test\nport=absent"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /request-info%2Fencoded?q=a%2Fb%26c HTTP/1.1\r\nHost: encoded.test\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "target=resource\npath=/request-info%2Fencoded\nquery=present:q=a%2Fb%26c"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET http://absolute.test?from=absolute HTTP/1.1\r\nHost: ignored.test\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "target=resource\npath=/\nquery=present:from=absolute\nauthority=present\nhost=absolute.test\nport=absent"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "CONNECT [2001:db8::1]:443 HTTP/1.1\r\nHost: proxy.test\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request",
+                "target=authority\nauthority=present\nhost=[2001:db8::1]\nport=present:443"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "OPTIONS * HTTP/1.1\r\nHost: options.test\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "target=asterisk\nauthority=present\nhost=options.test\nport=absent"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "OPTIONS * HTTP/1.1\r\nHost:\r\nX-Request-Info: describe\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "target=asterisk\nauthority=absent"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /escaped%2Fpath HTTP/1.1\r\nHost: escape.test\r\nX-Request-Info: escape-path\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "\r\n\r\n/escaped%2Fpath"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.1\r\nHost: escape.example:8443\r\nX-Request-Info: escape-authority\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "\r\n\r\nescape.example"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "reject-malformed-http1-control-data",
+          "requests": [
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.1\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.1\r\nHost: one.test\r\nHost: two.test\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.1\r\nHost: user@example.test\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET * HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET example.test:80 HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 400 Bad Request"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "http2-authority-and-host-agree",
+          "http2_requests": [
+            {
+              "name": "agree",
+              "target": "/request-info?via=h2",
+              "authority": "h2.example:8443",
+              "headers": {
+                "Host": "h2.example:8443",
+                "X-Request-Info": "describe"
+              },
+              "expect_body": "target=resource\npath=/request-info\nquery=present:via=h2\nauthority=present\nhost=h2.example\nport=present:8443"
+            }
+          ],
+          "http2_completion_order": ["agree"]
+        },
+        {
+          "name": "http2-host-fallback",
+          "http2_requests": [
+            {
+              "name": "fallback",
+              "target": "/request-info",
+              "authority": null,
+              "headers": {
+                "Host": "fallback.example",
+                "X-Request-Info": "describe"
+              },
+              "expect_body": "target=resource\npath=/request-info\nquery=absent\nauthority=present\nhost=fallback.example\nport=absent"
+            }
+          ],
+          "http2_completion_order": ["fallback"]
+        },
+        {
+          "name": "http2-authority-host-disagreement",
+          "http2_requests": [
+            {
+              "name": "disagree",
+              "target": "/request-info",
+              "authority": "authority.example",
+              "headers": {
+                "Host": "other.example",
+                "X-Request-Info": "describe"
+              },
+              "expect_body": "Invalid request target or authority"
+            }
+          ],
+          "http2_completion_order": ["disagree"]
         }
       ]
     },
@@ -271,7 +441,7 @@
             }
           ],
           "stdout_regex": [
-            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET Resource"
           ]
         },
         {
@@ -286,7 +456,7 @@
             }
           ],
           "stderr_contains": [
-            "ERROR respond! method=GET target=\"/\": FailedToFetch("
+            "ERROR respond! method=GET target=Resource({ raw_path: \"/\", raw_query: Absent }): FailedToFetch("
           ]
         }
       ]
@@ -479,7 +649,7 @@
             }
           ],
           "stdout_regex": [
-            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET /"
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z GET Resource"
           ]
         },
         {
@@ -1064,6 +1234,15 @@
               "response_headers": {
                 "Content-Length": "8388609"
               }
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET http://native.example/assets/hello.txt?via=absolute HTTP/1.1\r\nHost: ignored.example\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "\r\n\r\nhello asset"
+              ]
             }
           ],
           "stdout_regex": [
@@ -1099,11 +1278,19 @@
               "target": "/download",
               "status": 403,
               "expect_body": "Download denied"
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET http://download.example/download?token=secret HTTP/1.1\r\nHost: ignored.example\r\nConnection: close\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "\r\n\r\nauthorized report"
+              ]
             }
           ],
           "stdout_contains": [
-            "Roc handled /download?token=secret",
-            "Roc handled /download"
+            "Roc handled Resource"
           ]
         },
         {
@@ -1189,7 +1376,7 @@
             }
           ],
           "stdout_contains": [
-            "Roc handled /assets2/hello.txt"
+            "Roc handled Resource({ raw_path: \"/assets2/hello.txt\""
           ]
         },
         {

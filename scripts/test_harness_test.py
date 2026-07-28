@@ -61,6 +61,25 @@ class SpecValidationTests(unittest.TestCase):
         self.assertIn(b"/fast", block)
         self.assertIn(b"127.0.0.1:8000", block)
 
+    def test_http2_authority_can_be_overridden_or_omitted(self) -> None:
+        overridden = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": "example.test:8443"},
+            b"",
+            [],
+        )
+        omitted = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": None},
+            b"",
+            [("host", "fallback.test")],
+        )
+
+        self.assertIn(b"example.test:8443", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", omitted)
+        self.assertIn(b"fallback.test", omitted)
+
     def test_http2_frame_encodes_the_wire_header(self) -> None:
         frame = test.http2_frame(
             test.HTTP2_FRAME_HEADERS,

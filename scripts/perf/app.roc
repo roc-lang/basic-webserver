@@ -30,19 +30,25 @@ init! = ||
 	})
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
-respond! = |request, _context|
-	if request.target() == "/effect" {
+respond! = |request, _context| {
+	raw_path =
+		match request.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
+	if raw_path == "/effect" {
 		Sleep.millis!(1)
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("effect"))))
-	} else if request.target() == "/effect-10" {
+	} else if raw_path == "/effect-10" {
 		Sleep.millis!(10)
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("effect-10"))))
-	} else if request.target() == "/effect-50" {
+	} else if raw_path == "/effect-50" {
 		Sleep.millis!(50)
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("effect-50"))))
 	} else {
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("fast"))))
 	}
+}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_, _| Ok({})

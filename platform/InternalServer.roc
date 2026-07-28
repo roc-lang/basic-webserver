@@ -13,7 +13,17 @@ InternalServer :: [].{
 		method : U8,
 		method_ext : Str,
 		headers : List(HostHeader),
-		target : Str,
+		target_tag : U8,
+		target_path : Str,
+		target_query_present : Bool,
+		target_query : Str,
+		target_authority_host : Str,
+		target_authority_port_present : Bool,
+		target_authority_port : U16,
+		authority_present : Bool,
+		authority_host : Str,
+		authority_port_present : Bool,
+		authority_port : U16,
 		body_handle : Host.RequestBody,
 		body_limit_bytes : U64,
 		content_length_known : Bool,
@@ -86,11 +96,45 @@ InternalServer :: [].{
 	}
 
 	from_host_request : RequestFromHost -> Server.Request
-	from_host_request = |{ method, method_ext, headers, target, body_handle, body_limit_bytes, content_length_known, content_length }|
+	from_host_request = |
+		{
+			method,
+			method_ext,
+			headers,
+			target_tag,
+			target_path,
+			target_query_present,
+			target_query,
+			target_authority_host,
+			target_authority_port_present,
+			target_authority_port,
+			authority_present,
+			authority_host,
+			authority_port_present,
+			authority_port,
+			body_handle,
+			body_limit_bytes,
+			content_length_known,
+			content_length,
+		},
+	|
 		Server.Request.from_host(
 			from_host_method(method, method_ext),
 			headers.map(from_host_header),
-			target,
+			Server.Target.from_host(
+				target_tag,
+				target_path,
+				target_query_present,
+				target_query,
+				target_authority_host,
+				target_authority_port_present,
+				target_authority_port,
+			),
+			if authority_present {
+				Present(Server.Authority.from_host(authority_host, authority_port_present, authority_port))
+			} else {
+				Absent
+			},
 			Server.Body.from_host(
 				body_handle,
 				body_limit_bytes,

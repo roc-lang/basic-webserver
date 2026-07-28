@@ -83,7 +83,7 @@ demo! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |server_request, _context|
 	match server_request.target() {
-		"/limit" => {
+		Resource({ raw_path: "/limit", .. }) => {
 			request = Request.from_method(GET).with_uri("http://localhost:9000/large")
 			config = Http.default_config.with_max_response_bytes(8)
 
@@ -92,7 +92,7 @@ respond! = |server_request, _context|
 				other => Err(ServerErr("Expected ResponseTooLarge, got ${Str.inspect(other)}"))
 			}
 		}
-		"/timeout" => {
+		Resource({ raw_path: "/timeout", .. }) => {
 			request = Request.from_method(GET).with_uri("http://localhost:9000/slow")
 			config = Http.default_config.with_timeout_millis(20)
 

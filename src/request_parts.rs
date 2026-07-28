@@ -7,7 +7,8 @@
 //! here, where dropping the heap resource releases all of the Hyper storage.
 
 use crate::host_resource::{DeallocRoute, HostResourceHeap};
-use crate::roc_platform_abi::{incref_box, RocBox, RocStr};
+use crate::request_target::{AuthorityView, RequestMetadata, TargetKind};
+use crate::roc_platform_abi::{decref_box, incref_box, RocBox, RocStr};
 use core::ffi::c_void;
 use std::sync::OnceLock;
 
@@ -22,25 +23,13 @@ struct RequestPartsResource {
     // Indirection keeps the fixed 65,535-slot ARC-token slab small; only live
     // requests allocate their comparatively large Hyper Parts value.
     parts: Box<hyper::http::request::Parts>,
+    metadata: RequestMetadata,
 }
 
 static REQUEST_PARTS: OnceLock<HostResourceHeap<RequestPartsResource>> = OnceLock::new();
 
 fn request_parts() -> &'static HostResourceHeap<RequestPartsResource> {
     REQUEST_PARTS.get_or_init(|| HostResourceHeap::new(MAX_LIVE_REQUEST_BACKINGS))
-}
-
-pub(crate) fn request_target(parts: &hyper::http::request::Parts) -> &str {
-    if parts.method == hyper::Method::CONNECT {
-        if let Some(authority) = parts.uri.authority() {
-            return authority.as_str();
-        }
-    }
-    parts
-        .uri
-        .path_and_query()
-        .map(hyper::http::uri::PathAndQuery::as_str)
-        .unwrap_or("/")
 }
 
 /// One initial Roc ARC reference to a stable request-parts heap slot.
@@ -56,13 +45,14 @@ pub(crate) struct RequestPartsBacking {
 impl RequestPartsBacking {
     pub(crate) fn new(
         parts: hyper::http::request::Parts,
+        metadata: RequestMetadata,
     ) -> Result<Self, Box<hyper::http::request::Parts>> {
         let parts = Box::new(parts);
         let reservation = match request_parts().reserve() {
             Ok(reservation) => reservation,
             Err(_) => return Err(parts),
         };
-        let allocation_ptr = reservation.insert(RequestPartsResource { parts });
+        let allocation_ptr = reservation.insert(RequestPartsResource { parts, metadata });
         // SAFETY: this wrapper owns the initial live Roc reference committed by
         // `insert` and retains it until `install` transfers all references.
         let resource = unsafe {
@@ -84,8 +74,36 @@ impl RequestPartsBacking {
         &self.resource.parts.headers
     }
 
-    pub(crate) fn target(&self) -> &str {
-        request_target(&self.resource.parts)
+    pub(crate) fn target_kind(&self) -> TargetKind {
+        self.resource.metadata.target_kind()
+    }
+
+    pub(crate) fn resource_path(&self) -> Option<&str> {
+        self.resource
+            .metadata
+            .resource_path(&self.resource.parts.uri)
+    }
+
+    pub(crate) fn resource_path_is_backed(&self) -> bool {
+        self.resource.parts.uri.path_and_query().is_some()
+    }
+
+    pub(crate) fn resource_query(&self) -> Option<&str> {
+        self.resource
+            .metadata
+            .resource_query(&self.resource.parts.uri)
+    }
+
+    pub(crate) fn target_authority(&self) -> Option<AuthorityView<'_>> {
+        self.resource
+            .metadata
+            .target_authority(&self.resource.parts.uri, &self.resource.parts.headers)
+    }
+
+    pub(crate) fn effective_authority(&self) -> Option<AuthorityView<'_>> {
+        self.resource
+            .metadata
+            .effective_authority(&self.resource.parts.uri, &self.resource.parts.headers)
     }
 
     /// Construct one owned seamless Roc string descriptor into this backing.
@@ -106,10 +124,13 @@ impl RequestPartsBacking {
     /// Transfer this wrapper's initial reference to `reference_count`
     /// independently owned seamless descriptors.
     pub(crate) fn install(self, reference_count: usize) {
-        assert!(
-            reference_count > 0,
-            "request backing must own at least one seamless reference"
-        );
+        if reference_count == 0 {
+            // SAFETY: this wrapper owns the heap allocation's only reference.
+            // The host allocator recognizes its base and routes final release
+            // back through this module.
+            unsafe { decref_box(self.allocation_ptr as RocBox, crate::abi::roc_host()) };
+            return;
+        }
         let additional = isize::try_from(reference_count - 1)
             .expect("request metadata reference count must fit Roc's refcount");
         if additional != 0 {
@@ -166,7 +187,14 @@ pub(crate) fn validate_seamless_range(
     };
     let parts = &resource.parts;
     let valid = contains(parts.method.as_str().as_bytes())
-        || contains(request_target(parts).as_bytes())
+        || parts
+            .uri
+            .path_and_query()
+            .is_some_and(|value| contains(value.as_str().as_bytes()))
+        || parts
+            .uri
+            .authority()
+            .is_some_and(|value| contains(value.as_str().as_bytes()))
         || parts
             .headers
             .iter()
@@ -183,4 +211,31 @@ pub(crate) fn active_backings() -> usize {
 
 pub(crate) fn high_water() -> usize {
     REQUEST_PARTS.get().map_or(0, HostResourceHeap::high_water)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::host_resource::LookupError;
+
+    #[test]
+    fn installing_zero_seamless_references_releases_the_backing() {
+        let request = hyper::Request::builder()
+            .method(hyper::Method::OPTIONS)
+            .uri("*")
+            .version(hyper::Version::HTTP_10)
+            .body(())
+            .unwrap();
+        let metadata = RequestMetadata::validate(&request).unwrap();
+        let (parts, _) = request.into_parts();
+        let backing = RequestPartsBacking::new(parts, metadata).unwrap();
+        let allocation_ptr = backing.allocation_ptr;
+
+        backing.install(0);
+
+        assert!(matches!(
+            unsafe { request_parts().get(allocation_ptr) },
+            Err(LookupError::Stale)
+        ));
+    }
 }

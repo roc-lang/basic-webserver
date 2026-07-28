@@ -1585,44 +1585,64 @@ const _: () = assert!(core::mem::size_of::<AnonStruct88f5430c7a4d7d9d>() == 16, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct88f5430c7a4d7d9d>() == 4, "AnonStruct88f5430c7a4d7d9d alignment mismatch");
 
-/// Element type for __AnonStruct_9bfbda88f35e6056
+/// Element type for __AnonStruct_66bd3eb5a5fde7bc
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct9bfbda88f35e6056 {
+pub struct AnonStruct66bd3eb5a5fde7bc {
     pub body_limit_bytes: u64,
     pub content_length: u64,
+    pub authority_host: RocStr,
     pub body_handle: *mut u64,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub method_ext: RocStr,
-    pub target: RocStr,
+    pub target_authority_host: RocStr,
+    pub target_path: RocStr,
+    pub target_query: RocStr,
+    pub authority_port: u16,
+    pub target_authority_port: u16,
+    pub authority_port_present: bool,
+    pub authority_present: bool,
     pub content_length_known: bool,
     pub method: u8,
+    pub target_authority_port_present: bool,
+    pub target_query_present: bool,
+    pub target_tag: u8,
 }
 
-/// Element type for __AnonStruct_9bfbda88f35e6056
+/// Element type for __AnonStruct_66bd3eb5a5fde7bc
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct9bfbda88f35e6056 {
+pub struct AnonStruct66bd3eb5a5fde7bc {
     pub body_limit_bytes: u64,
     pub content_length: u64,
+    pub authority_host: RocStr,
     pub body_handle: *mut u64,
     pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub method_ext: RocStr,
-    pub target: RocStr,
+    pub target_authority_host: RocStr,
+    pub target_path: RocStr,
+    pub target_query: RocStr,
+    pub authority_port: u16,
+    pub target_authority_port: u16,
+    pub authority_port_present: bool,
+    pub authority_present: bool,
     pub content_length_known: bool,
     pub method: u8,
+    pub target_authority_port_present: bool,
+    pub target_query_present: bool,
+    pub target_tag: u8,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct9bfbda88f35e6056>() == 104, "AnonStruct9bfbda88f35e6056 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct66bd3eb5a5fde7bc>() == 184, "AnonStruct66bd3eb5a5fde7bc size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct9bfbda88f35e6056>() == 8, "AnonStruct9bfbda88f35e6056 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct66bd3eb5a5fde7bc>() == 8, "AnonStruct66bd3eb5a5fde7bc alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct9bfbda88f35e6056>() == 64, "AnonStruct9bfbda88f35e6056 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct66bd3eb5a5fde7bc>() == 104, "AnonStruct66bd3eb5a5fde7bc size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct9bfbda88f35e6056>() == 8, "AnonStruct9bfbda88f35e6056 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct66bd3eb5a5fde7bc>() == 8, "AnonStruct66bd3eb5a5fde7bc alignment mismatch");
 
 /// Element type for __AnonStruct_aeceb9ea017a78f4
 #[cfg(target_pointer_width = "32")]
@@ -6513,7 +6533,7 @@ pub type InitForHostOkConfig = AnonStructF416749c63976d29;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeFileRoutes = AnonStructFf6f93028827ced0;
 pub type InitForHostOkConfigReadinessRoutes = AnonStruct88f5430c7a4d7d9d;
-pub type RespondForHostArg0 = AnonStruct9bfbda88f35e6056;
+pub type RespondForHostArg0 = AnonStruct66bd3eb5a5fde7bc;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
 pub type RespondForHost = AnonStructAeceb9ea017a78f4;
 pub type RespondForHostHeaders = AnonStruct82a96c5d55d63488;
@@ -9086,13 +9106,14 @@ impl AnonStruct88f5430c7a4d7d9d {
     }
 }
 
-impl AnonStruct9bfbda88f35e6056 {
+impl AnonStruct66bd3eb5a5fde7bc {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted field.
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
+        unsafe { value.authority_host.decref(roc_host); }
         unsafe { decref_box_with(value.body_handle as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
         {
             let list = value.headers;
@@ -9105,7 +9126,9 @@ impl AnonStruct9bfbda88f35e6056 {
             unsafe { list.decref(roc_host); }
         }
         unsafe { value.method_ext.decref(roc_host); }
-        unsafe { value.target.decref(roc_host); }
+        unsafe { value.target_authority_host.decref(roc_host); }
+        unsafe { value.target_path.decref(roc_host); }
+        unsafe { value.target_query.decref(roc_host); }
     }
 
     /// Increment Roc-owned fields.
@@ -9115,10 +9138,13 @@ impl AnonStruct9bfbda88f35e6056 {
     /// be balanced by later decrefs.
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
+        unsafe { value.authority_host.incref(amount); }
         unsafe { incref_box(value.body_handle as RocBox, amount); }
         unsafe { value.headers.incref(amount); }
         unsafe { value.method_ext.incref(amount); }
-        unsafe { value.target.incref(amount); }
+        unsafe { value.target_authority_host.incref(amount); }
+        unsafe { value.target_path.incref(amount); }
+        unsafe { value.target_query.incref(amount); }
     }
 }
 
@@ -9606,7 +9632,7 @@ unsafe extern "C" {
     pub fn roc_init_for_host() -> InitForHostResult;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct9bfbda88f35e6056, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
+    pub fn roc_respond_for_host(arg0: AnonStruct66bd3eb5a5fde7bc, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

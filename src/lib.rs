@@ -26,6 +26,7 @@ mod path;
 mod readiness;
 mod request_body;
 mod request_parts;
+mod request_target;
 mod roc_alloc;
 mod roc_platform_abi;
 mod server_transport;

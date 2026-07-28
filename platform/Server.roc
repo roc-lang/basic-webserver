@@ -692,13 +692,79 @@ Server :: [].{
 			Host.request_body_read_all!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
 	}
 
+	## A validated HTTP authority. `host` is an ASCII URI host: registered names
+	## and IPv4 addresses are unbracketed, while IPv6 and IPvFuture literals keep
+	## their brackets. `port` is parsed as a `U16`, so applications never need to
+	## split an IPv6 authority on `:`.
+	##
+	## Authority values remain untrusted client input. They are not a canonical
+	## public origin and do not interpret `Forwarded` or `X-Forwarded-*`.
+	Authority := [Authority({ host : Str, port : [Absent, Present(U16)] })].{
+
+		## Return the validated URI host.
+		host : Authority -> Str
+		host = |Authority(value)| value.host
+
+		## Return the explicit port, if the client supplied one.
+		port : Authority -> [Absent, Present(U16)]
+		port = |Authority(value)| value.port
+
+		## Platform ABI conversion hook; not an application API.
+		from_host : Str, Bool, U16 -> Authority
+		from_host = |host_value, port_present, port_value|
+			Authority({
+				host: host_value,
+				port: if port_present {
+					Present(port_value)
+				} else {
+					Absent
+				},
+			})
+	}
+
+	## A protocol-neutral parsed request target.
+	##
+	## Resource paths and queries remain percent-encoded. `Absent` query differs
+	## from `Present("")`, preserving the distinction between `/path` and
+	## `/path?`. Origin-form and absolute-form requests produce the same Resource
+	## shape. CONNECT authority-form and OPTIONS `*` remain distinct, so neither
+	## can accidentally enter ordinary resource routing.
+	Target := [
+		Resource(
+			{
+				raw_path : Str,
+				raw_query : [Absent, Present(Str)],
+			},
+		),
+		Authority(Authority),
+		Asterisk,
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		from_host : U8, Str, Bool, Str, Str, Bool, U16 -> Target
+		from_host = |tag, raw_path, query_present, raw_query, authority_host, authority_port_present, authority_port|
+			match tag {
+				0 => Resource({
+					raw_path,
+					raw_query: if query_present {
+						Present(raw_query)
+					} else {
+						Absent
+					},
+				})
+				1 => Authority(Authority.from_host(authority_host, authority_port_present, authority_port))
+				_ => Asterisk
+			}
+	}
+
 	## An inbound server request. Its body is always streaming; use
 	## [`Body.read_all!`](#Server.Body.read_all!) only when a bounded complete
 	## body is appropriate.
 	Request := {
 		method : Method.Method,
 		headers : List(Header.Header),
-		target : Str,
+		target : Target,
+		authority : [Absent, Present(Authority)],
 		body : Body,
 	}.{
 
@@ -710,21 +776,32 @@ Server :: [].{
 		headers : Request -> List(Header.Header)
 		headers = |request| request.headers
 
-		## Return the request target, including any query string.
-		target : Request -> Str
+		## Return the validated, protocol-neutral request target.
+		target : Request -> Target
 		target = |request| request.target
+
+		## Return the effective request authority, when present.
+		##
+		## HTTP/1.1 requires exactly one valid Host field. Absolute-form and
+		## CONNECT authority-form take precedence over that field. HTTP/2 uses
+		## `:authority`, falls back to Host when absent, and rejects disagreement
+		## when both are present. A present but empty Host field represents
+		## `Absent`, as required when the target authority is undefined.
+		authority : Request -> [Absent, Present(Authority)]
+		authority = |request| request.authority
 
 		## Return the request-scoped streaming body capability.
 		body : Request -> Body
 		body = |request| request.body
 
 		## Platform ABI conversion hook; not an application API.
-		from_host : Method.Method, List(Header.Header), Str, Body -> Request
-		from_host = |method_value, header_values, target_value, body_value|
+		from_host : Method.Method, List(Header.Header), Target, [Absent, Present(Authority)], Body -> Request
+		from_host = |method_value, header_values, target_value, authority_value, body_value|
 			Request.{
 				method: method_value,
 				headers: header_values,
 				target: target_value,
+				authority: authority_value,
 				body: body_value,
 			}
 	}

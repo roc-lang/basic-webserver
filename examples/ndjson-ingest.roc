@@ -307,8 +307,8 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, db| {
 	response =
 		match (request.method(), request.target()) {
-			(POST, "/events") => ingest_events!(db, request)
-			(GET, "/events/count") => event_count!(db)
+			(POST, Resource({ raw_path: "/events", .. })) => ingest_events!(db, request)
+			(GET, Resource({ raw_path: "/events/count", .. })) => event_count!(db)
 			_ => text_response(404, "Not found.")
 		}
 
