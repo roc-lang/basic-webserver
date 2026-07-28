@@ -11,6 +11,13 @@ import Path
 ## results are selected by the expected Roc type. Structural records derive
 ## their parser automatically when their fields use supported SQLite types.
 ##
+## Treat `query` as trusted, application-owned SQL. Never interpolate request
+## data or other untrusted values into it. Pass data values through `params`,
+## which uses SQLite parameter binding rather than manual escaping. Parameters
+## cannot represent identifiers or SQL syntax; choose dynamic identifiers and
+## clauses from an application-controlled allowlist before constructing a
+## query.
+##
 ## ```roc
 ## Todo : { id : I64, task : Str }
 ##
