@@ -1320,41 +1320,46 @@ const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_c9d7cf274e6253
+/// Element type for __AnonStruct_156683468cdd3baf
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructC9d7cf274e6253 {
-    pub config: AnonStruct5544d9f4d7da9aed,
+pub struct AnonStruct156683468cdd3baf {
+    pub config: AnonStructF416749c63976d29,
     pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_c9d7cf274e6253
+/// Element type for __AnonStruct_156683468cdd3baf
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructC9d7cf274e6253 {
-    pub config: AnonStruct5544d9f4d7da9aed,
+pub struct AnonStruct156683468cdd3baf {
+    pub config: AnonStructF416749c63976d29,
     pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructC9d7cf274e6253>() == 176, "AnonStructC9d7cf274e6253 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct156683468cdd3baf>() == 216, "AnonStruct156683468cdd3baf size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructC9d7cf274e6253>() == 8, "AnonStructC9d7cf274e6253 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct156683468cdd3baf>() == 8, "AnonStruct156683468cdd3baf alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructC9d7cf274e6253>() == 120, "AnonStructC9d7cf274e6253 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct156683468cdd3baf>() == 160, "AnonStruct156683468cdd3baf size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructC9d7cf274e6253>() == 8, "AnonStructC9d7cf274e6253 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct156683468cdd3baf>() == 8, "AnonStruct156683468cdd3baf alignment mismatch");
 
-/// Element type for __AnonStruct_5544d9f4d7da9aed
+/// Element type for __AnonStruct_f416749c63976d29
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct5544d9f4d7da9aed {
+pub struct AnonStructF416749c63976d29 {
+    pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
+    pub handler_queue_timeout_ms: u64,
+    pub header_timeout_ms: u64,
     pub hook_timeout_ms: u64,
+    pub keep_alive_idle_timeout_ms: u64,
+    pub response_idle_timeout_ms: u64,
     pub file_roots: RocList<AnonStruct3b01e35488cb00dc>,
     pub host: RocStr,
     pub liveness_routes: RocList<RocStr>,
@@ -1370,14 +1375,19 @@ pub struct AnonStruct5544d9f4d7da9aed {
     pub port: u16,
 }
 
-/// Element type for __AnonStruct_5544d9f4d7da9aed
+/// Element type for __AnonStruct_f416749c63976d29
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct5544d9f4d7da9aed {
+pub struct AnonStructF416749c63976d29 {
+    pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
+    pub handler_queue_timeout_ms: u64,
+    pub header_timeout_ms: u64,
     pub hook_timeout_ms: u64,
+    pub keep_alive_idle_timeout_ms: u64,
+    pub response_idle_timeout_ms: u64,
     pub file_roots: RocList<AnonStruct3b01e35488cb00dc>,
     pub host: RocStr,
     pub liveness_routes: RocList<RocStr>,
@@ -1394,13 +1404,13 @@ pub struct AnonStruct5544d9f4d7da9aed {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct5544d9f4d7da9aed>() == 168, "AnonStruct5544d9f4d7da9aed size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF416749c63976d29>() == 208, "AnonStructF416749c63976d29 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct5544d9f4d7da9aed>() == 8, "AnonStruct5544d9f4d7da9aed alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF416749c63976d29>() == 8, "AnonStructF416749c63976d29 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct5544d9f4d7da9aed>() == 112, "AnonStruct5544d9f4d7da9aed size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF416749c63976d29>() == 152, "AnonStructF416749c63976d29 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct5544d9f4d7da9aed>() == 8, "AnonStruct5544d9f4d7da9aed alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF416749c63976d29>() == 8, "AnonStructF416749c63976d29 alignment mismatch");
 
 /// Element type for __AnonStruct_3b01e35488cb00dc
 #[cfg(target_pointer_width = "32")]
@@ -3539,7 +3549,7 @@ pub enum HostRequestBodyReadResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostRequestBodyReadResultPayload {
-    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>,
+    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>,
     pub ok: core::mem::ManuallyDrop<ChunkOrEnd>,
 }
 
@@ -3569,12 +3579,12 @@ pub struct HostRequestBodyReadResult {
 
 impl HostRequestBodyReadResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge) }
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -3603,54 +3613,56 @@ const _: () = assert!(core::mem::align_of::<HostRequestBodyReadResult>() == 8, "
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostRequestBodyReadResult, tag) == 24, "HostRequestBodyReadResult tag offset mismatch");
 
-/// Tag discriminant for CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge.
+/// Tag discriminant for CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag {
+pub enum CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag {
     Cancelled = 0,
     ClientDisconnected = 1,
     ConcurrentRead = 2,
     InvalidBody = 3,
     RequestFinished = 4,
-    TooLarge = 5,
+    Timeout = 5,
+    TooLarge = 6,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayload {
+pub union CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload {
     pub cancelled: [u8; 0],
     pub client_disconnected: [u8; 0],
     pub concurrent_read: [u8; 0],
     pub invalid_body: core::mem::ManuallyDrop<RocStr>,
     pub request_finished: [u8; 0],
+    pub timeout: [u8; 0],
     pub too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
 }
 
 #[cfg(target_pointer_width = "32")]
 #[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayloadAlignment;
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayloadAlignment;
 
-/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge
+/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
-    pub _payload_alignment: [CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayloadAlignment; 0],
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+    pub _payload_alignment: [CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayloadAlignment; 0],
     pub payload: [u8; 16],
-    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag,
+    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag,
 }
 
-/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge
+/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
-    pub payload: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayload,
-    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag,
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+    pub payload: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload,
+    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag,
 }
 
-impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
+impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_invalid_body(&self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
@@ -3674,17 +3686,17 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>() == 32, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 32, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge, tag) == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge, tag) == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>() == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge, tag) == 16, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge, tag) == 16, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge tag offset mismatch");
 
 /// Tag discriminant for ChunkOrEnd.
 #[repr(u8)]
@@ -3762,7 +3774,7 @@ pub enum HostRequestBodyReadAllResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostRequestBodyReadAllResultPayload {
-    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge>,
+    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>,
     pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
 }
 
@@ -3792,12 +3804,12 @@ pub struct HostRequestBodyReadAllResult {
 
 impl HostRequestBodyReadAllResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge) }
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -5091,7 +5103,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStructC9d7cf274e6253>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct156683468cdd3baf>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -5105,7 +5117,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 120],
+    pub payload: [u8; 160],
     pub tag: InitForHostResultTag,
 }
 
@@ -5130,29 +5142,29 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStructC9d7cf274e6253 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructC9d7cf274e6253) }
+    pub fn payload_ok(&self) -> AnonStruct156683468cdd3baf {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct156683468cdd3baf) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStructC9d7cf274e6253 {
+    pub fn payload_ok(&self) -> AnonStruct156683468cdd3baf {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 184, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 224, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 176, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 216, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 128, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 168, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 120, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 160, "InitForHostResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -6019,7 +6031,7 @@ pub struct HostReadinessSetArgs {
 }
 
 /// Arguments for Host.request_body_read!
-/// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -6029,7 +6041,7 @@ pub struct HostRequestBodyReadArgs {
 }
 
 /// Arguments for Host.request_body_read_all!
-/// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -6373,17 +6385,17 @@ pub type HostHttpSendRequestOkHeaders = AnonStruct82a96c5d55d63488;
 pub type HostPathTypeArg0 = AnonStruct2e21b53659f79626;
 pub type HostPathTypeOk = AnonStruct8dfa7f17f2083a52;
 pub type HostReadinessSetErr = InvalidReadinessOrServerStoppingOrStaleReadiness;
-pub type HostRequestBodyReadErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge;
-pub type HostRequestBodyReadErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayload;
-pub type HostRequestBodyReadErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag;
+pub type HostRequestBodyReadErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge;
+pub type HostRequestBodyReadErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload;
+pub type HostRequestBodyReadErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag;
 pub type HostRequestBodyReadErrTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostRequestBodyReadOk = ChunkOrEnd;
 pub type HostRequestBodyReadOkPayload = ChunkOrEndPayload;
 pub type HostRequestBodyReadOkTag = ChunkOrEndTag;
-pub type CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTooLarge = AnonStruct3c19acd0e825703f;
-pub type HostRequestBodyReadAllErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge;
-pub type HostRequestBodyReadAllErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargePayload;
-pub type HostRequestBodyReadAllErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag;
+pub type CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTooLarge = AnonStruct3c19acd0e825703f;
+pub type HostRequestBodyReadAllErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge;
+pub type HostRequestBodyReadAllErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload;
+pub type HostRequestBodyReadAllErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag;
 pub type HostRequestBodyReadAllErrTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostSqliteBeginErr = AnonStruct22cf486058afc711;
 pub type HostSqliteColumnsErr = AnonStruct22cf486058afc711;
@@ -6424,8 +6436,8 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStructC9d7cf274e6253;
-pub type InitForHostOkConfig = AnonStruct5544d9f4d7da9aed;
+pub type InitForHostOk = AnonStruct156683468cdd3baf;
+pub type InitForHostOkConfig = AnonStructF416749c63976d29;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeFileRoutes = AnonStructFf6f93028827ced0;
 pub type InitForHostOkConfigReadinessRoutes = AnonStruct88f5430c7a4d7d9d;
@@ -7862,7 +7874,7 @@ impl HostRequestBodyReadResult {
     }
 }
 
-impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLarge {
+impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -7871,15 +7883,16 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
         let value = self;
         let _ = roc_host;
         match value.tag {
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::Cancelled => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::ClientDisconnected => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::ConcurrentRead => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::InvalidBody => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::InvalidBody => {
                 let payload = value.payload_invalid_body();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::RequestFinished => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::TooLarge => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::TooLarge => {
                 let payload = value.payload_too_large();
                 unsafe { payload.decref(roc_host); }
             },
@@ -7895,15 +7908,16 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
         let value = self;
         let _ = amount;
         match value.tag {
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::Cancelled => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::ClientDisconnected => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::ConcurrentRead => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::InvalidBody => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::InvalidBody => {
                 let payload = value.payload_invalid_body();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::RequestFinished => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTooLargeTag::TooLarge => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::TooLarge => {
                 let payload = value.payload_too_large();
                 unsafe { payload.incref(amount); }
             },
@@ -8837,7 +8851,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStructC9d7cf274e6253 {
+impl AnonStruct156683468cdd3baf {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -8860,7 +8874,7 @@ impl AnonStructC9d7cf274e6253 {
     }
 }
 
-impl AnonStruct5544d9f4d7da9aed {
+impl AnonStructF416749c63976d29 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -9291,11 +9305,11 @@ unsafe extern "C" {
     pub fn hosted_readiness_set(arg0: *mut u64, arg1: bool) -> HostReadinessSetResult;
 
     /// Hosted symbol for Host.request_body_read!
-    /// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    /// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
     pub fn hosted_request_body_read(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadResult;
 
     /// Hosted symbol for Host.request_body_read_all!
-    /// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    /// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
     pub fn hosted_request_body_read_all(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadAllResult;
 
     /// Hosted symbol for Host.sleep_millis!

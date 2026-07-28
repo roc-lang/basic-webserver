@@ -58,6 +58,28 @@ Server :: [].{
 	default_max_queued_handlers : U16
 	default_max_queued_handlers = 64
 
+	## Default maximum idle time for completing each request head: 10 seconds.
+	default_header_timeout_ms : U64
+	default_header_timeout_ms = 10_000
+
+	## Default maximum idle time between non-empty request-body chunks: 30 seconds.
+	default_body_idle_timeout_ms : U64
+	default_body_idle_timeout_ms = 30_000
+
+	## Default maximum idle time between requests on a persistent connection:
+	## 60 seconds.
+	default_keep_alive_idle_timeout_ms : U64
+	default_keep_alive_idle_timeout_ms = 60_000
+
+	## Default maximum time an admitted request may wait for a Roc handler:
+	## 5 seconds.
+	default_handler_queue_timeout_ms : U64
+	default_handler_queue_timeout_ms = 5_000
+
+	## Default maximum time without outbound transport progress: 30 seconds.
+	default_response_idle_timeout_ms : U64
+	default_response_idle_timeout_ms = 30_000
+
 	## Default maximum number of host-managed file responses that may be active
 	## concurrently. File transfers do not consume Roc handler capacity.
 	default_max_file_transfers : U16
@@ -408,6 +430,13 @@ Server :: [].{
 					chunk_bytes : U32,
 					buffered_chunks : U16,
 				},
+				timeouts : {
+					header_ms : U64,
+					body_idle_ms : U64,
+					keep_alive_idle_ms : U64,
+					handler_queue_ms : U64,
+					response_idle_ms : U64,
+				},
 				graceful_shutdown : {
 					drain_timeout_ms : U64,
 					hook_timeout_ms : U64,
@@ -431,6 +460,11 @@ Server :: [].{
 			body_max_bytes : U64,
 			body_chunk_bytes : U32,
 			body_buffered_chunks : U16,
+			header_timeout_ms : U64,
+			body_idle_timeout_ms : U64,
+			keep_alive_idle_timeout_ms : U64,
+			handler_queue_timeout_ms : U64,
+			response_idle_timeout_ms : U64,
 			drain_timeout_ms : U64,
 			hook_timeout_ms : U64,
 			max_connections : U32,
@@ -469,6 +503,11 @@ Server :: [].{
 			body_max_bytes: config.request_bodies.max_bytes,
 			body_chunk_bytes: config.request_bodies.chunk_bytes,
 			body_buffered_chunks: config.request_bodies.buffered_chunks,
+			header_timeout_ms: config.timeouts.header_ms,
+			body_idle_timeout_ms: config.timeouts.body_idle_ms,
+			keep_alive_idle_timeout_ms: config.timeouts.keep_alive_idle_ms,
+			handler_queue_timeout_ms: config.timeouts.handler_queue_ms,
+			response_idle_timeout_ms: config.timeouts.response_idle_ms,
 			drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
 			hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
 			max_connections: config.limits.max_connections,
@@ -501,6 +540,13 @@ Server :: [].{
 			chunk_bytes: default_body_chunk_bytes,
 			buffered_chunks: default_buffered_body_chunks,
 		},
+		timeouts: {
+			header_ms: default_header_timeout_ms,
+			body_idle_ms: default_body_idle_timeout_ms,
+			keep_alive_idle_ms: default_keep_alive_idle_timeout_ms,
+			handler_queue_ms: default_handler_queue_timeout_ms,
+			response_idle_ms: default_response_idle_timeout_ms,
+		},
 		graceful_shutdown: {
 			drain_timeout_ms: 30_000,
 			hook_timeout_ms: 10_000,
@@ -530,6 +576,21 @@ Server :: [].{
 	with_request_body_limit : Config, U64 -> Config
 	with_request_body_limit = |Config(config), max_bytes|
 		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
+
+	## Set the complete inbound and outbound transport timeout policy. Every
+	## value is milliseconds in the inclusive range 1 through 86_400_000; zero
+	## is invalid and startup fails before listening.
+	##
+	## `header_ms` is an idle deadline while completing a request head and
+	## resets whenever head bytes arrive. `body_idle_ms` begins when the host
+	## waits for the next body frame and resets only after non-empty body data
+	## arrives. `keep_alive_idle_ms` begins after a response has completed and
+	## bounds the gap before the next request. `handler_queue_ms` begins after a
+	## request takes a queue slot and ends before Roc execution begins.
+	## `response_idle_ms` begins when response transmission starts and resets
+	## whenever the socket or HTTP/2 stream flow-control window makes progress.
+	with_timeouts : Config, { header_ms : U64, body_idle_ms : U64, keep_alive_idle_ms : U64, handler_queue_ms : U64, response_idle_ms : U64 } -> Config
+	with_timeouts = |Config(config), timeouts| Config({ ..config, timeouts })
 
 	## Set the request-drain deadline and final shutdown-hook deadline.
 	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
@@ -565,6 +626,7 @@ Server :: [].{
 		## A typed failure while consuming an inbound request body.
 		Err : [
 			TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+			Timeout,
 			ClientDisconnected,
 			InvalidBody(Str),
 			RequestFinished,
@@ -803,6 +865,7 @@ body_err_from_host : Host.RequestBodyErr -> Server.Body.Err
 body_err_from_host = |err|
 	match err {
 		TooLarge(payload) => TooLarge(payload)
+		Timeout => Timeout
 		ClientDisconnected => ClientDisconnected
 		InvalidBody(detail) => InvalidBody(detail)
 		RequestFinished => RequestFinished

@@ -136,6 +136,68 @@
             {
               "raw": true,
               "half_close": false,
+              "expect_close": true,
+              "fragments": [
+                {
+                  "data": "GET /incomplete HTTP/1.1\r\nHost: local",
+                  "delay_ms": 200
+                }
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "expect_close": true,
+              "fragments": [
+                {
+                  "data": "POST /body-timeout HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nConnection: close\r\n\r\na",
+                  "delay_ms": 200
+                }
+              ],
+              "response_contains": [
+                "HTTP/1.1 408 Request Timeout",
+                "Request body timed out"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "expect_close": true,
+              "fragments": [
+                {
+                  "data": "POST /body-progress HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nConnection: close\r\n\r\na",
+                  "delay_ms": 60
+                },
+                {
+                  "data": "b"
+                }
+              ],
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "\r\n\r\nab"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "expect_close": true,
+              "data": "GET /keep-alive HTTP/1.1\r\nHost: localhost\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 200 OK"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "expect_close": true,
+              "data": "GET /reuse-one HTTP/1.1\r\nHost: localhost\r\n\r\nGET /reuse-two HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+              "response_regex": [
+                "HTTP/1\\.1 200 OK.*HTTP/1\\.1 200 OK"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
               "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
               "response_contains": [
                 "HTTP/1.1 400 Bad Request",

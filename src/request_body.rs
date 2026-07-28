@@ -18,6 +18,7 @@ use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use std::sync::atomic::{AtomicIsize, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, TryLockError};
+use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 
 const REQUEST_BODY_TOKEN: u64 = 0x5245_5142_4f44_5931;
@@ -63,6 +64,7 @@ pub(crate) enum BodyError {
         limit_bytes: u64,
         received_at_least: u64,
     },
+    Timeout,
     ClientDisconnected,
     InvalidBody(String),
     RequestFinished,
@@ -273,13 +275,18 @@ impl BodyPump {
 
     /// Pump byte frames into the bounded request channel. Frames are split so
     /// every Roc-visible chunk is at most `chunk_size` bytes.
-    pub(crate) async fn run<S>(mut self, stream: S, chunk_size: usize)
+    pub(crate) async fn run<S>(mut self, stream: S, chunk_size: usize, idle_timeout: Duration)
     where
         S: Stream<Item = Result<Bytes, PumpError>>,
     {
         assert!(chunk_size > 0, "request body chunk size must be nonzero");
+        assert!(
+            !idle_timeout.is_zero(),
+            "request body timeout must be nonzero"
+        );
         futures::pin_mut!(stream);
         let mut received = 0u64;
+        let mut deadline = tokio::time::Instant::now() + idle_timeout;
 
         loop {
             let next = tokio::select! {
@@ -288,7 +295,15 @@ impl BodyPump {
                     let _ = changed;
                     return;
                 }
-                next = stream.next() => next,
+                next = tokio::time::timeout_at(deadline, stream.next()) => {
+                    match next {
+                        Ok(next) => next,
+                        Err(_) => {
+                            self.send(PumpMessage::Error(BodyError::Timeout)).await;
+                            return;
+                        }
+                    }
+                },
             };
 
             match next {
@@ -328,6 +343,9 @@ impl BodyPump {
                             return;
                         }
                     }
+                    // Time spent backpressured on the bounded Roc channel is
+                    // application consumption time, not peer idleness.
+                    deadline = tokio::time::Instant::now() + idle_timeout;
                 }
             }
         }
@@ -842,6 +860,7 @@ fn to_host_error(error: BodyError) -> BodyReadError {
                 received_at_least,
             }),
         ),
+        BodyError::Timeout => body_error(BodyReadErrorTag::Timeout, None, None),
         BodyError::ClientDisconnected => {
             body_error(BodyReadErrorTag::ClientDisconnected, None, None)
         }
@@ -903,6 +922,10 @@ mod tests {
         Ok(Bytes::from_static(value))
     }
 
+    fn test_idle_timeout() -> Duration {
+        Duration::from_secs(1)
+    }
+
     fn new_registration(hard_limit: u64, declared_length: Option<u64>) -> BodyRegistration {
         register(hard_limit, 1, declared_length, test_host())
     }
@@ -952,7 +975,7 @@ mod tests {
         });
         registration
             .pump
-            .run(stream::iter(frames), chunk_size)
+            .run(stream::iter(frames), chunk_size, test_idle_timeout())
             .await;
         reader.join().expect("reader thread panicked")
     }
@@ -996,7 +1019,7 @@ mod tests {
         });
         registration
             .pump
-            .run(stream::iter(vec![bytes(b"abcd")]), 2)
+            .run(stream::iter(vec![bytes(b"abcd")]), 2, test_idle_timeout())
             .await;
         assert_eq!(
             reader.join().unwrap(),
@@ -1019,7 +1042,7 @@ mod tests {
         });
         registration
             .pump
-            .run(stream::iter(vec![bytes(b"abcdef")]), 8)
+            .run(stream::iter(vec![bytes(b"abcdef")]), 8, test_idle_timeout())
             .await;
         assert_eq!(
             reader.join().unwrap(),
@@ -1042,7 +1065,11 @@ mod tests {
         });
         registration
             .pump
-            .run(stream::iter(vec![bytes(b""), bytes(b"abcdefg")]), 3)
+            .run(
+                stream::iter(vec![bytes(b""), bytes(b"abcdefg")]),
+                3,
+                test_idle_timeout(),
+            )
             .await;
         assert_eq!(
             reader.join().unwrap(),
@@ -1068,7 +1095,7 @@ mod tests {
         });
         registration
             .pump
-            .run(stream::iter(vec![bytes(b"abcdef")]), 2)
+            .run(stream::iter(vec![bytes(b"abcdef")]), 2, test_idle_timeout())
             .await;
         assert_eq!(reader.join().unwrap(), b"cdef");
     }
@@ -1076,7 +1103,10 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn end_and_source_errors_are_stable() {
         let registration = new_registration(10, None);
-        registration.pump.run(stream::empty(), 4).await;
+        registration
+            .pump
+            .run(stream::empty(), 4, test_idle_timeout())
+            .await;
         assert_eq!(
             read_on_thread(&registration.handle, 10),
             Ok(ReadResult::End)
@@ -1092,6 +1122,7 @@ mod tests {
             .run(
                 stream::iter(vec![Err(PumpError::InvalidBody("bad frame".into()))]),
                 4,
+                test_idle_timeout(),
             )
             .await;
         let expected = Err(BodyError::InvalidBody("bad frame".into()));
@@ -1104,11 +1135,67 @@ mod tests {
         let registration = new_registration(10, None);
         registration
             .pump
-            .run(stream::iter(vec![Err(PumpError::ClientDisconnected)]), 4)
+            .run(
+                stream::iter(vec![Err(PumpError::ClientDisconnected)]),
+                4,
+                test_idle_timeout(),
+            )
             .await;
         assert_eq!(
             read_on_thread(&registration.handle, 10),
             Err(BodyError::ClientDisconnected)
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn stalled_body_becomes_a_stable_typed_timeout() {
+        let registration = new_registration(10, Some(1));
+        let reader_handle = registration.handle.clone();
+        let reader = thread::spawn(move || reader_handle.read(10));
+
+        registration
+            .pump
+            .run(stream::pending(), 4, Duration::from_millis(20))
+            .await;
+
+        assert_eq!(reader.join().unwrap(), Err(BodyError::Timeout));
+        assert_eq!(
+            read_on_thread(&registration.handle, 10),
+            Err(BodyError::Timeout)
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn nonempty_progress_resets_the_body_idle_deadline() {
+        let registration = new_registration(10, Some(2));
+        let reader_handle = registration.handle.clone();
+        let reader = thread::spawn(move || {
+            let first = reader_handle.read(10);
+            let second = reader_handle.read(10);
+            let end = reader_handle.read(10);
+            (first, second, end)
+        });
+        let frames = stream::once(async {
+            tokio::time::sleep(Duration::from_millis(15)).await;
+            bytes(b"a")
+        })
+        .chain(stream::once(async {
+            tokio::time::sleep(Duration::from_millis(15)).await;
+            bytes(b"b")
+        }));
+
+        registration
+            .pump
+            .run(frames, 4, Duration::from_millis(25))
+            .await;
+
+        assert_eq!(
+            reader.join().unwrap(),
+            (
+                Ok(ReadResult::Chunk(Bytes::from_static(b"a"))),
+                Ok(ReadResult::Chunk(Bytes::from_static(b"b"))),
+                Ok(ReadResult::End),
+            )
         );
     }
 
@@ -1146,11 +1233,11 @@ mod tests {
     async fn bounded_channel_backpressures_and_cancellation_stops_the_pump() {
         let registration = new_registration(100, None);
         let handle = registration.handle;
-        let pump = tokio::spawn(
-            registration
-                .pump
-                .run(stream::iter(vec![bytes(b"a"), bytes(b"b"), bytes(b"c")]), 1),
-        );
+        let pump = tokio::spawn(registration.pump.run(
+            stream::iter(vec![bytes(b"a"), bytes(b"b"), bytes(b"c")]),
+            1,
+            test_idle_timeout(),
+        ));
         tokio::time::sleep(Duration::from_millis(10)).await;
         assert!(!pump.is_finished());
         assert_eq!(
@@ -1170,7 +1257,11 @@ mod tests {
 
         let registration = new_registration(100, None);
         let handle = registration.handle;
-        let pump = tokio::spawn(registration.pump.run(stream::pending(), 1));
+        let pump = tokio::spawn(
+            registration
+                .pump
+                .run(stream::pending(), 1, test_idle_timeout()),
+        );
         tokio::time::sleep(Duration::from_millis(10)).await;
         assert!(!pump.is_finished());
         handle.cancel();
@@ -1198,8 +1289,12 @@ mod tests {
         });
 
         tokio::join!(
-            first.pump.run(stream::iter(vec![bytes(b"first")]), 2),
-            second.pump.run(stream::iter(vec![bytes(b"second")]), 2),
+            first
+                .pump
+                .run(stream::iter(vec![bytes(b"first")]), 2, test_idle_timeout(),),
+            second
+                .pump
+                .run(stream::iter(vec![bytes(b"second")]), 2, test_idle_timeout(),),
         );
         assert_eq!(first_reader.join().unwrap(), b"first");
         assert_eq!(second_reader.join().unwrap(), b"second");
@@ -1215,7 +1310,7 @@ mod tests {
         let reader = thread::spawn(move || reader_handle.read(100).unwrap());
         registration
             .pump
-            .run(stream::iter(vec![Ok(sliced)]), 100)
+            .run(stream::iter(vec![Ok(sliced)]), 100, test_idle_timeout())
             .await;
         let ReadResult::Chunk(chunk) = reader.join().unwrap() else {
             panic!("expected chunk");

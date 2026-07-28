@@ -1349,6 +1349,7 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
     if not isinstance(fragments, list):
         fail(f"{owner}: raw fragments must be an array")
     received = bytearray()
+    closed = False
     with socket.create_connection(("127.0.0.1", port), timeout=float(request.get("timeout", 5))) as sock:
         sock.settimeout(float(request.get("timeout", 5)))
         for fragment in fragments:
@@ -1369,8 +1370,11 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
             except TimeoutError:
                 break
             if not chunk:
+                closed = True
                 break
             received.extend(chunk)
+    if request.get("expect_close", False) and not closed:
+        fail(f"{owner}: raw connection did not close before its socket timeout")
     if "response_exact_hex" in request:
         expected = bytes.fromhex(str(request["response_exact_hex"]))
         if received != expected:

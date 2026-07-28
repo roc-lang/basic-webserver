@@ -28,6 +28,7 @@ mod request_body;
 mod request_parts;
 mod roc_alloc;
 mod roc_platform_abi;
+mod server_transport;
 mod shutdown;
 mod sqlite;
 mod stdio;

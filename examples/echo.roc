@@ -14,7 +14,20 @@ Context : {}
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, context: {} })
+init! = ||
+	Ok({
+		config: Server.with_timeouts(
+			Server.default_config,
+			{
+				header_ms: 100,
+				body_idle_ms: 100,
+				keep_alive_idle_ms: 150,
+				handler_queue_ms: Server.default_handler_queue_timeout_ms,
+				response_idle_ms: Server.default_response_idle_timeout_ms,
+			},
+		),
+		context: {},
+	})
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, _context| {
@@ -29,8 +42,13 @@ respond! = |req, _context| {
 			Err(err) => return Err(ServerErr("Failed to read request body: ${Str.inspect(err)}"))
 		}
 	} else {
-		req.body().with_limit(64 * 1024).read_all!()
-			? |err| ServerErr("Failed to read request body: ${Str.inspect(err)}")
+		match req.body().with_limit(64 * 1024).read_all!() {
+			Ok(bytes) => bytes
+			Err(RequestBodyErr(Timeout)) =>
+				return Ok(Server.respond(Response.from_status(408).with_body(Str.to_utf8("Request body timed out"))))
+			Err(RequestBodyErr(err)) =>
+				return Err(ServerErr("Failed to read request body: ${Str.inspect(err)}"))
+			}
 	}
 	Ok(Server.respond(Response.from_status(200).with_body(body)))
 }

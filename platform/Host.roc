@@ -67,6 +67,7 @@ Host := [].{
 
 	RequestBodyErr : [
 		TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+		Timeout,
 		ClientDisconnected,
 		InvalidBody(Str),
 		RequestFinished,

@@ -9,7 +9,8 @@ use crate::compression::{
     AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
 };
 use crate::file_server::{
-    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, ServerResponse,
+    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, ServerBody,
+    ServerResponse,
 };
 use crate::native_router::{
     FileRouteKind, FileRouteSpec, NativeMatch, NativeRouter, ReadinessRouteSpec,
@@ -18,23 +19,30 @@ use crate::readiness::ReadinessLease;
 use crate::request_body::{register as register_body, PumpError};
 use crate::request_parts::{request_target, RequestPartsBacking};
 use crate::roc_platform_abi::*;
-use crate::shutdown::{RequestTracker, ShutdownController, ShutdownReason};
+use crate::server_transport::{detect_protocol, Http1Activity, Http1Io, PrefixedStream, Protocol};
+use crate::shutdown::{ActiveRequest, RequestTracker, ShutdownController, ShutdownReason};
 use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::BodyExt;
 #[cfg(test)]
 use http_body_util::Full;
+use hyper::body::{Body, Frame, SizeHint};
 use hyper::header::CONTENT_LENGTH;
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use hyper_util::server::conn::auto;
+#[cfg(test)]
+use hyper_util::rt::TokioExecutor;
+use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::{spawn_blocking, JoinSet};
+
+const MAX_TRANSPORT_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
 
 #[derive(Clone)]
 struct RuntimeConfig {
@@ -46,6 +54,11 @@ struct RuntimeConfig {
     body_max_bytes: u64,
     body_chunk_bytes: usize,
     body_buffered_chunks: usize,
+    header_timeout: Duration,
+    body_idle_timeout: Duration,
+    keep_alive_idle_timeout: Duration,
+    handler_queue_timeout: Duration,
+    response_idle_timeout: Duration,
     drain_timeout: Duration,
     hook_timeout: Duration,
     files: FileService,
@@ -66,6 +79,16 @@ impl RuntimeConfig {
             }
             let (max_connections, max_handlers) =
                 validate_concurrency_limits(config.max_connections, config.max_handlers)?;
+            let header_timeout =
+                validate_transport_timeout("request head", config.header_timeout_ms)?;
+            let body_idle_timeout =
+                validate_transport_timeout("request body idle", config.body_idle_timeout_ms)?;
+            let keep_alive_idle_timeout =
+                validate_transport_timeout("keep-alive idle", config.keep_alive_idle_timeout_ms)?;
+            let handler_queue_timeout =
+                validate_transport_timeout("handler queue", config.handler_queue_timeout_ms)?;
+            let response_idle_timeout =
+                validate_transport_timeout("response idle", config.response_idle_timeout_ms)?;
             let roots = config
                 .file_roots
                 .as_slice()
@@ -106,6 +129,11 @@ impl RuntimeConfig {
                 body_max_bytes: config.body_max_bytes,
                 body_chunk_bytes: config.body_chunk_bytes as usize,
                 body_buffered_chunks: config.body_buffered_chunks as usize,
+                header_timeout,
+                body_idle_timeout,
+                keep_alive_idle_timeout,
+                handler_queue_timeout,
+                response_idle_timeout,
                 drain_timeout: Duration::from_millis(config.drain_timeout_ms),
                 hook_timeout: Duration::from_millis(config.hook_timeout_ms),
                 files,
@@ -131,6 +159,18 @@ impl RuntimeConfig {
             .try_into()
             .expect("validated handler capacity fits in u32")
     }
+}
+
+fn validate_transport_timeout(name: &str, milliseconds: u64) -> Result<Duration, String> {
+    if milliseconds == 0 {
+        return Err(format!("{name} timeout must be non-zero"));
+    }
+    if milliseconds > MAX_TRANSPORT_TIMEOUT_MS {
+        return Err(format!(
+            "{name} timeout cannot exceed {MAX_TRANSPORT_TIMEOUT_MS} milliseconds"
+        ));
+    }
+    Ok(Duration::from_millis(milliseconds))
 }
 
 fn file_root_from_roc(root: &ServerFileRoot) -> Result<FileRootSpec, String> {
@@ -249,19 +289,27 @@ impl HandlerAdmission {
         }
     }
 
-    async fn admit(&self) -> Option<ActiveHandler> {
+    async fn admit(&self, wait_timeout: Duration) -> Result<ActiveHandler, AdmissionError> {
         if let Ok(active) = Arc::clone(&self.active).try_acquire_owned() {
-            return Some(ActiveHandler { _permit: active });
+            return Ok(ActiveHandler { _permit: active });
         }
 
-        let queued = Arc::clone(&self.queued).try_acquire_owned().ok()?;
-        let active = Arc::clone(&self.active)
-            .acquire_owned()
+        let queued = Arc::clone(&self.queued)
+            .try_acquire_owned()
+            .map_err(|_| AdmissionError::Full)?;
+        let active = tokio::time::timeout(wait_timeout, Arc::clone(&self.active).acquire_owned())
             .await
+            .map_err(|_| AdmissionError::TimedOut)?
             .expect("handler admission semaphore is never closed");
         drop(queued);
-        Some(ActiveHandler { _permit: active })
+        Ok(ActiveHandler { _permit: active })
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AdmissionError {
+    Full,
+    TimedOut,
 }
 
 struct ActiveHandler {
@@ -705,6 +753,15 @@ fn overloaded() -> ServerResponse {
         .expect("static 503 response is valid")
 }
 
+fn handler_queue_timed_out() -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
+        .body(full_body(Bytes::from_static(
+            b"Server handler queue wait timed out",
+        )))
+        .expect("static 503 response is valid")
+}
+
 fn invalid_request_headers() -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::BAD_REQUEST)
@@ -723,137 +780,314 @@ fn payload_too_large(limit: u64) -> ServerResponse {
         .expect("static 413 response is valid")
 }
 
-async fn handle_req(
-    request: hyper::Request<hyper::body::Incoming>,
-    context: ServerContext,
+type RequestBodyStream =
+    Pin<Box<dyn futures::Stream<Item = Result<Bytes, PumpError>> + Send + 'static>>;
+
+struct TrackedResponseBody {
+    inner: ServerBody,
+    active_request: Option<Arc<ActiveRequest>>,
+    http1_activity: Option<Http1Activity>,
+    body_idle_timeout: Option<Duration>,
+    body_sleep: Option<Pin<Box<tokio::time::Sleep>>>,
+    body_waiting: bool,
+}
+
+impl TrackedResponseBody {
+    fn body_finished(&mut self) {
+        if let Some(activity) = self.http1_activity.take() {
+            activity.response_body_finished();
+        }
+    }
+
+    fn finish(&mut self) {
+        self.body_finished();
+        self.active_request.take();
+    }
+
+    fn body_progress(&mut self) {
+        self.body_waiting = false;
+    }
+
+    fn pending_body(
+        &mut self,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, std::io::Error>>> {
+        let Some(timeout) = self.body_idle_timeout else {
+            return Poll::Pending;
+        };
+        let sleep = self
+            .body_sleep
+            .as_mut()
+            .expect("an HTTP/1 body timeout has a timer");
+        if !self.body_waiting {
+            self.body_waiting = true;
+            sleep.as_mut().reset(tokio::time::Instant::now() + timeout);
+        }
+        if sleep.as_mut().poll(context).is_pending() {
+            return Poll::Pending;
+        }
+
+        self.finish();
+        Poll::Ready(Some(Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "response body made no progress before its deadline",
+        ))))
+    }
+}
+
+impl Body for TrackedResponseBody {
+    type Data = Bytes;
+    type Error = std::io::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        match Pin::new(&mut this.inner).poll_frame(context) {
+            Poll::Ready(None) => {
+                this.finish();
+                Poll::Ready(None)
+            }
+            Poll::Ready(Some(Err(error))) => {
+                this.finish();
+                Poll::Ready(Some(Err(error)))
+            }
+            Poll::Ready(Some(Ok(frame))) => {
+                let made_progress = frame.data_ref().is_some_and(|data| !data.is_empty())
+                    || frame.trailers_ref().is_some();
+                if made_progress {
+                    this.body_progress();
+                }
+                if this.inner.is_end_stream() {
+                    // Hyper may flush the final frame without polling the body
+                    // again. Publish completion while that flush is still
+                    // guaranteed to happen after this point.
+                    this.body_finished();
+                }
+                Poll::Ready(Some(Ok(frame)))
+            }
+            Poll::Pending => this.pending_body(context),
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+impl Drop for TrackedResponseBody {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
+fn track_response(
+    response: ServerResponse,
+    active_request: Option<Arc<ActiveRequest>>,
+    http1_activity: Option<Http1Activity>,
+    body_idle_timeout: Option<Duration>,
 ) -> ServerResponse {
+    response.map(|inner| {
+        let mut http1_activity = http1_activity;
+        if inner.is_end_stream() {
+            if let Some(activity) = http1_activity.take() {
+                activity.response_body_finished();
+            }
+        }
+        TrackedResponseBody {
+            inner,
+            active_request,
+            http1_activity,
+            body_idle_timeout,
+            body_sleep: body_idle_timeout.map(|timeout| Box::pin(tokio::time::sleep(timeout))),
+            body_waiting: false,
+        }
+        .boxed_unsync()
+    })
+}
+
+async fn handle_req(
+    parts: hyper::http::request::Parts,
+    body: RequestBodyStream,
+    context: ServerContext,
+    http1_activity: Option<Http1Activity>,
+) -> ServerResponse {
+    let body_idle_timeout = http1_activity
+        .as_ref()
+        .map(|_| context.config.response_idle_timeout);
     let active_request = match context.requests.begin() {
         Some(active) => Arc::new(active),
-        None => return service_unavailable(),
+        None => {
+            return track_response(
+                service_unavailable(),
+                None,
+                http1_activity,
+                body_idle_timeout,
+            )
+        }
     };
 
-    if let Some(native) = context
-        .config
-        .routes
-        .route(request.uri().path(), request.method())
+    let response = if let Some(native) =
+        context.config.routes.route(parts.uri.path(), &parts.method)
     {
-        let (parts, body) = request.into_parts();
         drop(body);
-        return match native {
+        match native {
             NativeMatch::File(plan) => {
                 context
                     .config
                     .files
-                    .serve(plan, parts.method, parts.headers, active_request)
+                    .serve(
+                        plan,
+                        parts.method,
+                        parts.headers,
+                        Arc::clone(&active_request),
+                    )
                     .await
             }
             NativeMatch::Probe(response) => response,
-        };
-    }
+        }
+    } else if !request_headers_are_utf8(&parts.headers) {
+        drop(body);
+        invalid_request_headers()
+    } else {
+        let declared_length = content_length(&parts.headers);
+        if declared_length.is_some_and(|length| length > context.config.body_max_bytes) {
+            drop(body);
+            payload_too_large(context.config.body_max_bytes)
+        } else {
+            let accepted_encodings = AcceptedEncodings::from_headers(&parts.headers);
+            let file_method = parts.method.clone();
+            let file_headers = parts.headers.clone();
+            let registration = register_body(
+                context.config.body_max_bytes,
+                context.config.body_buffered_chunks,
+                declared_length,
+                roc_host(),
+            );
+            let body_handle = registration.handle;
+            let body_pump = registration.pump;
+            let chunk_bytes = context.config.body_chunk_bytes;
+            let body_idle_timeout = context.config.body_idle_timeout;
+            tokio::spawn(async move { body_pump.run(body, chunk_bytes, body_idle_timeout).await });
 
-    if !request_headers_are_utf8(request.headers()) {
-        return invalid_request_headers();
-    }
+            match context
+                .handlers
+                .admit(context.config.handler_queue_timeout)
+                .await
+            {
+                Err(AdmissionError::Full) => overloaded(),
+                Err(AdmissionError::TimedOut) => handler_queue_timed_out(),
+                Ok(active_handler) => {
+                    let body_limit = context.config.body_max_bytes;
+                    let roc_context = Arc::clone(&context.roc_context);
+                    let handler_request = Arc::clone(&active_request);
+                    let handled = spawn_blocking(move || {
+                        // These guards intentionally live in the non-cancellable
+                        // blocking task. Aborting its Tokio JoinHandle must not
+                        // make shutdown believe Roc has stopped using its slot,
+                        // body, or immutable application context.
+                        let _active_request = handler_request;
+                        let _active_handler = active_handler;
+                        let roc_request = request_to_roc(
+                            parts,
+                            body_handle.retain_for_roc(),
+                            body_limit,
+                            declared_length,
+                        );
+                        let request_context = roc_context.retain_for_request();
+                        let result = call_roc(roc_request, request_context, accepted_encodings);
+                        body_handle.expire();
+                        result
+                    })
+                    .await;
 
-    let declared_length = content_length(request.headers());
-    if declared_length.is_some_and(|length| length > context.config.body_max_bytes) {
-        return payload_too_large(context.config.body_max_bytes);
-    }
-
-    let active_handler = match context.handlers.admit().await {
-        Some(active) => active,
-        None => return overloaded(),
+                    match handled {
+                        Ok(RocOutcome::Ordinary(response, Some(exit_code))) => {
+                            context
+                                .shutdown
+                                .request(ShutdownReason::ApplicationRequested { exit_code });
+                            response
+                        }
+                        Ok(RocOutcome::Ordinary(response, None)) => response,
+                        Ok(RocOutcome::File(plan)) => {
+                            context
+                                .config
+                                .files
+                                .serve(plan, file_method, file_headers, Arc::clone(&active_request))
+                                .await
+                        }
+                        Ok(RocOutcome::Invalid(detail)) => {
+                            eprintln!("Invalid Roc response plan: {detail}");
+                            internal_server_error("500 Internal Server Error")
+                        }
+                        Err(error) => {
+                            eprintln!("Recovered from calling Roc: {error:?}");
+                            internal_server_error("500 Internal Server Error")
+                        }
+                    }
+                }
+            }
+        }
     };
 
-    let (parts, body) = request.into_parts();
-    let file_method = parts.method.clone();
-    let file_headers = parts.headers.clone();
-    let accepted_encodings = AcceptedEncodings::from_headers(&parts.headers);
-    let registration = register_body(
-        context.config.body_max_bytes,
-        context.config.body_buffered_chunks,
-        declared_length,
-        roc_host(),
-    );
-    let stream = body
-        .into_data_stream()
-        .map(|frame| frame.map_err(request_body_error));
-    let chunk_bytes = context.config.body_chunk_bytes;
-    tokio::spawn(async move { registration.pump.run(stream, chunk_bytes).await });
-
-    let body_limit = context.config.body_max_bytes;
-    let body_handle = registration.handle;
-    let roc_context = Arc::clone(&context.roc_context);
-    let handler_request = Arc::clone(&active_request);
-    let handled = spawn_blocking(move || {
-        // These guards intentionally live in the non-cancellable blocking task.
-        // Aborting its Tokio JoinHandle must not make shutdown believe Roc has
-        // stopped using its handler slot, body, or immutable application
-        // context.
-        let _active_request = handler_request;
-        let _active_handler = active_handler;
-        let roc_request = request_to_roc(
-            parts,
-            body_handle.retain_for_roc(),
-            body_limit,
-            declared_length,
-        );
-        let request_context = roc_context.retain_for_request();
-        let result = call_roc(roc_request, request_context, accepted_encodings);
-        body_handle.expire();
-        result
-    })
-    .await;
-
-    match handled {
-        Ok(RocOutcome::Ordinary(response, Some(exit_code))) => {
-            context
-                .shutdown
-                .request(ShutdownReason::ApplicationRequested { exit_code });
-            response
-        }
-        Ok(RocOutcome::Ordinary(response, None)) => response,
-        Ok(RocOutcome::File(plan)) => {
-            context
-                .config
-                .files
-                .serve(plan, file_method, file_headers, active_request)
-                .await
-        }
-        Ok(RocOutcome::Invalid(detail)) => {
-            eprintln!("Invalid Roc response plan: {detail}");
-            internal_server_error("500 Internal Server Error")
-        }
-        Err(error) => {
-            eprintln!("Recovered from calling Roc: {error:?}");
-            internal_server_error("500 Internal Server Error")
-        }
-    }
+    track_response(
+        response,
+        Some(active_request),
+        http1_activity,
+        body_idle_timeout,
+    )
 }
 
 async fn handle_panics(
     future: impl Future<Output = ServerResponse>,
+    http1_activity: Option<Http1Activity>,
+    body_idle_timeout: Option<Duration>,
 ) -> Result<ServerResponse, Infallible> {
     match AssertUnwindSafe(future).catch_unwind().await {
         Ok(response) => Ok(response),
-        Err(_) => Ok(internal_server_error("Panic detected")),
+        Err(_) => Ok(track_response(
+            internal_server_error("Panic detected"),
+            None,
+            http1_activity,
+            body_idle_timeout,
+        )),
     }
 }
 
-fn connection_builder(max_http2_streams: u32) -> auto::Builder<TokioExecutor> {
-    let mut builder = auto::Builder::new(TokioExecutor::new());
-    builder.http2().max_concurrent_streams(max_http2_streams);
-    builder
-}
-
-async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
-    let io = TokioIo::new(stream);
+async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
+    let activity = Http1Activity::new();
+    let io = TokioIo::new(Http1Io::new(
+        stream,
+        activity.clone(),
+        context.config.header_timeout,
+        context.config.keep_alive_idle_timeout,
+        context.config.response_idle_timeout,
+    ));
     let service_context = context.clone();
-    let builder = connection_builder(context.config.max_http2_streams_per_connection());
-    let connection = builder.serve_connection(
+    let service_activity = activity.clone();
+    let connection = hyper::server::conn::http1::Builder::new().serve_connection(
         io,
-        hyper::service::service_fn(move |request| {
-            handle_panics(handle_req(request, service_context.clone()))
+        hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
+            service_activity.request_started();
+            let (parts, body) = request.into_parts();
+            let stream = body
+                .into_data_stream()
+                .map(|frame| frame.map_err(request_body_error));
+            handle_panics(
+                handle_req(
+                    parts,
+                    Box::pin(stream),
+                    service_context.clone(),
+                    Some(service_activity.clone()),
+                ),
+                Some(service_activity.clone()),
+                Some(service_context.config.response_idle_timeout),
+            )
         }),
     );
     tokio::pin!(connection);
@@ -870,6 +1104,236 @@ async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext)
                 eprintln!("Error draining connection: {error:?}");
             }
         }
+    }
+}
+
+fn h2_request_body(mut body: h2::RecvStream) -> RequestBodyStream {
+    Box::pin(futures::stream::poll_fn(move |context| {
+        match body.poll_data(context) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                if let Err(error) = body.flow_control().release_capacity(bytes.len()) {
+                    Poll::Ready(Some(Err(PumpError::InvalidBody(error.to_string()))))
+                } else {
+                    Poll::Ready(Some(Ok(bytes)))
+                }
+            }
+            Poll::Ready(Some(Err(error))) if error.is_reset() => {
+                Poll::Ready(Some(Err(PumpError::ClientDisconnected)))
+            }
+            Poll::Ready(Some(Err(error))) => {
+                Poll::Ready(Some(Err(PumpError::InvalidBody(error.to_string()))))
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }))
+}
+
+async fn send_h2_response(
+    mut responder: h2::server::SendResponse<Bytes>,
+    response: ServerResponse,
+    idle_timeout: Duration,
+) -> Result<(), String> {
+    let (parts, mut body) = response.into_parts();
+    let end_stream = body.is_end_stream();
+    let mut sender = responder
+        .send_response(hyper::Response::from_parts(parts, ()), end_stream)
+        .map_err(|error| error.to_string())?;
+    if end_stream {
+        return Ok(());
+    }
+
+    let mut deadline = tokio::time::Instant::now() + idle_timeout;
+    loop {
+        let frame = match tokio::time::timeout_at(deadline, body.frame()).await {
+            Ok(frame) => frame,
+            Err(_) => {
+                sender.send_reset(h2::Reason::CANCEL);
+                return Err("HTTP/2 response made no progress before its deadline".to_owned());
+            }
+        };
+        match frame {
+            Some(Ok(frame)) if frame.is_data() => {
+                let mut data = frame
+                    .into_data()
+                    .expect("a data frame contains a data buffer");
+                if data.is_empty() {
+                    continue;
+                }
+                while !data.is_empty() {
+                    sender.reserve_capacity(data.len());
+                    let capacity = match tokio::time::timeout_at(
+                        deadline,
+                        futures::future::poll_fn(|context| sender.poll_capacity(context)),
+                    )
+                    .await
+                    {
+                        Ok(Some(Ok(capacity))) if capacity > 0 => capacity,
+                        Ok(Some(Ok(_))) => continue,
+                        Ok(Some(Err(error))) => return Err(error.to_string()),
+                        Ok(None) => return Err("HTTP/2 response stream closed".to_owned()),
+                        Err(_) => {
+                            sender.send_reset(h2::Reason::CANCEL);
+                            return Err(
+                                "HTTP/2 response flow control made no progress before its deadline"
+                                    .to_owned(),
+                            );
+                        }
+                    };
+                    let count = capacity.min(data.len());
+                    let chunk = data.split_to(count);
+                    let end_stream = data.is_empty() && body.is_end_stream();
+                    sender
+                        .send_data(chunk, end_stream)
+                        .map_err(|error| error.to_string())?;
+                    deadline = tokio::time::Instant::now() + idle_timeout;
+                    if end_stream {
+                        return Ok(());
+                    }
+                }
+            }
+            Some(Ok(frame)) if frame.is_trailers() => {
+                sender
+                    .send_trailers(
+                        frame
+                            .into_trailers()
+                            .expect("a trailers frame contains headers"),
+                    )
+                    .map_err(|error| error.to_string())?;
+                return Ok(());
+            }
+            Some(Ok(_)) => {}
+            Some(Err(error)) => {
+                sender.send_reset(h2::Reason::INTERNAL_ERROR);
+                return Err(error.to_string());
+            }
+            None => {
+                sender
+                    .send_data(Bytes::new(), true)
+                    .map_err(|error| error.to_string())?;
+                return Ok(());
+            }
+        }
+    }
+}
+
+fn spawn_h2_request(
+    tasks: &mut JoinSet<()>,
+    request: hyper::Request<h2::RecvStream>,
+    responder: h2::server::SendResponse<Bytes>,
+    context: ServerContext,
+) {
+    tasks.spawn(async move {
+        let (parts, body) = request.into_parts();
+        let response = handle_panics(
+            handle_req(parts, h2_request_body(body), context.clone(), None),
+            None,
+            None,
+        )
+        .await
+        .expect("request panic conversion is infallible");
+        if let Err(error) =
+            send_h2_response(responder, response, context.config.response_idle_timeout).await
+        {
+            eprintln!("Error serving HTTP/2 response stream: {error}");
+        }
+    });
+}
+
+async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
+    let mut builder = h2::server::Builder::new();
+    builder
+        .max_concurrent_streams(context.config.max_http2_streams_per_connection())
+        // The response sender reserves exact flow-control capacity before
+        // handing bytes to h2; one 64 KiB flow-control grant is sufficient.
+        .max_send_buffer_size(64 * 1024);
+    let handshake = builder.handshake::<_, Bytes>(stream);
+    let mut connection = match tokio::time::timeout(context.config.header_timeout, handshake).await
+    {
+        Ok(Ok(connection)) => connection,
+        Ok(Err(error)) => {
+            eprintln!("Error establishing HTTP/2 connection: {error}");
+            return;
+        }
+        Err(_) => {
+            eprintln!("HTTP/2 preface timed out");
+            return;
+        }
+    };
+    let mut tasks = JoinSet::new();
+    let mut accepted_any = false;
+    let mut draining = false;
+
+    loop {
+        if tasks.is_empty() && !draining {
+            let idle_timeout = if accepted_any {
+                context.config.keep_alive_idle_timeout
+            } else {
+                context.config.header_timeout
+            };
+            tokio::select! {
+                _ = context.shutdown.requested() => {
+                    draining = true;
+                    connection.graceful_shutdown();
+                }
+                accepted = tokio::time::timeout(idle_timeout, connection.accept()) => {
+                    match accepted {
+                        Err(_) => return,
+                        Ok(Some(Ok((request, responder)))) => {
+                            accepted_any = true;
+                            spawn_h2_request(&mut tasks, request, responder, context.clone());
+                        }
+                        Ok(Some(Err(error))) => {
+                            eprintln!("Error accepting HTTP/2 stream: {error}");
+                            return;
+                        }
+                        Ok(None) => return,
+                    }
+                }
+            }
+            continue;
+        }
+
+        tokio::select! {
+            _ = context.shutdown.requested(), if !draining => {
+                draining = true;
+                connection.graceful_shutdown();
+            }
+            completed = tasks.join_next(), if !tasks.is_empty() => {
+                if let Some(Err(error)) = completed {
+                    eprintln!("HTTP/2 stream task failed: {error:?}");
+                }
+            }
+            accepted = connection.accept() => {
+                match accepted {
+                    Some(Ok((request, responder))) if !draining => {
+                        accepted_any = true;
+                        spawn_h2_request(&mut tasks, request, responder, context.clone());
+                    }
+                    Some(Ok((_request, mut responder))) => {
+                        responder.send_reset(h2::Reason::REFUSED_STREAM);
+                    }
+                    Some(Err(error)) => {
+                        eprintln!("Error accepting HTTP/2 stream: {error}");
+                        return;
+                    }
+                    None => return,
+                }
+            }
+        }
+    }
+}
+
+async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
+    match detect_protocol(stream, context.config.header_timeout).await {
+        Ok((Protocol::Http1, stream)) => serve_http1(stream, context).await,
+        Ok((Protocol::Http2, stream)) => serve_http2(stream, context).await,
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::UnexpectedEof | std::io::ErrorKind::ConnectionReset
+            ) => {}
+        Err(error) => eprintln!("Error detecting HTTP protocol: {error}"),
     }
 }
 
@@ -1279,6 +1743,32 @@ mod tests {
         assert_eq!(decoded, original);
     }
 
+    #[tokio::test]
+    async fn stalled_http1_body_times_out_and_releases_request_accounting() {
+        let requests = RequestTracker::new();
+        let active_request = Arc::new(requests.begin().expect("request should be admitted"));
+        let pending_frames = futures::stream::pending::<Result<Frame<Bytes>, std::io::Error>>();
+        let response = track_response(
+            hyper::Response::new(http_body_util::StreamBody::new(pending_frames).boxed_unsync()),
+            Some(active_request),
+            Some(Http1Activity::new()),
+            Some(Duration::from_millis(20)),
+        );
+
+        let error = response
+            .into_body()
+            .frame()
+            .await
+            .expect("timed-out bodies report an error frame")
+            .expect_err("a stalled body must not complete successfully");
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        assert_eq!(
+            requests.active(),
+            0,
+            "timing out a response must release shutdown accounting"
+        );
+    }
+
     #[test]
     fn shutdown_reason_tags_match_internal_server_contract() {
         assert_eq!(
@@ -1326,14 +1816,29 @@ mod tests {
         assert_eq!(validate_concurrency_limits(256, 32), Ok((256, 32)));
     }
 
+    #[test]
+    fn transport_timeout_bounds_are_explicit() {
+        assert!(validate_transport_timeout("test", 0).is_err());
+        assert_eq!(
+            validate_transport_timeout("test", 1),
+            Ok(Duration::from_millis(1))
+        );
+        assert_eq!(
+            validate_transport_timeout("test", MAX_TRANSPORT_TIMEOUT_MS),
+            Ok(Duration::from_millis(MAX_TRANSPORT_TIMEOUT_MS))
+        );
+        assert!(validate_transport_timeout("test", MAX_TRANSPORT_TIMEOUT_MS + 1).is_err());
+    }
+
     #[tokio::test]
     async fn handler_admission_bounds_active_and_queued_work() {
         let admission = HandlerAdmission::new(1, 1);
-        let first = admission.admit().await.unwrap();
+        let wait = Duration::from_secs(1);
+        let first = admission.admit(wait).await.unwrap();
 
         let waiting = {
             let admission = admission.clone();
-            tokio::spawn(async move { admission.admit().await })
+            tokio::spawn(async move { admission.admit(wait).await })
         };
         tokio::time::timeout(Duration::from_secs(1), async {
             while admission.queued.available_permits() != 0 {
@@ -1343,9 +1848,10 @@ mod tests {
         .await
         .expect("second handler did not enter the bounded queue");
         assert_eq!(admission.queued.available_permits(), 0);
-        assert!(
-            admission.admit().await.is_none(),
-            "work beyond the active and queued limits must be rejected"
+        assert_eq!(
+            admission.admit(wait).await.err(),
+            Some(AdmissionError::Full),
+            "work beyond the active and queued limits must be rejected",
         );
 
         drop(first);
@@ -1363,10 +1869,30 @@ mod tests {
     #[tokio::test]
     async fn zero_handler_queue_rejects_immediately_at_saturation() {
         let admission = HandlerAdmission::new(1, 0);
-        let active = admission.admit().await.unwrap();
-        assert!(admission.admit().await.is_none());
+        let wait = Duration::from_secs(1);
+        let active = admission.admit(wait).await.unwrap();
+        assert_eq!(
+            admission.admit(wait).await.err(),
+            Some(AdmissionError::Full)
+        );
         drop(active);
-        assert!(admission.admit().await.is_some());
+        assert!(admission.admit(wait).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn expired_handler_queue_wait_releases_its_slot_without_dispatch() {
+        let admission = HandlerAdmission::new(1, 1);
+        let active = admission.admit(Duration::from_secs(1)).await.unwrap();
+
+        assert_eq!(
+            admission.admit(Duration::from_millis(20)).await.err(),
+            Some(AdmissionError::TimedOut)
+        );
+        assert_eq!(admission.queued.available_permits(), 1);
+        assert_eq!(admission.active.available_permits(), 0);
+
+        drop(active);
+        assert!(admission.admit(Duration::from_secs(1)).await.is_ok());
     }
 
     #[test]
@@ -1396,6 +1922,11 @@ mod tests {
             body_max_bytes: 1024,
             body_chunk_bytes: 1024,
             body_buffered_chunks: 1,
+            header_timeout: Duration::from_secs(10),
+            body_idle_timeout: Duration::from_secs(30),
+            keep_alive_idle_timeout: Duration::from_secs(60),
+            handler_queue_timeout: Duration::from_secs(5),
+            response_idle_timeout: Duration::from_secs(30),
             drain_timeout: Duration::from_secs(30),
             hook_timeout: Duration::from_secs(10),
             files,
@@ -1405,23 +1936,152 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stalled_http2_response_resets_only_its_stream() {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::handshake(server_io)
+                .await
+                .expect("HTTP/2 server handshake should succeed");
+            let (_, stalled_responder) = connection
+                .accept()
+                .await
+                .expect("client should open the stalled stream")
+                .expect("stalled request should be valid");
+            let (_, healthy_responder) = connection
+                .accept()
+                .await
+                .expect("client should open the healthy stream")
+                .expect("healthy request should be valid");
+
+            let mut responses = JoinSet::new();
+            responses.spawn(async move {
+                (
+                    "stalled",
+                    send_h2_response(
+                        stalled_responder,
+                        hyper::Response::new(full_body(Bytes::from_static(b"stalled"))),
+                        Duration::from_millis(30),
+                    )
+                    .await,
+                )
+            });
+            responses.spawn(async move {
+                (
+                    "healthy",
+                    send_h2_response(
+                        healthy_responder,
+                        hyper::Response::new(full_body(Bytes::from_static(b"healthy"))),
+                        Duration::from_millis(30),
+                    )
+                    .await,
+                )
+            });
+
+            let mut results = Vec::new();
+            while results.len() < 2 {
+                tokio::select! {
+                    result = responses.join_next() => {
+                        results.push(
+                            result
+                                .expect("a response task should still be active")
+                                .expect("response task should not panic"),
+                        );
+                    }
+                    accepted = connection.accept() => {
+                        assert!(
+                            accepted.is_some(),
+                            "client connection should remain open while responses are active"
+                        );
+                    }
+                }
+            }
+            // Drive the connection once more so the stream reset queued by
+            // the timed-out sender reaches the peer before this test server
+            // drops the connection.
+            let _ = tokio::time::timeout(Duration::from_millis(10), connection.accept()).await;
+            results
+        });
+
+        let mut builder = h2::client::Builder::new();
+        builder.initial_window_size(1);
+        let (mut sender, connection) = builder
+            .handshake::<_, Bytes>(client_io)
+            .await
+            .expect("HTTP/2 client handshake should succeed");
+        let client = tokio::spawn(connection);
+
+        sender = sender.ready().await.expect("client should become ready");
+        let (stalled_response, _) = sender
+            .send_request(hyper::Request::new(()), true)
+            .expect("stalled request should be accepted");
+        sender = sender.ready().await.expect("client should remain ready");
+        let (healthy_response, _) = sender
+            .send_request(hyper::Request::new(()), true)
+            .expect("healthy request should be accepted");
+
+        let mut stalled_body = stalled_response
+            .await
+            .expect("stalled stream should receive response headers")
+            .into_body();
+        let mut healthy_body = healthy_response
+            .await
+            .expect("healthy stream should receive a response")
+            .into_body();
+        let mut healthy_bytes = Vec::new();
+        while let Some(data) = healthy_body.data().await {
+            let data = data.expect("healthy stream should not be reset");
+            healthy_bytes.extend_from_slice(&data);
+            healthy_body
+                .flow_control()
+                .release_capacity(data.len())
+                .expect("healthy flow-control capacity should be released");
+        }
+        assert_eq!(healthy_bytes, b"healthy");
+
+        let results = server.await.expect("server task should not panic");
+        assert!(results
+            .iter()
+            .any(|(name, result)| *name == "healthy" && result.is_ok()));
+        assert!(results
+            .iter()
+            .any(|(name, result)| *name == "stalled" && result.is_err()));
+
+        let mut reset_reason = None;
+        while let Some(data) = stalled_body.data().await {
+            match data {
+                Ok(_) => {}
+                Err(error) => {
+                    reset_reason = error.reason();
+                    break;
+                }
+            }
+        }
+        assert_eq!(reset_reason, Some(h2::Reason::CANCEL));
+
+        drop(sender);
+        client.abort();
+    }
+
+    #[tokio::test]
     async fn auto_server_accepts_an_http2_prior_knowledge_request() {
         let (client_io, server_io) = tokio::io::duplex(4096);
         let server = tokio::spawn(async move {
-            connection_builder(8)
-                .serve_connection(
-                    TokioIo::new(server_io),
-                    hyper::service::service_fn(
-                        |request: hyper::Request<hyper::body::Incoming>| async move {
-                            assert_eq!(request.version(), hyper::Version::HTTP_2);
-                            Ok::<_, Infallible>(hyper::Response::new(Full::new(
-                                Bytes::from_static(b"http2"),
-                            )))
-                        },
-                    ),
-                )
+            let mut connection = h2::server::handshake(server_io)
                 .await
-                .expect("HTTP/2 server connection should complete without error");
+                .expect("HTTP/2 server handshake should succeed");
+            let (request, mut responder) = connection
+                .accept()
+                .await
+                .expect("client should open one stream")
+                .expect("HTTP/2 request should be valid");
+            assert_eq!(request.version(), hyper::Version::HTTP_2);
+            let mut sender = responder
+                .send_response(hyper::Response::new(()), false)
+                .expect("response headers should be accepted");
+            sender
+                .send_data(Bytes::from_static(b"http2"), true)
+                .expect("response body should be accepted");
+            while connection.accept().await.is_some() {}
         });
 
         let (mut sender, connection) = hyper::client::conn::http2::handshake::<_, _, Full<Bytes>>(
