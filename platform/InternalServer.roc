@@ -58,7 +58,7 @@ InternalServer :: [].{
 				cache_max_age_seconds : U32,
 			},
 		),
-		native_routes : List(
+		native_file_routes : List(
 			{
 				at : Str,
 				root_id : Str,
@@ -69,6 +69,8 @@ InternalServer :: [].{
 				cache_max_age_seconds : U32,
 			},
 		),
+		liveness_routes : List(Str),
+		readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 		file_max_concurrent : U16,
 		file_chunk_bytes : U32,
 	}

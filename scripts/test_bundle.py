@@ -2,47 +2,17 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import os
 import re
 import subprocess
 import sys
-import threading
-import urllib.request
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from update_app_platform_urls import update_apps
-from test import declared_targets, examples_hash
+from test import BundleServer, declared_targets, examples_hash
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-class QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format: str, *args: object) -> None:
-        pass
-
-
-class BundleServer:
-    def __init__(self, bundle: Path) -> None:
-        handler = functools.partial(QuietHandler, directory=str(bundle.parent))
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.url = f"http://127.0.0.1:{self.server.server_port}/{bundle.name}"
-
-    def __enter__(self) -> str:
-        self.thread.start()
-        with urllib.request.urlopen(
-            urllib.request.Request(self.url, method="HEAD"), timeout=5
-        ):
-            pass
-        return self.url
-
-    def __exit__(self, *_: object) -> None:
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join()
 
 
 def update_readme(platform_url: str) -> None:
@@ -122,7 +92,7 @@ def main() -> None:
             command = [
                 sys.executable,
                 str(ROOT / "scripts" / "test.py"),
-                "--readme-platform",
+                "--platform-dependency",
                 "declared",
             ]
             if args.operation == "build-all":

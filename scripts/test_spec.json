@@ -195,6 +195,7 @@
     {
       "path": "examples/error-handling.roc",
       "mode": "server",
+      "build_opt": "dev",
       "cases": [
         {
           "name": "outbound-http",
@@ -443,8 +444,168 @@
       ]
     },
     {
+      "path": "examples/health.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "native-probes-and-readiness-transitions",
+          "requests": [
+            {
+              "target": "/live",
+              "response_headers": {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Length": "3"
+              },
+              "expect_body": "OK\n"
+            },
+            {
+              "method": "HEAD",
+              "target": "/live",
+              "response_headers": {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Length": "3"
+              },
+              "expect_body": ""
+            },
+            {
+              "target": "/ready",
+              "status": 503,
+              "response_headers": {
+                "Cache-Control": "no-store",
+                "Content-Length": "10"
+              },
+              "expect_body": "NOT READY\n"
+            },
+            {
+              "method": "HEAD",
+              "target": "/ready",
+              "status": 503,
+              "response_headers": {
+                "Content-Length": "10"
+              },
+              "expect_body": ""
+            },
+            {
+              "method": "POST",
+              "target": "/ready",
+              "status": 405,
+              "response_headers": {
+                "Allow": "GET, HEAD",
+                "Cache-Control": "no-store"
+              },
+              "expect_body": "Method Not Allowed\n"
+            },
+            {
+              "target": "/set-ready",
+              "expect_body": "ready"
+            },
+            {
+              "target": "/ready",
+              "expect_body": "OK\n"
+            },
+            {
+              "method": "HEAD",
+              "target": "/ready",
+              "response_headers": {
+                "Content-Length": "3"
+              },
+              "expect_body": ""
+            },
+            {
+              "target": "/set-not-ready",
+              "expect_body": "not ready"
+            },
+            {
+              "target": "/ready",
+              "status": 503,
+              "expect_body": "NOT READY\n"
+            }
+          ]
+        },
+        {
+          "name": "probes-bypass-saturated-handlers",
+          "timeout": 5,
+          "requests": [
+            {
+              "target": "/set-ready",
+              "expect_body": "ready"
+            }
+          ],
+          "concurrent_requests": [
+            {
+              "target": "/slow",
+              "expect_body": "slow response"
+            },
+            {
+              "target": "/slow",
+              "launch_after_ms": 100,
+              "expect_body": "slow response"
+            },
+            {
+              "target": "/slow",
+              "launch_after_ms": 100,
+              "status": 503,
+              "expect_body": "Server is overloaded"
+            },
+            {
+              "target": "/live",
+              "launch_after_ms": 100,
+              "expect_body": "OK\n"
+            },
+            {
+              "target": "/ready",
+              "expect_body": "OK\n"
+            }
+          ]
+        },
+        {
+          "name": "drain-forces-not-ready-before-shutdown-hook",
+          "requests": [
+            {
+              "target": "/set-ready",
+              "expect_body": "ready"
+            },
+            {
+              "target": "/stop",
+              "expect_body": "stopping"
+            }
+          ],
+          "expect_exit": true,
+          "exit_code": 0,
+          "stdout_contains": [
+            "shutdown readiness update: Err(ServerStopping)"
+          ]
+        },
+        {
+          "name": "duplicate-native-route-rejected-before-listen",
+          "env": {
+            "HEALTH_CONFIG": "duplicate"
+          },
+          "expect_startup_failure": true,
+          "exit_code": 1,
+          "stderr_contains": [
+            "Server startup configuration is invalid: duplicate exact native route \"/health\""
+          ]
+        },
+        {
+          "name": "invalid-native-route-rejected-before-listen",
+          "env": {
+            "HEALTH_CONFIG": "invalid"
+          },
+          "expect_startup_failure": true,
+          "exit_code": 1,
+          "stderr_contains": [
+            "Server startup configuration is invalid: invalid native route path \"/live?details=true\""
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/http.roc",
       "mode": "server",
+      "build_opt": "dev",
       "cases": [
         {
           "name": "outbound-http-effects",
@@ -596,6 +757,7 @@
     {
       "path": "examples/todos.roc",
       "mode": "server",
+      "build_opt": "dev",
       "cases": [
         {
           "name": "routes-and-database",

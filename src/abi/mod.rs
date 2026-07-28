@@ -118,11 +118,20 @@ pub(crate) type HostIOErrTagType = IOErrTag;
 
 pub(crate) type ServerConfig = InitForHostOkConfig;
 pub(crate) type ServerFileRoot = InitForHostOkConfigFileRoots;
-pub(crate) type ServerNativeRoute = InitForHostOkConfigNativeRoutes;
+pub(crate) type ServerNativeFileRoute = InitForHostOkConfigNativeFileRoutes;
+pub(crate) type ServerReadinessRoute = InitForHostOkConfigReadinessRoutes;
 pub(crate) type ServerRequest = RespondForHostArg0;
 pub(crate) type ServerResponse = RespondForHost;
 pub(crate) type ServerHeader = RespondForHostArg0Headers;
 pub(crate) type ServerShutdownReason = ShutdownForHostArg0;
+
+pub(crate) type ReadinessCreateResult = HostReadinessCreateResult;
+pub(crate) type ReadinessCreateResultPayload = HostReadinessCreateResultPayload;
+pub(crate) type ReadinessCreateResultTag = HostReadinessCreateResultTag;
+pub(crate) type ReadinessSetResult = HostReadinessSetResult;
+pub(crate) type ReadinessSetResultPayload = HostReadinessSetResultPayload;
+pub(crate) type ReadinessSetResultTag = HostReadinessSetResultTag;
+pub(crate) type ReadinessSetError = HostReadinessSetErr;
 
 pub(crate) type BodyReadResult = HostRequestBodyReadResult;
 pub(crate) type BodyReadResultPayload = HostRequestBodyReadResultPayload;
@@ -163,6 +172,12 @@ pub(crate) fn initialize_roc_host() {
         .unwrap_or_else(|_| panic!("RocHost initialized more than once"));
 }
 
+#[cfg(test)]
+pub(crate) fn initialize_test_roc_host() {
+    static INITIALIZE: std::sync::Once = std::sync::Once::new();
+    INITIALIZE.call_once(initialize_roc_host);
+}
+
 fn roc_host_ptr() -> *mut RocHost {
     match ROC_HOST.get() {
         Some(host) => &host.0 as *const RocHost as *mut RocHost,
@@ -197,6 +212,7 @@ pub(crate) extern "C" fn routed_roc_dealloc(
         ("SQLite", crate::sqlite::route_resource_dealloc),
         ("file reader", crate::file::route_resource_dealloc),
         ("TCP stream", crate::tcp::route_resource_dealloc),
+        ("readiness", crate::readiness::route_resource_dealloc),
     ] {
         let route = route_resource(ptr);
         match route {
@@ -223,6 +239,7 @@ fn is_host_resource_address(ptr: *const c_void) -> bool {
         || crate::sqlite::contains_resource_address(ptr)
         || crate::file::contains_resource_address(ptr)
         || crate::tcp::contains_resource_address(ptr)
+        || crate::readiness::contains_resource_address(ptr)
 }
 
 pub(crate) extern "C" fn routed_roc_realloc(

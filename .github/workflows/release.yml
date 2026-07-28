@@ -417,7 +417,10 @@ jobs:
           examples
 
       - name: Validate updated examples
-        run: python scripts/test.py --operation validate
+        run: >-
+          python scripts/test.py
+          --operation validate
+          --platform-dependency declared
 
       - name: Snapshot existing docs
         uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064

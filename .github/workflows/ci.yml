@@ -34,11 +34,16 @@ jobs:
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
+        with:
+          version: 0.16.0
+
       - name: Install Rust toolchain
         run: |
           rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
           rustup default "${{ needs.rust-version.outputs.version }}"
-          rustup component add rustfmt
+          rustup component add rustfmt llvm-tools-preview
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check

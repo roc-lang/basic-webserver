@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import gzip
+import functools
 import hashlib
 import http.client
 import json
@@ -24,7 +25,12 @@ import sys
 import tempfile
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.request
+from http.server import (
+    BaseHTTPRequestHandler,
+    SimpleHTTPRequestHandler,
+    ThreadingHTTPServer,
+)
 from pathlib import Path
 from typing import Iterator
 
@@ -47,6 +53,7 @@ TARGET_PLATFORMS = {
     "x64win": "windows",
 }
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
+PLATFORM_DEPENDENCY = re.compile(r'(?m)(\bplatform\s+)"[^"]+"')
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
 HTTP2_CLIENT_PREFACE = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 HTTP2_FRAME_DATA = 0x0
@@ -71,6 +78,34 @@ if hasattr(sys.stderr, "reconfigure"):
 
 class TestFailure(RuntimeError):
     pass
+
+
+class QuietFileHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format: str, *args: object) -> None:
+        pass
+
+
+class BundleServer:
+    """Serve one immutable bundle on loopback for Roc dependency resolution."""
+
+    def __init__(self, bundle: Path) -> None:
+        handler = functools.partial(QuietFileHandler, directory=str(bundle.parent))
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.url = f"http://127.0.0.1:{self.server.server_port}/{bundle.name}"
+
+    def __enter__(self) -> str:
+        self.thread.start()
+        with urllib.request.urlopen(
+            urllib.request.Request(self.url, method="HEAD"), timeout=5
+        ):
+            pass
+        return self.url
+
+    def __exit__(self, *_: object) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
 
 
 def fail(message: str) -> None:
@@ -141,6 +176,43 @@ def detect_native_target() -> str:
     raise AssertionError
 
 
+@contextlib.contextmanager
+def locally_built_platform(roc: str, target: str) -> Iterator[str]:
+    """Build, bundle, and host the checkout's platform for one Roc target."""
+
+    bundle_dir = ROOT / "target" / "local-platform-bundle" / target
+    if bundle_dir.exists():
+        shutil.rmtree(bundle_dir)
+    bundle_dir.mkdir(parents=True)
+
+    command(
+        sys.executable,
+        ROOT / "scripts" / "build.py",
+        "--target",
+        target,
+    )
+    command(
+        sys.executable,
+        ROOT / "scripts" / "bundle.py",
+        "--output-dir",
+        bundle_dir,
+        "--target",
+        target,
+        "--roc",
+        roc,
+    )
+    bundles = sorted(bundle_dir.glob("*.tar.zst"))
+    if len(bundles) != 1:
+        fail(
+            f"Expected one locally built platform bundle in {bundle_dir}, "
+            f"found {len(bundles)}"
+        )
+
+    with BundleServer(bundles[0]) as platform_url:
+        print(f"Using local platform bundle: {platform_url}", flush=True)
+        yield platform_url
+
+
 def validate_skip(owner: str, value: object) -> None:
     if not isinstance(value, dict):
         fail(f"{owner}: skip must be an object")
@@ -198,6 +270,15 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
         fail(f"{app_path}: duplicate case name {name!r}")
     names.add(name)
     owner = f"{app_path} [{name}]"
+    if case.get("expect_startup_failure", False):
+        for incompatible in (
+            "requests",
+            "concurrent_requests",
+            "http2_requests",
+            "expect_exit",
+        ):
+            if case.get(incompatible):
+                fail(f"{owner}: expect_startup_failure cannot be combined with {incompatible}")
     if "skip" in case:
         validate_skip(owner, case["skip"])
     for key, value in case.items():
@@ -338,8 +419,8 @@ def stage_enabled(defaults: dict[str, bool], app: dict[str, object], stage: str)
     return value
 
 
-# TODO: Investigate the Roc compiler bug that makes the LLVM speed backend use
-# several GiB for form-url-encoded. Remove its per-app dev override once fixed.
+# TODO: Investigate the Roc compiler bugs that make the LLVM speed backend use
+# several GiB for some applications. Remove per-app dev overrides once fixed.
 def build_optimization(app: dict[str, object]) -> str:
     value = app.get("build_opt", "speed")
     assert isinstance(value, str) and value in BUILD_OPTIMIZATIONS
@@ -497,7 +578,30 @@ def prepare_memcheck_binaries(
     return binaries
 
 
-def readme_example(*, use_local_platform: bool = True) -> Path:
+def rewritten_app_source(app_path: str, platform_url: str | None) -> Path:
+    source_path = ROOT / app_path
+    if platform_url is None:
+        return source_path
+
+    source = source_path.read_text(encoding="utf-8")
+    rewritten, count = PLATFORM_DEPENDENCY.subn(
+        lambda match: f'{match.group(1)}"{platform_url}"',
+        source,
+        count=1,
+    )
+    if count != 1:
+        fail(f"{app_path}: expected exactly one platform dependency")
+
+    destination = VALIDATION_ROOT / "sources" / app_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    for sibling in source_path.parent.iterdir():
+        if sibling.is_file() and sibling.suffix != ".roc":
+            shutil.copy2(sibling, destination.parent / sibling.name)
+    destination.write_text(rewritten, encoding="utf-8", newline="\n")
+    return destination
+
+
+def readme_example(*, platform_url: str | None = None) -> Path:
     source = (ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(r"(?ms)^```roc\n(.*?)^```$", source)
     if match is None:
@@ -505,16 +609,14 @@ def readme_example(*, use_local_platform: bool = True) -> Path:
     directory = VALIDATION_ROOT / "readme"
     directory.mkdir(parents=True, exist_ok=True)
     rewritten = match.group(1)
-    if use_local_platform:
-        local_platform = os.path.relpath(
-            ROOT / "platform" / "main.roc", directory
-        ).replace(os.sep, "/")
-        rewritten = re.sub(
-            r'(?m)^(\s*pf:\s*platform\s+)"[^"]+"',
-            lambda dependency: f'{dependency.group(1)}"{local_platform}"',
+    if platform_url is not None:
+        rewritten, count = PLATFORM_DEPENDENCY.subn(
+            lambda dependency: f'{dependency.group(1)}"{platform_url}"',
             rewritten,
             count=1,
         )
+        if count != 1:
+            fail("README example check failed: expected one platform dependency")
     path = directory / "readme.roc"
     path.write_text(rewritten, encoding="utf-8", newline="\n")
     return path
@@ -1322,6 +1424,48 @@ def run_server_case(
             stderr = Capture(process.stderr)
             stdout.start()
             stderr.start()
+            if case.get("expect_startup_failure", False):
+                startup_error: BaseException | None = None
+                try:
+                    try:
+                        process.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        fail(f"{owner}: invalid startup configuration did not exit")
+                    expected_exit = int(case.get("exit_code", 1))
+                    if process.returncode != expected_exit:
+                        fail(
+                            f"{owner}: expected startup failure exit {expected_exit}, "
+                            f"got {process.returncode}"
+                        )
+                except BaseException as error:
+                    startup_error = error
+                finally:
+                    stop_process(process)
+                    stdout.thread.join(timeout=2)
+                    stderr.thread.join(timeout=2)
+
+                stdout_text = stdout.text()
+                stderr_text = stderr.text()
+                if LISTENING.search(stdout_text) is not None and startup_error is None:
+                    startup_error = TestFailure(f"{owner}: startup failure exposed a listener")
+                try:
+                    validate_memcheck_log(memcheck_log, owner)
+                except TestFailure as error:
+                    startup_error = error if startup_error is None else TestFailure(
+                        f"{startup_error}\n{error}"
+                    )
+                if startup_error is not None:
+                    fail(
+                        f"{owner}: startup-failure interaction failed: {startup_error}\n"
+                        f"process exit: {process.returncode}\n"
+                        f"--- stdout ---\n{stdout_text}"
+                        f"--- stderr ---\n{stderr_text}"
+                    )
+                assertion_text(owner, "stdout", stdout_text, case, "stdout_")
+                assertion_text(owner, "stderr", stderr_text, case, "stderr_")
+                assertion_text(owner, "combined output", stdout_text + stderr_text, case)
+                return
+
             interaction_error: BaseException | None = None
             try:
                 match = stdout.wait_for(LISTENING, process, timeout)
@@ -1681,7 +1825,7 @@ def validate_sources(
     defaults: dict[str, bool],
     apps: list[dict[str, object]],
     *,
-    use_local_readme_platform: bool = True,
+    platform_url: str | None,
 ) -> None:
     if VALIDATION_ROOT.exists():
         shutil.rmtree(VALIDATION_ROOT)
@@ -1692,14 +1836,14 @@ def validate_sources(
         for app in apps:
             if not stage_enabled(defaults, app, stage):
                 continue
-            source = ROOT / str(app["path"])
+            source = rewritten_app_source(str(app["path"]), platform_url)
             print(f"==> {stage} {app['path']}", flush=True)
             if stage == "fmt":
                 command(roc, "fmt", "--check", source)
             else:
                 command(roc, stage, source)
 
-    readme = readme_example(use_local_platform=use_local_readme_platform)
+    readme = readme_example(platform_url=platform_url)
     command(roc, "check", readme)
     command(roc, "test", readme)
 
@@ -1712,7 +1856,7 @@ def build_artifacts(
     apps: list[dict[str, object]],
     *,
     build_id: str = "local",
-    use_local_readme_platform: bool = True,
+    platform_url: str | None,
     examples_sha256: str | None = None,
 ) -> dict[str, Path]:
     prepare_artifact_output(target, artifact_dir)
@@ -1720,8 +1864,9 @@ def build_artifacts(
     for app in apps:
         if not stage_enabled(defaults, app, "build"):
             continue
-        source = ROOT / str(app["path"])
-        binary = output_path(source, target, artifact_dir)
+        app_path = str(app["path"])
+        source = rewritten_app_source(app_path, platform_url)
+        binary = output_path(ROOT / app_path, target, artifact_dir)
         print(f"==> build {app['path']} ({target})", flush=True)
         command(
             roc,
@@ -1733,7 +1878,7 @@ def build_artifacts(
         )
         binaries[str(app["path"])] = binary
 
-    readme = readme_example(use_local_platform=use_local_readme_platform)
+    readme = readme_example(platform_url=platform_url)
     command(
         roc,
         "build",
@@ -1772,10 +1917,13 @@ def main() -> None:
         help="stable identity of the machine that produced a binary artifact",
     )
     parser.add_argument(
-        "--readme-platform",
-        choices=("local", "declared"),
-        default="local",
-        help="use the checkout platform or preserve the README platform URL",
+        "--platform-dependency",
+        choices=("local-bundle", "declared"),
+        default="local-bundle",
+        help=(
+            "build and host this checkout's platform bundle, or use the URLs "
+            "already declared by the application sources"
+        ),
     )
     parser.add_argument(
         "--examples-sha256",
@@ -1798,7 +1946,7 @@ def main() -> None:
 
     defaults, apps = load_spec()
     artifact_dir = args.artifact_dir.resolve()
-    use_local_readme_platform = args.readme_platform == "local"
+    use_local_bundle = args.platform_dependency == "local-bundle"
 
     if args.operation == "memcheck":
         if args.target is not None or args.all_targets:
@@ -1817,16 +1965,22 @@ def main() -> None:
             parser.error("--all-targets requires --operation build")
         total = 0
         for build_target in declared_targets():
-            binaries = build_artifacts(
-                args.roc,
-                build_target,
-                artifact_dir,
-                defaults,
-                apps,
-                build_id=args.build_id,
-                use_local_readme_platform=use_local_readme_platform,
-                examples_sha256=args.examples_sha256,
+            dependency = (
+                locally_built_platform(args.roc, build_target)
+                if use_local_bundle
+                else contextlib.nullcontext(None)
             )
+            with dependency as platform_url:
+                binaries = build_artifacts(
+                    args.roc,
+                    build_target,
+                    artifact_dir,
+                    defaults,
+                    apps,
+                    build_id=args.build_id,
+                    platform_url=platform_url,
+                    examples_sha256=args.examples_sha256,
+                )
             total += len(binaries)
         print(
             f"\nBuilt {total} applications across "
@@ -1842,35 +1996,42 @@ def main() -> None:
             f"{detect_native_target()}"
         )
 
-    if args.operation in ("all", "validate"):
-        command(sys.executable, "-m", "unittest", "scripts.test_harness_test")
-        validate_sources(
-            args.roc,
-            defaults,
-            apps,
-            use_local_readme_platform=use_local_readme_platform,
-        )
-        if args.operation == "validate":
-            print(f"\nValidated {len(apps)} applications.")
-            return
+    compiles_sources = args.operation in ("all", "validate", "build")
+    dependency = (
+        locally_built_platform(args.roc, target)
+        if use_local_bundle and compiles_sources
+        else contextlib.nullcontext(None)
+    )
+    with dependency as platform_url:
+        if args.operation in ("all", "validate"):
+            command(sys.executable, "-m", "unittest", "scripts.test_harness_test")
+            validate_sources(
+                args.roc,
+                defaults,
+                apps,
+                platform_url=platform_url,
+            )
+            if args.operation == "validate":
+                print(f"\nValidated {len(apps)} applications.")
+                return
 
-    if args.operation in ("all", "build"):
-        binaries = build_artifacts(
-            args.roc,
-            target,
-            artifact_dir,
-            defaults,
-            apps,
-            build_id=args.build_id,
-            use_local_readme_platform=use_local_readme_platform,
-            examples_sha256=args.examples_sha256,
-        )
-        if args.operation == "build":
-            print(f"\nBuilt {len(binaries)} applications for {target}.")
-            return
-        builds = load_artifact_builds(target, artifact_dir, defaults, apps)
-    else:
-        builds = load_artifact_builds(target, artifact_dir, defaults, apps)
+        if args.operation in ("all", "build"):
+            binaries = build_artifacts(
+                args.roc,
+                target,
+                artifact_dir,
+                defaults,
+                apps,
+                build_id=args.build_id,
+                platform_url=platform_url,
+                examples_sha256=args.examples_sha256,
+            )
+            if args.operation == "build":
+                print(f"\nBuilt {len(binaries)} applications for {target}.")
+                return
+            builds = load_artifact_builds(target, artifact_dir, defaults, apps)
+        else:
+            builds = load_artifact_builds(target, artifact_dir, defaults, apps)
 
     total = 0
     failed_builds: list[tuple[str, str]] = []

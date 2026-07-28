@@ -1,4 +1,4 @@
-//! Immutable native file routes and host-owned, bounded file responses.
+//! Host-owned, bounded file roots and responses.
 
 use crate::compression::{
     apply_content_coding, encoded_etag, response_is_compressible, vary_on_accept_encoding,
@@ -15,7 +15,7 @@ use hyper::header::{
     IF_UNMODIFIED_SINCE, LAST_MODIFIED, RANGE,
 };
 use hyper::{HeaderMap, Method, StatusCode};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -30,8 +30,6 @@ pub(crate) type ServerBody = UnsyncBoxBody<Bytes, io::Error>;
 pub(crate) type ServerResponse = hyper::Response<ServerBody>;
 
 const MAX_FILE_ROOTS: usize = 64;
-const MAX_NATIVE_ROUTES: usize = 128;
-const MAX_ROUTE_PATH_BYTES: usize = 4 * 1024;
 const MAX_RELATIVE_PATH_BYTES: usize = 4 * 1024;
 const MAX_DOWNLOAD_NAME_CHARS: usize = 150;
 
@@ -83,21 +81,6 @@ pub(crate) struct FileRootSpec {
     pub(crate) cache: CachePolicy,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeRouteKind {
-    Prefix,
-    Exact,
-}
-
-#[derive(Debug)]
-pub(crate) struct NativeRouteSpec {
-    pub(crate) at: String,
-    pub(crate) root_id: String,
-    pub(crate) kind: NativeRouteKind,
-    pub(crate) relative: String,
-    pub(crate) cache: Option<CachePolicy>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Disposition {
     Inline,
@@ -137,19 +120,8 @@ struct FileRoot {
 }
 
 #[derive(Clone, Debug)]
-struct NativeRoute {
-    at: String,
-    root_id: String,
-    kind: NativeRouteKind,
-    relative: String,
-    cache: Option<CachePolicy>,
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct FileService {
     roots: Arc<BTreeMap<String, Arc<FileRoot>>>,
-    exact_routes: Arc<BTreeMap<String, NativeRoute>>,
-    prefix_routes: Arc<Vec<NativeRoute>>,
     transfers: Arc<Semaphore>,
     chunk_bytes: usize,
     diagnostics: Arc<TransferDiagnostics>,
@@ -158,18 +130,12 @@ pub(crate) struct FileService {
 impl FileService {
     pub(crate) fn activate(
         root_specs: Vec<FileRootSpec>,
-        route_specs: Vec<NativeRouteSpec>,
         max_concurrent: usize,
         chunk_bytes: usize,
     ) -> Result<Self, String> {
         if root_specs.len() > MAX_FILE_ROOTS {
             return Err(format!(
                 "at most {MAX_FILE_ROOTS} file roots may be declared"
-            ));
-        }
-        if route_specs.len() > MAX_NATIVE_ROUTES {
-            return Err(format!(
-                "at most {MAX_NATIVE_ROUTES} native routes may be declared"
             ));
         }
         if max_concurrent == 0 {
@@ -207,88 +173,28 @@ impl FileService {
             );
         }
 
-        let mut exact_routes = BTreeMap::new();
-        let mut prefix_routes = Vec::new();
-        let mut prefix_paths = BTreeSet::new();
-        for spec in route_specs {
-            validate_route_path(&spec.at)?;
-            if !roots.contains_key(&spec.root_id) {
-                return Err(format!(
-                    "native route {:?} references undeclared file root {:?}",
-                    spec.at, spec.root_id
-                ));
-            }
-            if spec.kind == NativeRouteKind::Exact {
-                validate_relative_path(&spec.relative)?;
-            } else if !spec.relative.is_empty() {
-                return Err(format!(
-                    "static mount {:?} supplied an unexpected relative file",
-                    spec.at
-                ));
-            }
-            let route = NativeRoute {
-                at: spec.at.clone(),
-                root_id: spec.root_id,
-                kind: spec.kind,
-                relative: spec.relative,
-                cache: spec.cache,
-            };
-            match spec.kind {
-                NativeRouteKind::Exact => {
-                    if exact_routes.insert(spec.at.clone(), route).is_some() {
-                        return Err(format!("duplicate exact native route {:?}", spec.at));
-                    }
-                }
-                NativeRouteKind::Prefix => {
-                    if !prefix_paths.insert(spec.at.clone()) {
-                        return Err(format!("duplicate native route prefix {:?}", spec.at));
-                    }
-                    prefix_routes.push(route);
-                }
-            }
-        }
-        prefix_routes.sort_by(|left, right| {
-            right
-                .at
-                .len()
-                .cmp(&left.at.len())
-                .then_with(|| left.at.cmp(&right.at))
-        });
-
         Ok(Self {
             roots: Arc::new(roots),
-            exact_routes: Arc::new(exact_routes),
-            prefix_routes: Arc::new(prefix_routes),
             transfers: Arc::new(Semaphore::new(max_concurrent)),
             chunk_bytes,
             diagnostics: Arc::new(TransferDiagnostics::default()),
         })
     }
 
-    pub(crate) fn route(&self, uri_path: &str) -> Option<FilePlan> {
-        if let Some(route) = self.exact_routes.get(uri_path) {
-            return Some(route.plan(route.relative.clone(), false));
+    pub(crate) fn validate_native_route(
+        &self,
+        root_id: &str,
+        relative: Option<&str>,
+    ) -> Result<(), String> {
+        if !self.roots.contains_key(root_id) {
+            return Err(format!(
+                "native route references undeclared file root {root_id:?}"
+            ));
         }
-        for route in self.prefix_routes.iter() {
-            let relative = if route.at == "/" {
-                match uri_path.strip_prefix('/') {
-                    Some(relative) => relative,
-                    None => continue,
-                }
-            } else if uri_path == route.at {
-                ""
-            } else {
-                match uri_path
-                    .strip_prefix(&route.at)
-                    .and_then(|suffix| suffix.strip_prefix('/'))
-                {
-                    Some(relative) => relative,
-                    None => continue,
-                }
-            };
-            return Some(route.plan(relative.to_owned(), true));
+        if let Some(relative) = relative {
+            validate_relative_path(relative)?;
         }
-        None
+        Ok(())
     }
 
     pub(crate) async fn serve(
@@ -372,18 +278,19 @@ impl FileService {
     }
 }
 
-impl NativeRoute {
-    fn plan(&self, relative: String, encoded_uri_path: bool) -> FilePlan {
-        debug_assert!(
-            self.kind == NativeRouteKind::Prefix || !encoded_uri_path,
-            "only prefix routes derive paths from request URIs"
-        );
-        FilePlan {
-            root_id: self.root_id.clone(),
+impl FilePlan {
+    pub(crate) fn native(
+        root_id: String,
+        relative: String,
+        encoded_uri_path: bool,
+        cache: Option<CachePolicy>,
+    ) -> Self {
+        Self {
+            root_id,
             relative,
             encoded_uri_path,
             disposition: Disposition::Inline,
-            cache: self.cache,
+            cache,
         }
     }
 }
@@ -782,26 +689,6 @@ fn validate_root_id(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_route_path(path: &str) -> Result<(), String> {
-    if !path.starts_with('/')
-        || path.len() > MAX_ROUTE_PATH_BYTES
-        || (path.len() > 1 && path.ends_with('/'))
-        || path.contains("//")
-        || !path.is_ascii()
-        || path
-            .bytes()
-            .any(|byte| byte == b'%' || byte == b'\\' || byte == 0 || byte == b'?')
-    {
-        return Err(format!("invalid native route path {path:?}"));
-    }
-    for segment in path.split('/').skip(1) {
-        if segment == "." || segment == ".." || segment.starts_with('.') {
-            return Err(format!("invalid native route path {path:?}"));
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn validate_relative_path(relative: &str) -> Result<Vec<String>, String> {
     if relative.is_empty() || relative.len() > MAX_RELATIVE_PATH_BYTES {
         return Err("relative file path is empty or too long".to_owned());
@@ -1176,60 +1063,7 @@ mod tests {
     use std::io::Read;
 
     #[test]
-    fn route_matching_has_segment_boundaries_and_precedence() {
-        let temp = tempfile_dir();
-        let service = FileService::activate(
-            vec![FileRootSpec {
-                id: "root".to_owned(),
-                path: temp.clone(),
-                cache: CachePolicy::Revalidate,
-            }],
-            vec![
-                NativeRouteSpec {
-                    at: "/assets".to_owned(),
-                    root_id: "root".to_owned(),
-                    kind: NativeRouteKind::Prefix,
-                    relative: String::new(),
-                    cache: None,
-                },
-                NativeRouteSpec {
-                    at: "/assets/special".to_owned(),
-                    root_id: "root".to_owned(),
-                    kind: NativeRouteKind::Exact,
-                    relative: "special.txt".to_owned(),
-                    cache: None,
-                },
-                NativeRouteSpec {
-                    at: "/assets/deep".to_owned(),
-                    root_id: "root".to_owned(),
-                    kind: NativeRouteKind::Prefix,
-                    relative: String::new(),
-                    cache: None,
-                },
-            ],
-            2,
-            1024,
-        )
-        .unwrap();
-
-        assert_eq!(
-            service.route("/assets/special").unwrap().relative,
-            "special.txt"
-        );
-        assert_eq!(
-            service.route("/assets/deep/file.txt").unwrap().relative,
-            "file.txt"
-        );
-        assert_eq!(
-            service.route("/assets/file.txt").unwrap().relative,
-            "file.txt"
-        );
-        assert!(service.route("/assets2/file.txt").is_none());
-        fs::remove_dir(temp).unwrap();
-    }
-
-    #[test]
-    fn route_activation_rejects_duplicates_and_missing_roots() {
+    fn root_activation_rejects_duplicates_and_missing_directories() {
         let temp = tempfile_dir();
         let duplicate_root = FileService::activate(
             vec![
@@ -1244,7 +1078,6 @@ mod tests {
                     cache: CachePolicy::NoStore,
                 },
             ],
-            Vec::new(),
             1,
             1,
         );
@@ -1258,54 +1091,10 @@ mod tests {
                 path: temp.join("does-not-exist"),
                 cache: CachePolicy::Revalidate,
             }],
-            Vec::new(),
             1,
             1,
         );
         assert!(absent.unwrap_err().contains("missing, inaccessible"));
-
-        let duplicate = FileService::activate(
-            vec![FileRootSpec {
-                id: "root".to_owned(),
-                path: temp.clone(),
-                cache: CachePolicy::Revalidate,
-            }],
-            vec![
-                NativeRouteSpec {
-                    at: "/assets".to_owned(),
-                    root_id: "root".to_owned(),
-                    kind: NativeRouteKind::Prefix,
-                    relative: String::new(),
-                    cache: None,
-                },
-                NativeRouteSpec {
-                    at: "/assets".to_owned(),
-                    root_id: "root".to_owned(),
-                    kind: NativeRouteKind::Prefix,
-                    relative: String::new(),
-                    cache: None,
-                },
-            ],
-            1,
-            1,
-        );
-        assert!(duplicate
-            .unwrap_err()
-            .contains("duplicate native route prefix"));
-
-        let missing = FileService::activate(
-            Vec::new(),
-            vec![NativeRouteSpec {
-                at: "/assets".to_owned(),
-                root_id: "missing".to_owned(),
-                kind: NativeRouteKind::Prefix,
-                relative: String::new(),
-                cache: None,
-            }],
-            1,
-            1,
-        );
-        assert!(missing.unwrap_err().contains("undeclared file root"));
         fs::remove_dir(temp).unwrap();
     }
 
@@ -1431,7 +1220,6 @@ mod tests {
                 path: root.clone(),
                 cache: CachePolicy::Revalidate,
             }],
-            Vec::new(),
             1,
             1024,
         )
@@ -1494,7 +1282,6 @@ mod tests {
                 path: root.clone(),
                 cache: CachePolicy::Revalidate,
             }],
-            Vec::new(),
             1,
             1024,
         )

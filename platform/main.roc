@@ -103,6 +103,8 @@ platform "webserver"
 		"hosted_sleep_millis": Host.sleep_millis!,
 		"hosted_request_body_read": Host.request_body_read!,
 		"hosted_request_body_read_all": Host.request_body_read_all!,
+		"hosted_readiness_create": Host.readiness_create!,
+		"hosted_readiness_set": Host.readiness_set!,
 	}
 	targets: {
 		inputs_dir: "targets/",
