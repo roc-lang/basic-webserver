@@ -2,15 +2,17 @@
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Server
 import pf.Cmd
 import pf.Env
 import pf.Path
-import pf.Utc
+import pf.UnixTime
 import pf.Stdout
 import http.Response
+import gregorian.Time
 
 Context : { helper : Str, python : Str, examples_dir : Path.Path, scripts_dir : Path.Path }
 
@@ -91,7 +93,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 			}
 		}
 		_ => {
-			time = Utc.to_iso_8601(Utc.now!())
+			time = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
 
 			# Log request time, method and URL through the helper process.
 			match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${Str.inspect(req.target())}"]) {

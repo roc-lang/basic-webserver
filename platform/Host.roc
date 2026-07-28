@@ -146,9 +146,9 @@ Host := [].{
 	file_is_executable! : RawPath => Try(Bool, [FileErr(IOErr)])
 	file_is_readable! : RawPath => Try(Bool, [FileErr(IOErr)])
 	file_is_writable! : RawPath => Try(Bool, [FileErr(IOErr)])
-	file_time_accessed! : RawPath => Try(U128, [FileErr(IOErr)])
-	file_time_modified! : RawPath => Try(U128, [FileErr(IOErr)])
-	file_time_created! : RawPath => Try(U128, [FileErr(IOErr)])
+	file_time_accessed! : RawPath => Try(I128, [FileErr(IOErr)])
+	file_time_modified! : RawPath => Try(I128, [FileErr(IOErr)])
+	file_time_created! : RawPath => Try(I128, [FileErr(IOErr)])
 
 	http_send_request! : InternalHttp.OutboundRequestToHost => Try(InternalHttp.OutboundResponseFromHost, InternalHttp.SendErr)
 
@@ -186,5 +186,5 @@ Host := [].{
 
 	sleep_millis! : U64 => {}
 
-	utc_now! : () => U128
+	unix_time_now! : () => I128
 }

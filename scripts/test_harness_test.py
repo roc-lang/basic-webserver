@@ -236,6 +236,30 @@ class SpecValidationTests(unittest.TestCase):
                 },
             )
 
+    def test_test_skip_requires_a_reason_and_tracking_issue(self) -> None:
+        test.validate_test_skip(
+            "example",
+            {
+                "reason": "compiler issue",
+                "issue": "https://github.com/roc-lang/roc/issues/10422",
+            },
+        )
+
+        with self.assertRaisesRegex(test.TestFailure, "non-empty reason"):
+            test.validate_test_skip(
+                "example",
+                {
+                    "reason": "",
+                    "issue": "https://github.com/roc-lang/roc/issues/10422",
+                },
+            )
+
+        with self.assertRaisesRegex(test.TestFailure, "tracking issue"):
+            test.validate_test_skip(
+                "example",
+                {"reason": "compiler issue", "issue": "not-an-issue"},
+            )
+
     def test_platform_names_are_validated(self) -> None:
         with self.assertRaisesRegex(test.TestFailure, "skip.platforms"):
             test.validate_skip(

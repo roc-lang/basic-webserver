@@ -2,12 +2,14 @@
 app [Context, program] {
 	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Server
 import pf.Stdout
-import pf.Utc
+import pf.UnixTime
 import http.Response
+import gregorian.Time
 
 # `init!` produces this immutable context once, and every request receives it.
 Context : {}
@@ -21,7 +23,7 @@ init! = || Ok({ config: Server.default_config, context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, _context| {
-	datetime = Utc.to_iso_8601(Utc.now!())
+	datetime = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
 
 	Stdout.line!("${datetime} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")

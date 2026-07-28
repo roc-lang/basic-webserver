@@ -134,6 +134,13 @@ The platform exposes typed modules for:
 - filesystem, environment, path, stdout/stderr, TCP, time, and sleep effects;
 - HTML construction, URL handling, and multipart form parsing.
 
+`UnixTime` provides the POSIX wall-clock effect and normalized timestamps,
+including nanosecond precision and instants before the Unix epoch. Calendar
+systems, time zones, and text formatting are deliberately left to the Roc
+package ecosystem. The time-using examples demonstrate converting
+`UnixTime.Timestamp` values with
+[`roc-gregorian`](https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian).
+
 Outbound HTTP calls default to a 30-second total deadline and an 8 MiB response
 body. At most 64 calls run and 256 wait for admission. The shared client pools
 connections, performs no hidden retries, and uses WebPKI roots for HTTPS.
