@@ -1205,7 +1205,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ordinary_responses_negotiate_brotli_inside_the_handler_domain() {
+    async fn ordinary_responses_negotiate_zstandard_inside_the_handler_domain() {
         initialize_test_host();
         let original = b"compressible ordinary response ".repeat(256);
         let response = RocServerResponse {
@@ -1224,15 +1224,19 @@ mod tests {
             stop: false,
         };
         let mut request_headers = hyper::HeaderMap::new();
-        request_headers.insert(hyper::header::ACCEPT_ENCODING, "gzip, br".parse().unwrap());
+        request_headers.insert(
+            hyper::header::ACCEPT_ENCODING,
+            "gzip, br, zstd".parse().unwrap(),
+        );
 
         let response =
             response_to_hyper(response, AcceptedEncodings::from_headers(&request_headers));
-        assert_eq!(response.headers()[hyper::header::CONTENT_ENCODING], "br");
+        assert_eq!(response.headers()[hyper::header::CONTENT_ENCODING], "zstd");
         assert_eq!(response.headers()[hyper::header::VARY], "Accept-Encoding");
         let encoded = response.into_body().collect().await.unwrap().to_bytes();
         let mut decoded = Vec::new();
-        brotli::Decompressor::new(encoded.as_ref(), 4096)
+        zstd::stream::read::Decoder::new(encoded.as_ref())
+            .unwrap()
             .read_to_end(&mut decoded)
             .unwrap();
         assert_eq!(decoded, original);

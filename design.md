@@ -690,9 +690,10 @@ without moving their contents through Roc.
 ### Response content coding
 
 The host negotiates response compression from `Accept-Encoding` by default.
-It provides Brotli and gzip for eligible ordinary and native file responses,
-preferring the client's quality weights and using identity when compression is
-not accepted or useful.
+It provides Zstandard, Brotli, and gzip for eligible ordinary and native file
+responses, preferring the client's quality weights and using identity when
+compression is not accepted or useful. At equal quality weights, the host
+prefers Zstandard, then Brotli, then gzip.
 
 Compression is a transport transformation, not application policy. The host:
 

@@ -85,11 +85,11 @@ Server :: [].{
 	## application/octet-stream), Last-Modified when available, a weak ETag,
 	## Content-Disposition, and the selected cache policy. Identity responses
 	## include Content-Length and Accept-Ranges. Eligible full responses may
-	## instead stream Brotli or gzip according to Accept-Encoding and include
-	## Vary: Accept-Encoding. Preconditions are evaluated before ranges. One byte
-	## range, including suffix and open-ended forms, is supported as identity;
-	## malformed and multi-range requests are safely ignored, and valid
-	## unsatisfiable ranges return 416.
+	## instead stream Zstandard, Brotli, or gzip according to Accept-Encoding
+	## and include Vary: Accept-Encoding. Preconditions are evaluated before
+	## ranges. One byte range, including suffix and open-ended forms, is
+	## supported as identity; malformed and multi-range requests are safely
+	## ignored, and valid unsatisfiable ranges return 416.
 
 	## A small, typed cache policy for host-managed file responses.
 	CachePolicy := [NoStore, Revalidate, PrivateFor(U32), PublicFor(U32)].{

@@ -664,7 +664,7 @@ fn stream_file(
     match content_coding {
         Some(coding) => {
             let writer = ChunkWriter::new(sender, chunk_bytes);
-            let mut encoder = ContentEncoder::new(coding, writer);
+            let mut encoder = ContentEncoder::new(coding, writer)?;
             copy_file(file, length, chunk_bytes, |bytes| encoder.write_all(bytes))?;
             encoder.finish()?.finish()
         }
@@ -1482,7 +1482,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_files_stream_brotli_but_preserve_identity_ranges() {
+    async fn native_files_stream_zstandard_but_preserve_identity_ranges() {
         use crate::shutdown::RequestTracker;
 
         let root = tempfile_dir();
@@ -1509,7 +1509,10 @@ mod tests {
             )
         };
         let mut compressed_headers = HeaderMap::new();
-        compressed_headers.insert(hyper::header::ACCEPT_ENCODING, "gzip, br".parse().unwrap());
+        compressed_headers.insert(
+            hyper::header::ACCEPT_ENCODING,
+            "gzip, br, zstd".parse().unwrap(),
+        );
         let compressed = service
             .serve(
                 plan(),
@@ -1519,20 +1522,21 @@ mod tests {
             )
             .await;
         assert_eq!(compressed.status(), StatusCode::OK);
-        assert_eq!(compressed.headers()[CONTENT_ENCODING], "br");
+        assert_eq!(compressed.headers()[CONTENT_ENCODING], "zstd");
         assert_eq!(compressed.headers()[hyper::header::VARY], "Accept-Encoding");
         assert!(!compressed.headers().contains_key(CONTENT_LENGTH));
         assert!(!compressed.headers().contains_key(ACCEPT_RANGES));
         let compressed_etag = compressed.headers()[ETAG].clone();
         let encoded = compressed.into_body().collect().await.unwrap().to_bytes();
         let mut decoded = Vec::new();
-        brotli::Decompressor::new(encoded.as_ref(), 4096)
+        zstd::stream::read::Decoder::new(encoded.as_ref())
+            .unwrap()
             .read_to_end(&mut decoded)
             .unwrap();
         assert_eq!(decoded, original);
 
         let mut conditional_headers = HeaderMap::new();
-        conditional_headers.insert(hyper::header::ACCEPT_ENCODING, "br".parse().unwrap());
+        conditional_headers.insert(hyper::header::ACCEPT_ENCODING, "zstd".parse().unwrap());
         conditional_headers.insert(IF_NONE_MATCH, compressed_etag);
         let not_modified = service
             .serve(
@@ -1543,7 +1547,7 @@ mod tests {
             )
             .await;
         assert_eq!(not_modified.status(), StatusCode::NOT_MODIFIED);
-        assert_eq!(not_modified.headers()[CONTENT_ENCODING], "br");
+        assert_eq!(not_modified.headers()[CONTENT_ENCODING], "zstd");
         assert_eq!(
             not_modified.headers()[hyper::header::VARY],
             "Accept-Encoding"
@@ -1557,7 +1561,10 @@ mod tests {
             .is_empty());
 
         let mut range_headers = HeaderMap::new();
-        range_headers.insert(hyper::header::ACCEPT_ENCODING, "gzip, br".parse().unwrap());
+        range_headers.insert(
+            hyper::header::ACCEPT_ENCODING,
+            "gzip, br, zstd".parse().unwrap(),
+        );
         range_headers.insert(RANGE, "bytes=0-10".parse().unwrap());
         let ranged = service
             .serve(

@@ -15,9 +15,13 @@ pub(crate) const MAX_BUFFERED_COMPRESSION_BYTES: usize = 8 * 1024 * 1024;
 const BROTLI_BUFFER_BYTES: usize = 4096;
 const BROTLI_QUALITY: u32 = 4;
 const BROTLI_WINDOW_BITS: u32 = 18;
+const ZSTD_LEVEL: i32 = 3;
+// Bound history-dependent encoder memory to the same 256 KiB window as Brotli.
+const ZSTD_WINDOW_BITS: u32 = 18;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ContentCoding {
+    Zstandard,
     Brotli,
     Gzip,
 }
@@ -25,6 +29,7 @@ pub(crate) enum ContentCoding {
 impl ContentCoding {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
+            Self::Zstandard => "zstd",
             Self::Brotli => "br",
             Self::Gzip => "gzip",
         }
@@ -34,6 +39,7 @@ impl ContentCoding {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct AcceptedEncodings {
     present: bool,
+    zstandard: u16,
     brotli: u16,
     gzip: u16,
     identity: u16,
@@ -46,6 +52,7 @@ impl AcceptedEncodings {
         if !present {
             return Self {
                 present: false,
+                zstandard: 0,
                 brotli: 0,
                 gzip: 0,
                 identity: 1000,
@@ -53,6 +60,7 @@ impl AcceptedEncodings {
             };
         }
 
+        let mut zstandard = None;
         let mut brotli = None;
         let mut gzip = None;
         let mut identity = None;
@@ -62,7 +70,9 @@ impl AcceptedEncodings {
                 continue;
             };
             for member in value.split(',').filter_map(parse_member) {
-                let target = if member.name.eq_ignore_ascii_case("br") {
+                let target = if member.name.eq_ignore_ascii_case("zstd") {
+                    &mut zstandard
+                } else if member.name.eq_ignore_ascii_case("br") {
                     &mut brotli
                 } else if member.name.eq_ignore_ascii_case("gzip")
                     || member.name.eq_ignore_ascii_case("x-gzip")
@@ -83,6 +93,7 @@ impl AcceptedEncodings {
         let identity_explicit = identity.is_some();
         Self {
             present: true,
+            zstandard: zstandard.unwrap_or(wildcard_weight),
             brotli: brotli.unwrap_or(wildcard_weight),
             gzip: gzip.unwrap_or(wildcard_weight),
             identity: identity.unwrap_or(if wildcard == Some(0) { 0 } else { 1000 }),
@@ -98,6 +109,7 @@ impl AcceptedEncodings {
         let mut selected = None;
         let mut selected_weight = 0;
         for (coding, weight) in [
+            (ContentCoding::Zstandard, self.zstandard),
             (ContentCoding::Brotli, self.brotli),
             (ContentCoding::Gzip, self.gzip),
         ] {
@@ -280,7 +292,7 @@ pub(crate) fn encoded_etag(etag: &str, coding: ContentCoding) -> String {
 }
 
 pub(crate) fn encode_bytes(coding: ContentCoding, input: &[u8]) -> io::Result<Vec<u8>> {
-    let encoder = ContentEncoder::new(coding, Vec::with_capacity(input.len().min(64 * 1024)));
+    let encoder = ContentEncoder::new(coding, Vec::with_capacity(input.len().min(64 * 1024)))?;
     encode_all(encoder, input)
 }
 
@@ -290,25 +302,32 @@ fn encode_all<W: Write>(mut encoder: ContentEncoder<W>, input: &[u8]) -> io::Res
 }
 
 pub(crate) enum ContentEncoder<W: Write> {
+    Zstandard(zstd::stream::write::Encoder<'static, W>),
     Brotli(Box<CompressorWriter<W>>),
     Gzip(GzEncoder<W>),
 }
 
 impl<W: Write> ContentEncoder<W> {
-    pub(crate) fn new(coding: ContentCoding, writer: W) -> Self {
+    pub(crate) fn new(coding: ContentCoding, writer: W) -> io::Result<Self> {
         match coding {
-            ContentCoding::Brotli => Self::Brotli(Box::new(CompressorWriter::new(
+            ContentCoding::Zstandard => {
+                let mut encoder = zstd::stream::write::Encoder::new(writer, ZSTD_LEVEL)?;
+                encoder.window_log(ZSTD_WINDOW_BITS)?;
+                Ok(Self::Zstandard(encoder))
+            }
+            ContentCoding::Brotli => Ok(Self::Brotli(Box::new(CompressorWriter::new(
                 writer,
                 BROTLI_BUFFER_BYTES,
                 BROTLI_QUALITY,
                 BROTLI_WINDOW_BITS,
-            ))),
-            ContentCoding::Gzip => Self::Gzip(GzEncoder::new(writer, Compression::default())),
+            )))),
+            ContentCoding::Gzip => Ok(Self::Gzip(GzEncoder::new(writer, Compression::default()))),
         }
     }
 
     pub(crate) fn finish(self) -> io::Result<W> {
         match self {
+            Self::Zstandard(encoder) => encoder.finish(),
             Self::Brotli(encoder) => Ok(encoder.into_inner()),
             Self::Gzip(encoder) => encoder.finish(),
         }
@@ -318,6 +337,7 @@ impl<W: Write> ContentEncoder<W> {
 impl<W: Write> Write for ContentEncoder<W> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         match self {
+            Self::Zstandard(encoder) => encoder.write(buffer),
             Self::Brotli(encoder) => encoder.write(buffer),
             Self::Gzip(encoder) => encoder.write(buffer),
         }
@@ -325,6 +345,7 @@ impl<W: Write> Write for ContentEncoder<W> {
 
     fn flush(&mut self) -> io::Result<()> {
         match self {
+            Self::Zstandard(encoder) => encoder.flush(),
             Self::Brotli(encoder) => encoder.flush(),
             Self::Gzip(encoder) => encoder.flush(),
         }
@@ -349,6 +370,10 @@ mod tests {
         assert_eq!(accepted(None).preferred(), None);
         assert_eq!(accepted(Some("")).preferred(), None);
         assert_eq!(
+            accepted(Some("gzip, br, zstd")).preferred(),
+            Some(ContentCoding::Zstandard)
+        );
+        assert_eq!(
             accepted(Some("gzip, br")).preferred(),
             Some(ContentCoding::Brotli)
         );
@@ -358,9 +383,12 @@ mod tests {
         );
         assert_eq!(
             accepted(Some("*;q=0.5")).preferred(),
-            Some(ContentCoding::Brotli)
+            Some(ContentCoding::Zstandard)
         );
-        assert_eq!(accepted(Some("br;q=0, gzip;q=0")).preferred(), None);
+        assert_eq!(
+            accepted(Some("zstd;q=0, br;q=0, gzip;q=0")).preferred(),
+            None
+        );
         assert_eq!(accepted(Some("br;q=0.5, identity;q=0.8")).preferred(), None);
         assert_eq!(
             accepted(Some("GZIP;Q=1.000, br;q=0")).preferred(),
@@ -405,13 +433,23 @@ mod tests {
     }
 
     #[test]
-    fn gzip_and_brotli_roundtrip() {
+    fn supported_content_codings_roundtrip() {
         let input = b"compressible response body ".repeat(256);
-        for coding in [ContentCoding::Brotli, ContentCoding::Gzip] {
+        for coding in [
+            ContentCoding::Zstandard,
+            ContentCoding::Brotli,
+            ContentCoding::Gzip,
+        ] {
             let encoded = encode_bytes(coding, &input).unwrap();
             assert!(encoded.len() < input.len());
             let mut decoded = Vec::new();
             match coding {
+                ContentCoding::Zstandard => {
+                    zstd::stream::read::Decoder::new(encoded.as_slice())
+                        .unwrap()
+                        .read_to_end(&mut decoded)
+                        .unwrap();
+                }
                 ContentCoding::Brotli => {
                     brotli::Decompressor::new(encoded.as_slice(), 4096)
                         .read_to_end(&mut decoded)
@@ -434,5 +472,9 @@ mod tests {
             "W/\"abc-br\""
         );
         assert_eq!(encoded_etag("\"abc\"", ContentCoding::Gzip), "\"abc-gzip\"");
+        assert_eq!(
+            encoded_etag("\"abc\"", ContentCoding::Zstandard),
+            "\"abc-zstd\""
+        );
     }
 }

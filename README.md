@@ -97,9 +97,10 @@ complete in-memory values, while request bodies can be consumed as bounded
 streams.
 
 Eligible responses of at least 1 KiB are compressed automatically when the
-client accepts Brotli or gzip. The host negotiates quality weights, emits
-`Vary: Accept-Encoding`, leaves range and already encoded responses unchanged,
-and streams compressed native files without buffering them in memory.
+client accepts Zstandard, Brotli, or gzip. The host negotiates quality weights,
+emits `Vary: Accept-Encoding`, leaves range and already encoded responses
+unchanged, and streams compressed native files without buffering them in
+memory. At equal quality weights, it prefers Zstandard, then Brotli, then gzip.
 In-memory responses larger than 8 MiB are left as identity to bound the
 temporary compressed copy. Applications can set `Cache-Control: no-transform`
 to opt a response out. Compressed request bodies are not decoded automatically.
