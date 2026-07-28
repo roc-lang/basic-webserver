@@ -630,6 +630,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "libsqlite3-sys",
+ "ring",
  "rustls",
  "tokio",
  "tower-service",

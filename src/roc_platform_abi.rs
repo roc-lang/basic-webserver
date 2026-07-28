@@ -1253,6 +1253,33 @@ const _: () = assert!(core::mem::size_of::<AnonStruct85380e02323174c5>() == 72, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct85380e02323174c5>() == 8, "AnonStruct85380e02323174c5 alignment mismatch");
 
+/// Element type for __AnonStruct_247809673488181b
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct247809673488181b {
+    pub bytes_written: u64,
+    pub digest: NotComputedOrSha256Digest,
+}
+
+/// Element type for __AnonStruct_247809673488181b
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct247809673488181b {
+    pub bytes_written: u64,
+    pub digest: NotComputedOrSha256Digest,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct247809673488181b>() == 40, "AnonStruct247809673488181b size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct247809673488181b>() == 8, "AnonStruct247809673488181b alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct247809673488181b>() == 24, "AnonStruct247809673488181b size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct247809673488181b>() == 8, "AnonStruct247809673488181b alignment mismatch");
+
 /// Element type for __AnonStruct_8dfa7f17f2083a52
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -1392,40 +1419,41 @@ const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_8a8a50656f2623dd
+/// Element type for __AnonStruct_1d764936cc5d6332
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct8a8a50656f2623dd {
-    pub config: AnonStructF6553ece33fb1c17,
+pub struct AnonStruct1d764936cc5d6332 {
+    pub config: AnonStructF5f62c339c4ef1c9,
     pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_8a8a50656f2623dd
+/// Element type for __AnonStruct_1d764936cc5d6332
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct8a8a50656f2623dd {
-    pub config: AnonStructF6553ece33fb1c17,
+pub struct AnonStruct1d764936cc5d6332 {
+    pub config: AnonStructF5f62c339c4ef1c9,
     pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct8a8a50656f2623dd>() == 224, "AnonStruct8a8a50656f2623dd size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1d764936cc5d6332>() == 264, "AnonStruct1d764936cc5d6332 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct8a8a50656f2623dd>() == 8, "AnonStruct8a8a50656f2623dd alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1d764936cc5d6332>() == 8, "AnonStruct1d764936cc5d6332 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct8a8a50656f2623dd>() == 168, "AnonStruct8a8a50656f2623dd size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1d764936cc5d6332>() == 192, "AnonStruct1d764936cc5d6332 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct8a8a50656f2623dd>() == 8, "AnonStruct8a8a50656f2623dd alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1d764936cc5d6332>() == 8, "AnonStruct1d764936cc5d6332 alignment mismatch");
 
-/// Element type for __AnonStruct_f6553ece33fb1c17
+/// Element type for __AnonStruct_f5f62c339c4ef1c9
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF6553ece33fb1c17 {
+pub struct AnonStructF5f62c339c4ef1c9 {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
+    pub body_sink_timeout_ms: u64,
     pub drain_timeout_ms: u64,
     pub handler_queue_timeout_ms: u64,
     pub header_timeout_ms: u64,
@@ -1437,12 +1465,14 @@ pub struct AnonStructF6553ece33fb1c17 {
     pub liveness_routes: RocList<RocStr>,
     pub native_file_routes: RocList<AnonStructFf6f93028827ced0>,
     pub readiness_routes: RocList<AnonStruct88f5430c7a4d7d9d>,
+    pub writable_roots: RocList<AnonStruct164d87d4a7b4f044>,
     pub body_chunk_bytes: u32,
     pub file_chunk_bytes: u32,
     pub max_connections: u32,
     pub request_header_max_bytes: u32,
     pub request_target_max_bytes: u32,
     pub body_buffered_chunks: u16,
+    pub body_sink_max_concurrent: u16,
     pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
@@ -1450,13 +1480,14 @@ pub struct AnonStructF6553ece33fb1c17 {
     pub request_header_max_fields: u16,
 }
 
-/// Element type for __AnonStruct_f6553ece33fb1c17
+/// Element type for __AnonStruct_f5f62c339c4ef1c9
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF6553ece33fb1c17 {
+pub struct AnonStructF5f62c339c4ef1c9 {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
+    pub body_sink_timeout_ms: u64,
     pub drain_timeout_ms: u64,
     pub handler_queue_timeout_ms: u64,
     pub header_timeout_ms: u64,
@@ -1468,12 +1499,14 @@ pub struct AnonStructF6553ece33fb1c17 {
     pub liveness_routes: RocList<RocStr>,
     pub native_file_routes: RocList<AnonStructFf6f93028827ced0>,
     pub readiness_routes: RocList<AnonStruct88f5430c7a4d7d9d>,
+    pub writable_roots: RocList<AnonStruct164d87d4a7b4f044>,
     pub body_chunk_bytes: u32,
     pub file_chunk_bytes: u32,
     pub max_connections: u32,
     pub request_header_max_bytes: u32,
     pub request_target_max_bytes: u32,
     pub body_buffered_chunks: u16,
+    pub body_sink_max_concurrent: u16,
     pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
@@ -1482,13 +1515,13 @@ pub struct AnonStructF6553ece33fb1c17 {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructF6553ece33fb1c17>() == 216, "AnonStructF6553ece33fb1c17 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF5f62c339c4ef1c9>() == 256, "AnonStructF5f62c339c4ef1c9 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructF6553ece33fb1c17>() == 8, "AnonStructF6553ece33fb1c17 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF5f62c339c4ef1c9>() == 8, "AnonStructF5f62c339c4ef1c9 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructF6553ece33fb1c17>() == 160, "AnonStructF6553ece33fb1c17 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF5f62c339c4ef1c9>() == 184, "AnonStructF5f62c339c4ef1c9 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructF6553ece33fb1c17>() == 8, "AnonStructF6553ece33fb1c17 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF5f62c339c4ef1c9>() == 8, "AnonStructF5f62c339c4ef1c9 alignment mismatch");
 
 /// Element type for __AnonStruct_3b01e35488cb00dc
 #[cfg(target_pointer_width = "32")]
@@ -1590,6 +1623,39 @@ const _: () = assert!(core::mem::align_of::<AnonStruct88f5430c7a4d7d9d>() == 8, 
 const _: () = assert!(core::mem::size_of::<AnonStruct88f5430c7a4d7d9d>() == 16, "AnonStruct88f5430c7a4d7d9d size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct88f5430c7a4d7d9d>() == 4, "AnonStruct88f5430c7a4d7d9d alignment mismatch");
+
+/// Element type for __AnonStruct_164d87d4a7b4f044
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct164d87d4a7b4f044 {
+    pub id: RocStr,
+    pub path_unix_bytes: RocListWith<u8, false>,
+    pub path_utf8: RocStr,
+    pub path_windows_u16s: RocListWith<u16, false>,
+    pub path_tag: u8,
+}
+
+/// Element type for __AnonStruct_164d87d4a7b4f044
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct164d87d4a7b4f044 {
+    pub id: RocStr,
+    pub path_unix_bytes: RocListWith<u8, false>,
+    pub path_utf8: RocStr,
+    pub path_windows_u16s: RocListWith<u16, false>,
+    pub path_tag: u8,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct164d87d4a7b4f044>() == 104, "AnonStruct164d87d4a7b4f044 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct164d87d4a7b4f044>() == 8, "AnonStruct164d87d4a7b4f044 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct164d87d4a7b4f044>() == 52, "AnonStruct164d87d4a7b4f044 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct164d87d4a7b4f044>() == 4, "AnonStruct164d87d4a7b4f044 alignment mismatch");
 
 /// Element type for __AnonStruct_66bd3eb5a5fde7bc
 #[cfg(target_pointer_width = "32")]
@@ -3647,7 +3713,7 @@ pub enum HostRequestBodyReadResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostRequestBodyReadResultPayload {
-    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>,
+    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>,
     pub ok: core::mem::ManuallyDrop<ChunkOrEnd>,
 }
 
@@ -3677,12 +3743,12 @@ pub struct HostRequestBodyReadResult {
 
 impl HostRequestBodyReadResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge) }
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -3711,27 +3777,29 @@ const _: () = assert!(core::mem::align_of::<HostRequestBodyReadResult>() == 8, "
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostRequestBodyReadResult, tag) == 24, "HostRequestBodyReadResult tag offset mismatch");
 
-/// Tag discriminant for CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge.
+/// Tag discriminant for CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag {
+pub enum CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag {
     Cancelled = 0,
     ClientDisconnected = 1,
     ConcurrentRead = 2,
     InvalidBody = 3,
     RequestFinished = 4,
-    Timeout = 5,
-    TooLarge = 6,
+    Stopping = 5,
+    Timeout = 6,
+    TooLarge = 7,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload {
+pub union CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayload {
     pub cancelled: [u8; 0],
     pub client_disconnected: [u8; 0],
     pub concurrent_read: [u8; 0],
     pub invalid_body: core::mem::ManuallyDrop<RocStr>,
     pub request_finished: [u8; 0],
+    pub stopping: [u8; 0],
     pub timeout: [u8; 0],
     pub too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
 }
@@ -3739,28 +3807,28 @@ pub union CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFin
 #[cfg(target_pointer_width = "32")]
 #[repr(align(8))]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayloadAlignment;
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayloadAlignment;
 
-/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge
+/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
-    pub _payload_alignment: [CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayloadAlignment; 0],
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+    pub _payload_alignment: [CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayloadAlignment; 0],
     pub payload: [u8; 16],
-    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag,
+    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag,
 }
 
-/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge
+/// Tag union: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
-    pub payload: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload,
-    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag,
+pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+    pub payload: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayload,
+    pub tag: CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag,
 }
 
-impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_invalid_body(&self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
@@ -3784,17 +3852,17 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 32, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>() == 32, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge, tag) == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge, tag) == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge size mismatch");
+const _: () = assert!(core::mem::size_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>() == 24, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge alignment mismatch");
+const _: () = assert!(core::mem::align_of::<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>() == 8, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge, tag) == 16, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge, tag) == 16, "CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge tag offset mismatch");
 
 /// Tag discriminant for ChunkOrEnd.
 #[repr(u8)]
@@ -3872,7 +3940,7 @@ pub enum HostRequestBodyReadAllResultTag {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union HostRequestBodyReadAllResultPayload {
-    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge>,
+    pub err: core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge>,
     pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
 }
 
@@ -3902,12 +3970,12 @@ pub struct HostRequestBodyReadAllResult {
 
 impl HostRequestBodyReadAllResult {
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge) }
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
     }
 
@@ -3935,6 +4003,281 @@ const _: () = assert!(core::mem::size_of::<HostRequestBodyReadAllResult>() == 32
 const _: () = assert!(core::mem::align_of::<HostRequestBodyReadAllResult>() == 8, "HostRequestBodyReadAllResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostRequestBodyReadAllResult, tag) == 24, "HostRequestBodyReadAllResult tag offset mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostRequestBodyWriteFileResultTag {
+    Err = 0,
+    Ok = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union HostRequestBodyWriteFileResultPayload {
+    pub err: core::mem::ManuallyDrop<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct247809673488181b>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct HostRequestBodyWriteFileResultPayloadAlignment;
+
+/// Tag union: Try
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRequestBodyWriteFileResult {
+    pub _payload_alignment: [HostRequestBodyWriteFileResultPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: HostRequestBodyWriteFileResultTag,
+}
+
+/// Tag union: Try
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRequestBodyWriteFileResult {
+    pub payload: HostRequestBodyWriteFileResultPayload,
+    pub tag: HostRequestBodyWriteFileResultTag,
+}
+
+impl HostRequestBodyWriteFileResult {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_err(&self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_err(&self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_ok(&self) -> AnonStruct247809673488181b {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct247809673488181b) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_ok(&self) -> AnonStruct247809673488181b {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<HostRequestBodyWriteFileResult>() == 48, "HostRequestBodyWriteFileResult size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<HostRequestBodyWriteFileResult>() == 8, "HostRequestBodyWriteFileResult alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(HostRequestBodyWriteFileResult, tag) == 40, "HostRequestBodyWriteFileResult tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<HostRequestBodyWriteFileResult>() == 32, "HostRequestBodyWriteFileResult size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<HostRequestBodyWriteFileResult>() == 8, "HostRequestBodyWriteFileResult alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(HostRequestBodyWriteFileResult, tag) == 24, "HostRequestBodyWriteFileResult tag offset mismatch");
+
+/// Tag discriminant for CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag {
+    Cancelled = 0,
+    CleanupFailed = 1,
+    ClientDisconnected = 2,
+    ConcurrentRead = 3,
+    DestinationExists = 4,
+    Filesystem = 5,
+    InvalidBody = 6,
+    InvalidRelativeFile = 7,
+    InvalidRoot = 8,
+    PermissionDenied = 9,
+    PublishFailed = 10,
+    RequestFinished = 11,
+    Saturated = 12,
+    Stopping = 13,
+    StorageFull = 14,
+    Timeout = 15,
+    TooLarge = 16,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargePayload {
+    pub cancelled: [u8; 0],
+    pub cleanup_failed: core::mem::ManuallyDrop<RocStr>,
+    pub client_disconnected: [u8; 0],
+    pub concurrent_read: [u8; 0],
+    pub destination_exists: [u8; 0],
+    pub filesystem: core::mem::ManuallyDrop<RocStr>,
+    pub invalid_body: core::mem::ManuallyDrop<RocStr>,
+    pub invalid_relative_file: [u8; 0],
+    pub invalid_root: [u8; 0],
+    pub permission_denied: [u8; 0],
+    pub publish_failed: core::mem::ManuallyDrop<RocStr>,
+    pub request_finished: [u8; 0],
+    pub saturated: [u8; 0],
+    pub stopping: [u8; 0],
+    pub storage_full: [u8; 0],
+    pub timeout: [u8; 0],
+    pub too_large: core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargePayloadAlignment;
+
+/// Tag union: CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    pub _payload_alignment: [CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargePayloadAlignment; 0],
+    pub payload: [u8; 16],
+    pub tag: CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag,
+}
+
+/// Tag union: CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    pub payload: CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargePayload,
+    pub tag: CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag,
+}
+
+impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_cleanup_failed(&self) -> RocStr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_cleanup_failed(&self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.cleanup_failed) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_filesystem(&self) -> RocStr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_filesystem(&self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.filesystem) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_invalid_body(&self) -> RocStr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_invalid_body(&self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.invalid_body) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_publish_failed(&self) -> RocStr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_publish_failed(&self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.publish_failed) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.too_large) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge>() == 32, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge>() == 8, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge, tag) == 24, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge>() == 24, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge>() == 8, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge, tag) == 16, "CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge tag offset mismatch");
+
+/// Tag discriminant for NotComputedOrSha256Digest.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotComputedOrSha256DigestTag {
+    NotComputed = 0,
+    Sha256Digest = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union NotComputedOrSha256DigestPayload {
+    pub not_computed: [u8; 0],
+    pub sha256digest: core::mem::ManuallyDrop<RocListWith<u8, false>>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(4))]
+#[derive(Clone, Copy)]
+pub struct NotComputedOrSha256DigestPayloadAlignment;
+
+/// Tag union: NotComputedOrSha256Digest
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NotComputedOrSha256Digest {
+    pub _payload_alignment: [NotComputedOrSha256DigestPayloadAlignment; 0],
+    pub payload: [u8; 12],
+    pub tag: NotComputedOrSha256DigestTag,
+}
+
+/// Tag union: NotComputedOrSha256Digest
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NotComputedOrSha256Digest {
+    pub payload: NotComputedOrSha256DigestPayload,
+    pub tag: NotComputedOrSha256DigestTag,
+}
+
+impl NotComputedOrSha256Digest {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_sha256digest(&self) -> RocListWith<u8, false> {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_sha256digest(&self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.sha256digest) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<NotComputedOrSha256Digest>() == 32, "NotComputedOrSha256Digest size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<NotComputedOrSha256Digest>() == 8, "NotComputedOrSha256Digest alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(NotComputedOrSha256Digest, tag) == 24, "NotComputedOrSha256Digest tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<NotComputedOrSha256Digest>() == 16, "NotComputedOrSha256Digest size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<NotComputedOrSha256Digest>() == 4, "NotComputedOrSha256Digest alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(NotComputedOrSha256Digest, tag) == 12, "NotComputedOrSha256Digest tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -5201,7 +5544,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStruct8a8a50656f2623dd>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct1d764936cc5d6332>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -5215,7 +5558,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 168],
+    pub payload: [u8; 192],
     pub tag: InitForHostResultTag,
 }
 
@@ -5240,29 +5583,29 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct8a8a50656f2623dd {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct8a8a50656f2623dd) }
+    pub fn payload_ok(&self) -> AnonStruct1d764936cc5d6332 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct1d764936cc5d6332) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct8a8a50656f2623dd {
+    pub fn payload_ok(&self) -> AnonStruct1d764936cc5d6332 {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 232, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 272, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 224, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 264, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 176, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 200, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 168, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 192, "InitForHostResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -6129,7 +6472,7 @@ pub struct HostReadinessSetArgs {
 }
 
 /// Arguments for Host.request_body_read!
-/// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Stopping, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -6139,13 +6482,26 @@ pub struct HostRequestBodyReadArgs {
 }
 
 /// Arguments for Host.request_body_read_all!
-/// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Stopping, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
 /// Refcounted fields are owned by the hosted function.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostRequestBodyReadAllArgs {
     pub arg0: *mut u64,
     pub arg1: u64,
+}
+
+/// Arguments for Host.request_body_write_file!
+/// Roc signature: Host.RequestBody, U64, Str, Str, U8 => Try({ bytes_written : U64, digest : [NotComputed, Sha256Digest(List(U8))] }, [Cancelled, CleanupFailed(Str), ClientDisconnected, ConcurrentRead, DestinationExists, Filesystem(Str), InvalidBody(Str), InvalidRelativeFile, InvalidRoot, PermissionDenied, PublishFailed(Str), RequestFinished, Saturated, Stopping, StorageFull, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+/// Refcounted fields are owned by the hosted function.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRequestBodyWriteFileArgs {
+    pub arg0: *mut u64,
+    pub arg1: u64,
+    pub arg2: RocStr,
+    pub arg3: RocStr,
+    pub arg4: u8,
 }
 
 /// Arguments for Host.sleep_millis!
@@ -6483,18 +6839,24 @@ pub type HostHttpSendRequestOkHeaders = AnonStruct82a96c5d55d63488;
 pub type HostPathTypeArg0 = AnonStruct2e21b53659f79626;
 pub type HostPathTypeOk = AnonStruct8dfa7f17f2083a52;
 pub type HostReadinessSetErr = InvalidReadinessOrServerStoppingOrStaleReadiness;
-pub type HostRequestBodyReadErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge;
-pub type HostRequestBodyReadErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload;
-pub type HostRequestBodyReadErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag;
+pub type HostRequestBodyReadErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge;
+pub type HostRequestBodyReadErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayload;
+pub type HostRequestBodyReadErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag;
 pub type HostRequestBodyReadErrTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostRequestBodyReadOk = ChunkOrEnd;
 pub type HostRequestBodyReadOkPayload = ChunkOrEndPayload;
 pub type HostRequestBodyReadOkTag = ChunkOrEndTag;
-pub type CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTooLarge = AnonStruct3c19acd0e825703f;
-pub type HostRequestBodyReadAllErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge;
-pub type HostRequestBodyReadAllErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargePayload;
-pub type HostRequestBodyReadAllErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag;
+pub type CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTooLarge = AnonStruct3c19acd0e825703f;
+pub type HostRequestBodyReadAllErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge;
+pub type HostRequestBodyReadAllErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayload;
+pub type HostRequestBodyReadAllErrTag = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag;
 pub type HostRequestBodyReadAllErrTooLarge = AnonStruct3c19acd0e825703f;
+pub type HostRequestBodyWriteFileErr = CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge;
+pub type HostRequestBodyWriteFileErrPayload = CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargePayload;
+pub type HostRequestBodyWriteFileErrTag = CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag;
+pub type HostRequestBodyWriteFileErrTooLarge = AnonStruct3c19acd0e825703f;
+pub type HostRequestBodyWriteFileOk = AnonStruct247809673488181b;
+pub type CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTooLarge = AnonStruct3c19acd0e825703f;
 pub type HostSqliteBeginErr = AnonStruct22cf486058afc711;
 pub type HostSqliteColumnsErr = AnonStruct22cf486058afc711;
 pub type HostSqliteNextRowErr = AnonStruct22cf486058afc711;
@@ -6534,11 +6896,12 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStruct8a8a50656f2623dd;
-pub type InitForHostOkConfig = AnonStructF6553ece33fb1c17;
+pub type InitForHostOk = AnonStruct1d764936cc5d6332;
+pub type InitForHostOkConfig = AnonStructF5f62c339c4ef1c9;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeFileRoutes = AnonStructFf6f93028827ced0;
 pub type InitForHostOkConfigReadinessRoutes = AnonStruct88f5430c7a4d7d9d;
+pub type InitForHostOkConfigWritableRoots = AnonStruct164d87d4a7b4f044;
 pub type RespondForHostArg0 = AnonStruct66bd3eb5a5fde7bc;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
 pub type RespondForHost = AnonStructAeceb9ea017a78f4;
@@ -7972,7 +8335,7 @@ impl HostRequestBodyReadResult {
     }
 }
 
-impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLarge {
+impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -7981,16 +8344,17 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
         let value = self;
         let _ = roc_host;
         match value.tag {
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Cancelled => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ClientDisconnected => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ConcurrentRead => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::InvalidBody => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody => {
                 let payload = value.payload_invalid_body();
                 unsafe { payload.decref(roc_host); }
             },
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::RequestFinished => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Timeout => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::TooLarge => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Stopping => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge => {
                 let payload = value.payload_too_large();
                 unsafe { payload.decref(roc_host); }
             },
@@ -8006,16 +8370,17 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
         let value = self;
         let _ = amount;
         match value.tag {
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Cancelled => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ClientDisconnected => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::ConcurrentRead => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::InvalidBody => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody => {
                 let payload = value.payload_invalid_body();
                 unsafe { payload.incref(amount); }
             },
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::RequestFinished => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::Timeout => {},
-            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrTimeoutOrTooLargeTag::TooLarge => {
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Stopping => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge => {
                 let payload = value.payload_too_large();
                 unsafe { payload.incref(amount); }
             },
@@ -8093,6 +8458,192 @@ impl HostRequestBodyReadAllResult {
             },
             HostRequestBodyReadAllResultTag::Ok => {
                 let payload = value.payload_ok();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl HostRequestBodyWriteFileResult {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            HostRequestBodyWriteFileResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.decref(roc_host); }
+            },
+            HostRequestBodyWriteFileResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            HostRequestBodyWriteFileResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.incref(amount); }
+            },
+            HostRequestBodyWriteFileResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed => {
+                let payload = value.payload_cleanup_failed();
+                unsafe { payload.decref(roc_host); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::DestinationExists => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem => {
+                let payload = value.payload_filesystem();
+                unsafe { payload.decref(roc_host); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody => {
+                let payload = value.payload_invalid_body();
+                unsafe { payload.decref(roc_host); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRelativeFile => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRoot => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PermissionDenied => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed => {
+                let payload = value.payload_publish_failed();
+                unsafe { payload.decref(roc_host); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Saturated => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Stopping => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::StorageFull => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge => {
+                let payload = value.payload_too_large();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Cancelled => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed => {
+                let payload = value.payload_cleanup_failed();
+                unsafe { payload.incref(amount); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ClientDisconnected => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ConcurrentRead => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::DestinationExists => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem => {
+                let payload = value.payload_filesystem();
+                unsafe { payload.incref(amount); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody => {
+                let payload = value.payload_invalid_body();
+                unsafe { payload.incref(amount); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRelativeFile => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRoot => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PermissionDenied => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed => {
+                let payload = value.payload_publish_failed();
+                unsafe { payload.incref(amount); }
+            },
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::RequestFinished => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Saturated => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Stopping => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::StorageFull => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Timeout => {},
+            CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge => {
+                let payload = value.payload_too_large();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl AnonStruct247809673488181b {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.digest.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.digest.incref(amount); }
+    }
+}
+
+impl NotComputedOrSha256Digest {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            NotComputedOrSha256DigestTag::NotComputed => {},
+            NotComputedOrSha256DigestTag::Sha256Digest => {
+                let payload = value.payload_sha256digest();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            NotComputedOrSha256DigestTag::NotComputed => {},
+            NotComputedOrSha256DigestTag::Sha256Digest => {
+                let payload = value.payload_sha256digest();
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8949,7 +9500,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStruct8a8a50656f2623dd {
+impl AnonStruct1d764936cc5d6332 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -8972,7 +9523,7 @@ impl AnonStruct8a8a50656f2623dd {
     }
 }
 
-impl AnonStructF6553ece33fb1c17 {
+impl AnonStructF5f62c339c4ef1c9 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -9020,6 +9571,16 @@ impl AnonStructF6553ece33fb1c17 {
             }
             unsafe { list.decref(roc_host); }
         }
+        {
+            let list = value.writable_roots;
+            if list.has_one_ref() {
+                for item_ref in list.allocation_items() {
+                    let item = *item_ref;
+                        unsafe { item.decref(roc_host); }
+                }
+            }
+            unsafe { list.decref(roc_host); }
+        }
     }
 
     /// Increment Roc-owned fields.
@@ -9034,6 +9595,7 @@ impl AnonStructF6553ece33fb1c17 {
         unsafe { value.liveness_routes.incref(amount); }
         unsafe { value.native_file_routes.incref(amount); }
         unsafe { value.readiness_routes.incref(amount); }
+        unsafe { value.writable_roots.incref(amount); }
     }
 }
 
@@ -9109,6 +9671,33 @@ impl AnonStruct88f5430c7a4d7d9d {
         let value = self;
         unsafe { value.at.incref(amount); }
         unsafe { incref_box(value.readiness as RocBox, amount); }
+    }
+}
+
+impl AnonStruct164d87d4a7b4f044 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.id.decref(roc_host); }
+        unsafe { value.path_unix_bytes.decref(roc_host); }
+        unsafe { value.path_utf8.decref(roc_host); }
+        unsafe { value.path_windows_u16s.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.id.incref(amount); }
+        unsafe { value.path_unix_bytes.incref(amount); }
+        unsafe { value.path_utf8.incref(amount); }
+        unsafe { value.path_windows_u16s.incref(amount); }
     }
 }
 
@@ -9409,12 +9998,16 @@ unsafe extern "C" {
     pub fn hosted_readiness_set(arg0: *mut u64, arg1: bool) -> HostReadinessSetResult;
 
     /// Hosted symbol for Host.request_body_read!
-    /// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    /// Roc signature: Host.RequestBody, U64 => Try([Chunk(List(U8)), End], [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Stopping, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
     pub fn hosted_request_body_read(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadResult;
 
     /// Hosted symbol for Host.request_body_read_all!
-    /// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    /// Roc signature: Host.RequestBody, U64 => Try(List(U8), [Cancelled, ClientDisconnected, ConcurrentRead, InvalidBody(Str), RequestFinished, Stopping, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
     pub fn hosted_request_body_read_all(arg0: *mut u64, arg1: u64) -> HostRequestBodyReadAllResult;
+
+    /// Hosted symbol for Host.request_body_write_file!
+    /// Roc signature: Host.RequestBody, U64, Str, Str, U8 => Try({ bytes_written : U64, digest : [NotComputed, Sha256Digest(List(U8))] }, [Cancelled, CleanupFailed(Str), ClientDisconnected, ConcurrentRead, DestinationExists, Filesystem(Str), InvalidBody(Str), InvalidRelativeFile, InvalidRoot, PermissionDenied, PublishFailed(Str), RequestFinished, Saturated, Stopping, StorageFull, Timeout, TooLarge({ limit_bytes : U64, received_at_least : U64 })])
+    pub fn hosted_request_body_write_file(arg0: *mut u64, arg1: u64, arg2: RocStr, arg3: RocStr, arg4: u8) -> HostRequestBodyWriteFileResult;
 
     /// Hosted symbol for Host.sleep_millis!
     /// Roc signature: U64 => {}

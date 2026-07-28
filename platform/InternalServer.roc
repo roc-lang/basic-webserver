@@ -76,6 +76,15 @@ InternalServer :: [].{
 				cache_max_age_seconds : U32,
 			},
 		),
+		writable_roots : List(
+			{
+				id : Str,
+				path_tag : U8,
+				path_utf8 : Str,
+				path_unix_bytes : List(U8),
+				path_windows_u16s : List(U16),
+			},
+		),
 		native_file_routes : List(
 			{
 				at : Str,
@@ -91,6 +100,8 @@ InternalServer :: [].{
 		readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 		file_max_concurrent : U16,
 		file_chunk_bytes : U32,
+		body_sink_max_concurrent : U16,
+		body_sink_timeout_ms : U64,
 	}
 
 	ShutdownReasonFromHost : {

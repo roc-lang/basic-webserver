@@ -1402,6 +1402,124 @@
       ]
     },
     {
+      "path": "examples/file-upload.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "authorized-raw-put-and-readback",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/uploads/existing.bin",
+              "text": "original"
+            }
+          ],
+          "requests": [
+            {
+              "method": "PUT",
+              "target": "/upload/alpha",
+              "body": "abcdef",
+              "status": 201,
+              "body_contains": [
+                "bytes=6",
+                "Sha256Digest"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/upload/exact-limit",
+              "body": "eleven-byte",
+              "status": 201,
+              "expect_body": "bytes=11 digest=NotComputed"
+            },
+            {
+              "target": "/files/alpha",
+              "expect_body": "abcdef",
+              "response_headers": {
+                "Content-Length": "6"
+              }
+            },
+            {
+              "target": "/files/exact-limit",
+              "expect_body": "eleven-byte",
+              "response_headers": {
+                "Content-Length": "11"
+              }
+            }
+          ]
+        },
+        {
+          "name": "create-new-limits-timeout-and-cleanup",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/uploads/existing.bin",
+              "text": "original"
+            }
+          ],
+          "requests": [
+            {
+              "method": "PUT",
+              "target": "/upload/existing",
+              "body": "replacement",
+              "status": 409,
+              "expect_body": "DestinationExists"
+            },
+            {
+              "target": "/files/existing",
+              "expect_body": "original"
+            },
+            {
+              "method": "PUT",
+              "target": "/upload/streamed-limit",
+              "body": "abcdef",
+              "status": 413,
+              "expect_body": "TooLarge limit=5 received=6"
+            },
+            {
+              "raw": true,
+              "data": "PUT /upload/streamed-limit HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3\r\nabc\r\n3\r\ndef\r\n0\r\n\r\n",
+              "half_close": false,
+              "response_contains": [
+                "413 Payload Too Large",
+                "TooLarge limit=5 received=6"
+              ]
+            },
+            {
+              "target": "/files/streamed-limit",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "raw": true,
+              "data": "PUT /upload/timeout HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\n",
+              "half_close": false,
+              "response_contains": [
+                "408 Request Timeout",
+                "Timeout"
+              ]
+            },
+            {
+              "target": "/files/timeout",
+              "status": 404,
+              "expect_body": ""
+            },
+            {
+              "method": "PUT",
+              "target": "/upload/alpha",
+              "headers": {
+                "Content-Length": "1048577"
+              },
+              "status": 413,
+              "body_contains": [
+                "1048576-byte limit"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/static-files.roc",
       "mode": "server",
       "cases": [

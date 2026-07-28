@@ -9,16 +9,19 @@
 
 use crate::abi::{
     body_error, body_read_all_error, body_read_all_ok, body_read_chunk, body_read_end,
-    body_read_error, roc_host, BodyReadAllResult, BodyReadError, BodyReadErrorTag, BodyReadResult,
-    BodyTooLarge,
+    body_read_error, body_write_error, body_write_error_value, body_write_ok, roc_host,
+    BodyReadAllResult, BodyReadError, BodyReadErrorTag, BodyReadResult, BodyTooLarge,
+    BodyWriteError, BodyWriteErrorTag, BodyWriteResult, BodyWriteTooLarge,
 };
+use crate::body_sink::{BodySinkService, DigestKind, SinkError, SinkSuccess};
 use crate::roc_alloc::{self, AllocationKind};
 use crate::roc_platform_abi::{decref_box_with, incref_box, RocBox, RocHost, RocListWith, RocStr};
+use crate::shutdown::ShutdownController;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use std::sync::atomic::{AtomicIsize, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Mutex, TryLockError};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, TryLockError};
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 
 const REQUEST_BODY_TOKEN: u64 = 0x5245_5142_4f44_5931;
@@ -70,6 +73,7 @@ pub(crate) enum BodyError {
     RequestFinished,
     ConcurrentRead,
     Cancelled,
+    Stopping,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -78,7 +82,7 @@ pub(crate) enum ReadResult {
     End,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum Terminal {
     End,
     Error(BodyError),
@@ -92,15 +96,24 @@ enum PumpMessage {
     Wake,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PumpControl {
+    Running,
+    Drain,
+    Cancel,
+}
+
 struct BodyState {
     receiver: Mutex<mpsc::Receiver<PumpMessage>>,
     wake_sender: mpsc::Sender<PumpMessage>,
-    cancel_sender: watch::Sender<bool>,
+    control_sender: watch::Sender<PumpControl>,
     terminal: Mutex<Option<Terminal>>,
     hard_limit: u64,
     declared_length: Option<u64>,
     narrow_limit: AtomicU64,
     delivered: AtomicU64,
+    sinks: BodySinkService,
+    shutdown: ShutdownController,
 }
 
 impl BodyState {
@@ -122,8 +135,33 @@ impl BodyState {
     }
 
     fn stop(&self, terminal: Terminal) {
-        self.set_terminal(terminal);
-        let _ = self.cancel_sender.send(true);
+        let effective_terminal = {
+            let mut current = self
+                .terminal
+                .lock()
+                .expect("request body terminal mutex poisoned");
+            if current.is_none() {
+                *current = Some(terminal);
+            }
+            current
+                .as_ref()
+                .expect("request body terminal was just initialized")
+                .clone()
+        };
+        let control = match &effective_terminal {
+            Terminal::Error(BodyError::TooLarge { .. }) => PumpControl::Drain,
+            _ => PumpControl::Cancel,
+        };
+        self.control_sender.send_if_modified(|current| {
+            let next = match (*current, control) {
+                (PumpControl::Cancel, _) | (_, PumpControl::Cancel) => PumpControl::Cancel,
+                (PumpControl::Drain, _) | (_, PumpControl::Drain) => PumpControl::Drain,
+                _ => PumpControl::Running,
+            };
+            let changed = *current != next;
+            *current = next;
+            changed
+        });
         // If a reader is blocked on an empty channel this wakes it. A full
         // channel means the reader can already make progress and will observe
         // the terminal state immediately after receiving that message.
@@ -251,25 +289,153 @@ impl BodyState {
             }
         }
     }
+
+    fn write_file(
+        &self,
+        requested_limit: u64,
+        root_id: &str,
+        relative: &str,
+        digest: DigestKind,
+    ) -> Result<SinkSuccess, SinkError> {
+        if self.shutdown.reason().is_some() {
+            return Err(SinkError::Stopping);
+        }
+        let mut receiver = self.lock_reader().map_err(SinkError::Body)?;
+        let effective_limit = self.effective_limit(requested_limit);
+        let already_delivered = self.delivered.load(Ordering::Acquire);
+        if already_delivered > effective_limit {
+            let error = BodyError::TooLarge {
+                limit_bytes: effective_limit,
+                received_at_least: already_delivered,
+            };
+            self.stop(Terminal::Error(error.clone()));
+            return Err(SinkError::Body(error));
+        }
+        if let Some(declared_length) = self.declared_length {
+            if declared_length > effective_limit {
+                let error = BodyError::TooLarge {
+                    limit_bytes: effective_limit,
+                    received_at_least: declared_length,
+                };
+                self.stop(Terminal::Error(error.clone()));
+                return Err(SinkError::Body(error));
+            }
+        }
+
+        const WATCHDOG_POLL: Duration = Duration::from_millis(10);
+        const WATCHDOG_RUNNING: usize = 0;
+        const WATCHDOG_TIMEOUT: usize = 1;
+        const WATCHDOG_STOPPING: usize = 2;
+
+        let completed = Arc::new((Mutex::new(false), Condvar::new()));
+        let watchdog_reason = AtomicUsize::new(WATCHDOG_RUNNING);
+        let timeout = self.sinks.timeout();
+        let result = std::thread::scope(|scope| {
+            let completed_for_watchdog = Arc::clone(&completed);
+            let watchdog_reason_ref = &watchdog_reason;
+            let watchdog = std::thread::Builder::new()
+                .name("basic-webserver-body-sink-watchdog".to_owned())
+                .spawn_scoped(scope, move || {
+                    let deadline = Instant::now() + timeout;
+                    let (lock, changed) = &*completed_for_watchdog;
+                    let mut done = lock.lock().expect("body sink watchdog mutex poisoned");
+                    while !*done {
+                        if self.shutdown.reason().is_some() {
+                            watchdog_reason_ref.store(WATCHDOG_STOPPING, Ordering::Release);
+                            self.stop(Terminal::Error(BodyError::Stopping));
+                            return;
+                        }
+                        let now = Instant::now();
+                        if now >= deadline {
+                            watchdog_reason_ref.store(WATCHDOG_TIMEOUT, Ordering::Release);
+                            self.stop(Terminal::Error(BodyError::Timeout));
+                            return;
+                        }
+                        let wait = deadline.saturating_duration_since(now).min(WATCHDOG_POLL);
+                        (done, _) = changed
+                            .wait_timeout(done, wait)
+                            .expect("body sink watchdog mutex poisoned");
+                    }
+                })
+                .map_err(|error| {
+                    SinkError::Filesystem(format!("failed to start sink watchdog: {error}"))
+                })?;
+
+            let mut result = self.sinks.write_file(
+                root_id,
+                relative,
+                digest,
+                || match self.receive_with_limit(&mut receiver, requested_limit) {
+                    Ok(ReadResult::Chunk(bytes)) => Ok(Some(bytes)),
+                    Ok(ReadResult::End) => Ok(None),
+                    Err(error) => Err(error),
+                },
+                || {
+                    watchdog_reason.load(Ordering::Acquire) != WATCHDOG_RUNNING
+                        || self.shutdown.reason().is_some()
+                },
+            );
+
+            let (lock, changed) = &*completed;
+            *lock.lock().expect("body sink watchdog mutex poisoned") = true;
+            changed.notify_one();
+            if watchdog.join().is_err() {
+                result = Err(SinkError::Filesystem(
+                    "request-body sink watchdog panicked".to_owned(),
+                ));
+            }
+            if result == Err(SinkError::Stopping)
+                && watchdog_reason.load(Ordering::Acquire) == WATCHDOG_TIMEOUT
+            {
+                result = Err(SinkError::Body(BodyError::Timeout));
+            }
+            if result == Err(SinkError::Body(BodyError::Stopping)) {
+                result = Err(SinkError::Stopping);
+            }
+            result
+        });
+        result
+    }
 }
 
 /// The producer half of one request body. Move this value into the Tokio task
 /// that owns `hyper::body::Incoming`.
 pub(crate) struct BodyPump {
     sender: mpsc::Sender<PumpMessage>,
-    cancelled: watch::Receiver<bool>,
+    control: watch::Receiver<PumpControl>,
     hard_limit: u64,
 }
 
+enum SendOutcome {
+    Sent,
+    Drain,
+    Cancel,
+}
+
 impl BodyPump {
-    async fn send(&mut self, message: PumpMessage) -> bool {
+    async fn send(&mut self, message: PumpMessage) -> SendOutcome {
         tokio::select! {
             biased;
-            changed = self.cancelled.changed() => {
-                let _ = changed;
-                false
+            changed = self.control.changed() => {
+                if changed.is_err() {
+                    return match *self.control.borrow() {
+                        PumpControl::Drain => SendOutcome::Drain,
+                        PumpControl::Running | PumpControl::Cancel => SendOutcome::Cancel,
+                    };
+                }
+                match *self.control.borrow_and_update() {
+                    PumpControl::Running => SendOutcome::Sent,
+                    PumpControl::Drain => SendOutcome::Drain,
+                    PumpControl::Cancel => SendOutcome::Cancel,
+                }
             }
-            result = self.sender.send(message) => result.is_ok(),
+            result = self.sender.send(message) => {
+                if result.is_ok() {
+                    SendOutcome::Sent
+                } else {
+                    SendOutcome::Cancel
+                }
+            },
         }
     }
 
@@ -287,13 +453,23 @@ impl BodyPump {
         futures::pin_mut!(stream);
         let mut received = 0u64;
         let mut deadline = tokio::time::Instant::now() + idle_timeout;
+        let mut draining = false;
+        let mut control_open = true;
 
         loop {
             let next = tokio::select! {
                 biased;
-                changed = self.cancelled.changed() => {
-                    let _ = changed;
-                    return;
+                changed = self.control.changed(), if control_open => {
+                    if changed.is_err() {
+                        control_open = false;
+                    }
+                    match *self.control.borrow_and_update() {
+                        PumpControl::Running if control_open => {}
+                        PumpControl::Running => return,
+                        PumpControl::Drain => draining = true,
+                        PumpControl::Cancel => return,
+                    }
+                    continue;
                 }
                 next = tokio::time::timeout_at(deadline, stream.next()) => {
                     match next {
@@ -308,39 +484,59 @@ impl BodyPump {
 
             match next {
                 None => {
-                    self.send(PumpMessage::End).await;
+                    if !draining {
+                        let _ = self.send(PumpMessage::End).await;
+                    }
                     return;
                 }
                 Some(Err(PumpError::ClientDisconnected)) => {
-                    self.send(PumpMessage::Error(BodyError::ClientDisconnected))
-                        .await;
+                    if !draining {
+                        let _ = self
+                            .send(PumpMessage::Error(BodyError::ClientDisconnected))
+                            .await;
+                    }
                     return;
                 }
                 Some(Err(PumpError::InvalidBody(message))) => {
-                    self.send(PumpMessage::Error(BodyError::InvalidBody(message)))
-                        .await;
+                    if !draining {
+                        let _ = self
+                            .send(PumpMessage::Error(BodyError::InvalidBody(message)))
+                            .await;
+                    }
                     return;
                 }
                 Some(Ok(frame)) if frame.is_empty() => continue,
                 Some(Ok(frame)) => {
                     let frame_end = received.saturating_add(frame.len() as u64);
                     if frame_end > self.hard_limit {
-                        self.send(PumpMessage::Error(BodyError::TooLarge {
-                            limit_bytes: self.hard_limit,
-                            received_at_least: frame_end,
-                        }))
-                        .await;
+                        if !draining {
+                            let _ = self
+                                .send(PumpMessage::Error(BodyError::TooLarge {
+                                    limit_bytes: self.hard_limit,
+                                    received_at_least: frame_end,
+                                }))
+                                .await;
+                        }
                         return;
                     }
                     received = frame_end;
 
+                    if draining {
+                        deadline = tokio::time::Instant::now() + idle_timeout;
+                        continue;
+                    }
                     for offset in (0..frame.len()).step_by(chunk_size) {
                         let end = offset.saturating_add(chunk_size).min(frame.len());
-                        if !self
+                        match self
                             .send(PumpMessage::Chunk(frame.slice(offset..end)))
                             .await
                         {
-                            return;
+                            SendOutcome::Sent => {}
+                            SendOutcome::Drain => {
+                                draining = true;
+                                break;
+                            }
+                            SendOutcome::Cancel => return,
                         }
                     }
                     // Time spent backpressured on the bounded Roc channel is
@@ -498,22 +694,26 @@ pub(crate) fn register(
     channel_capacity: usize,
     declared_length: Option<u64>,
     host: &'static RocHost,
+    sinks: BodySinkService,
+    shutdown: ShutdownController,
 ) -> BodyRegistration {
     assert!(
         channel_capacity > 0,
         "request body channel capacity must be nonzero"
     );
     let (sender, receiver) = mpsc::channel(channel_capacity);
-    let (cancel_sender, cancelled) = watch::channel(false);
+    let (control_sender, control) = watch::channel(PumpControl::Running);
     let state = BodyState {
         receiver: Mutex::new(receiver),
         wake_sender: sender.clone(),
-        cancel_sender,
+        control_sender,
         terminal: Mutex::new(None),
         hard_limit,
         declared_length,
         narrow_limit: AtomicU64::new(hard_limit),
         delivered: AtomicU64::new(0),
+        sinks,
+        shutdown,
     };
 
     let payload_offset = body_box_header_bytes();
@@ -553,7 +753,7 @@ pub(crate) fn register(
         },
         pump: BodyPump {
             sender,
-            cancelled,
+            control,
             hard_limit,
         },
     }
@@ -872,6 +1072,7 @@ fn to_host_error(error: BodyError) -> BodyReadError {
         BodyError::RequestFinished => body_error(BodyReadErrorTag::RequestFinished, None, None),
         BodyError::ConcurrentRead => body_error(BodyReadErrorTag::ConcurrentRead, None, None),
         BodyError::Cancelled => body_error(BodyReadErrorTag::Cancelled, None, None),
+        BodyError::Stopping => body_error(BodyReadErrorTag::Stopping, None, None),
     }
 }
 
@@ -900,15 +1101,108 @@ pub extern "C" fn hosted_request_body_read_all(
     }
 }
 
+fn to_host_write_error(error: SinkError) -> BodyWriteError {
+    let host = roc_host();
+    let (tag, string, too_large) = match error {
+        SinkError::Body(BodyError::TooLarge {
+            limit_bytes,
+            received_at_least,
+        }) => (
+            BodyWriteErrorTag::TooLarge,
+            None,
+            Some(BodyWriteTooLarge {
+                limit_bytes,
+                received_at_least,
+            }),
+        ),
+        SinkError::Body(BodyError::ClientDisconnected) => {
+            (BodyWriteErrorTag::ClientDisconnected, None, None)
+        }
+        SinkError::Body(BodyError::InvalidBody(detail)) => (
+            BodyWriteErrorTag::InvalidBody,
+            Some(RocStr::from_str(&detail, host)),
+            None,
+        ),
+        SinkError::Body(BodyError::RequestFinished) => {
+            (BodyWriteErrorTag::RequestFinished, None, None)
+        }
+        SinkError::Body(BodyError::ConcurrentRead) => {
+            (BodyWriteErrorTag::ConcurrentRead, None, None)
+        }
+        SinkError::Body(BodyError::Cancelled) => (BodyWriteErrorTag::Cancelled, None, None),
+        SinkError::Body(BodyError::Timeout) => (BodyWriteErrorTag::Timeout, None, None),
+        SinkError::Body(BodyError::Stopping) | SinkError::Stopping => {
+            (BodyWriteErrorTag::Stopping, None, None)
+        }
+        SinkError::Saturated => (BodyWriteErrorTag::Saturated, None, None),
+        SinkError::DestinationExists => (BodyWriteErrorTag::DestinationExists, None, None),
+        SinkError::InvalidRoot => (BodyWriteErrorTag::InvalidRoot, None, None),
+        SinkError::InvalidRelativeFile => (BodyWriteErrorTag::InvalidRelativeFile, None, None),
+        SinkError::PermissionDenied => (BodyWriteErrorTag::PermissionDenied, None, None),
+        SinkError::StorageFull => (BodyWriteErrorTag::StorageFull, None, None),
+        SinkError::Filesystem(detail) => (
+            BodyWriteErrorTag::Filesystem,
+            Some(RocStr::from_str(&detail, host)),
+            None,
+        ),
+        SinkError::PublishFailed(detail) => (
+            BodyWriteErrorTag::PublishFailed,
+            Some(RocStr::from_str(&detail, host)),
+            None,
+        ),
+        SinkError::CleanupFailed(detail) => (
+            BodyWriteErrorTag::CleanupFailed,
+            Some(RocStr::from_str(&detail, host)),
+            None,
+        ),
+    };
+    body_write_error_value(tag, string, too_large)
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_request_body_write_file(
+    handle: *mut u64,
+    requested_limit: u64,
+    root_id: RocStr,
+    relative: RocStr,
+    digest_tag: u8,
+) -> BodyWriteResult {
+    let root_id_owned = root_id.as_str().to_owned();
+    let relative_owned = relative.as_str().to_owned();
+    unsafe {
+        root_id.decref(roc_host());
+        relative.decref(roc_host());
+    }
+    let body = OwnedBodyArgument::new(handle, roc_host());
+    let digest = match DigestKind::from_abi(digest_tag) {
+        Ok(digest) => digest,
+        Err(error) => return body_write_error(to_host_write_error(error)),
+    };
+    match body
+        .state()
+        .write_file(requested_limit, &root_id_owned, &relative_owned, digest)
+    {
+        Ok(success) => {
+            let digest = success
+                .sha256
+                .map(|bytes| unsafe { RocListWith::from_slice(&bytes, roc_host()) });
+            body_write_ok(success.bytes_written, digest)
+        }
+        Err(error) => body_write_error(to_host_write_error(error)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::roc_platform_abi::{make_roc_host, RocHost};
     use futures::stream;
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::thread;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     fn test_host() -> &'static RocHost {
         let mut host = make_roc_host(core::ptr::null_mut());
@@ -927,7 +1221,62 @@ mod tests {
     }
 
     fn new_registration(hard_limit: u64, declared_length: Option<u64>) -> BodyRegistration {
-        register(hard_limit, 1, declared_length, test_host())
+        register(
+            hard_limit,
+            1,
+            declared_length,
+            test_host(),
+            BodySinkService::activate(Vec::new(), 1, Duration::from_secs(1)).unwrap(),
+            ShutdownController::new(),
+        )
+    }
+
+    fn temp_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "basic-webserver-request-sink-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir(&path).unwrap();
+        path
+    }
+
+    fn sink_registration(
+        root: &Path,
+        hard_limit: u64,
+        declared_length: Option<u64>,
+        timeout: Duration,
+        shutdown: ShutdownController,
+    ) -> BodyRegistration {
+        register(
+            hard_limit,
+            1,
+            declared_length,
+            test_host(),
+            BodySinkService::activate(
+                vec![crate::body_sink::WritableRootSpec {
+                    id: "uploads".to_owned(),
+                    path: root.to_owned(),
+                }],
+                1,
+                timeout,
+            )
+            .unwrap(),
+            shutdown,
+        )
+    }
+
+    fn staging_is_empty(root: &Path) -> bool {
+        fs::read_dir(root).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".basic-webserver-upload-")
+        })
     }
 
     fn wait_until_reader_is_blocking(handle: &BodyHandle) {
@@ -1199,6 +1548,24 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn drain_survives_the_last_body_handle_being_dropped() {
+        let registration = new_registration(10, None);
+        let BodyRegistration { handle, pump } = registration;
+        handle.state().stop(Terminal::Error(BodyError::TooLarge {
+            limit_bytes: 5,
+            received_at_least: 6,
+        }));
+        drop(handle);
+
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            pump.run(stream::iter(vec![bytes(b"abcdef")]), 2, test_idle_timeout()),
+        )
+        .await
+        .expect("the pump should drain after the watch sender closes");
+    }
+
     #[test]
     fn expiry_and_cancellation_wake_blocked_readers() {
         for (cancel, expected) in [
@@ -1216,6 +1583,24 @@ mod tests {
             }
             assert_eq!(reader.join().unwrap(), Err(expected));
         }
+    }
+
+    #[test]
+    fn expiry_preserves_too_large_drain_state() {
+        let registration = new_registration(10, None);
+        let expected = Terminal::Error(BodyError::TooLarge {
+            limit_bytes: 5,
+            received_at_least: 6,
+        });
+        registration.handle.state().stop(expected.clone());
+
+        registration.handle.expire();
+
+        assert_eq!(registration.handle.state().terminal(), Some(expected));
+        assert_eq!(
+            *registration.handle.state().control_sender.borrow(),
+            PumpControl::Drain
+        );
     }
 
     #[test]
@@ -1377,6 +1762,108 @@ mod tests {
             COPIED_PAYLOAD_BYTES.load(Ordering::Acquire) >= before + result.len(),
             "instrumentation must observe each direct payload copy"
         );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn body_sink_enforces_declared_and_streamed_limits_without_partial_files() {
+        let root = temp_dir();
+        let registration = sink_registration(
+            &root,
+            100,
+            Some(6),
+            Duration::from_secs(1),
+            ShutdownController::new(),
+        );
+        assert_eq!(
+            registration
+                .handle
+                .state()
+                .write_file(5, "uploads", "declared", DigestKind::None,),
+            Err(SinkError::Body(BodyError::TooLarge {
+                limit_bytes: 5,
+                received_at_least: 6,
+            }))
+        );
+        assert!(!root.join("declared").exists());
+        assert!(staging_is_empty(&root));
+        drop(registration);
+
+        let registration = sink_registration(
+            &root,
+            100,
+            None,
+            Duration::from_secs(1),
+            ShutdownController::new(),
+        );
+        let writer_handle = registration.handle.clone();
+        let writer = thread::spawn(move || {
+            writer_handle
+                .state()
+                .write_file(5, "uploads", "streamed", DigestKind::None)
+        });
+        registration
+            .pump
+            .run(
+                stream::iter(vec![bytes(b"abc"), bytes(b"def")]),
+                3,
+                test_idle_timeout(),
+            )
+            .await;
+        assert_eq!(
+            writer.join().unwrap(),
+            Err(SinkError::Body(BodyError::TooLarge {
+                limit_bytes: 5,
+                received_at_least: 6,
+            }))
+        );
+        assert!(!root.join("streamed").exists());
+        assert!(staging_is_empty(&root));
+        drop(registration.handle);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn stalled_and_stopping_body_sinks_wake_and_clean_up() {
+        let root = temp_dir();
+        let registration = sink_registration(
+            &root,
+            100,
+            None,
+            Duration::from_millis(40),
+            ShutdownController::new(),
+        );
+        let writer_handle = registration.handle.clone();
+        let started = Instant::now();
+        let writer = thread::spawn(move || {
+            writer_handle
+                .state()
+                .write_file(100, "uploads", "timeout", DigestKind::None)
+        });
+        assert_eq!(
+            writer.join().unwrap(),
+            Err(SinkError::Body(BodyError::Timeout))
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(!root.join("timeout").exists());
+        assert!(staging_is_empty(&root));
+        drop(registration);
+
+        let shutdown = ShutdownController::new();
+        let registration =
+            sink_registration(&root, 100, None, Duration::from_secs(5), shutdown.clone());
+        let writer_handle = registration.handle.clone();
+        let writer = thread::spawn(move || {
+            writer_handle
+                .state()
+                .write_file(100, "uploads", "stopping", DigestKind::None)
+        });
+        wait_until_reader_is_blocking(&registration.handle);
+        shutdown.request(crate::shutdown::ShutdownReason::Terminate);
+        assert_eq!(writer.join().unwrap(), Err(SinkError::Stopping));
+        assert!(!root.join("stopping").exists());
+        assert!(staging_is_empty(&root));
+        drop(registration);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(debug_assertions)]

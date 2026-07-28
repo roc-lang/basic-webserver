@@ -118,6 +118,7 @@ pub(crate) type HostIOErrTagType = IOErrTag;
 
 pub(crate) type ServerConfig = InitForHostOkConfig;
 pub(crate) type ServerFileRoot = InitForHostOkConfigFileRoots;
+pub(crate) type ServerWritableRoot = InitForHostOkConfigWritableRoots;
 pub(crate) type ServerNativeFileRoute = InitForHostOkConfigNativeFileRoutes;
 pub(crate) type ServerReadinessRoute = InitForHostOkConfigReadinessRoutes;
 pub(crate) type ServerRequest = RespondForHostArg0;
@@ -146,6 +147,17 @@ pub(crate) type BodyReadError = HostRequestBodyReadErr;
 pub(crate) type BodyReadErrorPayload = HostRequestBodyReadErrPayload;
 pub(crate) type BodyReadErrorTag = HostRequestBodyReadErrTag;
 pub(crate) type BodyTooLarge = HostRequestBodyReadErrTooLarge;
+pub(crate) type BodyWriteResult = HostRequestBodyWriteFileResult;
+pub(crate) type BodyWriteResultPayload = HostRequestBodyWriteFileResultPayload;
+pub(crate) type BodyWriteResultTag = HostRequestBodyWriteFileResultTag;
+pub(crate) type BodyWriteError = HostRequestBodyWriteFileErr;
+pub(crate) type BodyWriteErrorPayload = HostRequestBodyWriteFileErrPayload;
+pub(crate) type BodyWriteErrorTag = HostRequestBodyWriteFileErrTag;
+pub(crate) type BodyWriteTooLarge = HostRequestBodyWriteFileErrTooLarge;
+pub(crate) type BodyWriteOk = HostRequestBodyWriteFileOk;
+pub(crate) type BodyWriteDigest = NotComputedOrSha256Digest;
+pub(crate) type BodyWriteDigestPayload = NotComputedOrSha256DigestPayload;
+pub(crate) type BodyWriteDigestTag = NotComputedOrSha256DigestTag;
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
 
@@ -427,6 +439,116 @@ pub(crate) fn body_error(
             (Some(_), Some(_)) => unreachable!("body error has one payload"),
         };
         BodyReadError { payload, tag }
+    }
+}
+
+pub(crate) fn body_write_ok(
+    bytes_written: u64,
+    sha256: Option<RocListWith<u8, false>>,
+) -> BodyWriteResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut digest: BodyWriteDigest = core::mem::zeroed();
+        if let Some(bytes) = sha256 {
+            write_payload(&mut digest.payload, bytes);
+            digest.tag = BodyWriteDigestTag::Sha256Digest;
+        } else {
+            digest.tag = BodyWriteDigestTag::NotComputed;
+        }
+        let ok = BodyWriteOk {
+            bytes_written,
+            digest,
+        };
+        let mut result: BodyWriteResult = core::mem::zeroed();
+        write_payload(&mut result.payload, ok);
+        result.tag = BodyWriteResultTag::Ok;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        let digest = match sha256 {
+            Some(bytes) => BodyWriteDigest {
+                payload: BodyWriteDigestPayload {
+                    sha256digest: core::mem::ManuallyDrop::new(bytes),
+                },
+                tag: BodyWriteDigestTag::Sha256Digest,
+            },
+            None => BodyWriteDigest {
+                payload: BodyWriteDigestPayload { not_computed: [] },
+                tag: BodyWriteDigestTag::NotComputed,
+            },
+        };
+        let ok = BodyWriteOk {
+            bytes_written,
+            digest,
+        };
+        BodyWriteResult {
+            payload: BodyWriteResultPayload {
+                ok: core::mem::ManuallyDrop::new(ok),
+            },
+            tag: BodyWriteResultTag::Ok,
+        }
+    }
+}
+
+pub(crate) fn body_write_error(error: BodyWriteError) -> BodyWriteResult {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut result: BodyWriteResult = core::mem::zeroed();
+        write_payload(&mut result.payload, error);
+        result.tag = BodyWriteResultTag::Err;
+        result
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        BodyWriteResult {
+            payload: BodyWriteResultPayload {
+                err: core::mem::ManuallyDrop::new(error),
+            },
+            tag: BodyWriteResultTag::Err,
+        }
+    }
+}
+
+pub(crate) fn body_write_error_value(
+    tag: BodyWriteErrorTag,
+    string: Option<RocStr>,
+    too_large: Option<BodyWriteTooLarge>,
+) -> BodyWriteError {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let mut error: BodyWriteError = core::mem::zeroed();
+        if let Some(string) = string {
+            write_payload(&mut error.payload, string);
+        }
+        if let Some(too_large) = too_large {
+            write_payload(&mut error.payload, too_large);
+        }
+        error.tag = tag;
+        error
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        let payload = match (tag, string, too_large) {
+            (BodyWriteErrorTag::CleanupFailed, Some(string), None) => BodyWriteErrorPayload {
+                cleanup_failed: core::mem::ManuallyDrop::new(string),
+            },
+            (BodyWriteErrorTag::Filesystem, Some(string), None) => BodyWriteErrorPayload {
+                filesystem: core::mem::ManuallyDrop::new(string),
+            },
+            (BodyWriteErrorTag::InvalidBody, Some(string), None) => BodyWriteErrorPayload {
+                invalid_body: core::mem::ManuallyDrop::new(string),
+            },
+            (BodyWriteErrorTag::PublishFailed, Some(string), None) => BodyWriteErrorPayload {
+                publish_failed: core::mem::ManuallyDrop::new(string),
+            },
+            (BodyWriteErrorTag::TooLarge, None, Some(too_large)) => BodyWriteErrorPayload {
+                too_large: core::mem::ManuallyDrop::new(too_large),
+            },
+            (_, None, None) => BodyWriteErrorPayload { cancelled: [] },
+            _ => unreachable!("body write error payload does not match its tag"),
+        };
+        BodyWriteError { payload, tag }
     }
 }
 

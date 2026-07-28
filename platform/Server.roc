@@ -65,6 +65,15 @@ Server :: [].{
 	default_request_header_limit_fields : U16
 	default_request_header_limit_fields = 100
 
+	## Default maximum number of request bodies concurrently streaming into
+	## host-managed files.
+	default_max_body_sinks : U16
+	default_max_body_sinks = 16
+
+	## Default deadline for one host-managed request-body sink: 30 seconds.
+	default_body_sink_timeout_ms : U64
+	default_body_sink_timeout_ms = 30_000
+
 	## Default maximum number of concurrently active connections.
 	default_max_connections : U32
 	default_max_connections = 256
@@ -210,6 +219,67 @@ Server :: [].{
 	## Declare a root with an explicit cache policy.
 	file_root_with_cache : { id : Str, path : Path.Path, cache : CachePolicy } -> FileRoot
 	file_root_with_cache = |root| FileRoot(root)
+
+	## A startup-declared writable filesystem authority. This is deliberately a
+	## different type from FileRoot: permission to serve files never grants
+	## permission to create them.
+	WritableRoot := [
+		WritableRoot({ id : Str, path : Path.Path }),
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : WritableRoot -> {
+			id : Str,
+			path_tag : U8,
+			path_utf8 : Str,
+			path_unix_bytes : List(U8),
+			path_windows_u16s : List(U16),
+		}
+		to_host = |WritableRoot(root)| {
+			raw = path_to_host(root.path)
+			{
+				id: root.id,
+				path_tag: raw.path_tag,
+				path_utf8: raw.path_utf8,
+				path_unix_bytes: raw.path_unix_bytes,
+				path_windows_u16s: raw.path_windows_u16s,
+			}
+		}
+
+		path_to_host : Path.Path -> {
+			path_tag : U8,
+			path_utf8 : Str,
+			path_unix_bytes : List(U8),
+			path_windows_u16s : List(U16),
+		}
+		path_to_host = |path|
+			match Path.to_raw(path) {
+				Utf8(str) => {
+					path_tag: 0,
+					path_utf8: str,
+					path_unix_bytes: [],
+					path_windows_u16s: [],
+				}
+				UnixBytes(bytes) => {
+					path_tag: 1,
+					path_utf8: "",
+					path_unix_bytes: bytes,
+					path_windows_u16s: [],
+				}
+				WindowsU16s(u16s) => {
+					path_tag: 2,
+					path_utf8: "",
+					path_unix_bytes: [],
+					path_windows_u16s: u16s,
+				}
+			}
+	}
+
+	## Declare one writable root. Identifiers use the same 1-64 character
+	## syntax as read-only file roots, but live in an independent authority
+	## registry.
+	writable_root : { id : Str, path : Path.Path } -> WritableRoot
+	writable_root = |root| WritableRoot(root)
 
 	## A validated relative child path used by exact routes and authorized file
 	## plans. The host repeats this validation at the ABI boundary.
@@ -476,10 +546,15 @@ Server :: [].{
 					hook_timeout_ms : U64,
 				},
 				file_roots : List(FileRoot),
+				writable_roots : List(WritableRoot),
 				native_routes : NativeRoutes,
 				file_transfers : {
 					max_concurrent : U16,
 					chunk_bytes : U32,
+				},
+				body_sinks : {
+					max_concurrent : U16,
+					timeout_ms : U64,
 				},
 			},
 		),
@@ -518,6 +593,15 @@ Server :: [].{
 					cache_max_age_seconds : U32,
 				},
 			),
+			writable_roots : List(
+				{
+					id : Str,
+					path_tag : U8,
+					path_utf8 : Str,
+					path_unix_bytes : List(U8),
+					path_windows_u16s : List(U16),
+				},
+			),
 			native_file_routes : List(
 				{
 					at : Str,
@@ -533,6 +617,8 @@ Server :: [].{
 			readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 			file_max_concurrent : U16,
 			file_chunk_bytes : U32,
+			body_sink_max_concurrent : U16,
+			body_sink_timeout_ms : U64,
 		}
 		to_host = |Config(config)| {
 			host: config.listen.host,
@@ -554,11 +640,14 @@ Server :: [].{
 			max_handlers: config.limits.max_handlers,
 			max_queued_handlers: config.limits.max_queued_handlers,
 			file_roots: config.file_roots.map(FileRoot.to_host),
+			writable_roots: config.writable_roots.map(WritableRoot.to_host),
 			native_file_routes: config.native_routes.files.map(FileRoute.to_host),
 			liveness_routes: config.native_routes.liveness.map(LivenessRoute.to_host),
 			readiness_routes: config.native_routes.readiness.map(ReadinessRoute.to_host),
 			file_max_concurrent: config.file_transfers.max_concurrent,
 			file_chunk_bytes: config.file_transfers.chunk_bytes,
+			body_sink_max_concurrent: config.body_sinks.max_concurrent,
+			body_sink_timeout_ms: config.body_sinks.timeout_ms,
 		}
 	}
 
@@ -609,10 +698,15 @@ Server :: [].{
 			hook_timeout_ms: 10_000,
 		},
 		file_roots: [],
+		writable_roots: [],
 		native_routes: no_native_routes,
 		file_transfers: {
 			max_concurrent: default_max_file_transfers,
 			chunk_bytes: default_file_chunk_bytes,
+		},
+		body_sinks: {
+			max_concurrent: default_max_body_sinks,
+			timeout_ms: default_body_sink_timeout_ms,
 		},
 	})
 
@@ -663,6 +757,11 @@ Server :: [].{
 	with_file_roots : Config, List(FileRoot) -> Config
 	with_file_roots = |Config(config), file_roots| Config({ ..config, file_roots })
 
+	## Replace the complete set of startup-declared writable roots. Writable
+	## authority is never inferred from read-only file roots.
+	with_writable_roots : Config, List(WritableRoot) -> Config
+	with_writable_roots = |Config(config), writable_roots| Config({ ..config, writable_roots })
+
 	## Replace the complete immutable host-native route table.
 	with_native_routes : Config, NativeRoutes -> Config
 	with_native_routes = |Config(config), native_routes| Config({ ..config, native_routes })
@@ -672,6 +771,11 @@ Server :: [].{
 	## owns at most one queued chunk and one active read buffer.
 	with_file_transfer_limits : Config, { max_concurrent : U16, chunk_bytes : U32 } -> Config
 	with_file_transfer_limits = |Config(config), file_transfers| Config({ ..config, file_transfers })
+
+	## Set the active staging-file bound and whole-operation deadline for
+	## host-managed request-body sinks. Saturation is typed and does not queue.
+	with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
+	with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
@@ -695,6 +799,47 @@ Server :: [].{
 			RequestFinished,
 			ConcurrentRead,
 			Cancelled,
+			Stopping,
+		]
+
+		## Whether the host should compute a digest while writing the body.
+		Digest : [NoDigest, Sha256]
+
+		digest_to_host : Digest -> U8
+		digest_to_host = |digest|
+			match digest {
+				NoDigest => 0
+				Sha256 => 1
+			}
+
+		## Authoritative metadata for a completely published file.
+		WriteFileSuccess : {
+			bytes_written : U64,
+			digest : [NotComputed, Sha256Digest(List(U8))],
+		}
+
+		## A typed failure from a host-managed body sink. Failures before atomic
+		## publication do not expose the destination. CleanupFailed means the
+		## destination may already be published and the host could not remove its
+		## private staging link; operators should reconcile the reported path.
+		WriteFileErr : [
+			TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+			Timeout,
+			ClientDisconnected,
+			InvalidBody(Str),
+			RequestFinished,
+			ConcurrentRead,
+			Cancelled,
+			Saturated,
+			Stopping,
+			DestinationExists,
+			InvalidRoot,
+			InvalidRelativeFile,
+			PermissionDenied,
+			StorageFull,
+			Filesystem(Str),
+			PublishFailed(Str),
+			CleanupFailed(Str),
 		]
 
 		## Render a body without exposing its request-scoped host identifier.
@@ -753,6 +898,28 @@ Server :: [].{
 		read_all! : Body => Try(List(U8), [RequestBodyErr(Err)])
 		read_all! = |Body(raw)|
 			Host.request_body_read_all!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
+
+		## Stream all remaining body bytes into a securely created staging file,
+		## then publish it atomically at a validated child path. Parent
+		## directories must already exist. Publication is always CreateNew and
+		## never overwrites an existing destination. Atomic publication describes
+		## name visibility, not crash durability or fsync.
+		write_file! : Body,
+		{
+			root : WritableRoot,
+			relative : RelativeFile,
+			digest : Digest,
+		} => Try(WriteFileSuccess, [BodySinkErr(WriteFileErr)])
+		write_file! = |Body(raw), { root, relative, digest }| {
+			WritableRoot(root_raw) = root
+			Host.request_body_write_file!(
+				raw.host,
+				raw.limit_bytes,
+				root_raw.id,
+				RelativeFile.to_host(relative),
+				digest_to_host(digest),
+			).map_err(|err| BodySinkErr(body_sink_err_from_host(err)))
+		}
 	}
 
 	## A validated HTTP authority. `host` is an ASCII URI host: registered names
@@ -1024,4 +1191,27 @@ body_err_from_host = |err|
 		RequestFinished => RequestFinished
 		ConcurrentRead => ConcurrentRead
 		Cancelled => Cancelled
+		Stopping => Stopping
+	}
+
+body_sink_err_from_host : Host.BodySinkErr -> Server.Body.WriteFileErr
+body_sink_err_from_host = |err|
+	match err {
+		TooLarge(payload) => TooLarge(payload)
+		Timeout => Timeout
+		ClientDisconnected => ClientDisconnected
+		InvalidBody(detail) => InvalidBody(detail)
+		RequestFinished => RequestFinished
+		ConcurrentRead => ConcurrentRead
+		Cancelled => Cancelled
+		Saturated => Saturated
+		Stopping => Stopping
+		DestinationExists => DestinationExists
+		InvalidRoot => InvalidRoot
+		InvalidRelativeFile => InvalidRelativeFile
+		PermissionDenied => PermissionDenied
+		StorageFull => StorageFull
+		Filesystem(detail) => Filesystem(detail)
+		PublishFailed(detail) => PublishFailed(detail)
+		CleanupFailed(detail) => CleanupFailed(detail)
 	}
