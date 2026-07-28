@@ -11,6 +11,7 @@ mod abi;
 mod bounded_gate;
 mod capability;
 mod cmd;
+mod compression;
 mod dir;
 mod env;
 mod file;

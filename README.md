@@ -96,6 +96,14 @@ normally put a reverse proxy or load balancer in front. Ordinary responses are
 complete in-memory values, while request bodies can be consumed as bounded
 streams.
 
+Eligible responses of at least 1 KiB are compressed automatically when the
+client accepts Brotli or gzip. The host negotiates quality weights, emits
+`Vary: Accept-Encoding`, leaves range and already encoded responses unchanged,
+and streams compressed native files without buffering them in memory.
+In-memory responses larger than 8 MiB are left as identity to bound the
+temporary compressed copy. Applications can set `Cache-Control: no-transform`
+to opt a response out. Compressed request bodies are not decoded automatically.
+
 Every handler receives an owned reference to the immutable context produced by
 `init!`. `StopAfter` outcomes and OS termination signals begin graceful
 shutdown. The host stops accepting work, drains active handlers within the

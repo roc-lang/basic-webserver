@@ -103,6 +103,24 @@
               "expect_body": "seamless response"
             },
             {
+              "method": "POST",
+              "target": "/compressed",
+              "headers": {
+                "Accept-Encoding": "br;q=0.5, gzip;q=1"
+              },
+              "body_repeat": "compressible echo body ",
+              "body_size_bytes": 4096,
+              "decode_response": "gzip",
+              "expect_body_bytes": 4096,
+              "body_contains": [
+                "compressible echo body"
+              ],
+              "response_headers": {
+                "Content-Encoding": "gzip",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
               "raw": true,
               "half_close": false,
               "data_hex": "474554202f20485454502f312e310d0a486f73743a203132372e302e302e310d0a582d546573743a20ff0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a",
@@ -943,6 +961,12 @@
               "mtime_unix": 1700000000
             },
             {
+              "dest": "{temp}/assets/large.txt",
+              "repeat": "compressible static asset\n",
+              "size_bytes": 8192,
+              "mtime_unix": 1700000000
+            },
+            {
               "dest": "{temp}/downloads/placeholder.txt",
               "text": "unused"
             }
@@ -1068,6 +1092,21 @@
               "expect_body_hex": "00ff",
               "response_headers": {
                 "Content-Type": "application/octet-stream"
+              }
+            },
+            {
+              "target": "/assets/large.txt",
+              "headers": {
+                "Accept-Encoding": "br;q=0.5, gzip;q=1"
+              },
+              "decode_response": "gzip",
+              "expect_body_bytes": 8192,
+              "body_contains": [
+                "compressible static asset"
+              ],
+              "response_headers": {
+                "Content-Encoding": "gzip",
+                "Vary": "Accept-Encoding"
               }
             }
           ],

@@ -207,6 +207,18 @@ class SpecValidationTests(unittest.TestCase):
             self.assertEqual(large[:9], b"abcabcabc")
             self.assertEqual(large[-4:], b"aabc")
 
+    def test_generated_request_bodies_are_bounded_and_reproducible(self) -> None:
+        body, headers = test.request_body(
+            {
+                "headers": {"Accept-Encoding": "gzip"},
+                "body_repeat": "abc",
+                "body_size_bytes": 10,
+            }
+        )
+
+        self.assertEqual(body, b"abcabcabca")
+        self.assertEqual(headers, [("Accept-Encoding", "gzip")])
+
     def test_artifact_manifest_round_trip(self) -> None:
         defaults, apps = test.load_spec()
         with tempfile.TemporaryDirectory() as raw_directory:

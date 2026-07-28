@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import gzip
 import hashlib
 import http.client
 import json
@@ -842,6 +843,12 @@ def request_body(request: dict[str, object]) -> tuple[bytes, list[tuple[str, str
         return str(request["body"]).encode(), headers
     if "body_hex" in request:
         return bytes.fromhex(str(request["body_hex"])), headers
+    if "body_repeat" in request:
+        pattern = str(request["body_repeat"]).encode()
+        size = int(request.get("body_size_bytes", 0))
+        if not pattern or size < 0 or size > MAX_GENERATED_FIXTURE_BYTES:
+            fail("body_repeat needs a non-empty pattern and a size up to 64 MiB")
+        return (pattern * (size // len(pattern) + 1))[:size], headers
     multipart = request.get("multipart")
     if multipart is None:
         return b"", headers
@@ -1164,6 +1171,14 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
         wanted = [str(item) for item in expected] if isinstance(expected, list) else [str(expected)]
         if actual != wanted:
             fail(f"{owner}: header {name!r} expected {wanted!r}, got {actual!r}")
+    decode_response = request.get("decode_response")
+    if decode_response is not None:
+        if decode_response != "gzip":
+            fail(f"{owner}: unsupported response decoder {decode_response!r}")
+        try:
+            response_body = gzip.decompress(response_body)
+        except (OSError, EOFError) as error:
+            fail(f"{owner}: invalid gzip response: {error}")
     if "expect_body_hex" in request:
         expected = bytes.fromhex(str(request["expect_body_hex"]))
         if response_body != expected:
