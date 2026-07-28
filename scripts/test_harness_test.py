@@ -80,6 +80,32 @@ class SpecValidationTests(unittest.TestCase):
         self.assertNotIn(b"127.0.0.1:8000", omitted)
         self.assertIn(b"fallback.test", omitted)
 
+    def test_repeated_http2_headers_use_dynamic_table_references(self) -> None:
+        block = test.hpack_request_headers(
+            8000,
+            {"method": "GET", "target": "/"},
+            b"",
+            [("x-test", "repeated"), ("x-test", "repeated")],
+        )
+
+        self.assertEqual(block.count(b"repeated"), 1)
+        self.assertEqual(block[-1], 0x80 | 62)
+
+    def test_generated_request_header_values_are_bounded(self) -> None:
+        _, headers = test.request_body(
+            {
+                "headers": [
+                    {
+                        "name": "x-test",
+                        "value_repeat": "abc",
+                        "value_chars": 8,
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(headers, [("x-test", "abcabcab")])
+
     def test_http2_frame_encodes_the_wire_header(self) -> None:
         frame = test.http2_frame(
             test.HTTP2_FRAME_HEADERS,
@@ -101,6 +127,19 @@ class SpecValidationTests(unittest.TestCase):
             test.TestFailure, "must name every HTTP/2 request"
         ):
             test.validate_case("examples/sleep.roc", case, set())
+
+    def test_startup_failure_cases_cannot_send_requests(self) -> None:
+        case = {
+            "name": "invalid-startup",
+            "expect_startup_failure": True,
+            "requests": [{"target": "/"}],
+        }
+
+        with self.assertRaisesRegex(
+            test.TestFailure,
+            "expect_startup_failure cannot be combined with requests",
+        ):
+            test.validate_case("examples/request-limits.roc", case, set())
 
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

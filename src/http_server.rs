@@ -17,6 +17,9 @@ use crate::native_router::{
 };
 use crate::readiness::ReadinessLease;
 use crate::request_body::{register as register_body, PumpError};
+use crate::request_limits::{
+    RequestMetadataLimits, RequestMetadataRejection, HTTP1_MAX_HEAD_BYTES,
+};
 use crate::request_parts::RequestPartsBacking;
 use crate::request_target::{RequestMetadata, TargetKind};
 use crate::roc_platform_abi::*;
@@ -52,6 +55,7 @@ struct RuntimeConfig {
     max_connections: usize,
     max_handlers: usize,
     max_queued_handlers: usize,
+    request_metadata: RequestMetadataLimits,
     body_max_bytes: u64,
     body_chunk_bytes: usize,
     body_buffered_chunks: usize,
@@ -90,6 +94,11 @@ impl RuntimeConfig {
                 validate_transport_timeout("handler queue", config.handler_queue_timeout_ms)?;
             let response_idle_timeout =
                 validate_transport_timeout("response idle", config.response_idle_timeout_ms)?;
+            let request_metadata = RequestMetadataLimits::new(
+                config.request_target_max_bytes,
+                config.request_header_max_bytes,
+                config.request_header_max_fields,
+            )?;
             let roots = config
                 .file_roots
                 .as_slice()
@@ -127,6 +136,7 @@ impl RuntimeConfig {
                 max_connections,
                 max_handlers,
                 max_queued_handlers: config.max_queued_handlers as usize,
+                request_metadata,
                 body_max_bytes: config.body_max_bytes,
                 body_chunk_bytes: config.body_chunk_bytes as usize,
                 body_buffered_chunks: config.body_buffered_chunks as usize,
@@ -877,6 +887,34 @@ fn invalid_request_target() -> ServerResponse {
         .expect("static 400 response is valid")
 }
 
+fn request_target_too_long(limit: usize) -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::URI_TOO_LONG)
+        .body(full_body(Bytes::from(format!(
+            "Request target exceeds the {limit}-byte limit"
+        ))))
+        .expect("static 414 response is valid")
+}
+
+fn request_headers_too_large(byte_limit: usize, field_limit: usize) -> ServerResponse {
+    hyper::Response::builder()
+        .status(hyper::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE)
+        .body(full_body(Bytes::from(format!(
+            "Request headers exceed the {byte_limit}-byte or {field_limit}-field limit"
+        ))))
+        .expect("static 431 response is valid")
+}
+
+fn reject_request_metadata(rejection: RequestMetadataRejection) -> ServerResponse {
+    match rejection {
+        RequestMetadataRejection::TargetTooLong { limit } => request_target_too_long(limit),
+        RequestMetadataRejection::HeadersTooLarge {
+            byte_limit,
+            field_limit,
+        } => request_headers_too_large(byte_limit, field_limit),
+    }
+}
+
 fn payload_too_large(limit: u64) -> ServerResponse {
     hyper::Response::builder()
         .status(hyper::StatusCode::PAYLOAD_TOO_LARGE)
@@ -1051,6 +1089,20 @@ async fn handle_req(
         }
     };
 
+    if let Err(rejection) = context
+        .config
+        .request_metadata
+        .admit_parts(&parts, metadata)
+    {
+        drop(body);
+        return track_response(
+            reject_request_metadata(rejection),
+            Some(active_request),
+            http1_activity,
+            body_idle_timeout,
+        );
+    }
+
     let response = if let Some(native) = metadata
         .resource_path(&parts.uri)
         .and_then(|path| context.config.routes.route(path, &parts.method))
@@ -1191,7 +1243,11 @@ async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
     ));
     let service_context = context.clone();
     let service_activity = activity.clone();
-    let connection = hyper::server::conn::http1::Builder::new().serve_connection(
+    let mut builder = hyper::server::conn::http1::Builder::new();
+    builder
+        .max_headers(context.config.request_metadata.max_header_fields())
+        .max_buf_size(HTTP1_MAX_HEAD_BYTES);
+    let connection = builder.serve_connection(
         io,
         hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
             service_activity.request_started();
@@ -1365,6 +1421,7 @@ async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
     let mut builder = h2::server::Builder::new();
     builder
         .max_concurrent_streams(context.config.max_http2_streams_per_connection())
+        .max_header_list_size(context.config.request_metadata.http2_max_header_list_size())
         // The response sender reserves exact flow-control capacity before
         // handing bytes to h2; one 64 KiB flow-control grant is sufficient.
         .max_send_buffer_size(64 * 1024);
@@ -2048,6 +2105,20 @@ mod tests {
     }
 
     #[test]
+    fn metadata_limit_responses_are_protocol_neutral() {
+        let target = request_target_too_long(64);
+        assert_eq!(target.status(), hyper::StatusCode::URI_TOO_LONG);
+        assert!(!target.headers().contains_key(hyper::header::CONNECTION));
+
+        let headers = request_headers_too_large(256, 4);
+        assert_eq!(
+            headers.status(),
+            hyper::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
+        );
+        assert!(!headers.headers().contains_key(hyper::header::CONNECTION));
+    }
+
+    #[test]
     fn http2_stream_limit_reserves_bounded_native_probe_headroom() {
         let files = FileService::activate(Vec::new(), 1, 1024).unwrap();
         let routes = NativeRouter::activate(&files, Vec::new(), Vec::new(), Vec::new()).unwrap();
@@ -2057,6 +2128,7 @@ mod tests {
             max_connections: 256,
             max_handlers: 32,
             max_queued_handlers: 64,
+            request_metadata: RequestMetadataLimits::new(8192, 32 * 1024, 100).unwrap(),
             body_max_bytes: 1024,
             body_chunk_bytes: 1024,
             body_buffered_chunks: 1,

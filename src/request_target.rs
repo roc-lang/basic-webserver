@@ -151,6 +151,21 @@ impl RequestMetadata {
         uri.query()
     }
 
+    pub(crate) fn normalized_target_len(self, uri: &Uri) -> usize {
+        match self.target {
+            TargetKind::Resource => uri
+                .path_and_query()
+                .map(|value| value.as_str().len())
+                .unwrap_or(1),
+            TargetKind::Authority => uri
+                .authority()
+                .expect("validated authority target must retain its authority")
+                .as_str()
+                .len(),
+            TargetKind::Asterisk => 1,
+        }
+    }
+
     pub(crate) fn target_authority<'a>(
         self,
         uri: &'a Uri,

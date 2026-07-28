@@ -1154,6 +1154,236 @@
       ]
     },
     {
+      "path": "examples/request-limits.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "http1-exact-and-over-limit",
+          "requests": [
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa HTTP/1.0\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.0 200 OK",
+                "accepted /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa HTTP/1.0\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.0 414 URI Too Long",
+                "Request target exceeds the 64-byte limit"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.0\r\nx:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.0 200 OK",
+                "accepted /"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.0\r\nx:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.0 431 Request Header Fields Too Large",
+                "Request headers exceed the 256-byte or 4-field limit"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.0\r\na:1\r\nb:2\r\nc:3\r\nd:4\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.0 200 OK",
+                "accepted /"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET / HTTP/1.0\r\na:1\r\nb:2\r\nc:3\r\nd:4\r\ne:5\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 431 Request Header Fields Too Large"
+              ]
+            },
+            {
+              "target": "/after-rejections",
+              "expect_body": "accepted /after-rejections"
+            }
+          ]
+        },
+        {
+          "name": "http2-target-exact-limit",
+          "http2_requests": [
+            {
+              "name": "exact-target",
+              "target": "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "expect_body": "accepted /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "http2_completion_order": ["exact-target"]
+        },
+        {
+          "name": "http2-header-exact-limit",
+          "http2_requests": [
+            {
+              "name": "exact-header",
+              "headers": [
+                {
+                  "name": "x",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "expect_body": "accepted /"
+            }
+          ],
+          "http2_completion_order": ["exact-header"]
+        },
+        {
+          "name": "http2-target-rejection-is-stream-local",
+          "http2_requests": [
+            {
+              "name": "target-over",
+              "target": "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "expect_body": "Request target exceeds the 64-byte limit"
+            },
+            {
+              "name": "valid-after-target",
+              "target": "/slow",
+              "expect_body": "accepted /slow"
+            }
+          ],
+          "http2_completion_order": [
+            "target-over",
+            "valid-after-target"
+          ]
+        },
+        {
+          "name": "http2-count-rejection-is-stream-local",
+          "http2_requests": [
+            {
+              "name": "count-over",
+              "headers": [
+                { "name": "a", "value": "1" },
+                { "name": "b", "value": "2" },
+                { "name": "c", "value": "3" },
+                { "name": "d", "value": "4" },
+                { "name": "e", "value": "5" }
+              ],
+              "expect_body": "Request headers exceed the 256-byte or 4-field limit"
+            },
+            {
+              "name": "valid-after-count",
+              "target": "/slow",
+              "expect_body": "accepted /slow"
+            }
+          ],
+          "http2_completion_order": [
+            "count-over",
+            "valid-after-count"
+          ]
+        },
+        {
+          "name": "http2-byte-rejection-is-stream-local",
+          "http2_requests": [
+            {
+              "name": "bytes-over",
+              "headers": [
+                {
+                  "name": "x",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "expect_body": "Request headers exceed the 256-byte or 4-field limit"
+            },
+            {
+              "name": "valid-after-bytes",
+              "target": "/slow",
+              "expect_body": "accepted /slow"
+            }
+          ],
+          "http2_completion_order": [
+            "bytes-over",
+            "valid-after-bytes"
+          ]
+        },
+        {
+          "name": "http2-hpack-expansion-is-stream-local",
+          "http2_requests": [
+            {
+              "name": "hpack-expanded-over",
+              "headers": [
+                {
+                  "name": "x",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                {
+                  "name": "x",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                {
+                  "name": "x",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "expect_body": "Request headers exceed the 256-byte or 4-field limit"
+            },
+            {
+              "name": "valid-after-hpack",
+              "target": "/slow",
+              "expect_body": "accepted /slow"
+            }
+          ],
+          "http2_completion_order": [
+            "hpack-expanded-over",
+            "valid-after-hpack"
+          ]
+        },
+        {
+          "name": "http2-decoder-envelope-is-stream-local",
+          "http2_requests": [
+            {
+              "name": "decoder-over",
+              "headers": [
+                {
+                  "name": "x",
+                  "value_repeat": "a",
+                  "value_chars": 9000
+                }
+              ],
+              "expect_body": ""
+            },
+            {
+              "name": "valid-after-decoder-overflow",
+              "target": "/slow",
+              "expect_body": "accepted /slow"
+            }
+          ],
+          "http2_completion_order": [
+            "decoder-over",
+            "valid-after-decoder-overflow"
+          ]
+        },
+        {
+          "name": "invalid-config-fails-before-listening",
+          "env": {
+            "INVALID_REQUEST_LIMITS": "1"
+          },
+          "expect_startup_failure": true,
+          "stdout_contains": [
+            "startup rejected: request target byte limit must be non-zero"
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/server-lifecycle.roc",
       "mode": "server",
       "cases": [
@@ -1242,6 +1472,14 @@
               "response_contains": [
                 "HTTP/1.1 200 OK",
                 "\r\n\r\nhello asset"
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "data": "GET /assets/hello.txt HTTP/1.0\r\na:1\r\nb:2\r\nc:3\r\nd:4\r\ne:5\r\nf:6\r\ng:7\r\nh:8\r\ni:9\r\n\r\n",
+              "response_contains": [
+                "HTTP/1.1 431 Request Header Fields Too Large"
               ]
             }
           ],

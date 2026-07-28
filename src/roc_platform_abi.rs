@@ -1392,38 +1392,38 @@ const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_156683468cdd3baf
+/// Element type for __AnonStruct_8a8a50656f2623dd
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct156683468cdd3baf {
-    pub config: AnonStructF416749c63976d29,
+pub struct AnonStruct8a8a50656f2623dd {
+    pub config: AnonStructF6553ece33fb1c17,
     pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_156683468cdd3baf
+/// Element type for __AnonStruct_8a8a50656f2623dd
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct156683468cdd3baf {
-    pub config: AnonStructF416749c63976d29,
+pub struct AnonStruct8a8a50656f2623dd {
+    pub config: AnonStructF6553ece33fb1c17,
     pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct156683468cdd3baf>() == 216, "AnonStruct156683468cdd3baf size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct8a8a50656f2623dd>() == 224, "AnonStruct8a8a50656f2623dd size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct156683468cdd3baf>() == 8, "AnonStruct156683468cdd3baf alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct8a8a50656f2623dd>() == 8, "AnonStruct8a8a50656f2623dd alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct156683468cdd3baf>() == 160, "AnonStruct156683468cdd3baf size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct8a8a50656f2623dd>() == 168, "AnonStruct8a8a50656f2623dd size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct156683468cdd3baf>() == 8, "AnonStruct156683468cdd3baf alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct8a8a50656f2623dd>() == 8, "AnonStruct8a8a50656f2623dd alignment mismatch");
 
-/// Element type for __AnonStruct_f416749c63976d29
+/// Element type for __AnonStruct_f6553ece33fb1c17
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF416749c63976d29 {
+pub struct AnonStructF6553ece33fb1c17 {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
@@ -1440,18 +1440,21 @@ pub struct AnonStructF416749c63976d29 {
     pub body_chunk_bytes: u32,
     pub file_chunk_bytes: u32,
     pub max_connections: u32,
+    pub request_header_max_bytes: u32,
+    pub request_target_max_bytes: u32,
     pub body_buffered_chunks: u16,
     pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
     pub port: u16,
+    pub request_header_max_fields: u16,
 }
 
-/// Element type for __AnonStruct_f416749c63976d29
+/// Element type for __AnonStruct_f6553ece33fb1c17
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructF416749c63976d29 {
+pub struct AnonStructF6553ece33fb1c17 {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub drain_timeout_ms: u64,
@@ -1468,21 +1471,24 @@ pub struct AnonStructF416749c63976d29 {
     pub body_chunk_bytes: u32,
     pub file_chunk_bytes: u32,
     pub max_connections: u32,
+    pub request_header_max_bytes: u32,
+    pub request_target_max_bytes: u32,
     pub body_buffered_chunks: u16,
     pub file_max_concurrent: u16,
     pub max_handlers: u16,
     pub max_queued_handlers: u16,
     pub port: u16,
+    pub request_header_max_fields: u16,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructF416749c63976d29>() == 208, "AnonStructF416749c63976d29 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF6553ece33fb1c17>() == 216, "AnonStructF6553ece33fb1c17 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructF416749c63976d29>() == 8, "AnonStructF416749c63976d29 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF6553ece33fb1c17>() == 8, "AnonStructF6553ece33fb1c17 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructF416749c63976d29>() == 152, "AnonStructF416749c63976d29 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStructF6553ece33fb1c17>() == 160, "AnonStructF6553ece33fb1c17 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructF416749c63976d29>() == 8, "AnonStructF416749c63976d29 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStructF6553ece33fb1c17>() == 8, "AnonStructF6553ece33fb1c17 alignment mismatch");
 
 /// Element type for __AnonStruct_3b01e35488cb00dc
 #[cfg(target_pointer_width = "32")]
@@ -5195,7 +5201,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStruct156683468cdd3baf>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct8a8a50656f2623dd>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -5209,7 +5215,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 160],
+    pub payload: [u8; 168],
     pub tag: InitForHostResultTag,
 }
 
@@ -5234,29 +5240,29 @@ impl InitForHostResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct156683468cdd3baf {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct156683468cdd3baf) }
+    pub fn payload_ok(&self) -> AnonStruct8a8a50656f2623dd {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct8a8a50656f2623dd) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct156683468cdd3baf {
+    pub fn payload_ok(&self) -> AnonStruct8a8a50656f2623dd {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 224, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 232, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 216, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 224, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 168, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 176, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 160, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 168, "InitForHostResult tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -6528,8 +6534,8 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStruct156683468cdd3baf;
-pub type InitForHostOkConfig = AnonStructF416749c63976d29;
+pub type InitForHostOk = AnonStruct8a8a50656f2623dd;
+pub type InitForHostOkConfig = AnonStructF6553ece33fb1c17;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeFileRoutes = AnonStructFf6f93028827ced0;
 pub type InitForHostOkConfigReadinessRoutes = AnonStruct88f5430c7a4d7d9d;
@@ -8943,7 +8949,7 @@ impl InitForHostResult {
     }
 }
 
-impl AnonStruct156683468cdd3baf {
+impl AnonStruct8a8a50656f2623dd {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -8966,7 +8972,7 @@ impl AnonStruct156683468cdd3baf {
     }
 }
 
-impl AnonStructF416749c63976d29 {
+impl AnonStructF6553ece33fb1c17 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety

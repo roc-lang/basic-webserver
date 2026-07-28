@@ -36,6 +36,11 @@ init! = || {
 
 	config =
 		Server.default_config
+			.with_request_metadata_limits({
+				max_target_bytes: 1024,
+				max_header_bytes: 4096,
+				max_header_fields: 8,
+			})
 			.with_file_roots([assets, downloads])
 			.with_native_routes({
 				files: [
