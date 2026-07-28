@@ -61,6 +61,8 @@ Host := [].{
 
 	RequestBody :: Box(U64)
 
+	Readiness :: Box(U64)
+
 	RequestBodyRead : [Chunk(List(U8)), End]
 
 	RequestBodyErr : [
@@ -71,6 +73,8 @@ Host := [].{
 		ConcurrentRead,
 		Cancelled,
 	]
+
+	ReadinessSetErr : [InvalidReadiness, StaleReadiness, ServerStopping]
 
 	CmdExecErr : [FailedToGetExitCode(IOErr), Timeout, Saturated]
 
@@ -123,6 +127,9 @@ Host := [].{
 
 	request_body_read! : RequestBody, U64 => Try(RequestBodyRead, RequestBodyErr)
 	request_body_read_all! : RequestBody, U64 => Try(List(U8), RequestBodyErr)
+
+	readiness_create! : Bool => Try(Readiness, [ReadinessCapacityExhausted])
+	readiness_set! : Readiness, Bool => Try({}, ReadinessSetErr)
 
 	path_type! : RawPath => Try(PathType, IOErr)
 

@@ -249,6 +249,9 @@ Sqlite :: [].{
 		rename_field : RowEncoding, Str -> Str
 		rename_field = |_, name| name
 
+		parse_record_start : RowEncoding, RowState -> Try([Counted({ len : U64, rest : RowState }), Uncounted(RowState)], QueryError)
+		parse_record_start = |_, state| Ok(Uncounted(state))
+
 		parse_str : RowEncoding, RowState -> Try({ value : Str, rest : RowState }, QueryError)
 		parse_str = |_, state| {
 			taken = take_row_value(state)?
@@ -326,14 +329,14 @@ Sqlite :: [].{
 				Field({ field : Encoding.FieldName(_shape), rest : RowState }),
 				TryField({ name : Str, rest : RowState }),
 				TryFieldCaseless({ name : Str, rest : RowState }),
-				Continue({ rest : RowState }),
-				Done({ rest : RowState }),
+				Continue(RowState),
+				Done(RowState),
 			],
 			QueryError,
 		)
 		parse_record_field = |_, fields, state|
 			if state.next >= state.columns.len() {
-				Ok(Done({ rest: state }))
+				Ok(Done(state))
 			} else {
 				name = state.columns.get(state.next) ? |_| MalformedRow
 				value = state.values.get(state.next) ? |_| MalformedRow
@@ -349,15 +352,21 @@ Sqlite :: [].{
 					Err(NotFound) =>
 						Ok(
 							Continue({
-								rest: {
-									columns: rest.columns,
-									current: NoCurrent,
-									next: rest.next,
-									values: rest.values,
-								},
+								columns: rest.columns,
+								current: NoCurrent,
+								next: rest.next,
+								values: rest.values,
 							}),
 						)
 					}
+			}
+
+		parse_record_after_field : RowEncoding, RowState -> Try([Continue(RowState), Done(RowState)], QueryError)
+		parse_record_after_field = |_, state|
+			if state.next >= state.columns.len() {
+				Ok(Done(state))
+			} else {
+				Ok(Continue(state))
 			}
 
 		skip_record_field : RowEncoding, RowState -> Try(RowState, QueryError)

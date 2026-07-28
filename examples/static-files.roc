@@ -37,10 +37,14 @@ init! = || {
 	config = 
 		Server.default_config
 			.with_file_roots([assets, downloads])
-			.with_native_routes([
-				Server.static_mount({ at: "/assets", files: assets }),
-				Server.static_file({ at: "/favicon.ico", files: assets, relative: favicon }),
-			])
+			.with_native_routes({
+				files: [
+					Server.static_mount({ at: "/assets", files: assets }),
+					Server.static_file({ at: "/favicon.ico", files: assets, relative: favicon }),
+				],
+				liveness: [],
+				readiness: [],
+			})
 
 	Ok({
 		config,

@@ -1,17 +1,20 @@
 //! Tokio/Hyper server lifecycle and the provided Roc application entrypoints.
 
 use crate::abi::{
-    roc_host, ServerConfig, ServerFileRoot, ServerHeader, ServerNativeRoute, ServerRequest,
-    ServerResponse as RocServerResponse, ServerShutdownReason,
+    roc_host, ServerConfig, ServerFileRoot, ServerHeader, ServerNativeFileRoute,
+    ServerReadinessRoute, ServerRequest, ServerResponse as RocServerResponse, ServerShutdownReason,
 };
 use crate::compression::{
     apply_content_coding, encode_bytes, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
 };
 use crate::file_server::{
-    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, NativeRouteKind,
-    NativeRouteSpec, ServerResponse,
+    full_body, CachePolicy, Disposition, FilePlan, FileRootSpec, FileService, ServerResponse,
 };
+use crate::native_router::{
+    FileRouteKind, FileRouteSpec, NativeMatch, NativeRouter, ReadinessRouteSpec,
+};
+use crate::readiness::ReadinessLease;
 use crate::request_body::{register as register_body, PumpError};
 use crate::request_parts::{request_target, RequestPartsBacking};
 use crate::roc_platform_abi::*;
@@ -46,6 +49,7 @@ struct RuntimeConfig {
     drain_timeout: Duration,
     hook_timeout: Duration,
     files: FileService,
+    routes: NativeRouter,
 }
 
 impl RuntimeConfig {
@@ -68,18 +72,31 @@ impl RuntimeConfig {
                 .iter()
                 .map(file_root_from_roc)
                 .collect::<Result<Vec<_>, _>>()?;
-            let routes = config
-                .native_routes
+            let file_routes = config
+                .native_file_routes
                 .as_slice()
                 .iter()
-                .map(native_route_from_roc)
+                .map(native_file_route_from_roc)
+                .collect::<Result<Vec<_>, _>>()?;
+            let liveness_routes = config
+                .liveness_routes
+                .as_slice()
+                .iter()
+                .map(|path| path.as_str().to_owned())
+                .collect();
+            let readiness_routes = config
+                .readiness_routes
+                .as_slice()
+                .iter()
+                .map(readiness_route_from_roc)
                 .collect::<Result<Vec<_>, _>>()?;
             let files = FileService::activate(
                 roots,
-                routes,
                 config.file_max_concurrent as usize,
                 config.file_chunk_bytes as usize,
             )?;
+            let routes =
+                NativeRouter::activate(&files, file_routes, liveness_routes, readiness_routes)?;
             Ok(Self {
                 host: config.host.as_str().to_owned(),
                 port: config.port,
@@ -92,6 +109,7 @@ impl RuntimeConfig {
                 drain_timeout: Duration::from_millis(config.drain_timeout_ms),
                 hook_timeout: Duration::from_millis(config.hook_timeout_ms),
                 files,
+                routes,
             })
         })();
         // SAFETY: every Roc-owned field in the ABI config is borrowed only
@@ -104,9 +122,11 @@ impl RuntimeConfig {
     fn max_http2_streams_per_connection(&self) -> u32 {
         // The Roc configuration fields are u16, so their sum always fits u32.
         // A stream still passes through the global handler admission gate; the
-        // HTTP/2 setting prevents one connection from creating more service
-        // futures than the complete active-plus-queued handler budget.
-        (self.max_handlers + self.max_queued_handlers)
+        // HTTP/2 setting prevents one connection from creating substantially
+        // more service futures than the complete active-plus-queued handler
+        // budget. Two bounded extra streams let liveness and readiness enter
+        // native routing while that handler budget is occupied.
+        (self.max_handlers + self.max_queued_handlers + 2)
             .max(1)
             .try_into()
             .expect("validated handler capacity fits in u32")
@@ -157,10 +177,10 @@ fn path_buf_from_file_root(root: &ServerFileRoot) -> Result<PathBuf, String> {
     }
 }
 
-fn native_route_from_roc(route: &ServerNativeRoute) -> Result<NativeRouteSpec, String> {
+fn native_file_route_from_roc(route: &ServerNativeFileRoute) -> Result<FileRouteSpec, String> {
     let kind = match route.kind {
-        0 => NativeRouteKind::Prefix,
-        1 => NativeRouteKind::Exact,
+        0 => FileRouteKind::Prefix,
+        1 => FileRouteKind::Exact,
         _ => return Err("invalid native route kind".to_owned()),
     };
     let cache = if route.cache_override {
@@ -173,12 +193,19 @@ fn native_route_from_roc(route: &ServerNativeRoute) -> Result<NativeRouteSpec, S
     } else {
         return Err("malformed native route cache override".to_owned());
     };
-    Ok(NativeRouteSpec {
+    Ok(FileRouteSpec {
         at: route.at.as_str().to_owned(),
         root_id: route.root_id.as_str().to_owned(),
         kind,
         relative: route.relative.as_str().to_owned(),
         cache,
+    })
+}
+
+fn readiness_route_from_roc(route: &ServerReadinessRoute) -> Result<ReadinessRouteSpec, String> {
+    Ok(ReadinessRouteSpec {
+        at: route.at.as_str().to_owned(),
+        readiness: ReadinessLease::retain(route.readiness)?,
     })
 }
 
@@ -299,6 +326,7 @@ fn start_inner() -> i32 {
     let config = match RuntimeConfig::from_roc(initialized.config) {
         Ok(config) => config,
         Err(detail) => {
+            eprintln!("Server startup configuration is invalid: {detail}");
             return finish_shutdown(
                 ShutdownReason::StartupFailed(detail),
                 raw_context,
@@ -704,14 +732,23 @@ async fn handle_req(
         None => return service_unavailable(),
     };
 
-    if let Some(plan) = context.config.files.route(request.uri().path()) {
+    if let Some(native) = context
+        .config
+        .routes
+        .route(request.uri().path(), request.method())
+    {
         let (parts, body) = request.into_parts();
         drop(body);
-        return context
-            .config
-            .files
-            .serve(plan, parts.method, parts.headers, active_request)
-            .await;
+        return match native {
+            NativeMatch::File(plan) => {
+                context
+                    .config
+                    .files
+                    .serve(plan, parts.method, parts.headers, active_request)
+                    .await
+            }
+            NativeMatch::Probe(response) => response,
+        };
     }
 
     if !request_headers_are_utf8(request.headers()) {
@@ -896,6 +933,7 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         }
     };
 
+    context.config.routes.begin_draining();
     context.requests.begin_draining();
     let drained = tokio::time::timeout(context.config.drain_timeout, async {
         context.requests.wait_for_idle().await;
@@ -989,8 +1027,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn initialize_test_host() {
-        static INITIALIZE: std::sync::Once = std::sync::Once::new();
-        INITIALIZE.call_once(crate::abi::initialize_roc_host);
+        crate::abi::initialize_test_roc_host();
     }
 
     fn no_compression() -> AcceptedEncodings {
@@ -1347,7 +1384,9 @@ mod tests {
     }
 
     #[test]
-    fn http2_stream_limit_matches_the_complete_handler_budget() {
+    fn http2_stream_limit_reserves_bounded_native_probe_headroom() {
+        let files = FileService::activate(Vec::new(), 1, 1024).unwrap();
+        let routes = NativeRouter::activate(&files, Vec::new(), Vec::new(), Vec::new()).unwrap();
         let config = RuntimeConfig {
             host: "127.0.0.1".to_owned(),
             port: 8000,
@@ -1359,9 +1398,10 @@ mod tests {
             body_buffered_chunks: 1,
             drain_timeout: Duration::from_secs(30),
             hook_timeout: Duration::from_secs(10),
-            files: FileService::activate(Vec::new(), Vec::new(), 1, 1024).unwrap(),
+            files,
+            routes,
         };
-        assert_eq!(config.max_http2_streams_per_connection(), 96);
+        assert_eq!(config.max_http2_streams_per_connection(), 98);
     }
 
     #[tokio::test]

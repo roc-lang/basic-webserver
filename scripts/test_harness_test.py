@@ -12,6 +12,43 @@ from scripts import test, update_app_platform_urls
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_local_bundle_rewrite_uses_a_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            source = root / "examples" / "example.roc"
+            source.parent.mkdir()
+            original = 'app [main] { pf: platform "https://example.invalid/old" }\n'
+            source.write_text(original, encoding="utf-8")
+
+            with (
+                mock.patch.object(test, "ROOT", root),
+                mock.patch.object(test, "VALIDATION_ROOT", root / "target" / "spec"),
+            ):
+                rewritten = test.rewritten_app_source(
+                    "examples/example.roc",
+                    "http://127.0.0.1:1234/platform.tar.zst",
+                )
+
+            self.assertNotEqual(rewritten, source)
+            self.assertEqual(source.read_text(encoding="utf-8"), original)
+            self.assertIn(
+                'platform "http://127.0.0.1:1234/platform.tar.zst"',
+                rewritten.read_text(encoding="utf-8"),
+            )
+
+    def test_startup_failure_case_cannot_send_requests(self) -> None:
+        case = {
+            "name": "invalid-startup",
+            "expect_startup_failure": True,
+            "requests": [{"method": "GET", "target": "/"}],
+        }
+
+        with self.assertRaisesRegex(
+            test.TestFailure,
+            "expect_startup_failure cannot be combined with requests",
+        ):
+            test.validate_case("examples/health.roc", case, set())
+
     def test_http2_request_headers_use_prior_knowledge_hpack(self) -> None:
         block = test.hpack_request_headers(
             8000,

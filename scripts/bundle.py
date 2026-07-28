@@ -20,6 +20,13 @@ TARGET_INPUTS = {
     "arm64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
     "x64win": ("host.lib", "ws2_32.lib", "bcrypt.lib", "advapi32.lib"),
 }
+RUST_TARGETS = {
+    "x64mac": "x86_64-apple-darwin",
+    "arm64mac": "aarch64-apple-darwin",
+    "x64musl": "x86_64-unknown-linux-musl",
+    "arm64musl": "aarch64-unknown-linux-musl",
+    "x64win": "x86_64-pc-windows-msvc",
+}
 PLATFORM_LINK_SUPPORT = (
     PLATFORM_DIR / "targets" / "macos-sysroot" / "usr" / "lib" / "libSystem.tbd",
 )
@@ -46,29 +53,39 @@ def validate_target_manifest() -> None:
         )
 
 
-def generate_rust_dependency_licenses(output: Path) -> None:
-    metadata = json.loads(
-        subprocess.check_output(
-            ["cargo", "metadata", "--locked", "--format-version", "1"],
-            cwd=ROOT,
-            text=True,
+def generate_rust_dependency_licenses(
+    output: Path, selected_targets: tuple[str, ...]
+) -> None:
+    packages_by_id: dict[str, dict[str, object]] = {}
+    for target in selected_targets:
+        metadata = json.loads(
+            subprocess.check_output(
+                [
+                    "cargo",
+                    "metadata",
+                    "--locked",
+                    "--format-version",
+                    "1",
+                    "--filter-platform",
+                    RUST_TARGETS[target],
+                ],
+                cwd=ROOT,
+                text=True,
+            )
         )
-    )
-    packages = sorted(
-        (
-            package
+        reachable = {node["id"] for node in metadata["resolve"]["nodes"]}
+        packages_by_id.update(
+            (package["id"], package)
             for package in metadata["packages"]
-            if str(package.get("source", "")).startswith("registry+")
-        ),
+            if package["id"] in reachable
+            and str(package.get("source", "")).startswith("registry+")
+        )
+    packages = sorted(
+        packages_by_id.values(),
         key=lambda package: (package["name"], package["version"]),
     )
 
-    lines = [
-        "# Rust Dependency Licenses",
-        "",
-        "This file is generated from the exact dependencies in `Cargo.lock`.",
-        "",
-    ]
+    license_paths_by_id: dict[str, list[Path]] = {}
     for package in packages:
         package_root = Path(package["manifest_path"]).parent
         candidates: list[Path] = []
@@ -84,14 +101,42 @@ def generate_rust_dependency_licenses(output: Path) -> None:
                 )
             )
         )
-
-        license_paths: list[Path] = []
         seen: set[Path] = set()
+        license_paths_by_id[package["id"]] = []
         for candidate in candidates:
             candidate = candidate.resolve()
             if candidate.is_file() and candidate not in seen:
                 seen.add(candidate)
-                license_paths.append(candidate)
+                license_paths_by_id[package["id"]].append(candidate)
+
+    lines = [
+        "# Rust Dependency Licenses",
+        "",
+        "This file is generated from the exact dependencies in `Cargo.lock`.",
+        "",
+    ]
+    for package in packages:
+        license_paths = license_paths_by_id[package["id"]]
+        license_source = package
+        if not license_paths:
+            repository = package.get("repository")
+            license_expression = package.get("license")
+            matching_upstream = next(
+                (
+                    candidate
+                    for candidate in packages
+                    if candidate["id"] != package["id"]
+                    and repository
+                    and candidate.get("repository") == repository
+                    and license_expression
+                    and candidate.get("license") == license_expression
+                    and license_paths_by_id[candidate["id"]]
+                ),
+                None,
+            )
+            if matching_upstream is not None:
+                license_source = matching_upstream
+                license_paths = license_paths_by_id[matching_upstream["id"]]
         if not license_paths:
             raise SystemExit(
                 f"No license text found for Rust dependency "
@@ -109,6 +154,15 @@ def generate_rust_dependency_licenses(output: Path) -> None:
         repository = package.get("repository")
         if repository:
             lines.extend([f"Source: {repository}", ""])
+        if license_source["id"] != package["id"]:
+            lines.extend(
+                [
+                    "License text supplied by "
+                    f"`{license_source['name']} {license_source['version']}` "
+                    "from the same upstream repository and SPDX license.",
+                    "",
+                ]
+            )
         for license_path in license_paths:
             lines.extend(
                 [
@@ -127,6 +181,20 @@ def generate_rust_dependency_licenses(output: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bundle the basic-webserver platform")
     parser.add_argument("--output-dir", type=Path, default=ROOT)
+    parser.add_argument(
+        "--target",
+        action="append",
+        choices=TARGET_INPUTS,
+        dest="targets",
+        help=(
+            "include only this target (repeatable); defaults to every release target"
+        ),
+    )
+    parser.add_argument(
+        "--roc",
+        default="roc",
+        help="Roc compiler used to create the bundle",
+    )
     args, roc_args = parser.parse_known_args()
 
     output_dir = args.output_dir
@@ -136,13 +204,16 @@ def main() -> None:
     output_dir = output_dir.resolve()
 
     validate_target_manifest()
+    selected_targets = tuple(args.targets or TARGET_INPUTS)
     roc_files = sorted(PLATFORM_DIR.glob("*.roc"))
     library_files = [
         PLATFORM_DIR / "targets" / target / filename
-        for target, filenames in TARGET_INPUTS.items()
-        for filename in filenames
+        for target in selected_targets
+        for filename in TARGET_INPUTS[target]
     ]
-    link_input_files = [*library_files, *PLATFORM_LINK_SUPPORT]
+    link_input_files = [*library_files]
+    if any(target.endswith("mac") for target in selected_targets):
+        link_input_files.extend(PLATFORM_LINK_SUPPORT)
     missing = [path for path in link_input_files if not path.is_file()]
     if missing:
         formatted = "\n".join(
@@ -162,7 +233,7 @@ def main() -> None:
     ]
     license_source = ROOT / "THIRD_PARTY_LICENSES.md"
     rust_licenses_target = PLATFORM_DIR / "RUST_DEPENDENCY_LICENSES.md"
-    generate_rust_dependency_licenses(rust_licenses_target)
+    generate_rust_dependency_licenses(rust_licenses_target, selected_targets)
     unpacked_size = sum(path.stat().st_size for path in (*roc_files, *link_input_files))
     unpacked_size += license_source.stat().st_size + rust_licenses_target.stat().st_size
     if unpacked_size > MAX_PLATFORM_BYTES:
@@ -190,7 +261,7 @@ def main() -> None:
     try:
         subprocess.run(
             [
-                "roc",
+                args.roc,
                 "bundle",
                 *bundle_files,
                 "THIRD_PARTY_LICENSES.md",

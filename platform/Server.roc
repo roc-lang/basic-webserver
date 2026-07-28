@@ -234,8 +234,8 @@ Server :: [].{
 
 	## One startup-declared host-native file route. Static mounts own an exact
 	## prefix on segment boundaries. Static files own one exact URI path.
-	NativeRoute := [
-		NativeRoute(
+	FileRoute := [
+		FileRoute(
 			{
 				at : Str,
 				files : FileRoot,
@@ -247,7 +247,7 @@ Server :: [].{
 	].{
 
 		## Platform ABI conversion hook; not an application API.
-		to_host : NativeRoute -> {
+		to_host : FileRoute -> {
 			at : Str,
 			root_id : Str,
 			kind : U8,
@@ -256,7 +256,7 @@ Server :: [].{
 			cache_tag : U8,
 			cache_max_age_seconds : U32,
 		}
-		to_host = |NativeRoute(route)| {
+		to_host = |FileRoute(route)| {
 			FileRoot(root) = route.files
 			cache = CacheChoice.to_host(route.cache)
 			{
@@ -274,19 +274,19 @@ Server :: [].{
 	## Declare a public static mount that inherits its root cache policy. Route
 	## paths are ASCII absolute URI paths of at most 4 KiB and are validated at
 	## startup.
-	static_mount : { at : Str, files : FileRoot } -> NativeRoute
+	static_mount : { at : Str, files : FileRoot } -> FileRoute
 	static_mount = |{ at, files }|
-		NativeRoute({ at, files, kind: 0, relative: "", cache: Inherit })
+		FileRoute({ at, files, kind: 0, relative: "", cache: Inherit })
 
 	## Declare a public static mount with an explicit cache policy.
-	static_mount_with_cache : { at : Str, files : FileRoot, cache : CachePolicy } -> NativeRoute
+	static_mount_with_cache : { at : Str, files : FileRoot, cache : CachePolicy } -> FileRoute
 	static_mount_with_cache = |{ at, files, cache }|
-		NativeRoute({ at, files, kind: 0, relative: "", cache: Override(cache) })
+		FileRoute({ at, files, kind: 0, relative: "", cache: Override(cache) })
 
 	## Declare one exact public file route that inherits its root cache policy.
-	static_file : { at : Str, files : FileRoot, relative : RelativeFile } -> NativeRoute
+	static_file : { at : Str, files : FileRoot, relative : RelativeFile } -> FileRoute
 	static_file = |{ at, files, relative }|
-		NativeRoute({
+		FileRoute({
 			at,
 			files,
 			kind: 1,
@@ -295,15 +295,92 @@ Server :: [].{
 		})
 
 	## Declare one exact public file route with an explicit cache policy.
-	static_file_with_cache : { at : Str, files : FileRoot, relative : RelativeFile, cache : CachePolicy } -> NativeRoute
+	static_file_with_cache : { at : Str, files : FileRoot, relative : RelativeFile, cache : CachePolicy } -> FileRoute
 	static_file_with_cache = |{ at, files, relative, cache }|
-		NativeRoute({
+		FileRoute({
 			at,
 			files,
 			kind: 1,
 			relative: RelativeFile.to_host(relative),
 			cache: Override(cache),
 		})
+
+	## The complete readiness state. There are deliberately no names, reasons,
+	## dependency callbacks, or intermediate states.
+	ReadinessState : [NotReady, Ready]
+
+	## A bounded host-owned readiness gate. It is safe to retain in immutable
+	## context and update from concurrent handlers. Final Roc ARC release closes
+	## the capability; graceful drain permanently changes it to NotReady before
+	## `shutdown!` runs.
+	Readiness := { host : Host.Readiness }.{
+
+		## Create one readiness gate with an explicit initial state. The host has
+		## finite capacity and reports exhaustion instead of growing a registry.
+		create! : ReadinessState => Try(Readiness, [ReadinessCapacityExhausted])
+		create! = |state| {
+			host = Host.readiness_create!(state == Ready)?
+			Ok(Readiness.{ host })
+		}
+
+		## Atomically replace the readiness state. Once graceful drain begins,
+		## every update returns ServerStopping and the state remains NotReady.
+		set! : Readiness, ReadinessState => Try({}, [InvalidReadiness, StaleReadiness, ServerStopping])
+		set! = |readiness, state|
+			Host.readiness_set!(to_host(readiness), state == Ready)
+
+		## Render without exposing the host lifecycle token.
+		to_inspect : Readiness -> Str
+		to_inspect = |_| "Server.Readiness(<opaque>)"
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : Readiness -> Host.Readiness
+		to_host = |Readiness.{ host }| host
+	}
+
+	## One native exact route whose response proves only that the listener and
+	## HTTP machinery can serve it. `init!` and complete route validation finish
+	## before the listener is bound, so this route also serves as a deployment
+	## startup probe once it becomes reachable; there is no separate mutable
+	## startup state.
+	LivenessRoute := [LivenessRoute(Str)].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : LivenessRoute -> Str
+		to_host = |LivenessRoute(at)| at
+	}
+
+	## One native exact route backed by a typed readiness gate.
+	ReadinessRoute := [ReadinessRoute({ at : Str, readiness : Readiness })].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : ReadinessRoute -> { at : Str, readiness : Host.Readiness }
+		to_host = |ReadinessRoute({ at, readiness })| {
+			at,
+			readiness: Readiness.to_host(readiness),
+		}
+	}
+
+	## Declare a native liveness route. Paths are validated with all other native
+	## routes atomically before the listener is bound.
+	liveness_route : Str -> LivenessRoute
+	liveness_route = |at| LivenessRoute(at)
+
+	## Declare a native readiness route backed by the supplied gate.
+	readiness_route : { at : Str, readiness : Readiness } -> ReadinessRoute
+	readiness_route = |route| ReadinessRoute(route)
+
+	## The immutable startup route topology. Exact route duplicates are rejected;
+	## exact routes take precedence over more general file prefixes.
+	NativeRoutes : {
+		files : List(FileRoute),
+		liveness : List(LivenessRoute),
+		readiness : List(ReadinessRoute),
+	}
+
+	## No host-native routes.
+	no_native_routes : NativeRoutes
+	no_native_routes = { files: [], liveness: [], readiness: [] }
 
 	## Opaque runtime configuration returned from the application's `init!`
 	## function. Use the builders below so future server settings can be added
@@ -336,7 +413,7 @@ Server :: [].{
 					hook_timeout_ms : U64,
 				},
 				file_roots : List(FileRoot),
-				native_routes : List(NativeRoute),
+				native_routes : NativeRoutes,
 				file_transfers : {
 					max_concurrent : U16,
 					chunk_bytes : U32,
@@ -370,7 +447,7 @@ Server :: [].{
 					cache_max_age_seconds : U32,
 				},
 			),
-			native_routes : List(
+			native_file_routes : List(
 				{
 					at : Str,
 					root_id : Str,
@@ -381,6 +458,8 @@ Server :: [].{
 					cache_max_age_seconds : U32,
 				},
 			),
+			liveness_routes : List(Str),
+			readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 			file_max_concurrent : U16,
 			file_chunk_bytes : U32,
 		}
@@ -396,7 +475,9 @@ Server :: [].{
 			max_handlers: config.limits.max_handlers,
 			max_queued_handlers: config.limits.max_queued_handlers,
 			file_roots: config.file_roots.map(FileRoot.to_host),
-			native_routes: config.native_routes.map(NativeRoute.to_host),
+			native_file_routes: config.native_routes.files.map(FileRoute.to_host),
+			liveness_routes: config.native_routes.liveness.map(LivenessRoute.to_host),
+			readiness_routes: config.native_routes.readiness.map(ReadinessRoute.to_host),
 			file_max_concurrent: config.file_transfers.max_concurrent,
 			file_chunk_bytes: config.file_transfers.chunk_bytes,
 		}
@@ -425,7 +506,7 @@ Server :: [].{
 			hook_timeout_ms: 10_000,
 		},
 		file_roots: [],
-		native_routes: [],
+		native_routes: no_native_routes,
 		file_transfers: {
 			max_concurrent: default_max_file_transfers,
 			chunk_bytes: default_file_chunk_bytes,
@@ -458,8 +539,8 @@ Server :: [].{
 	with_file_roots : Config, List(FileRoot) -> Config
 	with_file_roots = |Config(config), file_roots| Config({ ..config, file_roots })
 
-	## Replace the immutable host-native route table.
-	with_native_routes : Config, List(NativeRoute) -> Config
+	## Replace the complete immutable host-native route table.
+	with_native_routes : Config, NativeRoutes -> Config
 	with_native_routes = |Config(config), native_routes| Config({ ..config, native_routes })
 
 	## Set the active-transfer bound and streaming chunk size for host-managed
