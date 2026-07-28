@@ -59,9 +59,11 @@ OsStr := [
 	from_interpolation = |first, rest|
 		Utf8(rest.fold(first, |acc, (interpolated, segment)| acc.concat(interpolated).concat(segment)))
 
-	## TODO: Restore generic parser_for and encoder_for helpers when the compiler
-	## no longer treats auto-derived `_` declarations in platforms as hosted:
-	## https://github.com/roc-lang/roc/issues/10162
+	## Decode an OS string through a generic encoding.
+	parser_for : _
+
+	## Encode an OS string through a generic encoding.
+	encoder_for : _
 
 	## Convert an OS string to a string if its raw representation is valid text.
 	to_str_try : OsStr -> Try(Str, [InvalidStr(U64)])
@@ -244,8 +246,26 @@ is_low_surrogate = |unit| unit >= 0xDC00 and unit <= 0xDFFF
 is_surrogate : U16 -> Bool
 is_surrogate = |unit| unit >= 0xD800 and unit <= 0xDFFF
 
+os_str_json_round_trips : OsStr -> Bool
+os_str_json_round_trips = |os_str| {
+	decoded : Try(OsStr, [InvalidJson(Str)])
+	decoded = Json.parse(Json.to_str(os_str))
+
+	match decoded {
+		Ok(value) => value == os_str
+		Err(_) => False
+	}
+}
+
 ## Inspection identifies the representation and preserves invalid raw units.
 expect Str.inspect(OsStr.utf8("a\nb")) == "OsStr.utf8(\"a\\nb\")"
+
+## Derived generic codecs roundtrip every OS string representation.
+expect [
+	OsStr.utf8("config.toml"),
+	OsStr.unix_bytes([97, 255, 98]),
+	OsStr.windows_u16s([0xD800, 97]),
+].all(os_str_json_round_trips)
 
 ## Unix text inspection uses the canonical UTF-8 representation.
 expect Str.inspect(OsStr.unix("abc")) == "OsStr.utf8(\"abc\")"

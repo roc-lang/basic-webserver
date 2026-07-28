@@ -192,9 +192,11 @@ Path := [
 	from_interpolation = |first, rest|
 		Utf8(rest.fold(first, |acc, (interpolated, segment)| acc.concat(interpolated).concat(segment)))
 
-	## TODO: Restore generic parser_for and encoder_for helpers when the compiler
-	## no longer treats auto-derived `_` declarations in platforms as hosted:
-	## https://github.com/roc-lang/roc/issues/10162
+	## Decode a path through a generic encoding.
+	parser_for : _
+
+	## Encode a path through a generic encoding.
+	encoder_for : _
 
 	## Create a Unix path from a Roc string by storing its UTF-8 bytes.
 	unix : Str -> Path
@@ -597,8 +599,26 @@ quoted_literal_path = "config.txt"
 path_identity : Path -> Path
 path_identity = |path| path
 
+path_json_round_trips : Path -> Bool
+path_json_round_trips = |path| {
+	decoded : Try(Path, [InvalidJson(Str)])
+	decoded = Json.parse(Json.to_str(path))
+
+	match decoded {
+		Ok(value) => value == path
+		Err(_) => False
+	}
+}
+
 ## Constructors preserve Unix, Windows, and UTF-8 path representations.
 expect Path.unix("abc") == Unix([97, 98, 99])
+
+## Derived generic codecs roundtrip every path representation.
+expect [
+	Path.utf8("config.toml"),
+	Path.unix_bytes([97, 255, 98]),
+	Path.windows_u16s([0xD800, 97]),
+].all(path_json_round_trips)
 
 ## Unix byte construction preserves every byte.
 expect Path.unix_bytes([97, 98, 99]) == Unix([97, 98, 99])
