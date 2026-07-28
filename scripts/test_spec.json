@@ -10,6 +10,13 @@
     {
       "path": "examples/command.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "commands-and-request",
@@ -80,6 +87,13 @@
     {
       "path": "examples/echo.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "utf8-and-binary",
@@ -164,6 +178,13 @@
     {
       "path": "examples/error-handling.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "outbound-http",
@@ -200,6 +221,13 @@
     {
       "path": "examples/file-accessed-modified-created-time.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "license-metadata",
@@ -215,6 +243,29 @@
           ],
           "stdout_regex": [
             "LICENSE file time metadata:\\nModified: 20[^\\n]+\\nAccessed: 20[^\\n]+\\nCreated: 20[^\\n]+"
+          ]
+        },
+        {
+          "name": "pre-epoch-metadata",
+          "cwd": "temp",
+          "fixtures": [
+            {
+              "dest": "{temp}/LICENSE",
+              "text": "pre-epoch metadata fixture",
+              "mtime_unix": -1
+            }
+          ],
+          "requests": [
+            {
+              "body_contains": [
+                "Modified: 1969-12-31T23:59:59Z",
+                "Accessed: 1969-12-31T23:59:59Z"
+              ]
+            }
+          ],
+          "stdout_contains": [
+            "Modified: 1969-12-31T23:59:59Z",
+            "Accessed: 1969-12-31T23:59:59Z"
           ]
         }
       ]
@@ -374,6 +425,13 @@
     {
       "path": "examples/hello-web.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "semantic-http",
@@ -443,6 +501,13 @@
     {
       "path": "examples/init-basic.roc",
       "mode": "server",
+      "stages": {
+        "test": false
+      },
+      "test_skip": {
+        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
+        "issue": "https://github.com/roc-lang/roc/issues/10422"
+      },
       "cases": [
         {
           "name": "context-from-init",

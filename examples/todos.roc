@@ -10,7 +10,6 @@ import pf.Server
 import pf.Sqlite
 import pf.Stdout
 import pf.Url
-import pf.Utc
 import http.Response
 import "todos.html" as todo_html : List(U8)
 
@@ -195,8 +194,7 @@ ensure_schema! = |db|
 
 log_request! : Server.Request => Try({}, _)
 log_request! = |req| {
-	datetime = Utc.to_iso_8601(Utc.now!())
-	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${Str.inspect(req.method())} ${req.target()}")
 		? |err| StdoutErr(Str.inspect(err))
 	Ok({})
 }

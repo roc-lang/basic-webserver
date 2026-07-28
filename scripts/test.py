@@ -159,6 +159,15 @@ def validate_skip(owner: str, value: object) -> None:
         fail(f"{owner}: a skipped case requires a GitHub tracking issue URL")
 
 
+def validate_test_skip(owner: str, value: object) -> None:
+    if not isinstance(value, dict) or set(value) != {"reason", "issue"}:
+        fail(f"{owner}: test_skip must contain exactly reason and issue")
+    if not isinstance(value["reason"], str) or not value["reason"].strip():
+        fail(f"{owner}: a skipped test stage requires a non-empty reason")
+    if not isinstance(value["issue"], str) or not ISSUE_URL.fullmatch(value["issue"]):
+        fail(f"{owner}: a skipped test stage requires a GitHub tracking issue URL")
+
+
 def validate_assertions(owner: str, value: dict[str, object], prefix: str = "") -> None:
     allowed = {
         f"{prefix}exact",
@@ -304,6 +313,11 @@ def load_spec() -> tuple[dict[str, bool], list[dict[str, object]]]:
             fail(f"{path}: stages contains an unknown stage")
         if not all(isinstance(value, bool) for value in overrides.values()):
             fail(f"{path}: stage overrides must be booleans")
+        test_enabled = overrides.get("test", defaults["test"])
+        if test_enabled and "test_skip" in app:
+            fail(f"{path}: test_skip is only valid when the test stage is disabled")
+        if not test_enabled:
+            validate_test_skip(path, app.get("test_skip"))
         if app.get("build_opt", "speed") not in BUILD_OPTIMIZATIONS:
             fail(
                 f"{path}: build_opt must be one of "

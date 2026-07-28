@@ -3105,7 +3105,7 @@ pub enum HostFileTimeAccessedResultTag {
 #[derive(Clone, Copy)]
 pub union HostFileTimeAccessedResultPayload {
     pub err: core::mem::ManuallyDrop<IOErr>,
-    pub ok: core::mem::ManuallyDrop<u128>,
+    pub ok: core::mem::ManuallyDrop<i128>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -3144,12 +3144,12 @@ impl HostFileTimeAccessedResult {
     }
 
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> u128 {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const u128) }
+    pub fn payload_ok(&self) -> i128 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const i128) }
     }
 
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> u128 {
+    pub fn payload_ok(&self) -> i128 {
         unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
     }
 
@@ -5628,7 +5628,7 @@ const _: () = assert!(core::mem::size_of::<HostFileSizeInBytesArgs>() == 28, "Ho
 const _: () = assert!(core::mem::align_of::<HostFileSizeInBytesArgs>() == 4, "HostFileSizeInBytesArgs alignment mismatch");
 
 /// Arguments for Host.file_time_accessed!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -5640,7 +5640,7 @@ pub struct HostFileTimeAccessedArgs {
 }
 
 /// Arguments for Host.file_time_accessed!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
@@ -5661,7 +5661,7 @@ const _: () = assert!(core::mem::size_of::<HostFileTimeAccessedArgs>() == 28, "H
 const _: () = assert!(core::mem::align_of::<HostFileTimeAccessedArgs>() == 4, "HostFileTimeAccessedArgs alignment mismatch");
 
 /// Arguments for Host.file_time_created!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -5673,7 +5673,7 @@ pub struct HostFileTimeCreatedArgs {
 }
 
 /// Arguments for Host.file_time_created!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
@@ -5694,7 +5694,7 @@ const _: () = assert!(core::mem::size_of::<HostFileTimeCreatedArgs>() == 28, "Ho
 const _: () = assert!(core::mem::align_of::<HostFileTimeCreatedArgs>() == 4, "HostFileTimeCreatedArgs alignment mismatch");
 
 /// Arguments for Host.file_time_modified!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -5706,7 +5706,7 @@ pub struct HostFileTimeModifiedArgs {
 }
 
 /// Arguments for Host.file_time_modified!
-/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+/// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
 /// Refcounted fields are owned by the hosted function.
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
@@ -8919,15 +8919,15 @@ unsafe extern "C" {
     pub fn hosted_file_size_in_bytes(arg0: HostFileSizeInBytesArgs) -> HostFileSizeInBytesResult;
 
     /// Hosted symbol for Host.file_time_accessed!
-    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
     pub fn hosted_file_time_accessed(arg0: HostFileTimeAccessedArgs) -> HostFileTimeAccessedResult;
 
     /// Hosted symbol for Host.file_time_created!
-    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
     pub fn hosted_file_time_created(arg0: HostFileTimeCreatedArgs) -> HostFileTimeAccessedResult;
 
     /// Hosted symbol for Host.file_time_modified!
-    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(U128, [FileErr(IOErr)])
+    /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try(I128, [FileErr(IOErr)])
     pub fn hosted_file_time_modified(arg0: HostFileTimeModifiedArgs) -> HostFileTimeAccessedResult;
 
     /// Hosted symbol for Host.file_write_bytes!
@@ -9034,9 +9034,9 @@ unsafe extern "C" {
     /// Roc signature: Host.TcpStream, List(U8) => Try({}, Str)
     pub fn hosted_tcp_write(arg0: *mut u64, arg1: RocListWith<u8, false>) -> HostTcpWriteResult;
 
-    /// Hosted symbol for Host.utc_now!
-    /// Roc signature: {} => U128
-    pub fn hosted_utc_now() -> u128;
+    /// Hosted symbol for Host.unix_time_now!
+    /// Roc signature: {} => I128
+    pub fn hosted_unix_time_now() -> i128;
 
 }
 

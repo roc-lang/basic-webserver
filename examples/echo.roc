@@ -1,13 +1,15 @@
 ## Echo server: logs the request method and target, then replies with the request body.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0-rc1/GfM5qZLcKYGA9XD4V7u1S4RjWrdfws29Uz2m86C7bmUC.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Server
 import pf.Stdout
-import pf.Utc
+import pf.UnixTime
 import http.Response
+import gregorian.Time
 
 Context : {}
 
@@ -18,7 +20,7 @@ init! = || Ok({ config: Server.default_config, context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, _context| {
-	time = Utc.to_iso_8601(Utc.now!())
+	time = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
 
 	Stdout.line!("${time} ${Str.inspect(req.method())} ${req.target()}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
