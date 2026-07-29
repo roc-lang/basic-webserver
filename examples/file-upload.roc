@@ -70,7 +70,7 @@ upload_config = |uploads, readback|
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context|
 	match (request.method(), request.target()) {
-		(PUT, "/upload/alpha") =>
+		(PUT, Resource({ raw_path: "/upload/alpha", .. })) =>
 			Ok(
 				Server.respond(
 					upload!(
@@ -82,7 +82,7 @@ respond! = |request, context|
 					),
 				),
 			)
-		(PUT, "/upload/exact-limit") =>
+		(PUT, Resource({ raw_path: "/upload/exact-limit", .. })) =>
 			Ok(
 				Server.respond(
 					upload!(
@@ -94,7 +94,7 @@ respond! = |request, context|
 					),
 				),
 			)
-		(PUT, "/upload/existing") =>
+		(PUT, Resource({ raw_path: "/upload/existing", .. })) =>
 			Ok(
 				Server.respond(
 					upload!(
@@ -106,7 +106,7 @@ respond! = |request, context|
 					),
 				),
 			)
-		(PUT, "/upload/streamed-limit") =>
+		(PUT, Resource({ raw_path: "/upload/streamed-limit", .. })) =>
 			Ok(
 				Server.respond(
 					upload!(
@@ -118,7 +118,7 @@ respond! = |request, context|
 					),
 				),
 			)
-		(PUT, "/upload/timeout") =>
+		(PUT, Resource({ raw_path: "/upload/timeout", .. })) =>
 			Ok(
 				Server.respond(
 					upload!(
@@ -130,15 +130,15 @@ respond! = |request, context|
 					),
 				),
 			)
-		(GET, "/files/alpha") =>
+		(GET, Resource({ raw_path: "/files/alpha", .. })) =>
 			Ok(Server.file_response({ files: context.readback, relative: context.alpha }))
-		(GET, "/files/exact-limit") =>
+		(GET, Resource({ raw_path: "/files/exact-limit", .. })) =>
 			Ok(Server.file_response({ files: context.readback, relative: context.exact_limit }))
-		(GET, "/files/existing") =>
+		(GET, Resource({ raw_path: "/files/existing", .. })) =>
 			Ok(Server.file_response({ files: context.readback, relative: context.existing }))
-		(GET, "/files/streamed-limit") =>
+		(GET, Resource({ raw_path: "/files/streamed-limit", .. })) =>
 			Ok(Server.file_response({ files: context.readback, relative: context.streamed_limit }))
-		(GET, "/files/timeout") =>
+		(GET, Resource({ raw_path: "/files/timeout", .. })) =>
 			Ok(Server.file_response({ files: context.readback, relative: context.timeout }))
 		_ => Ok(Server.respond(text_response(404, "Not Found")))
 	}
