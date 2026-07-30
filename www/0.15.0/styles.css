@@ -1,0 +1,1594 @@
+:root {
+  /* WCAG AAA Compliant colors - important that luminance (the l in hsl) is 18% for font colors against the bg's luminance of 96-97% when the font-size is at least 14pt */
+  --code-bg: hsl(262 33% 96% / 1);
+  --code-color: #000;
+  --gray: hsl(0 0% 18% / 1);
+  --orange: hsl(25 100% 18% / 1);
+  --green: hsl(115 100% 18% / 1);
+  --cyan: hsl(190 100% 18% / 1);
+  --blue: #05006d;
+  --violet: #7c38f5;
+  --violet-bg: hsl(262.22deg 87.1% 96%);
+  --magenta: #a20031;
+  --link-hover-color: #333;
+  --link-color: var(--violet);
+  --code-link-color: var(--violet);
+  --text-color: #000;
+  --text-hover-color: var(--violet);
+  --body-bg-color: #ffffff;
+  --border-color: #717171;
+  --faded-color: #4c4c4c;
+  --font-sans: -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  --sidebar-width: clamp(280px, 25dvw, 500px);
+  --module-search-height: 56px;
+  --module-search-padding-height: 16px;
+  --module-search-form-padding-width: 20px;
+  /* Total vertical space occupied by #module-search-form (input + form padding + margin-bottom).
+     Used both as scroll-padding-top on desktop (sticky form) and padding-top on mobile (fixed form). */
+  --module-search-form-height: calc(var(--module-search-height) + 32px);
+  --sidebar-bg-color: hsl(from var(--violet-bg) h calc(s * 1.05) calc(l * 0.95));
+
+  /* Semantic size tokens */
+  --entry-anchor-offset: 28px; /* space reserved left of entry headings for the permalink anchor */
+  --icon-size: 48px;           /* logo, menu-toggle, entry-toggle tap targets */
+
+  /* Semi-transparent tints derived from palette colors */
+  --violet-border-subtle: rgb(from var(--violet) r g b / .40);
+  --violet-border-hover: rgb(from var(--violet) r g b / .60);
+  --gray-border-subtle: rgb(from var(--gray) r g b / .30);
+
+  /* Search input border — distinct from --violet-bg so it's visible on a white background */
+  --search-border-color: hsl(262 50% 72%);
+
+  /* Type scale: 1.33x multiplier for clear hierarchy */
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --font-base: 1rem;
+  --font-lg: 1.3125rem;
+  --font-xl: 1.75rem;
+  --font-2xl: 2.3125rem;
+
+  /* Font weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+}
+
+
+a {
+  color: var(--violet);
+}
+
+table tr th,
+table tr td {
+  border: 1px solid var(--gray);
+  padding: 6px 13px;
+}
+
+.logo svg {
+  height: var(--icon-size);
+  width: var(--icon-size);
+  fill: var(--violet);
+}
+
+.logo:hover {
+  text-decoration: none;
+}
+
+.logo svg:hover {
+  fill: var(--link-hover-color);
+}
+
+.pkg-full-name {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-xl);
+  margin: 0 8px;
+  font-weight: var(--weight-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Entry signature styling - not a heading element */
+.entry-signature {
+  font-family: var(--font-mono);
+  background-color: var(--violet-bg);
+  color: var(--text-color);
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--violet);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: pre-wrap;
+  position: relative;
+  overflow: visible;
+}
+
+
+.entry-signature-pre {
+  background: none;
+  font-size: inherit;
+  font-family: inherit;
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  white-space: inherit;
+}
+
+.entry-signature-code,
+.entry-type-def-code {
+  background: none;
+  color: inherit;
+  display: block;
+  font: inherit;
+}
+
+.sig-arrow {
+  white-space: nowrap;
+}
+
+/* Type definition block shown below heading for nominal types (e.g. Try := ...) */
+.entry-type-def {
+  display: block;
+  font-family: var(--font-mono);
+  background-color: var(--violet-bg);
+  color: var(--text-color);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  white-space: pre-wrap;
+  font-size: var(--font-base);
+  line-height: 1.5;
+}
+
+/* Match the entry-anchor-offset left margin applied to entry headings (.entry h2-h6) so the
+   type definition aligns with the heading name above it. */
+.entry > .entry-type-def {
+  margin-left: var(--entry-anchor-offset);
+}
+
+.entry-signature-code strong {
+    color: var(--text-color);
+    font-weight: var(--weight-semibold);
+}
+
+.entry-anchor {
+  visibility: hidden;
+  color: var(--violet);
+  text-decoration: none;
+  user-select: none;
+  transition: visibility 6s;
+  position: absolute;
+  left: calc(-1 * var(--entry-anchor-offset));
+  display: flex;
+  align-items: center;
+  height: 100%;
+  top: 0;
+}
+
+.entry-anchor .link-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  vertical-align: middle;
+}
+
+.entry h2,
+.entry h3,
+.entry h4,
+.entry h5,
+.entry h6 {
+  margin-left: var(--entry-anchor-offset);
+  position: relative;
+}
+
+.entry-signature:hover .entry-anchor,
+.entry h2:hover .entry-anchor,
+.entry h3:hover .entry-anchor,
+.entry h4:hover .entry-anchor,
+.entry h5:hover .entry-anchor,
+.entry h6:hover .entry-anchor {
+  visibility: visible;
+}
+
+.entry-name-link,
+.entry-name-link:visited {
+  color: inherit;
+  text-decoration: none;
+}
+
+
+.entry-group-header {
+    color: var(--violet);
+    padding: 8px 0;
+    margin-top: 0;
+}
+
+/* Hierarchical entry layout */
+.entry {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+/* Targets of anchor-link navigation (permalink clicks, # references). */
+.entry[id],
+.entry-group[id] {
+  /* Offset so the target lands below the sticky search bar. */
+  scroll-margin-top: var(--module-search-form-height);
+}
+
+.entry-children-container {
+    margin-top: 16px;
+    margin-left: var(--entry-anchor-offset);
+}
+
+.entry-doc {
+    padding-left: 20px;
+}
+
+/* Entry type vs value styling */
+.entry-type > .entry-signature {
+    font-weight: var(--weight-semibold);
+    background-color: var(--violet-bg);
+    border-left: 4px solid var(--violet);
+    font-size: var(--font-base);
+    line-height: 1.5;
+}
+
+.entry-value > .entry-signature {
+    font-weight: var(--weight-normal);
+    background-color: transparent;
+    border-left: 4px solid rgb(from var(--violet) r g b);
+    font-size: var(--font-base);
+    line-height: 1.5;
+}
+
+
+.pkg-full-name a {
+  padding-top: 12px;
+  padding-bottom: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover,
+a:hover code {
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 5px;
+}
+
+.pkg-and-logo {
+  min-width: 0; /* necessary for text-overflow: ellipsis to work in descendants */
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  background-color: var(--violet-bg);
+  padding: 16px;
+}
+
+.pkg-and-logo a,
+.pkg-and-logo a:visited {
+  color: var(--violet);
+}
+
+.pkg-and-logo a:hover {
+  color: var(--link-hover-color);
+  text-decoration: none;
+}
+
+/* Injected by the website build (see build_website.roc's builtins_tip_html)
+   ahead of #sidebar-nav on the roc-lang.org docs site only — not emitted by
+   this repo's docs generator, so it has no default padding without this
+   rule. */
+.builtins-tip {
+  padding-left: 8px;
+  padding-bottom: 8px;
+}
+
+body {
+  display: grid;
+  grid-template-columns:
+      [sidebar] var(--sidebar-width)
+      [main-content] 1fr
+      [content-end];
+  grid-template-rows: 1fr;
+  height: 100dvh;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text-color);
+  background-color: var(--body-bg-color);
+  overflow: hidden;
+}
+
+/* The docs landing page (root of a docs site, nothing after it in the URL)
+   shows the guide links (Tutorial, FAQ, Language Reference) below the search
+   bar, in addition to the sidebar; search.js toggles this class to match
+   during soft navigation. */
+body.docs-index .index-guide-links {
+  display: flex;
+}
+
+main {
+  grid-column-start: main-content;
+  grid-column-end: content-end;
+  box-sizing: border-box;
+  position: relative;
+  font-size: var(--font-base);
+  line-height: 1.6;
+  margin-top: 2px;
+  padding: 16px;
+  padding-top: 0px;
+  /* necessary for text-overflow: ellipsis to work in descendants */
+  min-width: 0;
+  overflow-x: auto;
+  /* fixes issues with horizontal scroll in cases where word is too long,
+  like in one of the examples at https://www.roc-lang.org/docs/main/Num#Dec */
+  overflow-y: auto;
+  display: grid;
+  --main-content-width: clamp(100px, calc(100% - 32px), 70ch);
+  grid-template-columns: [main-start] minmax(16px,1fr) [main-content-start] var(--main-content-width) [main-content-end] minmax(16px,1fr) [main-end];
+  /* A 4th row for .index-guide-links, which is hidden (display: none) on every
+     page except the docs index. Every row is assigned explicitly below rather
+     than relying on source-order auto-placement, so hiding that row doesn't
+     shift the others — auto-placement would skip a display:none item and pull
+     everything up a row, breaking main-content's 1fr sizing. */
+  grid-template-rows: auto auto 1fr auto;
+  scrollbar-color: var(--violet) var(--body-bg-color);
+  scrollbar-gutter: stable both-edges;
+}
+
+main > * {
+    grid-column-start: main-content-start;
+    grid-column-end: main-content-end;
+}
+
+#module-search-form {
+    grid-row: 1;
+}
+
+.main-content {
+    grid-row: 3;
+    min-width: 0;
+}
+
+footer,
+#docs-loader {
+    grid-row: 4;
+}
+
+/* Decorative Roc logo filling the empty space below the docs landing page's
+   guide-link buttons. Outline only (no fill) and low-opacity so it reads as
+   background texture rather than content; not part of the persistent chrome
+   (unlike .index-guide-links) since it's only ever emitted on the index
+   page's .main-content, which soft navigation fully replaces per page. */
+.index-decoration {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    user-select: none;
+    z-index: -1;
+}
+
+.index-decoration-logo {
+    width: min(60%, 420px);
+    height: auto;
+    fill: none;
+    stroke: var(--violet);
+    stroke-width: 0.6;
+    stroke-linejoin: round;
+    opacity: 0.05;
+}
+
+/* Prose-guide links (Language Reference, Tutorial, FAQ), same links as the
+   sidebar. Emitted on every docs page — not just the index — because this is
+   part of the persistent chrome carried across soft navigations (see
+   search.js's createMainShell), so it already exists, correctly positioned,
+   whenever body.docs-index makes it visible. Hidden by default (overridden
+   above); a left-aligned single column of button-like links below the search
+   bar reads as the landing page's primary call to action (centered instead on
+   mobile — see the max-width: 768px query below — where it sits under a
+   full-width search bar). */
+.index-guide-links {
+    display: none;
+    grid-row: 2;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style-type: none;
+    gap: 10px;
+}
+
+.index-guide-links a {
+    display: block;
+    box-sizing: border-box;
+    max-width: 320px;
+    padding: 12px 16px;
+    border: 2px solid var(--search-border-color);
+    font-size: var(--font-base);
+    color: var(--link-color);
+    text-decoration: none;
+    text-align: left;
+}
+
+.index-guide-links a:hover {
+    border-color: var(--violet-border-hover);
+    background-color: var(--violet-bg);
+    color: var(--link-color);
+}
+
+section:not(.langref-article) {
+  padding: 0px 0px 16px 20px;
+}
+
+section blockquote {
+  font-style: italic;
+  position: relative;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+section blockquote:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  background-color: var(--gray);
+}
+
+
+section > *:last-child {
+  margin-bottom: 0;
+}
+
+section:not(.langref-article) h1,
+section:not(.langref-article) h2,
+section:not(.langref-article) h3,
+section:not(.langref-article) h4,
+section:not(.langref-article) p {
+padding: 0px 16px;
+}
+
+/* Language reference articles reuse the module-page chrome and layout. These
+   rules give the converted Markdown block elements (lists, tables, code blocks)
+   their horizontal rhythm. Headings and the page title use the page font rather
+   than the monospace reserved for code identifiers. */
+.module-name.langref-title,
+.langref-article h1,
+.langref-article h2,
+.langref-article h3,
+.langref-article h4,
+.langref-article h5,
+.langref-article h6 {
+  font-family: var(--font-sans);
+}
+
+.langref-article ul,
+.langref-article ol {
+  margin: 12px 0;
+  padding-left: 40px;
+}
+
+.langref-article li {
+  margin: 4px 0;
+}
+
+.langref-article li > ul,
+.langref-article li > ol {
+  margin: 4px 0;
+}
+
+.langref-article pre {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.langref-article table {
+  border-collapse: collapse;
+  margin: 16px;
+}
+
+#sidebar-nav {
+    grid-column-start: sidebar;
+    grid-column-end: main-content;
+    position: relative;
+    display: grid;
+    grid-template-rows: min-content 1fr;
+    box-sizing: border-box;
+    width: 100%;
+    background-color: var(--sidebar-bg-color);
+}
+
+#sidebar-nav .module-links-container {
+    position: relative;
+}
+
+
+#sidebar-nav .module-links {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-color: var(--violet) var(--sidebar-bg-color);
+    scrollbar-gutter: stable;
+    padding: 16px 8px;
+    transition: all .2s linear;
+    list-style: none;
+}
+
+p {
+  overflow-wrap: break-word;
+  margin: 24px 0;
+}
+
+footer {
+  font-size: var(--font-sm);
+  box-sizing: border-box;
+  padding: 16px 0px 0px;
+}
+
+footer p {
+  display: inline-block;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.sidebar-entry {
+  position: relative;
+}
+
+.sidebar-entry > .sidebar-module-link {
+  margin-left: 48px;
+  width: calc(100% - 48px);
+}
+
+.sidebar-entry ul {
+  list-style-type: none;
+  margin: 0;
+}
+
+.sidebar-entry a {
+  box-sizing: border-box;
+  min-height: 40px;
+  min-width: 48px;
+  padding-left: 16px;
+  font-family: var(--font-mono);
+}
+
+.sidebar-entry a,
+.sidebar-entry a:visited {
+  color: var(--text-color);
+}
+
+.sidebar-sub-entries {
+    font-size: var(--font-base);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-entry details:not([open]) > .sidebar-sub-entries {
+    display: none;
+}
+
+.sidebar-entry details[open] > .sidebar-sub-entries {
+    display: block;
+}
+
+/* When a module entry is itself nested inside another entry's sub-entry list
+   (e.g. the builtin type modules under "Builtin Types"), indent its members so
+   they sit underneath their type rather than level with it. Top-level modules
+   and types are not descendants of a sub-entry list, so they are unaffected. */
+.sidebar-sub-entries .sidebar-entry > details > .sidebar-sub-entries {
+    margin-left: 22px;
+}
+
+.sidebar-sub-entries a {
+  display: flex;
+  align-items: center;
+  line-height: 24px;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 20px;
+  padding-left: 16px;
+  /* Transparent by default so the indent is consistent; only values/methods
+     (`.sidebar-value`) get a visible bar — nested types, type-module entries,
+     and language-reference links do not. */
+  border-left: 4px solid transparent;
+  white-space: nowrap;
+}
+
+.sidebar-sub-entries a.sidebar-value {
+  border-left-color: var(--gray-border-subtle);
+  padding-left: 20px;
+}
+
+.sidebar-sub-entries > li:first-child > a {
+    margin-top: 8px;
+    padding-top: 0;
+}
+
+.sidebar-sub-entries > li:last-child > a {
+    margin-bottom: 8px;
+    padding-bottom: 0;
+}
+
+.sidebar-sub-entries > li:first-child.sidebar-entry {
+    margin-top: 8px;
+}
+
+.sidebar-sub-entries > li:first-child.sidebar-entry > a {
+    margin-top: 0;
+}
+
+.sidebar-sub-entries > li:last-child.sidebar-entry {
+    margin-bottom: 8px;
+}
+
+.sidebar-sub-entries > li:last-child.sidebar-entry > a {
+    margin-bottom: 0;
+}
+
+.sidebar-sub-entries a:hover {
+    color: var(--violet);
+    text-decoration: none;
+}
+
+.sidebar-sub-entries a.sidebar-value:hover {
+    border-left-color: var(--violet-border-hover);
+}
+
+/* Builtin docs only (the langref-enabled site): the "Builtin Types" and
+   "Language Reference" sidebar entries, and the langref article links, are
+   prose labels rather than code identifiers, so they use the page font instead
+   of the monospace used elsewhere in the sidebar. Inline `code` inside a
+   langref article link keeps its monospace styling via the `code` rule. */
+.pkg-full-name.prose-label,
+.sidebar-module-link.prose-label,
+.langref-articles a {
+  font-family: var(--font-sans);
+}
+
+.sidebar-type {
+    margin-left: 0;
+}
+
+.sidebar-type-name {
+    font-weight: var(--weight-medium);
+    font-size: var(--font-base);
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: inline-block;
+    padding-left: 16px;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.sidebar-type-name:hover {
+    color: var(--violet);
+}
+
+.sidebar-type > .sidebar-sub-entries {
+    max-height: 0;
+    overflow: hidden;
+    margin-left: 0;
+    transition: max-height 200ms ease-out;
+}
+
+.sidebar-type.expanded > .sidebar-sub-entries {
+    max-height: 10000px;
+    transition: max-height 200ms ease-in;
+}
+
+.module-name {
+  font-size: var(--font-2xl);
+  line-height: 1.2;
+  font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+  margin-top: 36px;
+  margin-bottom: 16px;
+  color: var(--violet);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-mono);
+}
+
+h1 {
+  margin-bottom: 30px;
+}
+
+h2 {
+  font-size: var(--font-xl);
+  margin-bottom: 0;
+}
+
+h3 {
+  font-size: var(--font-lg);
+  margin-bottom: 0;
+}
+
+h4 {
+  font-size: var(--font-base);
+  margin-bottom: 0;
+  margin-top: 23px;
+}
+
+h5 {
+  font-size: var(--font-base);
+  margin-bottom: 0;
+  margin-top: 23px;
+}
+
+h6 {
+  font-size: var(--font-base);
+  margin-bottom: 0;
+  margin-top: 23px;
+}
+
+.module-name a,
+.module-name a:visited {
+color: inherit;
+}
+
+.module-name a:hover {
+  color: var(--link-hover-color);
+}
+
+.sidebar-module-summary {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  list-style: none;
+  min-height: 40px;
+  position: absolute;
+  top: 0;
+  width: 48px;
+}
+
+.sidebar-module-summary::marker {
+  content: "";
+}
+
+.sidebar-module-summary::-webkit-details-marker {
+  display: none;
+}
+
+a.sidebar-module-link {
+  box-sizing: border-box;
+  font-size: var(--font-base);
+  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-weight: var(--weight-normal);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-module-link:hover,
+.sidebar-module-link:focus-visible {
+  color: var(--violet);
+  text-decoration: none;
+}
+
+.sidebar-module-link span {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-module-link.active {
+  font-weight: var(--weight-bold);
+}
+
+.sidebar-module-summary > .entry-toggle {
+  align-items: center;
+  color: rgba(from var(--text-color) r g b / .5);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 8px 16px;
+  transition: color 80ms linear;
+}
+
+.sidebar-module-summary > .entry-toggle:hover,
+.sidebar-module-summary:focus-visible > .entry-toggle {
+  color: var(--violet);
+  transition: color 80ms linear, rotate 80ms linear;
+}
+
+/* Draw an outlined chevron in the control's current color. */
+.entry-toggle::before {
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  content: "";
+  display: block;
+  height: 0.45rem;
+  transform: rotate(-45deg);
+  width: 0.45rem;
+}
+
+/* Nested module toggles (e.g. the builtin types under "Builtin Types") sit in a
+   smaller-font line and read a touch low; nudge them up to center on the label.
+   `top` offsets the box before the `rotate` spins it, so both states stay aligned. */
+.sidebar-sub-entries .sidebar-entry {
+    margin-left: 20px;
+}
+
+.sidebar-sub-entries .sidebar-module-summary > .entry-toggle {
+    position: relative;
+    top: -2px;
+}
+
+.sidebar-sub-entries .sidebar-entry > .sidebar-module-link {
+    border-left: 0;
+    padding-left: 0;
+}
+
+.sidebar-entry details[open] > .sidebar-module-summary > .entry-toggle {
+    rotate: 90deg;
+}
+
+a,
+a:visited {
+  color: var(--link-color);
+}
+
+
+code {
+  font-family: var(--font-mono);
+  color: var(--code-color);
+  background-color: var(--code-bg);
+  display: inline-block;
+}
+
+p code {
+  padding: 0 4px;
+}
+
+/* Inline code in headings should blend in with the heading, not look like a
+   highlighted code chip. */
+h1 code,
+h2 code,
+h3 code,
+h4 code,
+h5 code,
+h6 code {
+  background-color: transparent;
+  padding: 0;
+}
+
+code a,
+a code {
+  text-decoration: none;
+  color: var(--code-link-color);
+  background: none;
+  padding: 0;
+  font-weight: bold; /* Important for AAA compliance while keeping color distinct */
+}
+
+code a .type,
+code a:hover .type,
+code a:visited .type {
+  color: var(--green) !important;
+}
+
+code a:visited,
+a:visited code {
+  color: var(--code-link-color);
+}
+
+/* Language-reference sidebar links are prose, so inline `code` in a langref
+   article title (e.g. the "`if` / `else`" heading) should read as part of the
+   link text rather than as a code link — inherit the link's own color instead
+   of the violet `--code-link-color`. Placed after the rules above so it wins
+   the specificity tie with `a:visited code` on source order. */
+.langref-articles a code,
+.langref-articles a:visited code {
+  color: inherit;
+}
+
+pre {
+  margin: 36px 0;
+  padding: 8px 16px;
+  box-sizing: border-box;
+  background-color: var(--code-bg);
+  position: relative;
+  word-wrap: normal;
+}
+
+pre>code {
+    overflow-x: auto;
+    display: block;
+    scrollbar-color: var(--violet) var(--code-bg);
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+}
+
+.hidden {
+  /* Use !important to win all specificity fights. */
+  display: none !important;
+}
+
+#module-search-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  box-sizing: border-box;
+  padding: 12px 0;
+  background-color: var(--body-bg-color);
+  top: 0;
+  z-index: 1;
+  margin-bottom: 8px;
+}
+
+
+.menu-toggle {
+    display: none;
+    margin-right: 8px;
+    appearance: none;
+    background-color: transparent;
+    outline: none;
+    border: none;
+    color: var(--violet);
+    padding: 0;
+    cursor: pointer;
+}
+
+.menu-toggle svg {
+    height: var(--icon-size);
+    width: var(--icon-size);
+    fill: var(--violet);
+}
+
+
+#module-search,
+#module-search-nojs,
+#module-search:focus {
+  opacity: 1;
+  padding: 12px 16px;
+  height: var(--module-search-height);
+}
+
+#module-search,
+#module-search-nojs {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  font-size: var(--font-base);
+  line-height: 18px;
+  color: var(--text-color);
+  background-color: var(--body-bg-color);
+  font-family: var(--font-sans);
+  border: 2px solid var(--search-border-color);
+}
+
+/* Hidden when JS is enabled. The <noscript><style> in #module-search-form
+   re-enables it (and hides #module-search) when JS is disabled. */
+#module-search-nojs {
+  display: none;
+}
+
+#module-search::placeholder,
+#module-search-nojs::placeholder {
+  color: var(--faded-color);
+  opacity: 1;
+}
+
+#module-search:focus, #module-search:hover {
+  outline: 2px solid var(--violet);
+}
+
+#search-type-ahead {
+  font-family: var(--font-mono);
+  display: flex;
+  gap: 0px;
+  flex-direction: column;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 100;
+  background-color: var(--body-bg-color);
+  border: 2px solid var(--violet);
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+#search-type-ahead .type-ahead-link {
+  font-size: var(--font-base);
+  color: var(--text-color);
+  line-height: 2em;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+
+
+  span {
+    margin: 0px;
+  }
+
+  .type-ahead-module-name, .type-ahead-def-name {
+    color: var(--violet);
+    font-size: var(--font-base);
+  }
+}
+
+#search-type-ahead .type-ahead-link.type-ahead-langref {
+  font-family: var(--font-sans);
+}
+
+#search-type-ahead .type-ahead-link.type-ahead-langref,
+#search-type-ahead .type-ahead-link.type-ahead-langref .type-ahead-langref-context {
+  color: var(--text-color);
+}
+
+#search-type-ahead .type-ahead-link.type-ahead-langref .type-ahead-langref-title {
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-bold);
+}
+
+#search-type-ahead li {
+  box-sizing: border-box;
+  position: relative;
+}
+
+#search-type-ahead a:focus {
+  outline: none;
+  background: var(--violet-bg);
+}
+
+
+@media (prefers-color-scheme: dark) {
+  :root {
+      /* WCAG AAA Compliant colors */
+    --code-bg: hsl(228.95deg 37.25% 15%);
+    --gray: hsl(0 0% 70% / 1);
+    --orange: hsl(25 98% 70% / 1);
+    --green: hsl(115 40% 70% / 1);
+    --cyan: hsl(176 84% 70% / 1);
+    --blue: hsl(243 43% 80% / 1);
+    --violet: #caadfb;
+    --violet-bg: hsl(262 25% 15% / 1);
+    --magenta: hsl(348 79% 80% / 1);
+      --link-hover-color: #fff;
+
+      --link-color: var(--violet);
+      --code-link-color: var(--violet);
+      --text-color: #eaeaea;
+      --body-bg-color: hsl(from var(--violet-bg) h s calc(l * .5));
+      --border-color: var(--gray);
+      --code-color: #eeeeee;
+      --logo-solid: #8f8f8f;
+      --faded-color: #bbbbbb;
+      --sidebar-bg-color: hsl(from var(--violet-bg) h calc(s * 1.1) calc(l * 0.75));
+      --search-border-color: hsl(262 35% 40%);
+  }
+
+  html {
+      scrollbar-color: #8f8f8f #2f2f2f;
+  }
+
+  /* In dark mode "lighter" means more of the near-white text color, i.e. a
+     higher alpha (the opposite of light mode, where lighter means fading toward
+     the light background). */
+  .sidebar-module-summary > .entry-toggle {
+      color: rgba(from var(--text-color) r g b / .8);
+  }
+}
+
+@media only screen and (max-width: 768px) {
+    :root {
+        --sidebar-width: clamp(280px, 50dvw, 385px);
+    }
+    body {
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    html {
+        scroll-padding-top: var(--module-search-form-height);
+    }
+
+    #sidebar-nav {
+        left: calc(-1 * var(--sidebar-width));
+        top: 0;
+        bottom: 0;
+        position: fixed;
+        z-index: 2;
+        transition: left .2s linear;
+    }
+
+    /* box-sizing: border-box keeps the existing padding (8px 16px, set on
+       .sidebar-module-summary > .entry-toggle above) inside this size
+       instead of adding to it. Without it the rendered box balloons to
+       64x80px (48 + padding on each axis) — wider than
+       .sidebar-module-summary's fixed 48px (causing horizontal overflow,
+       which is what made some toggles vanish or appear detached from their
+       row when the sidebar clips or wraps that overflow) and taller than
+       the ~40px entry row (throwing the chevron out of line with its
+       label). */
+    .entry-toggle {
+        box-sizing: border-box;
+        height: var(--icon-size);
+        width: var(--icon-size);
+    }
+
+    body.sidebar-open #sidebar-nav {
+        left: 0;
+    }
+
+    main {
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+        min-height: 100dvh;
+        --main-content-width: minmax(calc(100% - 32px), 60ch);
+    }
+
+    /* Buttons are left-aligned on desktop but on mobile match the full width
+       of the search bar above them and sit truly centered in the whole
+       remaining space, like the pre-decoration version did. A flex spacer
+       (body.docs-index main::before — it's the first in-flow child of
+       <main>, ahead of .index-guide-links, since ::before always renders
+       before real children) and .main-content grow equally (both flex: 1),
+       with .index-guide-links sized to its own content in between — so its
+       center sits at the true midpoint of the space between the search bar
+       and the footer, regardless of how tall the button group itself is.
+       align-items: stretch (rather than a width set directly on the <a>) is
+       what makes the <li> a definite, non-shrink-to-fit size, so the child
+       <a>'s width: 100% resolves cleanly instead of the circular
+       shrink-to-fit-vs-percentage sizing bug width: 100% caused earlier when
+       the <li> was content-sized. */
+    /* Explicit order puts the logo (.main-content) above the buttons
+       (.index-guide-links), with the empty flex spacer (main::before) now
+       below the buttons instead of above — the reverse of DOM order, which
+       is form, .index-guide-links, .main-content, footer (::before always
+       renders first, ahead of even that). Buttons still end up truly
+       centered in the whole remaining space: .main-content and
+       main::before are both flex: 1, so whichever one is "above" vs.
+       "below" the buttons, they grow equally and the buttons' center lands
+       at the true midpoint. */
+    body.docs-index main::before {
+        content: "";
+        flex: 1;
+        order: 2;
+    }
+
+    body.docs-index .index-guide-links {
+        order: 1;
+    }
+
+    body.docs-index main > .main-content {
+        order: 0;
+    }
+
+    body.docs-index footer {
+        order: 3;
+    }
+
+    .index-guide-links {
+        align-items: stretch;
+        justify-content: center;
+        width: 100%;
+        margin: 0;
+    }
+
+    .index-guide-links a {
+        width: 100%;
+        max-width: none;
+        text-align: center;
+    }
+
+    /* Undo the desktop treatment (position: absolute spanning the whole
+       non-sidebar area, ignoring .index-guide-links) — on mobile the logo
+       is instead absolutely positioned within .main-content specifically
+       (now the space above the buttons, sized by the flex spacer below —
+       see the order rules above), so it automatically scales to whatever
+       that leftover space turns out to be instead of using a fixed max
+       size.
+       This has to be position: absolute (not a normal-flow flex: 1 +
+       align-self: stretch box, which was tried first) because the <svg>'s
+       width/height: 100% only resolves once .main-content already has a
+       definite size — while it's normal flow, the <svg>'s height: 100% can't
+       resolve yet, so it falls back to its intrinsic aspect-ratio size
+       instead, which then floors .main-content's own size and breaks the
+       1:1 split with the spacer (main::before), even with min-height: 0 set
+       on every ancestor in the chain — that min-height only suppresses each
+       element's own automatic-minimum-size floor, not a child's actual
+       preferred/auto size feeding upward. Taking the logo out of flow with
+       position: absolute sidesteps this entirely: it can never contribute to
+       .main-content's size in the first place, so .main-content's size is
+       decided purely by flex-grow, and *afterwards* the logo is laid out
+       against that now-definite box. */
+    body.docs-index main > .main-content {
+        position: relative;
+    }
+
+    .index-decoration {
+        position: absolute;
+        inset: 0;
+        padding: 16px 0;
+        box-sizing: border-box;
+    }
+
+    .index-decoration-logo {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* #module-search-form's margin-bottom: 16px (below) sits between the
+       search bar and wherever main's padding-top clearance ends, outside
+       the flex-centered region entirely (main::before/.main-content only
+       start once that clearance is over) — so it read as extra, lopsided
+       whitespace above the logo with nothing matching it below. Zeroing it
+       out here (index page only) removes that dead gap so the logo's own
+       centering within .main-content is what the eye actually sees, top
+       and bottom. Its padding-bottom is zeroed the same way (the search bar
+       itself shrinks by that same 16px), which is why main's own
+       padding-top (below) needs adjusting to match. */
+    body.docs-index #module-search-form {
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    /* main's padding-top reserves clearance matching #module-search-form's
+       full rendered height (var(--module-search-form-height), which bakes in
+       16px top + 16px bottom padding) so in-flow content starts right below
+       the fixed search bar everywhere. On the index page the form is now
+       16px shorter (padding-bottom: 0, just above), so this needs to shrink
+       to match — otherwise the same dead-zone bug from before reappears,
+       just shifted: main's content would still start at the old (taller)
+       offset, 16px below where the now-shorter form actually ends. */
+    body.docs-index main {
+        padding-top: calc(var(--module-search-height) + 16px);
+    }
+
+    main > .main-content {
+        flex: 1;
+    }
+
+    #module-search-form {
+        padding: 16px 16px;
+        height: auto;
+        margin-bottom: 16px;
+        grid-column-start: main-content-start;
+        grid-column-end: main-content-end;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        justify-content: flex-start;
+    }
+
+    #module-search-form:has(#module-search:focus) .menu-toggle {
+        max-width: 0;
+        margin-left: 0;
+        opacity: 0;
+    }
+
+    .entry-anchor {
+        display: none;
+    }
+
+    .entry-signature {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .menu-toggle {
+        display: block;
+        flex-shrink: 0;
+        max-width: var(--icon-size);
+        overflow: hidden;
+        margin-left: 16px;
+        appearance: none;
+        background-color: transparent;
+        outline: none;
+        border: none;
+        color: var(--violet);
+        padding: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: max-width 0.2s ease, margin-left 0.2s ease, opacity 0.2s ease;
+    }
+
+    #module-search,
+    #module-search-nojs {
+        flex: 1;
+        width: auto;
+    }
+
+    .pkg-full-name {
+        font-size: 20px;
+        padding-bottom: 14px;
+    }
+
+    .pkg-full-name a {
+        vertical-align: middle;
+        padding: 18px 0;
+    }
+
+    .logo {
+        width: 50px;
+        height: 54px;
+    }
+
+    .module-name {
+        font-size: var(--font-2xl);
+        margin-top: 8px;
+        margin-bottom: 8px;
+        /* Align with the left border of #module-search-form's input.
+           main now has no margin and padding-left: 18px, so content starts at x=18;
+           the fixed search form's input border sits at x=16 (form padding-left). */
+        margin-left: -2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Reduce section's desktop 20px left padding on mobile. */
+    section {
+        padding-left: 7px;
+    }
+
+    /* Reduce var(--entry-anchor-offset) left margins that reserve space for .entry-anchor
+       (which is hidden on mobile). Applies to entry headings, the type-def
+       block aligned with them, and the children container nested below. */
+    .entry h2,
+    .entry h3,
+    .entry h4,
+    .entry h5,
+    .entry h6,
+    .entry > .entry-type-def,
+    .entry-children-container {
+        margin-left: 8px;
+    }
+
+    /* Full-bleed code blocks */
+    pre {
+        margin-left: -24px;
+        margin-right: -24px;
+    }
+
+    main {
+        padding: 18px;
+        font-size: var(--font-base);
+        padding-top: var(--module-search-form-height);
+        /* The fixed search bar's own inset from the viewport top is its
+           padding (#module-search-form's padding: 16px), not this padding-top
+           (which only reserves clearance so in-flow content starts below the
+           fixed bar) — so to make the space below the footer match the space
+           above the search bar, this needs to match that 16px, not the 18px
+           used for the other three sides. */
+        padding-bottom: 16px;
+    }
+
+    #sidebar-nav {
+        margin-top: 0;
+        padding-left: 0;
+        width: var(--sidebar-width);
+    }
+
+    h3 {
+        font-size: 18px;
+        margin: 0;
+        padding: 0;
+    }
+
+    h4 {
+        font-size: var(--font-base);
+    }
+
+    body {
+        margin: 0;
+        min-width: 320px;
+        max-width: 100dvw;
+    }
+
+    .pkg-and-logo {
+        padding-block: 4px;
+    }
+
+    .pkg-full-name {
+        flex-grow: 1;
+    }
+
+    .pkg-full-name a {
+        padding-top: 24px;
+        padding-bottom: 12px;
+    }
+}
+
+/* Comments `#` and Documentation comments `##` */
+samp .comment,
+code .comment {
+  color: var(--green);
+}
+
+/* Number, String, Tag literals */
+samp .storage.type,
+code .storage.type,
+samp .string,
+code .string,
+samp .string.begin,
+code .string.begin,
+samp .string.end,
+code .string.end,
+samp .constant,
+code .constant,
+samp .literal,
+code .literal {
+  color: var(--cyan);
+}
+
+/* Keywords and punctuation */
+samp .keyword,
+code .keyword,
+samp .punctuation.section,
+code .punctuation.section,
+samp .punctuation.separator,
+code .punctuation.separator,
+samp .punctuation.terminator,
+code .punctuation.terminator,
+samp .kw,
+code .kw {
+    color: var(--magenta);
+}
+
+/* Operators */
+samp .op,
+code .op,
+samp .keyword.operator,
+code .keyword.operator {
+  color: var(--orange);
+}
+
+/* Delimieters */
+samp .delimiter,
+code .delimiter {
+  color: var(--gray);
+}
+
+/* Variables modules and field names */
+samp .function,
+code .function,
+samp .meta.group,
+code .meta.group,
+samp .meta.block,
+code .meta.block,
+samp .lowerident,
+code .lowerident {
+  color: var(--blue);
+}
+
+/* Types, Tags, and Modules */
+samp .type,
+code .type,
+samp .meta.path,
+code .meta.path,
+samp .upperident,
+code .upperident {
+  color: var(--green);
+}
+
+samp .dim,
+code .dim {
+  opacity: 0.55;
+}
+
+.button-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.copy-button {
+  background: var(--code-bg);
+  border: 1px solid var(--magenta);
+  color: var(--magenta);
+  display: inline-block;
+  cursor: pointer;
+  margin: 8px;
+}
+
+.copy-button:hover {
+  border-color: var(--link-hover-color);
+  color: var(--link-hover-color);
+}
+
+/* Docs soft navigation */
+#docs-loader {
+    display: block;
+    height: 24px;
+    margin: 32px 0 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-out;
+    width: 100%;
+}
+
+#docs-loader::before {
+    background: var(--cyan);
+    content: "";
+    display: block;
+    height: 3px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0s linear;
+    width: 100%;
+}
+
+#docs-loader.is-loading {
+    opacity: 1;
+}
+
+#docs-loader.is-loading::before {
+    transform: scaleX(0.7);
+    transition: transform 2s cubic-bezier(0.1, 0.8, 0.2, 1);
+}
+
+#docs-loader.is-done {
+    opacity: 1;
+}
+
+#docs-loader.is-done::before {
+    transform: scaleX(1);
+    transition: transform 160ms ease-out;
+}
+
+main > .main-content[tabindex="-1"]:focus {
+    outline: none;
+}
+
+main > .main-content[aria-busy="true"] {
+    cursor: progress;
+}
+
+/* Search container and input styling */
