@@ -95,6 +95,12 @@ narrow an individual body limit with `request.body().with_limit(...)`.
 Request-target and header limits are checked before host-native routing or Roc.
 Decoded header bytes use `name + value + 32` bytes per ordinary field for both
 HTTP versions, so HTTP/2 HPACK compression does not weaken the resource bound.
+The request-head timeout is an idle-progress deadline, not a total deadline:
+each newly received head byte resets it. A trickling client can therefore keep
+one bounded connection slot occupied as long as it continues making progress;
+the finite connection limit and request-head byte budgets bound aggregate
+memory and concurrency, but deployments that require a total request-head
+deadline should enforce one at their reverse proxy or load balancer.
 
 The listener accepts HTTP/1.1 and cleartext prior-knowledge HTTP/2. It does not
 terminate TLS or perform public protocol negotiation; production deployments

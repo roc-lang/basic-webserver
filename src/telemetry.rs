@@ -630,15 +630,24 @@ pub(crate) struct Telemetry {
 
 struct LogWorker {
     join: Option<JoinHandle<()>>,
-    finished: mpsc::Receiver<()>,
 }
 
 impl LogWorker {
     fn stop(mut self) {
-        if self.finished.recv_timeout(ACCESS_LOG_DRAIN_TIMEOUT).is_ok() {
-            if let Some(join) = self.join.take() {
-                let _ = join.join();
+        let deadline = Instant::now() + ACCESS_LOG_DRAIN_TIMEOUT;
+        let join = self
+            .join
+            .as_ref()
+            .expect("access log worker must own its join handle");
+        while !join.is_finished() {
+            let now = Instant::now();
+            if now >= deadline {
+                break;
             }
+            std::thread::sleep((deadline - now).min(Duration::from_millis(1)));
+        }
+        if join.is_finished() {
+            let _ = self.join.take().expect("join handle checked above").join();
         }
         // A sink such as a full stderr pipe may block inside the operating
         // system indefinitely. Dropping the JoinHandle detaches only this
@@ -656,12 +665,10 @@ impl Telemetry {
                 }
                 let (sender, receiver) = mpsc::sync_channel(access_log.buffer_events);
                 let worker_metrics = Arc::clone(&metrics);
-                let (finished_sender, finished_receiver) = mpsc::channel();
                 let join = std::thread::Builder::new()
                     .name("basic-webserver-access-log".to_owned())
                     .spawn(move || {
                         write_access_log(receiver, worker_metrics);
-                        let _ = finished_sender.send(());
                     })
                     .map_err(|error| format!("failed to start access log writer: {error}"))?;
                 (
@@ -669,10 +676,7 @@ impl Telemetry {
                         sender,
                         metrics: Arc::clone(&metrics),
                     }),
-                    Some(LogWorker {
-                        join: Some(join),
-                        finished: finished_receiver,
-                    }),
+                    Some(LogWorker { join: Some(join) }),
                     access_log.target,
                 )
             }

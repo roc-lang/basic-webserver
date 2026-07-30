@@ -87,13 +87,6 @@
     {
       "path": "examples/echo.roc",
       "mode": "server",
-      "stages": {
-        "test": false
-      },
-      "test_skip": {
-        "reason": "The pinned Roc compiler segfaults while collecting roc-gregorian's imported iterator expects; check, build, and runtime stages remain active.",
-        "issue": "https://github.com/roc-lang/roc/issues/10422"
-      },
       "cases": [
         {
           "name": "utf8-and-binary",
@@ -154,7 +147,7 @@
               "fragments": [
                 {
                   "data": "GET /incomplete HTTP/1.1\r\nHost: local",
-                  "delay_ms": 200
+                  "delay_ms": 1000
                 }
               ]
             },
@@ -165,7 +158,7 @@
               "fragments": [
                 {
                   "data": "POST /body-timeout HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nConnection: close\r\n\r\na",
-                  "delay_ms": 200
+                  "delay_ms": 1000
                 }
               ],
               "response_contains": [
@@ -180,7 +173,7 @@
               "fragments": [
                 {
                   "data": "POST /body-progress HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nConnection: close\r\n\r\na",
-                  "delay_ms": 60
+                  "delay_ms": 50
                 },
                 {
                   "data": "b"

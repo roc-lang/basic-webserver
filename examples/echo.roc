@@ -21,8 +21,8 @@ init! = ||
 		config: Server.with_timeouts(
 			Server.default_config,
 			{
-				header_ms: 100,
-				body_idle_ms: 100,
+				header_ms: 500,
+				body_idle_ms: 500,
 				keep_alive_idle_ms: 150,
 				handler_queue_ms: Server.default_handler_queue_timeout_ms,
 				response_idle_ms: Server.default_response_idle_timeout_ms,

@@ -926,6 +926,12 @@ fn outcome_from_roc(
     }
 }
 
+fn request_stop_after(shutdown: &ShutdownController, exit_code: Option<i64>) {
+    if let Some(exit_code) = exit_code {
+        shutdown.request(ShutdownReason::ApplicationRequested { exit_code });
+    }
+}
+
 fn response_to_hyper(
     owner: RocResponseOwner,
     accepted_encodings: AcceptedEncodings,
@@ -1392,17 +1398,16 @@ async fn handle_req(
                     .await;
 
                     match handled {
-                        Ok(RocOutcome::Ordinary(Ok(response), Some(exit_code))) => {
-                            context
-                                .shutdown
-                                .request(ShutdownReason::ApplicationRequested { exit_code });
-                            response
-                        }
-                        Ok(RocOutcome::Ordinary(Ok(response), None)) => response,
-                        Ok(RocOutcome::Ordinary(Err(error), _)) => {
-                            telemetry.reject(RejectionReason::InvalidRocResponse);
-                            eprintln!("Invalid Roc response: {error}");
-                            safe_internal_server_error(&response_semantics)
+                        Ok(RocOutcome::Ordinary(response, stop_code)) => {
+                            request_stop_after(&context.shutdown, stop_code);
+                            match response {
+                                Ok(response) => response,
+                                Err(error) => {
+                                    telemetry.reject(RejectionReason::InvalidRocResponse);
+                                    eprintln!("Invalid Roc response: {error}");
+                                    safe_internal_server_error(&response_semantics)
+                                }
+                            }
                         }
                         Ok(RocOutcome::File(plan)) => {
                             telemetry.set_destination(Destination::NativeFile);
@@ -2308,6 +2313,13 @@ mod tests {
         assert_eq!(
             response.unwrap_err().to_string(),
             "status 204 No Content forbids response content"
+        );
+
+        let shutdown = ShutdownController::new();
+        request_stop_after(&shutdown, stop_code);
+        assert_eq!(
+            shutdown.reason(),
+            Some(ShutdownReason::ApplicationRequested { exit_code: 17 })
         );
     }
 
