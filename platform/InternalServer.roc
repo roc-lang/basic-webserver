@@ -102,6 +102,11 @@ InternalServer :: [].{
 		file_chunk_bytes : U32,
 		body_sink_max_concurrent : U16,
 		body_sink_timeout_ms : U64,
+		access_log_enabled : Bool,
+		access_log_target : U8,
+		access_log_buffer_events : U16,
+		metrics_enabled : Bool,
+		metrics_path : Str,
 	}
 
 	ShutdownReasonFromHost : {

@@ -10,7 +10,9 @@ use crate::compression::{
     apply_content_coding, encode_bytes, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
 };
-use crate::file_server::{CachePolicy, Disposition, FilePlan, FileRootSpec, FileService};
+use crate::file_server::{
+    CachePolicy, Disposition, FilePlan, FileRootSpec, FileServeFailure, FileService,
+};
 use crate::native_router::{
     FileRouteKind, FileRouteSpec, NativeMatch, NativeRouter, ReadinessRouteSpec,
 };
@@ -28,6 +30,10 @@ use crate::response::{
 use crate::roc_platform_abi::*;
 use crate::server_transport::{detect_protocol, Http1Activity, Http1Io, PrefixedStream, Protocol};
 use crate::shutdown::{ActiveRequest, RequestTracker, ShutdownController, ShutdownReason};
+use crate::telemetry::{
+    AccessLogConfig, ActiveGaugeGuard, Destination, LogTarget, Metrics, RejectionReason, Telemetry,
+    TelemetryConfig, TelemetryHandle,
+};
 use bytes::Bytes;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::BodyExt;
@@ -45,7 +51,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -72,6 +78,8 @@ struct RuntimeConfig {
     files: FileService,
     routes: NativeRouter,
     body_sinks: BodySinkService,
+    telemetry: TelemetryConfig,
+    metrics: Arc<Metrics>,
 }
 
 impl RuntimeConfig {
@@ -133,17 +141,49 @@ impl RuntimeConfig {
                 .iter()
                 .map(writable_root_from_roc)
                 .collect::<Result<Vec<_>, _>>()?;
+            let metrics = Metrics::new();
             let files = FileService::activate(
                 roots,
                 config.file_max_concurrent as usize,
                 config.file_chunk_bytes as usize,
+                Arc::clone(&metrics),
             )?;
-            let routes =
-                NativeRouter::activate(&files, file_routes, liveness_routes, readiness_routes)?;
             let body_sinks = BodySinkService::activate(
                 writable_roots,
                 config.body_sink_max_concurrent as usize,
                 Duration::from_millis(config.body_sink_timeout_ms),
+            )?;
+            let access_log = if config.access_log_enabled {
+                let target = match config.access_log_target {
+                    0 => LogTarget::None,
+                    1 => LogTarget::PathWithoutQuery,
+                    _ => return Err("invalid access log target policy".to_owned()),
+                };
+                if config.access_log_buffer_events == 0 {
+                    return Err("access log buffer capacity must be non-zero".to_owned());
+                }
+                Some(AccessLogConfig {
+                    target,
+                    buffer_events: config.access_log_buffer_events as usize,
+                })
+            } else if config.access_log_target == 0 && config.access_log_buffer_events == 0 {
+                None
+            } else {
+                return Err("malformed disabled access log configuration".to_owned());
+            };
+            let metrics_path = if config.metrics_enabled {
+                Some(config.metrics_path.as_str().to_owned())
+            } else if config.metrics_path.is_empty() {
+                None
+            } else {
+                return Err("malformed disabled metrics configuration".to_owned());
+            };
+            let routes = NativeRouter::activate(
+                &files,
+                file_routes,
+                liveness_routes,
+                readiness_routes,
+                metrics_path.clone(),
             )?;
             Ok(Self {
                 host: config.host.as_str().to_owned(),
@@ -165,6 +205,8 @@ impl RuntimeConfig {
                 files,
                 routes,
                 body_sinks,
+                telemetry: TelemetryConfig { access_log },
+                metrics,
             })
         })();
         // SAFETY: every Roc-owned field in the ABI config is borrowed only
@@ -336,31 +378,57 @@ fn validate_concurrency_limits(
 struct HandlerAdmission {
     active: Arc<Semaphore>,
     queued: Arc<Semaphore>,
+    metrics: Arc<Metrics>,
 }
 
 impl HandlerAdmission {
-    fn new(max_handlers: usize, max_queued_handlers: usize) -> Self {
+    fn new(max_handlers: usize, max_queued_handlers: usize, metrics: Arc<Metrics>) -> Self {
         Self {
             active: Arc::new(Semaphore::new(max_handlers)),
             queued: Arc::new(Semaphore::new(max_queued_handlers)),
+            metrics,
         }
     }
 
-    async fn admit(&self, wait_timeout: Duration) -> Result<ActiveHandler, AdmissionError> {
+    async fn admit(&self, wait_timeout: Duration) -> Result<AdmittedHandler, AdmissionError> {
         if let Ok(active) = Arc::clone(&self.active).try_acquire_owned() {
-            return Ok(ActiveHandler { _permit: active });
+            let queue_wait = Duration::ZERO;
+            self.metrics.record_handler_queue_wait(queue_wait);
+            return Ok(AdmittedHandler {
+                active: ActiveHandler {
+                    _permit: active,
+                    _metrics: self.metrics.handler_started(),
+                },
+                queue_wait,
+            });
         }
 
         let queued = Arc::clone(&self.queued)
             .try_acquire_owned()
             .map_err(|_| AdmissionError::Full)?;
+        let queued_metrics = self.metrics.handler_queued();
+        let queued_at = Instant::now();
         let active = tokio::time::timeout(wait_timeout, Arc::clone(&self.active).acquire_owned())
             .await
             .map_err(|_| AdmissionError::TimedOut)?
             .expect("handler admission semaphore is never closed");
         drop(queued);
-        Ok(ActiveHandler { _permit: active })
+        drop(queued_metrics);
+        let queue_wait = queued_at.elapsed();
+        self.metrics.record_handler_queue_wait(queue_wait);
+        Ok(AdmittedHandler {
+            active: ActiveHandler {
+                _permit: active,
+                _metrics: self.metrics.handler_started(),
+            },
+            queue_wait,
+        })
     }
+}
+
+struct AdmittedHandler {
+    active: ActiveHandler,
+    queue_wait: Duration,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -371,6 +439,7 @@ enum AdmissionError {
 
 struct ActiveHandler {
     _permit: OwnedSemaphorePermit,
+    _metrics: ActiveGaugeGuard,
 }
 
 /// The one Roc-owned application context retained for the server lifetime.
@@ -411,6 +480,7 @@ struct ServerContext {
     handlers: HandlerAdmission,
     requests: RequestTracker,
     shutdown: ShutdownController,
+    telemetry: TelemetryHandle,
 }
 
 pub fn start() -> i32 {
@@ -440,14 +510,30 @@ fn start_inner() -> i32 {
         }
     };
 
+    let telemetry = match Telemetry::activate(config.telemetry.clone(), Arc::clone(&config.metrics))
+    {
+        Ok(telemetry) => telemetry,
+        Err(detail) => {
+            return finish_shutdown(
+                ShutdownReason::StartupFailed(detail),
+                raw_context,
+                config.hook_timeout,
+            );
+        }
+    };
     let roc_context = Arc::new(RocContext::new(raw_context));
     let shutdown = ShutdownController::new();
     let context = ServerContext {
         config: Arc::new(config.clone()),
         roc_context: Arc::clone(&roc_context),
-        handlers: HandlerAdmission::new(config.max_handlers, config.max_queued_handlers),
+        handlers: HandlerAdmission::new(
+            config.max_handlers,
+            config.max_queued_handlers,
+            Arc::clone(&config.metrics),
+        ),
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
+        telemetry: telemetry.handle(),
     };
 
     let reason = match tokio::runtime::Builder::new_multi_thread()
@@ -460,6 +546,7 @@ fn start_inner() -> i32 {
             ShutdownReason::RuntimeFailed(format!("failed to initialize Tokio runtime: {error}"))
         }
     };
+    telemetry.shutdown();
 
     debug_assert_eq!(
         Arc::strong_count(&roc_context),
@@ -752,9 +839,14 @@ fn call_roc(
     context: RocBox,
     accepted_encodings: AcceptedEncodings,
     response_semantics: &RequestSemantics,
-) -> RocOutcome {
+) -> (RocOutcome, Duration) {
+    let started = Instant::now();
     let response = unsafe { roc_respond_for_host(request, context) };
-    outcome_from_roc(response, accepted_encodings, response_semantics)
+    let roc_duration = started.elapsed();
+    (
+        outcome_from_roc(response, accepted_encodings, response_semantics),
+        roc_duration,
+    )
 }
 
 enum RocOutcome {
@@ -1118,10 +1210,12 @@ fn finalize_and_track_response(
     active_request: Option<Arc<ActiveRequest>>,
     http1_activity: Option<Http1Activity>,
     body_idle_timeout: Option<Duration>,
+    telemetry: &crate::telemetry::RequestTelemetry,
 ) -> ServerResponse {
     let response = match finalize_response(response, response_semantics) {
         Ok(response) => response,
         Err(error) => {
+            telemetry.reject(RejectionReason::InvalidRocResponse);
             eprintln!("Invalid host response: {error}");
             safe_internal_server_error(response_semantics)
         }
@@ -1135,6 +1229,7 @@ async fn handle_req(
     context: ServerContext,
     http1_activity: Option<Http1Activity>,
     response_semantics: RequestSemantics,
+    telemetry: crate::telemetry::RequestTelemetry,
 ) -> ServerResponse {
     let body_idle_timeout = http1_activity
         .as_ref()
@@ -1142,13 +1237,15 @@ async fn handle_req(
     let active_request = match context.requests.begin() {
         Some(active) => Arc::new(active),
         None => {
+            telemetry.reject(RejectionReason::Shutdown);
             return finalize_and_track_response(
                 service_unavailable(),
                 &response_semantics,
                 None,
                 http1_activity,
                 body_idle_timeout,
-            )
+                &telemetry,
+            );
         }
     };
 
@@ -1156,12 +1253,14 @@ async fn handle_req(
         Ok(metadata) => metadata,
         Err(_) => {
             drop(body);
+            telemetry.reject(RejectionReason::InvalidHeaders);
             return finalize_and_track_response(
                 invalid_request_target(),
                 &response_semantics,
                 Some(active_request),
                 http1_activity,
                 body_idle_timeout,
+                &telemetry,
             );
         }
     };
@@ -1172,12 +1271,14 @@ async fn handle_req(
         .admit_parts(&parts, metadata)
     {
         drop(body);
+        telemetry.reject(RejectionReason::InvalidHeaders);
         return finalize_and_track_response(
             reject_request_metadata(rejection),
             &response_semantics,
             Some(active_request),
             http1_activity,
             body_idle_timeout,
+            &telemetry,
         );
     }
 
@@ -1188,7 +1289,8 @@ async fn handle_req(
         drop(body);
         match native {
             NativeMatch::File(plan) => {
-                context
+                telemetry.set_destination(Destination::NativeFile);
+                let (response, failure) = context
                     .config
                     .files
                     .serve(
@@ -1197,17 +1299,28 @@ async fn handle_req(
                         parts.headers,
                         Arc::clone(&active_request),
                     )
-                    .await
+                    .await;
+                record_file_failure(&telemetry, failure);
+                response
             }
-            NativeMatch::Probe(response) => response,
+            NativeMatch::Probe(response) => {
+                telemetry.set_destination(Destination::NativeProbe);
+                response
+            }
+            NativeMatch::Metrics => {
+                telemetry.set_destination(Destination::NativeMetrics);
+                context.telemetry.metrics_response(&parts.method)
+            }
         }
     } else if !request_headers_are_utf8(&parts.headers) {
         drop(body);
+        telemetry.reject(RejectionReason::InvalidHeaders);
         invalid_request_headers()
     } else {
         let declared_length = content_length(&parts.headers);
         if declared_length.is_some_and(|length| length > context.config.body_max_bytes) {
             drop(body);
+            telemetry.reject(RejectionReason::BodyTooLarge);
             payload_too_large(context.config.body_max_bytes)
         } else {
             let accepted_encodings = AcceptedEncodings::from_headers(&parts.headers);
@@ -1232,13 +1345,24 @@ async fn handle_req(
                 .admit(context.config.handler_queue_timeout)
                 .await
             {
-                Err(AdmissionError::Full) => overloaded(),
-                Err(AdmissionError::TimedOut) => handler_queue_timed_out(),
-                Ok(active_handler) => {
+                Err(AdmissionError::Full) => {
+                    telemetry.reject(RejectionReason::HandlerOverload);
+                    overloaded()
+                }
+                Err(AdmissionError::TimedOut) => {
+                    telemetry.reject(RejectionReason::HandlerOverload);
+                    handler_queue_timed_out()
+                }
+                Ok(admitted) => {
+                    telemetry.set_destination(Destination::Roc);
+                    let active_handler = admitted.active;
+                    let handler_queue_wait = admitted.queue_wait;
                     let body_limit = context.config.body_max_bytes;
                     let roc_context = Arc::clone(&context.roc_context);
                     let handler_request = Arc::clone(&active_request);
                     let handler_response_semantics = response_semantics.clone();
+                    let handler_metrics = context.telemetry.metrics();
+                    let handler_telemetry = telemetry.clone();
                     let handled = spawn_blocking(move || {
                         // These guards intentionally live in the non-cancellable
                         // blocking task. Aborting its Tokio JoinHandle must not
@@ -1254,12 +1378,14 @@ async fn handle_req(
                             declared_length,
                         );
                         let request_context = roc_context.retain_for_request();
-                        let result = call_roc(
+                        let (result, handler_duration) = call_roc(
                             roc_request,
                             request_context,
                             accepted_encodings,
                             &handler_response_semantics,
                         );
+                        handler_metrics.record_handler_duration(handler_duration);
+                        handler_telemetry.record_handler(handler_queue_wait, handler_duration);
                         body_handle.expire();
                         result
                     })
@@ -1274,21 +1400,31 @@ async fn handle_req(
                         }
                         Ok(RocOutcome::Ordinary(Ok(response), None)) => response,
                         Ok(RocOutcome::Ordinary(Err(error), _)) => {
+                            telemetry.reject(RejectionReason::InvalidRocResponse);
                             eprintln!("Invalid Roc response: {error}");
                             safe_internal_server_error(&response_semantics)
                         }
                         Ok(RocOutcome::File(plan)) => {
-                            context
+                            telemetry.set_destination(Destination::NativeFile);
+                            let (response, failure) = context
                                 .config
                                 .files
                                 .serve(plan, file_method, file_headers, Arc::clone(&active_request))
-                                .await
+                                .await;
+                            record_file_failure(&telemetry, failure);
+                            response
                         }
                         Ok(RocOutcome::Invalid(detail)) => {
+                            telemetry.reject(RejectionReason::InvalidRocResponse);
                             eprintln!("Invalid Roc response plan: {detail}");
                             safe_internal_server_error(&response_semantics)
                         }
                         Err(error) => {
+                            telemetry.reject(if error.is_panic() {
+                                RejectionReason::RocPanic
+                            } else {
+                                RejectionReason::HostPanic
+                            });
                             eprintln!("Recovered from calling Roc: {error:?}");
                             safe_internal_server_error(&response_semantics)
                         }
@@ -1304,7 +1440,25 @@ async fn handle_req(
         Some(active_request),
         http1_activity,
         body_idle_timeout,
+        &telemetry,
     )
+}
+
+fn record_file_failure(
+    telemetry: &crate::telemetry::RequestTelemetry,
+    failure: Option<FileServeFailure>,
+) {
+    match failure {
+        Some(FileServeFailure::Overloaded) => {
+            telemetry.reject_for_destination(Destination::NativeFile, RejectionReason::FileOverload)
+        }
+        Some(FileServeFailure::InvalidPlan) => telemetry
+            .reject_for_destination(Destination::NativeFile, RejectionReason::InvalidRocResponse),
+        Some(FileServeFailure::StartFailed) => {
+            telemetry.reject_for_destination(Destination::NativeFile, RejectionReason::FileFailure)
+        }
+        None => {}
+    }
 }
 
 async fn handle_panics(
@@ -1312,17 +1466,23 @@ async fn handle_panics(
     response_semantics: RequestSemantics,
     http1_activity: Option<Http1Activity>,
     body_idle_timeout: Option<Duration>,
+    telemetry: crate::telemetry::RequestTelemetry,
 ) -> Result<ServerResponse, Infallible> {
-    match AssertUnwindSafe(future).catch_unwind().await {
-        Ok(response) => Ok(response),
-        Err(_) => Ok(finalize_and_track_response(
-            safe_internal_server_error(&response_semantics),
-            &response_semantics,
-            None,
-            http1_activity,
-            body_idle_timeout,
-        )),
-    }
+    let response = match AssertUnwindSafe(future).catch_unwind().await {
+        Ok(response) => response,
+        Err(_) => {
+            telemetry.reject(RejectionReason::HostPanic);
+            finalize_and_track_response(
+                safe_internal_server_error(&response_semantics),
+                &response_semantics,
+                None,
+                http1_activity,
+                body_idle_timeout,
+                &telemetry,
+            )
+        }
+    };
+    Ok(telemetry.instrument(response))
 }
 
 async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
@@ -1344,6 +1504,9 @@ async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
         io,
         hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
             service_activity.request_started();
+            let telemetry = service_context
+                .telemetry
+                .start_request(request.method(), request.uri().path());
             let response_semantics = RequestSemantics::from_request(&request);
             let (parts, body) = request.into_parts();
             let stream = body
@@ -1356,10 +1519,12 @@ async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
                     service_context.clone(),
                     Some(service_activity.clone()),
                     response_semantics.clone(),
+                    telemetry.clone(),
                 ),
                 response_semantics,
                 Some(service_activity.clone()),
                 Some(service_context.config.response_idle_timeout),
+                telemetry,
             )
         }),
     );
@@ -1497,6 +1662,9 @@ fn spawn_h2_request(
     context: ServerContext,
 ) {
     tasks.spawn(async move {
+        let telemetry = context
+            .telemetry
+            .start_request(request.method(), request.uri().path());
         let response_semantics = RequestSemantics::from_request(&request);
         let (parts, body) = request.into_parts();
         let response = handle_panics(
@@ -1506,10 +1674,12 @@ fn spawn_h2_request(
                 context.clone(),
                 None,
                 response_semantics.clone(),
+                telemetry.clone(),
             ),
             response_semantics,
             None,
             None,
+            telemetry,
         )
         .await
         .expect("request panic conversion is infallible");
@@ -1607,6 +1777,7 @@ async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
 }
 
 async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
+    let _connection_metrics = context.telemetry.connection_started();
     match detect_protocol(stream, context.config.header_timeout).await {
         Ok((Protocol::Http1, stream)) => serve_http1(stream, context).await,
         Ok((Protocol::Http2, stream)) => serve_http2(stream, context).await,
@@ -2203,7 +2374,7 @@ mod tests {
 
     #[tokio::test]
     async fn handler_admission_bounds_active_and_queued_work() {
-        let admission = HandlerAdmission::new(1, 1);
+        let admission = HandlerAdmission::new(1, 1, Metrics::new());
         let wait = Duration::from_secs(1);
         let first = admission.admit(wait).await.unwrap();
 
@@ -2239,7 +2410,7 @@ mod tests {
 
     #[tokio::test]
     async fn zero_handler_queue_rejects_immediately_at_saturation() {
-        let admission = HandlerAdmission::new(1, 0);
+        let admission = HandlerAdmission::new(1, 0, Metrics::new());
         let wait = Duration::from_secs(1);
         let active = admission.admit(wait).await.unwrap();
         assert_eq!(
@@ -2252,7 +2423,7 @@ mod tests {
 
     #[tokio::test]
     async fn expired_handler_queue_wait_releases_its_slot_without_dispatch() {
-        let admission = HandlerAdmission::new(1, 1);
+        let admission = HandlerAdmission::new(1, 1, Metrics::new());
         let active = admission.admit(Duration::from_secs(1)).await.unwrap();
 
         assert_eq!(
@@ -2296,8 +2467,10 @@ mod tests {
 
     #[test]
     fn http2_stream_limit_reserves_bounded_native_probe_headroom() {
-        let files = FileService::activate(Vec::new(), 1, 1024).unwrap();
-        let routes = NativeRouter::activate(&files, Vec::new(), Vec::new(), Vec::new()).unwrap();
+        let metrics = Metrics::new();
+        let files = FileService::activate(Vec::new(), 1, 1024, Arc::clone(&metrics)).unwrap();
+        let routes =
+            NativeRouter::activate(&files, Vec::new(), Vec::new(), Vec::new(), None).unwrap();
         let config = RuntimeConfig {
             host: "127.0.0.1".to_owned(),
             port: 8000,
@@ -2318,6 +2491,8 @@ mod tests {
             files,
             routes,
             body_sinks: BodySinkService::activate(Vec::new(), 1, Duration::from_secs(30)).unwrap(),
+            telemetry: TelemetryConfig { access_log: None },
+            metrics,
         };
         assert_eq!(config.max_http2_streams_per_connection(), 98);
     }
