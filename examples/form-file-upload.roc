@@ -19,7 +19,7 @@ init! = || {
 }
 
 upload_form : Response
-upload_form = 
+upload_form =
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 		.with_body(
@@ -56,7 +56,7 @@ display_uploaded_image! = |req| {
 			match parts.find_first(is_png_upload) {
 				Ok(part) => {
 					img = base64_encode(part.data)
-					page = 
+					page =
 						Str.to_utf8(
 							\\<!DOCTYPE html>
 							\\<html lang="en">

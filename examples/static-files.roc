@@ -27,14 +27,14 @@ init! = || {
 		id: "downloads",
 		path: Path.utf8("downloads"),
 	})
-	report = 
+	report =
 		Server.relative_file("reports/annual report.txt")
 			.map_err(|_| Exit(1))?
-	favicon = 
+	favicon =
 		Server.relative_file("favicon.ico")
 			.map_err(|_| Exit(1))?
 
-	config = 
+	config =
 		Server.default_config
 			.with_file_roots([assets, downloads])
 			.with_native_routes({

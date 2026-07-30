@@ -13,6 +13,10 @@
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(dead_code)]
+#![allow(improper_ctypes)]
+#![allow(improper_ctypes_definitions)]
+// `no_roc_std_helpers` is supplied by host build tooling and cannot be registered from source.
+#![allow(unexpected_cfgs)]
 
 use core::ffi::c_void;
 use core::sync::atomic::{fence, AtomicIsize, Ordering};
@@ -30,6 +34,74 @@ pub struct RocDec {
 
 const _: [(); 16] = [(); core::mem::size_of::<RocDec>()];
 const _: [(); 16] = [(); core::mem::align_of::<RocDec>()];
+
+#[cfg(target_arch = "x86_64")]
+type RocU8x16Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI8x16Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU16x8Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI16x8Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU32x4Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI32x4Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocU64x2Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "x86_64")]
+type RocI64x2Native = core::arch::x86_64::__m128i;
+#[cfg(target_arch = "aarch64")]
+type RocU8x16Native = core::arch::aarch64::uint8x16_t;
+#[cfg(target_arch = "aarch64")]
+type RocI8x16Native = core::arch::aarch64::int8x16_t;
+#[cfg(target_arch = "aarch64")]
+type RocU16x8Native = core::arch::aarch64::uint16x8_t;
+#[cfg(target_arch = "aarch64")]
+type RocI16x8Native = core::arch::aarch64::int16x8_t;
+#[cfg(target_arch = "aarch64")]
+type RocU32x4Native = core::arch::aarch64::uint32x4_t;
+#[cfg(target_arch = "aarch64")]
+type RocI32x4Native = core::arch::aarch64::int32x4_t;
+#[cfg(target_arch = "aarch64")]
+type RocU64x2Native = core::arch::aarch64::uint64x2_t;
+#[cfg(target_arch = "aarch64")]
+type RocI64x2Native = core::arch::aarch64::int64x2_t;
+#[cfg(target_arch = "wasm32")]
+type RocU8x16Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI8x16Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU16x8Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI16x8Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU32x4Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI32x4Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocU64x2Native = core::arch::wasm32::v128;
+#[cfg(target_arch = "wasm32")]
+type RocI64x2Native = core::arch::wasm32::v128;
+
+macro_rules! roc_simd_type {
+    ($name:ident, $native:ident) => {
+        #[repr(transparent)]
+        #[derive(Clone, Copy)]
+        pub struct $name(pub $native);
+        const _: [(); 16] = [(); core::mem::size_of::<$name>()];
+        const _: [(); 16] = [(); core::mem::align_of::<$name>()];
+    };
+}
+roc_simd_type!(RocU8x16, RocU8x16Native);
+roc_simd_type!(RocI8x16, RocI8x16Native);
+roc_simd_type!(RocU16x8, RocU16x8Native);
+roc_simd_type!(RocI16x8, RocI16x8Native);
+roc_simd_type!(RocU32x4, RocU32x4Native);
+roc_simd_type!(RocI32x4, RocI32x4Native);
+roc_simd_type!(RocU64x2, RocU64x2Native);
+roc_simd_type!(RocI64x2, RocI64x2Native);
+
 
 /// Runtime representation of an opaque `Box(T)` value.
 pub type RocBox = *mut c_void;

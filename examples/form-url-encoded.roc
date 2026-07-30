@@ -19,7 +19,7 @@ init! = || Ok({ config: Server.default_config, context: {} })
 
 form_page : Response
 form_page = {
-	response = 
+	response =
 		Response.from_status(200)
 			.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 
@@ -72,7 +72,7 @@ respond! = |req, _context|
 
 form_data_page : Dict(Str, Str) -> List(U8)
 form_data_page = |form_data| {
-	entries = 
+	entries =
 		Dict.to_list(form_data).map(
 			|(key, value)|
 				Html.li(
@@ -84,7 +84,7 @@ form_data_page = |form_data| {
 				),
 		)
 
-	page = 
+	page =
 		Html.html(
 			[],
 			[

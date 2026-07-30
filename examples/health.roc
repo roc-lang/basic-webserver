@@ -21,12 +21,12 @@ init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..]
 init! = || {
 	readiness = Server.Readiness.create!(NotReady)
 		? |_| Exit(1)
-	mode = 
+	mode =
 		match Env.var_str!("HEALTH_CONFIG") {
 			Ok(value) => value
 			_ => "valid"
 		}
-	native_routes = 
+	native_routes =
 		match mode {
 			"duplicate" => {
 				files: [],
@@ -44,7 +44,7 @@ init! = || {
 				readiness: [Server.readiness_route({ at: "/ready", readiness })],
 			}
 		}
-	config = 
+	config =
 		Server.default_config
 			.with_limits({
 				max_connections: 16,

@@ -45,7 +45,7 @@ demo! = || {
 	html_url : Url
 	html_url = "http://localhost:9000/htmltest"
 
-	request = 
+	request =
 		Request.from_method(GET)
 			.with_uri(Url.to_str(html_url))
 			.with_timeout(TimeoutMilliseconds(5000))
@@ -61,7 +61,7 @@ demo! = || {
 	}
 
 	# Same request with a custom Accept header.
-	html_request = 
+	html_request =
 		Request.from_method(GET)
 			.with_uri(Url.to_str(html_url))
 			.with_headers([{ name: "Accept", value: "text/html" }])

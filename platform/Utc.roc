@@ -49,7 +49,7 @@ Utc := [].{
 	to_iso_8601 : U128 -> Str
 	to_iso_8601 = |nanos| {
 		millis = to_millis_since_epoch(nanos)
-		millis_i128 = 
+		millis_i128 =
 			match U128.to_i128_try(millis) {
 				Ok(n) => n
 				Err(_) => 0
@@ -137,7 +137,7 @@ epoch_millis_to_datetime = |millis| {
 normalize_datetime : DateTime -> DateTime
 normalize_datetime = |current| {
 	current_month_days = days_in_month(current.year, current.month)
-	previous_month_days = 
+	previous_month_days =
 		if current.month == 1 {
 			days_in_month(current.year - 1, 12)
 		} else {

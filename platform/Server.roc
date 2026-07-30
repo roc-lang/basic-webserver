@@ -163,7 +163,7 @@ Server :: [].{
 			cache_max_age_seconds : U32,
 		}
 		to_host = |FileRoot(root)| {
-			(path_tag, path_utf8, path_unix_bytes, path_windows_u16s) = 
+			(path_tag, path_utf8, path_unix_bytes, path_windows_u16s) =
 				match Path.to_raw(root.path) {
 					Utf8(str) => (0, str, [], [])
 					UnixBytes(bytes) => (1, "", bytes, [])
@@ -208,7 +208,7 @@ Server :: [].{
 	relative_file = |relative| {
 		relative_bytes = Str.to_utf8(relative)
 		segments = Str.split_on(relative, "/")
-		valid = 
+		valid =
 			Bool.not(relative.is_empty())
 				and relative_bytes.len() <= 4 * 1024
 					and segments.all(
@@ -776,7 +776,7 @@ Server :: [].{
 				ServeFile({ files, relative, disposition, cache }) => {
 					FileRoot(root) = files
 					raw_cache = CacheChoice.to_host(cache)
-					(disposition_tag, download_name) = 
+					(disposition_tag, download_name) =
 						match disposition {
 							Inline => (0, "")
 							Attachment(name) => (1, name)

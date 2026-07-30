@@ -27,7 +27,7 @@ init! = || {
 	Cmd.exec_str!(python, [helper, "echo", "Hello"])?
 
 	# To execute and capture the output (stdout and stderr) without inheriting your terminal.
-	cmd_output = 
+	cmd_output =
 		Cmd.new_str(python)
 			.args_str([helper, "echo", "Hi"])
 			.exec_output!()?
@@ -44,7 +44,7 @@ init! = || {
 
 	# `exec_exit_code!` returns nonzero exit codes as values. Most callers should
 	# use `exec!` or `exec_cmd!`, which turn nonzero codes into typed errors.
-	exit_code = 
+	exit_code =
 		Cmd.new_str(python)
 			.args_str([helper, "fail"])
 			.exec_exit_code!()?
@@ -53,7 +53,7 @@ init! = || {
 
 	# Capture exact stdout and stderr bytes when output may not be valid UTF-8.
 	# Prefer `exec_output!` when textual output is expected.
-	cmd_output_bytes = 
+	cmd_output_bytes =
 		Cmd.new_str(python)
 			.args_str([helper, "echo", "Hi"])
 			.exec_output_bytes!()?

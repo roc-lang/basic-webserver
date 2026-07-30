@@ -90,7 +90,7 @@ Env := [].{
 	platform! = || {
 		from_host = Host.env_current_arch_os!("")
 
-		arch = 
+		arch =
 			match from_host.arch {
 				"x86" => X86
 				"x86_64" => X64
@@ -99,7 +99,7 @@ Env := [].{
 				other => OTHER(other)
 			}
 
-		os = 
+		os =
 			match from_host.os {
 				"linux" => LINUX
 				"macos" => MACOS
