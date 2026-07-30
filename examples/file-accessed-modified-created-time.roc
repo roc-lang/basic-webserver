@@ -1,14 +1,16 @@
 ## Reads and serves the accessed, modified, and created timestamps of `LICENSE`.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Stdout
 import pf.Server
 import pf.Path
-import pf.Utc
+import pf.UnixTime
 import http.Response
+import gregorian.Time
 
 Context : Str
 
@@ -28,9 +30,9 @@ init! : () => Try(
 init! = || {
 	file = Path.utf8("LICENSE")
 
-	time_modified = Utc.to_iso_8601(Path.time_modified!(file) ? |err| FailedToReadModifiedTime(err))
-	time_accessed = Utc.to_iso_8601(Path.time_accessed!(file) ? |err| FailedToReadAccessedTime(err))
-	time_created = Utc.to_iso_8601(Path.time_created!(file) ? |err| FailedToReadCreatedTime(err))
+	time_modified = format_timestamp(Path.time_modified!(file) ? |err| FailedToReadModifiedTime(err))
+	time_accessed = format_timestamp(Path.time_accessed!(file) ? |err| FailedToReadAccessedTime(err))
+	time_created = format_timestamp(Path.time_created!(file) ? |err| FailedToReadCreatedTime(err))
 	summary = "${Path.display(file)} file time metadata:\nModified: ${time_modified}\nAccessed: ${time_accessed}\nCreated: ${time_created}"
 
 	Stdout.line!(summary) ? |err| FailedToPrintFileTimes(err)
@@ -44,3 +46,7 @@ respond! = |_request, summary|
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})
+
+format_timestamp : UnixTime.Timestamp -> Str
+format_timestamp = |timestamp|
+	(Time.unix_epoch + timestamp.seconds_since_epoch()).iso8601()

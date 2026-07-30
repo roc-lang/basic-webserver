@@ -80,6 +80,9 @@ The defaults are finite so overload has deliberate behavior:
 | Active connections | 256 |
 | Concurrent Roc handlers | 32 |
 | Queued handlers | 64 |
+| Request target | 8 KiB |
+| Decoded request headers | 32 KiB |
+| Request header fields | 100 |
 | Request body | 1 MiB |
 | Request body chunk | 64 KiB |
 | Buffered body chunks per request | 1 |
@@ -89,12 +92,22 @@ The defaults are finite so overload has deliberate behavior:
 When every handler and queue slot is occupied, new requests receive HTTP 503.
 Applications can change these limits with the `Server.Config` builders and can
 narrow an individual body limit with `request.body().with_limit(...)`.
+Request-target and header limits are checked before host-native routing or Roc.
+Decoded header bytes use `name + value + 32` bytes per ordinary field for both
+HTTP versions, so HTTP/2 HPACK compression does not weaken the resource bound.
+The request-head timeout is an idle-progress deadline, not a total deadline:
+each newly received head byte resets it. A trickling client can therefore keep
+one bounded connection slot occupied as long as it continues making progress;
+the finite connection limit and request-head byte budgets bound aggregate
+memory and concurrency, but deployments that require a total request-head
+deadline should enforce one at their reverse proxy or load balancer.
 
 The listener accepts HTTP/1.1 and cleartext prior-knowledge HTTP/2. It does not
 terminate TLS or perform public protocol negotiation; production deployments
 normally put a reverse proxy or load balancer in front. Ordinary responses are
 complete in-memory values, while request bodies can be consumed as bounded
-streams.
+streams. The host validates response fields and owns framing for both protocol
+versions; see the [response design](design.md#response-validation-and-framing).
 
 Eligible responses of at least 1 KiB are compressed automatically when the
 client accepts Zstandard, Brotli, or gzip. The host negotiates quality weights,
@@ -116,6 +129,31 @@ then converted to a generic HTTP 500 response. Errors from `init!` and
 `shutdown!` are logged before the process exits. A Roc `crash` exits the whole
 server process.
 
+### Operational telemetry
+
+Access logging and metrics are opt-in host facilities configured during
+`init!`. The host observes a request through response-body end-of-stream,
+failure, or drop, so one terminal event covers Roc responses, native files,
+overload, early rejection, disconnect, and shutdown. End-of-stream means that
+the response body reached its terminal producer state; representation frames
+have been handed to Hyper, not confirmed on the physical network.
+
+`Server.json_lines_access_log` writes structured JSON Lines to standard error
+through a finite non-blocking queue. The default target policy logs no target;
+the optional path policy includes a length-bounded parsed path without its
+query string. Bodies, credentials, cookies, arbitrary headers, peer identity,
+user agents, and client-supplied request or trace identifiers are never
+included. Shutdown gives the queue one second to drain and does not wait
+indefinitely for a blocked standard-error sink.
+
+`Server.open_metrics` installs one native exact OpenMetrics route. Its labels
+come only from finite host enums: unknown methods collapse to `_OTHER`, Roc
+fallback uses one route class, and raw targets or other network-controlled
+values are never labels. The endpoint reports terminal request outcomes,
+duration, response representation bytes, active/high-water connections,
+requests, Roc handlers, handler queueing, native file transfers, rejection
+reasons, and dropped access-log events.
+
 ## Platform facilities
 
 The platform exposes typed modules for:
@@ -126,6 +164,13 @@ The platform exposes typed modules for:
 - finite command execution with time and output limits;
 - filesystem, environment, path, stdout/stderr, TCP, time, and sleep effects;
 - HTML construction, URL handling, and multipart form parsing.
+
+`UnixTime` provides the POSIX wall-clock effect and normalized timestamps,
+including nanosecond precision and instants before the Unix epoch. Calendar
+systems, time zones, and text formatting are deliberately left to the Roc
+package ecosystem. The time-using examples demonstrate converting
+`UnixTime.Timestamp` values with
+[`roc-gregorian`](https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian).
 
 Outbound HTTP calls default to a 30-second total deadline and an 8 MiB response
 body. At most 64 calls run and 256 wait for admission. The shared client pools

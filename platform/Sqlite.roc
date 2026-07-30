@@ -314,7 +314,7 @@ Sqlite :: [].{
 
 		invalid_value : RowEncoding, RowState -> QueryError
 		invalid_value = |_, state| {
-			column = 
+			column =
 				match state.current {
 					Current({ name, .. }) => name
 					NoCurrent => state.columns.get(0) ?? ""
@@ -524,12 +524,12 @@ Sqlite :: [].{
 	## Open and validate a bounded database pool.
 	open! : Config => Try(Db, QueryError)
 	open! = |config| {
-		raw_journal_mode = 
+		raw_journal_mode =
 			match config.journal_mode {
 				Delete => 0
 				Wal => 1
 			}
-		raw_synchronous = 
+		raw_synchronous =
 			match config.synchronous {
 				Full => 0
 				Normal => 1
@@ -590,7 +590,7 @@ Sqlite :: [].{
 	## Begin a transaction on one connection leased from the pool.
 	begin! : Db, TransactionMode => Try(Transaction, QueryError)
 	begin! = |db, mode| {
-		raw_mode = 
+		raw_mode =
 			match mode {
 				Deferred => 0
 				Immediate => 1
@@ -795,7 +795,7 @@ peek_row_value = |state|
 
 take_row_value = |state| {
 	peeked = peek_row_value(state)?
-	rest = 
+	rest =
 		match state.current {
 			Current(_) => {
 				columns: state.columns,

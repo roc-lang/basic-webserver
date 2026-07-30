@@ -194,7 +194,7 @@ escape_attribute = |value| escape_html_bytes(value, Bool.True)
 
 escape_html_bytes : Str, Bool -> Str
 escape_html_bytes = |value, escape_quotes| {
-	escaped_bytes = 
+	escaped_bytes =
 		Str.to_utf8(value).fold(
 			[],
 			|bytes, byte|

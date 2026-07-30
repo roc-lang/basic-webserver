@@ -21,12 +21,12 @@ init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..]
 init! = || {
 	readiness = Server.Readiness.create!(NotReady)
 		? |_| Exit(1)
-	mode = 
+	mode =
 		match Env.var_str!("HEALTH_CONFIG") {
 			Ok(value) => value
 			_ => "valid"
 		}
-	native_routes = 
+	native_routes =
 		match mode {
 			"duplicate" => {
 				files: [],
@@ -44,7 +44,7 @@ init! = || {
 				readiness: [Server.readiness_route({ at: "/ready", readiness })],
 			}
 		}
-	config = 
+	config =
 		Server.default_config
 			.with_limits({
 				max_connections: 16,
@@ -63,21 +63,22 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context|
 	match request.target() {
-		"/set-ready" => {
+		Resource({ raw_path: "/set-ready", .. }) => {
 			context.readiness.set!(Ready)
 				? |err| ServerErr("Failed to become ready: ${Str.inspect(err)}")
 			Ok(text_response(200, "ready"))
 		}
-		"/set-not-ready" => {
+		Resource({ raw_path: "/set-not-ready", .. }) => {
 			context.readiness.set!(NotReady)
 				? |err| ServerErr("Failed to become not ready: ${Str.inspect(err)}")
 			Ok(text_response(200, "not ready"))
 		}
-		"/slow" => {
+		Resource({ raw_path: "/slow", .. }) => {
 			Sleep.millis!(750)
 			Ok(text_response(200, "slow response"))
 		}
-		"/stop" => Ok(Server.stop_after(Response.from_status(200).with_body(Str.to_utf8("stopping"))))
+		Resource({ raw_path: "/stop", .. }) =>
+			Ok(Server.stop_after(Response.from_status(200).with_body(Str.to_utf8("stopping"))))
 		_ => Ok(text_response(404, "not found"))
 	}
 

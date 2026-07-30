@@ -67,11 +67,38 @@ Host := [].{
 
 	RequestBodyErr : [
 		TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+		Timeout,
 		ClientDisconnected,
 		InvalidBody(Str),
 		RequestFinished,
 		ConcurrentRead,
 		Cancelled,
+		Stopping,
+	]
+
+	BodySinkSuccess : {
+		bytes_written : U64,
+		digest : [NotComputed, Sha256Digest(List(U8))],
+	}
+
+	BodySinkErr : [
+		TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+		Timeout,
+		ClientDisconnected,
+		InvalidBody(Str),
+		RequestFinished,
+		ConcurrentRead,
+		Cancelled,
+		Saturated,
+		Stopping,
+		DestinationExists,
+		InvalidRoot,
+		InvalidRelativeFile,
+		PermissionDenied,
+		StorageFull,
+		Filesystem(Str),
+		PublishFailed(Str),
+		CleanupFailed(Str),
 	]
 
 	ReadinessSetErr : [InvalidReadiness, StaleReadiness, ServerStopping]
@@ -119,14 +146,15 @@ Host := [].{
 	file_is_executable! : RawPath => Try(Bool, [FileErr(IOErr)])
 	file_is_readable! : RawPath => Try(Bool, [FileErr(IOErr)])
 	file_is_writable! : RawPath => Try(Bool, [FileErr(IOErr)])
-	file_time_accessed! : RawPath => Try(U128, [FileErr(IOErr)])
-	file_time_modified! : RawPath => Try(U128, [FileErr(IOErr)])
-	file_time_created! : RawPath => Try(U128, [FileErr(IOErr)])
+	file_time_accessed! : RawPath => Try(I128, [FileErr(IOErr)])
+	file_time_modified! : RawPath => Try(I128, [FileErr(IOErr)])
+	file_time_created! : RawPath => Try(I128, [FileErr(IOErr)])
 
 	http_send_request! : InternalHttp.OutboundRequestToHost => Try(InternalHttp.OutboundResponseFromHost, InternalHttp.SendErr)
 
 	request_body_read! : RequestBody, U64 => Try(RequestBodyRead, RequestBodyErr)
 	request_body_read_all! : RequestBody, U64 => Try(List(U8), RequestBodyErr)
+	request_body_write_file! : RequestBody, U64, Str, Str, U8 => Try(BodySinkSuccess, BodySinkErr)
 
 	readiness_create! : Bool => Try(Readiness, [ReadinessCapacityExhausted])
 	readiness_set! : Readiness, Bool => Try({}, ReadinessSetErr)
@@ -158,5 +186,5 @@ Host := [].{
 
 	sleep_millis! : U64 => {}
 
-	utc_now! : () => U128
+	unix_time_now! : () => I128
 }

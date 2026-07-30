@@ -1,9 +1,8 @@
 //! One immutable, startup-validated route table for every host-native route.
 
-use crate::file_server::{
-    empty_body, full_body, CachePolicy, FilePlan, FileService, ServerResponse,
-};
+use crate::file_server::{CachePolicy, FilePlan, FileService};
 use crate::readiness::ReadinessLease;
+use crate::response::{empty_body, full_body, ServerResponse};
 use bytes::Bytes;
 use hyper::header::{ALLOW, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Method, StatusCode};
@@ -49,6 +48,7 @@ enum ExactRoute {
     },
     Liveness,
     Readiness(ReadinessLease),
+    Metrics,
 }
 
 struct PrefixRoute {
@@ -125,6 +125,7 @@ pub(crate) struct NativeRouter {
 pub(crate) enum NativeMatch {
     File(FilePlan),
     Probe(ServerResponse),
+    Metrics,
 }
 
 impl NativeRouter {
@@ -133,11 +134,13 @@ impl NativeRouter {
         file_specs: Vec<FileRouteSpec>,
         liveness_paths: Vec<String>,
         readiness_specs: Vec<ReadinessRouteSpec>,
+        metrics_path: Option<String>,
     ) -> Result<Self, String> {
         let route_count = file_specs
             .len()
             .checked_add(liveness_paths.len())
             .and_then(|count| count.checked_add(readiness_specs.len()))
+            .and_then(|count| count.checked_add(usize::from(metrics_path.is_some())))
             .ok_or_else(|| "native route count overflowed".to_owned())?;
         if route_count > MAX_NATIVE_ROUTES {
             return Err(format!(
@@ -192,6 +195,10 @@ impl NativeRouter {
             validate_route_path(&spec.at)?;
             insert_exact(&mut exact, spec.at, ExactRoute::Readiness(spec.readiness))?;
         }
+        if let Some(at) = metrics_path {
+            validate_route_path(&at)?;
+            insert_exact(&mut exact, at, ExactRoute::Metrics)?;
+        }
 
         prefixes.sort_by(|left, right| {
             right
@@ -230,6 +237,7 @@ impl NativeRouter {
                     readiness.is_ready(),
                     method,
                 )),
+                ExactRoute::Metrics => NativeMatch::Metrics,
             });
         }
         for route in &self.inner.prefixes {
@@ -378,7 +386,7 @@ mod tests {
     use http_body_util::BodyExt;
 
     fn empty_files() -> FileService {
-        FileService::activate(Vec::new(), 1, 1024).unwrap()
+        FileService::activate(Vec::new(), 1, 1024, crate::telemetry::Metrics::new()).unwrap()
     }
 
     #[test]
@@ -392,10 +400,22 @@ mod tests {
                 at: "/health".to_owned(),
                 readiness: crate::readiness::test_lease(false),
             }],
+            None,
         )
         .err()
         .unwrap();
         assert!(duplicate.contains("duplicate exact native route"));
+
+        let metrics_duplicate = NativeRouter::activate(
+            &files,
+            Vec::new(),
+            vec!["/metrics".to_owned()],
+            Vec::new(),
+            Some("/metrics".to_owned()),
+        )
+        .err()
+        .unwrap();
+        assert!(metrics_duplicate.contains("duplicate exact native route"));
 
         for invalid in [
             "health",
@@ -409,9 +429,29 @@ mod tests {
                 Vec::new(),
                 vec![invalid.to_owned()],
                 Vec::new(),
+                None,
             )
             .is_err());
         }
+    }
+
+    #[test]
+    fn metrics_is_a_first_class_exact_native_route() {
+        let files = empty_files();
+        let router = NativeRouter::activate(
+            &files,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Some("/metrics".to_owned()),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            router.route("/metrics", &Method::GET),
+            Some(NativeMatch::Metrics)
+        ));
+        assert!(router.route("/metrics/child", &Method::GET).is_none());
     }
 
     #[tokio::test]
@@ -425,6 +465,7 @@ mod tests {
                 at: "/ready".to_owned(),
                 readiness: crate::readiness::test_lease(false),
             }],
+            None,
         )
         .unwrap();
 
@@ -484,6 +525,7 @@ mod tests {
                 at: "/ready".to_owned(),
                 readiness: lease,
             }],
+            None,
         )
         .unwrap();
         let NativeMatch::Probe(before) = router.route("/ready", &Method::GET).unwrap() else {

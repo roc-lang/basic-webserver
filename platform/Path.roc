@@ -1,6 +1,7 @@
 import IOErr exposing [IOErr]
 import Host
 import OsStr exposing [OsStr]
+import UnixTime exposing [UnixTime]
 
 path_type_from_host : Host.PathType -> [IsFile, IsDir, IsSymLink, IsOther]
 path_type_from_host = |path_type|
@@ -12,6 +13,15 @@ path_type_from_host = |path_type|
 		IsFile
 	} else {
 		IsOther
+	}
+
+timestamp_from_host : I128 -> UnixTime.Timestamp
+timestamp_from_host = |nanos|
+	match UnixTime.Timestamp.from_nanos_since_epoch(nanos) {
+		Ok(timestamp) => timestamp
+		Err(OutOfRange) => {
+			crash "host file timestamp is outside the UnixTime.Timestamp range"
+		}
 	}
 
 ## Construct and operate on byte-preserving paths. Native Unix
@@ -132,17 +142,20 @@ Path := [
 	is_writable! : Path => Try(Bool, [PathErr(IOErr), ..])
 	is_writable! = |path| map_file_result(Host.file_is_writable!(to_host_raw!(path)))
 
-	## Return the last accessed time as nanoseconds since the Unix epoch.
-	time_accessed! : Path => Try(U128, [PathErr(IOErr), ..])
-	time_accessed! = |path| map_file_result(Host.file_time_accessed!(to_host_raw!(path)))
+	## Return the last accessed time as a POSIX timestamp.
+	time_accessed! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_accessed! = |path|
+		map_file_result(Host.file_time_accessed!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
-	## Return the last modified time as nanoseconds since the Unix epoch.
-	time_modified! : Path => Try(U128, [PathErr(IOErr), ..])
-	time_modified! = |path| map_file_result(Host.file_time_modified!(to_host_raw!(path)))
+	## Return the last modified time as a POSIX timestamp.
+	time_modified! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_modified! = |path|
+		map_file_result(Host.file_time_modified!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
-	## Return the creation time as nanoseconds since the Unix epoch.
-	time_created! : Path => Try(U128, [PathErr(IOErr), ..])
-	time_created! = |path| map_file_result(Host.file_time_created!(to_host_raw!(path)))
+	## Return the creation time as a POSIX timestamp.
+	time_created! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_created! = |path|
+		map_file_result(Host.file_time_created!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
 	## Create a hard link at `link` pointing to `original`.
 	hard_link! : Path, Path => Try({}, [PathErr(IOErr), ..])

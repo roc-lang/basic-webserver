@@ -22,17 +22,17 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("SQLITE_BENCH_DB") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./target/perf-harness/sqlite-load.db")
 		}
-	pool_size = 
+	pool_size =
 		match Env.var_str!("SQLITE_BENCH_POOL") {
 			Ok(raw) => parse_pool_size(raw) ?? 8
 			Err(_) => 8
 		}
-	db = 
+	db =
 		Sqlite.open!({
 			path: db_path,
 			max_connections: pool_size,
@@ -59,24 +59,24 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context|
 	match request.target() {
-		"/point" => point_read!(context.db)
-		"/range-10" => range_read!(context.db, 10)
-		"/range-1000" => range_read!(context.db, 1000)
-		"/range-10000" => range_read!(context.db, 10000)
-		"/range-100000" => range_read!(context.db, 100000)
-		"/blob-1k" => blob_read!(context.db, 1)
-		"/blob-64k" => blob_read!(context.db, 2)
-		"/blob-1m" => blob_read!(context.db, 3)
-		"/aggregate" => aggregate_read!(context.db)
-		"/scan" => scan_read!(context.db)
-		"/write" => write_counter!(context.db)
-		"/transaction" => transaction_counter!(context.db)
+		Resource({ raw_path: "/point", .. }) => point_read!(context.db)
+		Resource({ raw_path: "/range-10", .. }) => range_read!(context.db, 10)
+		Resource({ raw_path: "/range-1000", .. }) => range_read!(context.db, 1000)
+		Resource({ raw_path: "/range-10000", .. }) => range_read!(context.db, 10000)
+		Resource({ raw_path: "/range-100000", .. }) => range_read!(context.db, 100000)
+		Resource({ raw_path: "/blob-1k", .. }) => blob_read!(context.db, 1)
+		Resource({ raw_path: "/blob-64k", .. }) => blob_read!(context.db, 2)
+		Resource({ raw_path: "/blob-1m", .. }) => blob_read!(context.db, 3)
+		Resource({ raw_path: "/aggregate", .. }) => aggregate_read!(context.db)
+		Resource({ raw_path: "/scan", .. }) => scan_read!(context.db)
+		Resource({ raw_path: "/write", .. }) => write_counter!(context.db)
+		Resource({ raw_path: "/transaction", .. }) => transaction_counter!(context.db)
 		_ => Ok(text_outcome(404, "unknown benchmark route"))
 	}
 
 point_read! = |db| {
 	row : Record
-	row = 
+	row =
 		Sqlite.query!({
 			db,
 			query: "SELECT id, category, body FROM records WHERE id = 125000;",
@@ -88,7 +88,7 @@ point_read! = |db| {
 }
 
 range_read! = |db, limit| {
-	query = 
+	query =
 		if limit == 10 {
 			"SELECT id, category, body FROM records WHERE id >= 100000 ORDER BY id LIMIT 10;"
 		} else if limit == 1000 {
@@ -99,7 +99,7 @@ range_read! = |db, limit| {
 			"SELECT id, category, body FROM records WHERE id >= 100000 ORDER BY id LIMIT 100000;"
 		}
 	rows : List(Record)
-	rows = 
+	rows =
 		Sqlite.query_many!({
 			db,
 			query,
@@ -117,7 +117,7 @@ range_read! = |db, limit| {
 blob_read! : Sqlite.Db, I64 => Try(Server.Outcome, [ServerErr(Str), ..])
 blob_read! = |db, id| {
 	payload : Sqlite.Blob
-	payload = 
+	payload =
 		Sqlite.query!({
 			db,
 			query: "SELECT payload FROM payloads WHERE id = :id;",
@@ -132,7 +132,7 @@ blob_read! = |db, id| {
 
 aggregate_read! = |db| {
 	row : ValueRow
-	row = 
+	row =
 		Sqlite.query!({
 			db,
 			query: "SELECT count(*) AS value FROM records WHERE category = 'category-42';",
@@ -145,7 +145,7 @@ aggregate_read! = |db| {
 
 scan_read! = |db| {
 	row : ValueRow
-	row = 
+	row =
 		Sqlite.query!({
 			db,
 			query: "SELECT count(*) AS value FROM records WHERE unindexed_text = 'needle';",
@@ -158,7 +158,7 @@ scan_read! = |db| {
 
 write_counter! = |db| {
 	row : ValueRow
-	row = 
+	row =
 		Sqlite.query!({
 			db,
 			query: "UPDATE counters SET value = value + 1 WHERE id = 1 RETURNING value;",
@@ -173,7 +173,7 @@ transaction_counter! = |db| {
 	transaction = Sqlite.begin!(db, Immediate)
 		? |err| ServerErr(Str.inspect(err))
 	row : ValueRow
-	row = 
+	row =
 		transaction.query!({
 			query: "UPDATE counters SET value = value + 1 WHERE id = 1 RETURNING value;",
 			params: {},

@@ -1,6 +1,6 @@
 ## Serves public assets without entering Roc and authorizes one attachment in Roc.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -27,15 +27,20 @@ init! = || {
 		id: "downloads",
 		path: Path.utf8("downloads"),
 	})
-	report = 
+	report =
 		Server.relative_file("reports/annual report.txt")
 			.map_err(|_| Exit(1))?
-	favicon = 
+	favicon =
 		Server.relative_file("favicon.ico")
 			.map_err(|_| Exit(1))?
 
-	config = 
+	config =
 		Server.default_config
+			.with_request_metadata_limits({
+				max_target_bytes: 1024,
+				max_header_bytes: 4096,
+				max_header_fields: 8,
+			})
 			.with_file_roots([assets, downloads])
 			.with_native_routes({
 				files: [
@@ -55,33 +60,34 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context| {
 	target = request.target()
-	Stdout.line!("Roc handled ${target}")
+	Stdout.line!("Roc handled ${Str.inspect(target)}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
-	if target == "/download?token=secret" {
-		Ok(
-			Server.file_response_with({
-				files: context.downloads,
-				relative: context.report,
-				disposition: Server.attachment("annual report.txt"),
-				cache: Server.override_cache(Server.no_store),
-			}),
-		)
-	} else if target == "/download" {
-		Ok(
-			Server.respond(
-				Response.from_status(403)
-					.with_body(Str.to_utf8("Download denied")),
-			),
-		)
-	} else {
-		Ok(
-			Server.respond(
-				Response.from_status(404)
-					.with_body(Str.to_utf8("Roc fallback")),
-			),
-		)
-	}
+	match target {
+		Resource({ raw_path: "/download", raw_query: Present("token=secret") }) =>
+			Ok(
+				Server.file_response_with({
+					files: context.downloads,
+					relative: context.report,
+					disposition: Server.attachment("annual report.txt"),
+					cache: Server.override_cache(Server.no_store),
+				}),
+			)
+		Resource({ raw_path: "/download", .. }) =>
+			Ok(
+				Server.respond(
+					Response.from_status(403)
+						.with_body(Str.to_utf8("Download denied")),
+				),
+			)
+		_ =>
+			Ok(
+				Server.respond(
+					Response.from_status(404)
+						.with_body(Str.to_utf8("Roc fallback")),
+				),
+			)
+		}
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

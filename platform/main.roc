@@ -32,7 +32,7 @@ platform "webserver"
 		Stdout,
 		Tcp,
 		Url,
-		Utc,
+		UnixTime,
 	]
 	packages {
 		# HTTP data types (Method, Request, Response) come from the shared
@@ -83,7 +83,7 @@ platform "webserver"
 		"hosted_stderr_line": Host.stderr_line!,
 		"hosted_stderr_write": Host.stderr_write!,
 		"hosted_stderr_write_bytes": Host.stderr_write_bytes!,
-		"hosted_utc_now": Host.utc_now!,
+		"hosted_unix_time_now": Host.unix_time_now!,
 		"hosted_sqlite_open": Host.sqlite_open!,
 		"hosted_sqlite_prepare": Host.sqlite_prepare!,
 		"hosted_sqlite_start": Host.sqlite_start!,
@@ -105,6 +105,7 @@ platform "webserver"
 		"hosted_request_body_read_all": Host.request_body_read_all!,
 		"hosted_readiness_create": Host.readiness_create!,
 		"hosted_readiness_set": Host.readiness_set!,
+		"hosted_request_body_write_file": Host.request_body_write_file!,
 	}
 	targets: {
 		inputs_dir: "targets/",
@@ -133,7 +134,7 @@ import Stdout
 import Stderr
 import Tcp
 import Url
-import Utc
+import UnixTime
 import InternalHttp
 import InternalServer
 import MultipartFormData

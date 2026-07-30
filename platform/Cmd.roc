@@ -289,13 +289,13 @@ expect {
 	host_cmd = to_host_cmd(cmd)
 	host_working_dir = to_host_working_dir(cmd)
 
-	actual = 
+	actual =
 		\\program: ${Str.inspect(host_cmd.program)}
 		\\args: ${Str.inspect(host_cmd.args)}
 		\\envs: ${Str.inspect(host_cmd.envs)}
 		\\working_dir: ${Str.inspect(host_working_dir)}
 
-	expected = 
+	expected =
 		\\program: UnixBytes([112, 255])
 		\\args: [WindowsU16s([97, 55296])]
 		\\envs: [{ name: UnixBytes([75, 255]), value: WindowsU16s([86, 55296]) }]

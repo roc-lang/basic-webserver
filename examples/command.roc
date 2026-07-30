@@ -1,16 +1,18 @@
 ## Demonstrates command execution, captured output, environment variables, timeouts, and output limits.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Server
 import pf.Cmd
 import pf.Env
 import pf.Path
-import pf.Utc
+import pf.UnixTime
 import pf.Stdout
 import http.Response
+import gregorian.Time
 
 Context : { helper : Str, python : Str, examples_dir : Path.Path, scripts_dir : Path.Path }
 
@@ -27,7 +29,7 @@ init! = || {
 	Cmd.exec_str!(python, [helper, "echo", "Hello"])?
 
 	# To execute and capture the output (stdout and stderr) without inheriting your terminal.
-	cmd_output = 
+	cmd_output =
 		Cmd.new_str(python)
 			.args_str([helper, "echo", "Hi"])
 			.exec_output!()?
@@ -44,7 +46,7 @@ init! = || {
 
 	# `exec_exit_code!` returns nonzero exit codes as values. Most callers should
 	# use `exec!` or `exec_cmd!`, which turn nonzero codes into typed errors.
-	exit_code = 
+	exit_code =
 		Cmd.new_str(python)
 			.args_str([helper, "fail"])
 			.exec_exit_code!()?
@@ -53,7 +55,7 @@ init! = || {
 
 	# Capture exact stdout and stderr bytes when output may not be valid UTF-8.
 	# Prefer `exec_output!` when textual output is expected.
-	cmd_output_bytes = 
+	cmd_output_bytes =
 		Cmd.new_str(python)
 			.args_str([helper, "echo", "Hi"])
 			.exec_output_bytes!()?
@@ -66,11 +68,11 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, { python, helper, examples_dir, scripts_dir }|
 	match req.target() {
-		"/cwd-examples" =>
+		Resource({ raw_path: "/cwd-examples", .. }) =>
 			command_cwd_response(python, helper, examples_dir)
-		"/cwd-scripts" =>
+		Resource({ raw_path: "/cwd-scripts", .. }) =>
 			command_cwd_response(python, helper, scripts_dir)
-		"/timeout" => {
+		Resource({ raw_path: "/timeout", .. }) => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "sleep", "5"])
 				.with_timeout_millis(20)
@@ -80,7 +82,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 				other => Err(ServerErr("Expected CommandTimedOut, got ${Str.inspect(other)}"))
 			}
 		}
-		"/output-limit" => {
+		Resource({ raw_path: "/output-limit", .. }) => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "bytes", "64"])
 				.with_stdout_limit(8)
@@ -91,10 +93,10 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 			}
 		}
 		_ => {
-			time = Utc.to_iso_8601(Utc.now!())
+			time = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
 
 			# Log request time, method and URL through the helper process.
-			match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${req.target()}"]) {
+			match Cmd.exec_str!(python, [helper, "echo", "${time} ${Str.inspect(req.method())} ${Str.inspect(req.target())}"]) {
 				Ok(_) => Ok(text_response("Command succeeded."))
 				Err(err) => Err(ServerErr("Command failed: ${Str.inspect(err)}"))
 			}

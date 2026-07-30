@@ -46,6 +46,34 @@ Server :: [].{
 	default_buffered_body_chunks : U16
 	default_buffered_body_chunks = 1
 
+	## Default maximum normalized request-target size: 8 KiB.
+	default_request_target_limit_bytes : U32
+	default_request_target_limit_bytes = 8 * 1024
+
+	## Default maximum decoded request-header list size: 32 KiB.
+	##
+	## Each ordinary field costs its decoded name bytes, value bytes, and the
+	## 32-byte per-field overhead defined for HTTP/2 header-list accounting.
+	## HTTP/1 uses the same accounting so both protocols expose one contract.
+	default_request_header_limit_bytes : U32
+	default_request_header_limit_bytes = 32 * 1024
+
+	## Default maximum number of ordinary request-header fields.
+	##
+	## Repeated fields each count once. HTTP/2 pseudo-fields are represented by
+	## the request method and target and do not consume this field-count budget.
+	default_request_header_limit_fields : U16
+	default_request_header_limit_fields = 100
+
+	## Default maximum number of request bodies concurrently streaming into
+	## host-managed files.
+	default_max_body_sinks : U16
+	default_max_body_sinks = 16
+
+	## Default deadline for one host-managed request-body sink: 30 seconds.
+	default_body_sink_timeout_ms : U64
+	default_body_sink_timeout_ms = 30_000
+
 	## Default maximum number of concurrently active connections.
 	default_max_connections : U32
 	default_max_connections = 256
@@ -57,6 +85,28 @@ Server :: [].{
 	## Default finite queue capacity for handlers waiting to execute.
 	default_max_queued_handlers : U16
 	default_max_queued_handlers = 64
+
+	## Default maximum idle time for completing each request head: 10 seconds.
+	default_header_timeout_ms : U64
+	default_header_timeout_ms = 10_000
+
+	## Default maximum idle time between non-empty request-body chunks: 30 seconds.
+	default_body_idle_timeout_ms : U64
+	default_body_idle_timeout_ms = 30_000
+
+	## Default maximum idle time between requests on a persistent connection:
+	## 60 seconds.
+	default_keep_alive_idle_timeout_ms : U64
+	default_keep_alive_idle_timeout_ms = 60_000
+
+	## Default maximum time an admitted request may wait for a Roc handler:
+	## 5 seconds.
+	default_handler_queue_timeout_ms : U64
+	default_handler_queue_timeout_ms = 5_000
+
+	## Default maximum time without outbound transport progress: 30 seconds.
+	default_response_idle_timeout_ms : U64
+	default_response_idle_timeout_ms = 30_000
 
 	## Default maximum number of host-managed file responses that may be active
 	## concurrently. File transfers do not consume Roc handler capacity.
@@ -141,7 +191,7 @@ Server :: [].{
 			cache_max_age_seconds : U32,
 		}
 		to_host = |FileRoot(root)| {
-			(path_tag, path_utf8, path_unix_bytes, path_windows_u16s) = 
+			(path_tag, path_utf8, path_unix_bytes, path_windows_u16s) =
 				match Path.to_raw(root.path) {
 					Utf8(str) => (0, str, [], [])
 					UnixBytes(bytes) => (1, "", bytes, [])
@@ -170,6 +220,67 @@ Server :: [].{
 	file_root_with_cache : { id : Str, path : Path.Path, cache : CachePolicy } -> FileRoot
 	file_root_with_cache = |root| FileRoot(root)
 
+	## A startup-declared writable filesystem authority. This is deliberately a
+	## different type from FileRoot: permission to serve files never grants
+	## permission to create them.
+	WritableRoot := [
+		WritableRoot({ id : Str, path : Path.Path }),
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : WritableRoot -> {
+			id : Str,
+			path_tag : U8,
+			path_utf8 : Str,
+			path_unix_bytes : List(U8),
+			path_windows_u16s : List(U16),
+		}
+		to_host = |WritableRoot(root)| {
+			raw = path_to_host(root.path)
+			{
+				id: root.id,
+				path_tag: raw.path_tag,
+				path_utf8: raw.path_utf8,
+				path_unix_bytes: raw.path_unix_bytes,
+				path_windows_u16s: raw.path_windows_u16s,
+			}
+		}
+
+		path_to_host : Path.Path -> {
+			path_tag : U8,
+			path_utf8 : Str,
+			path_unix_bytes : List(U8),
+			path_windows_u16s : List(U16),
+		}
+		path_to_host = |path|
+			match Path.to_raw(path) {
+				Utf8(str) => {
+					path_tag: 0,
+					path_utf8: str,
+					path_unix_bytes: [],
+					path_windows_u16s: [],
+				}
+				UnixBytes(bytes) => {
+					path_tag: 1,
+					path_utf8: "",
+					path_unix_bytes: bytes,
+					path_windows_u16s: [],
+				}
+				WindowsU16s(u16s) => {
+					path_tag: 2,
+					path_utf8: "",
+					path_unix_bytes: [],
+					path_windows_u16s: u16s,
+				}
+			}
+	}
+
+	## Declare one writable root. Identifiers use the same 1-64 character
+	## syntax as read-only file roots, but live in an independent authority
+	## registry.
+	writable_root : { id : Str, path : Path.Path } -> WritableRoot
+	writable_root = |root| WritableRoot(root)
+
 	## A validated relative child path used by exact routes and authorized file
 	## plans. The host repeats this validation at the ABI boundary.
 	RelativeFile := [RelativeFile(Str)].{
@@ -186,7 +297,7 @@ Server :: [].{
 	relative_file = |relative| {
 		relative_bytes = Str.to_utf8(relative)
 		segments = Str.split_on(relative, "/")
-		valid = 
+		valid =
 			Bool.not(relative.is_empty())
 				and relative_bytes.len() <= 4 * 1024
 					and segments.all(
@@ -382,6 +493,87 @@ Server :: [].{
 	no_native_routes : NativeRoutes
 	no_native_routes = { files: [], liveness: [], readiness: [] }
 
+	## Privacy policy for the request target in structured access logs.
+	##
+	## Query strings are never logged. `PathWithoutQuery` records only the
+	## parsed URI path, truncated by the host to a finite byte limit.
+	LogTarget := [NoTarget, PathWithoutQuery].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : LogTarget -> U8
+		to_host = |policy|
+			match policy {
+				NoTarget => 0
+				PathWithoutQuery => 1
+			}
+	}
+
+	## Do not include a request target in access logs.
+	no_log_target : LogTarget
+	no_log_target = NoTarget
+
+	## Include the bounded parsed path, never its query string, in access logs.
+	path_without_query : LogTarget
+	path_without_query = PathWithoutQuery
+
+	## Host-owned access logging configuration.
+	##
+	## JSON Lines are written to standard error by a dedicated host thread.
+	## Request transport never waits for that thread: terminal events enter a
+	## finite queue, and overflow is counted by the metrics exporter. Shutdown
+	## gives the queue one second to drain; a blocked standard-error sink is
+	## detached so it cannot defeat the server's finite shutdown deadlines.
+	AccessLog := [
+		AccessLogOff,
+		JsonLines({ target : LogTarget, max_buffered_events : U16 }),
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : AccessLog -> { enabled : Bool, target : U8, buffer_events : U16 }
+		to_host = |access_log|
+			match access_log {
+				AccessLogOff => { enabled: Bool.False, target: 0, buffer_events: 0 }
+				JsonLines({ target, max_buffered_events }) => {
+					enabled: Bool.True,
+					target: LogTarget.to_host(target),
+					buffer_events: max_buffered_events,
+				}
+			}
+	}
+
+	## Disable access logging. This is the default.
+	no_access_log : AccessLog
+	no_access_log = AccessLogOff
+
+	## Write bounded structured request-completion events as JSON Lines to
+	## standard error. The buffer capacity must be non-zero.
+	json_lines_access_log : { target : LogTarget, max_buffered_events : U16 } -> AccessLog
+	json_lines_access_log = |config| JsonLines(config)
+
+	## Host-owned fixed-cardinality metrics export configuration.
+	Metrics := [MetricsOff, OpenMetrics({ at : Str })].{
+
+		## Platform ABI conversion hook; not an application API.
+		to_host : Metrics -> { enabled : Bool, path : Str }
+		to_host = |metrics|
+			match metrics {
+				MetricsOff => { enabled: Bool.False, path: "" }
+				OpenMetrics({ at }) => { enabled: Bool.True, path: at }
+			}
+	}
+
+	## Disable the native metrics exporter. This is the default.
+	no_metrics : Metrics
+	no_metrics = MetricsOff
+
+	## Expose fixed-cardinality host metrics on one native exact path.
+	##
+	## The path must satisfy the same startup validation as native file routes
+	## and must not overlap one. GET and HEAD are supported; the response uses
+	## the OpenMetrics content type and `Cache-Control: no-store`.
+	open_metrics : { at : Str } -> Metrics
+	open_metrics = |config| OpenMetrics(config)
+
 	## Opaque runtime configuration returned from the application's `init!`
 	## function. Use the builders below so future server settings can be added
 	## without invalidating application record construction.
@@ -408,15 +600,46 @@ Server :: [].{
 					chunk_bytes : U32,
 					buffered_chunks : U16,
 				},
+				timeouts : {
+					header_ms : U64,
+					body_idle_ms : U64,
+					keep_alive_idle_ms : U64,
+					handler_queue_ms : U64,
+					response_idle_ms : U64,
+				},
+				request_metadata : {
+
+					## Inclusive byte limit for the normalized request target,
+					## including its query string.
+					max_target_bytes : U32,
+
+					## Inclusive decoded header-list limit. Each ordinary field
+					## costs name bytes + value bytes + 32, independently of HTTP/1
+					## wire framing or HTTP/2 HPACK compression.
+					max_header_bytes : U32,
+
+					## Inclusive ordinary-field count. Repeated fields count
+					## separately and retain their received order after admission.
+					max_header_fields : U16,
+				},
 				graceful_shutdown : {
 					drain_timeout_ms : U64,
 					hook_timeout_ms : U64,
 				},
 				file_roots : List(FileRoot),
+				writable_roots : List(WritableRoot),
 				native_routes : NativeRoutes,
 				file_transfers : {
 					max_concurrent : U16,
 					chunk_bytes : U32,
+				},
+				body_sinks : {
+					max_concurrent : U16,
+					timeout_ms : U64,
+				},
+				operations : {
+					access_log : AccessLog,
+					metrics : Metrics,
 				},
 			},
 		),
@@ -431,6 +654,14 @@ Server :: [].{
 			body_max_bytes : U64,
 			body_chunk_bytes : U32,
 			body_buffered_chunks : U16,
+			header_timeout_ms : U64,
+			body_idle_timeout_ms : U64,
+			keep_alive_idle_timeout_ms : U64,
+			handler_queue_timeout_ms : U64,
+			response_idle_timeout_ms : U64,
+			request_target_max_bytes : U32,
+			request_header_max_bytes : U32,
+			request_header_max_fields : U16,
 			drain_timeout_ms : U64,
 			hook_timeout_ms : U64,
 			max_connections : U32,
@@ -445,6 +676,15 @@ Server :: [].{
 					path_windows_u16s : List(U16),
 					cache_tag : U8,
 					cache_max_age_seconds : U32,
+				},
+			),
+			writable_roots : List(
+				{
+					id : Str,
+					path_tag : U8,
+					path_utf8 : Str,
+					path_unix_bytes : List(U8),
+					path_windows_u16s : List(U16),
 				},
 			),
 			native_file_routes : List(
@@ -462,32 +702,71 @@ Server :: [].{
 			readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 			file_max_concurrent : U16,
 			file_chunk_bytes : U32,
+			body_sink_max_concurrent : U16,
+			body_sink_timeout_ms : U64,
+			access_log_enabled : Bool,
+			access_log_target : U8,
+			access_log_buffer_events : U16,
+			metrics_enabled : Bool,
+			metrics_path : Str,
 		}
 		to_host = |Config(config)| {
-			host: config.listen.host,
-			port: config.listen.port,
-			body_max_bytes: config.request_bodies.max_bytes,
-			body_chunk_bytes: config.request_bodies.chunk_bytes,
-			body_buffered_chunks: config.request_bodies.buffered_chunks,
-			drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
-			hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
-			max_connections: config.limits.max_connections,
-			max_handlers: config.limits.max_handlers,
-			max_queued_handlers: config.limits.max_queued_handlers,
-			file_roots: config.file_roots.map(FileRoot.to_host),
-			native_file_routes: config.native_routes.files.map(FileRoute.to_host),
-			liveness_routes: config.native_routes.liveness.map(LivenessRoute.to_host),
-			readiness_routes: config.native_routes.readiness.map(ReadinessRoute.to_host),
-			file_max_concurrent: config.file_transfers.max_concurrent,
-			file_chunk_bytes: config.file_transfers.chunk_bytes,
+			access_log = AccessLog.to_host(config.operations.access_log)
+			metrics = Metrics.to_host(config.operations.metrics)
+			{
+				host: config.listen.host,
+				port: config.listen.port,
+				body_max_bytes: config.request_bodies.max_bytes,
+				body_chunk_bytes: config.request_bodies.chunk_bytes,
+				body_buffered_chunks: config.request_bodies.buffered_chunks,
+				header_timeout_ms: config.timeouts.header_ms,
+				body_idle_timeout_ms: config.timeouts.body_idle_ms,
+				keep_alive_idle_timeout_ms: config.timeouts.keep_alive_idle_ms,
+				handler_queue_timeout_ms: config.timeouts.handler_queue_ms,
+				response_idle_timeout_ms: config.timeouts.response_idle_ms,
+				request_target_max_bytes: config.request_metadata.max_target_bytes,
+				request_header_max_bytes: config.request_metadata.max_header_bytes,
+				request_header_max_fields: config.request_metadata.max_header_fields,
+				drain_timeout_ms: config.graceful_shutdown.drain_timeout_ms,
+				hook_timeout_ms: config.graceful_shutdown.hook_timeout_ms,
+				max_connections: config.limits.max_connections,
+				max_handlers: config.limits.max_handlers,
+				max_queued_handlers: config.limits.max_queued_handlers,
+				file_roots: config.file_roots.map(FileRoot.to_host),
+				writable_roots: config.writable_roots.map(WritableRoot.to_host),
+				native_file_routes: config.native_routes.files.map(FileRoute.to_host),
+				liveness_routes: config.native_routes.liveness.map(LivenessRoute.to_host),
+				readiness_routes: config.native_routes.readiness.map(ReadinessRoute.to_host),
+				file_max_concurrent: config.file_transfers.max_concurrent,
+				file_chunk_bytes: config.file_transfers.chunk_bytes,
+				body_sink_max_concurrent: config.body_sinks.max_concurrent,
+				body_sink_timeout_ms: config.body_sinks.timeout_ms,
+				access_log_enabled: access_log.enabled,
+				access_log_target: access_log.target,
+				access_log_buffer_events: access_log.buffer_events,
+				metrics_enabled: metrics.enabled,
+				metrics_path: metrics.path,
+			}
 		}
 	}
 
-	## Safe defaults: loopback-only; finite connection, handler, and handler
-	## queue limits; a 1 MiB request limit; one buffered 64 KiB chunk; and
-	## bounded graceful shutdown. Exceeding the drain deadline forces process
-	## exit without running the shutdown hook, because a request handler may
-	## still be using the application context.
+	## Safe defaults: loopback-only; finite connection, handler, handler queue,
+	## request-target, request-header, and request-body limits; one buffered
+	## 64 KiB body chunk; and bounded graceful shutdown.
+	##
+	## Request metadata limits are exact and checked before native route
+	## selection or Roc. Target overflow returns 414 and header byte/count
+	## overflow returns 431 whenever the protocol parser can safely construct a
+	## response. HTTP/1 closes after a parser-level overflow. An initial HTTP/2
+	## request beyond the advertised hard decoding envelope receives a
+	## header-only 431; an overflow that cannot safely receive a response resets
+	## only the affected stream. Zero values, target limits above 65,534 bytes,
+	## header limits above 1 MiB, and field limits above 1,024 fail startup
+	## before the listener is bound.
+	##
+	## Exceeding the drain deadline forces process exit without running the
+	## shutdown hook, because a request handler may still be using the
+	## application context.
 	default_config : Config
 	default_config = Config({
 		listen: { host: "127.0.0.1", port: 8000 },
@@ -501,15 +780,36 @@ Server :: [].{
 			chunk_bytes: default_body_chunk_bytes,
 			buffered_chunks: default_buffered_body_chunks,
 		},
+		timeouts: {
+			header_ms: default_header_timeout_ms,
+			body_idle_ms: default_body_idle_timeout_ms,
+			keep_alive_idle_ms: default_keep_alive_idle_timeout_ms,
+			handler_queue_ms: default_handler_queue_timeout_ms,
+			response_idle_ms: default_response_idle_timeout_ms,
+		},
+		request_metadata: {
+			max_target_bytes: default_request_target_limit_bytes,
+			max_header_bytes: default_request_header_limit_bytes,
+			max_header_fields: default_request_header_limit_fields,
+		},
 		graceful_shutdown: {
 			drain_timeout_ms: 30_000,
 			hook_timeout_ms: 10_000,
 		},
 		file_roots: [],
+		writable_roots: [],
 		native_routes: no_native_routes,
 		file_transfers: {
 			max_concurrent: default_max_file_transfers,
 			chunk_bytes: default_file_chunk_bytes,
+		},
+		body_sinks: {
+			max_concurrent: default_max_body_sinks,
+			timeout_ms: default_body_sink_timeout_ms,
+		},
+		operations: {
+			access_log: AccessLogOff,
+			metrics: MetricsOff,
 		},
 	})
 
@@ -531,6 +831,27 @@ Server :: [].{
 	with_request_body_limit = |Config(config), max_bytes|
 		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
 
+	## Set the complete inbound and outbound transport timeout policy. Every
+	## value is milliseconds in the inclusive range 1 through 86_400_000; zero
+	## is invalid and startup fails before listening.
+	##
+	## `header_ms` is an idle deadline while completing a request head and
+	## resets whenever head bytes arrive. `body_idle_ms` begins when the host
+	## waits for the next body frame and resets only after non-empty body data
+	## arrives. `keep_alive_idle_ms` begins after a response has completed and
+	## bounds the gap before the next request. `handler_queue_ms` begins after a
+	## request takes a queue slot and ends before Roc execution begins.
+	## `response_idle_ms` begins when response transmission starts and resets
+	## whenever the socket or HTTP/2 stream flow-control window makes progress.
+	with_timeouts : Config, { header_ms : U64, body_idle_ms : U64, keep_alive_idle_ms : U64, handler_queue_ms : U64, response_idle_ms : U64 } -> Config
+	with_timeouts = |Config(config), timeouts| Config({ ..config, timeouts })
+
+	## Set the exact, finite request-target and decoded request-header budgets.
+	## Invalid values fail startup atomically before the listener is bound.
+	with_request_metadata_limits : Config, { max_target_bytes : U32, max_header_bytes : U32, max_header_fields : U16 } -> Config
+	with_request_metadata_limits = |Config(config), request_metadata|
+		Config({ ..config, request_metadata })
+
 	## Set the request-drain deadline and final shutdown-hook deadline.
 	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
 	with_graceful_shutdown = |Config(config), graceful_shutdown| Config({ ..config, graceful_shutdown })
@@ -538,6 +859,11 @@ Server :: [].{
 	## Replace the complete set of startup-declared file roots.
 	with_file_roots : Config, List(FileRoot) -> Config
 	with_file_roots = |Config(config), file_roots| Config({ ..config, file_roots })
+
+	## Replace the complete set of startup-declared writable roots. Writable
+	## authority is never inferred from read-only file roots.
+	with_writable_roots : Config, List(WritableRoot) -> Config
+	with_writable_roots = |Config(config), writable_roots| Config({ ..config, writable_roots })
 
 	## Replace the complete immutable host-native route table.
 	with_native_routes : Config, NativeRoutes -> Config
@@ -548,6 +874,21 @@ Server :: [].{
 	## owns at most one queued chunk and one active read buffer.
 	with_file_transfer_limits : Config, { max_concurrent : U16, chunk_bytes : U32 } -> Config
 	with_file_transfer_limits = |Config(config), file_transfers| Config({ ..config, file_transfers })
+
+	## Set the active staging-file bound and whole-operation deadline for
+	## host-managed request-body sinks. Saturation is typed and does not queue.
+	with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
+	with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
+
+	## Configure host-owned structured request-completion logging.
+	with_access_log : Config, AccessLog -> Config
+	with_access_log = |Config(config), access_log|
+		Config({ ..config, operations: { ..config.operations, access_log } })
+
+	## Configure the host-owned fixed-cardinality metrics exporter.
+	with_metrics : Config, Metrics -> Config
+	with_metrics = |Config(config), metrics|
+		Config({ ..config, operations: { ..config.operations, metrics } })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.
@@ -565,11 +906,53 @@ Server :: [].{
 		## A typed failure while consuming an inbound request body.
 		Err : [
 			TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+			Timeout,
 			ClientDisconnected,
 			InvalidBody(Str),
 			RequestFinished,
 			ConcurrentRead,
 			Cancelled,
+			Stopping,
+		]
+
+		## Whether the host should compute a digest while writing the body.
+		Digest : [NoDigest, Sha256]
+
+		digest_to_host : Digest -> U8
+		digest_to_host = |digest|
+			match digest {
+				NoDigest => 0
+				Sha256 => 1
+			}
+
+		## Authoritative metadata for a completely published file.
+		WriteFileSuccess : {
+			bytes_written : U64,
+			digest : [NotComputed, Sha256Digest(List(U8))],
+		}
+
+		## A typed failure from a host-managed body sink. Failures before atomic
+		## publication do not expose the destination. CleanupFailed means the
+		## destination may already be published and the host could not remove its
+		## private staging link; operators should reconcile the reported path.
+		WriteFileErr : [
+			TooLarge({ limit_bytes : U64, received_at_least : U64 }),
+			Timeout,
+			ClientDisconnected,
+			InvalidBody(Str),
+			RequestFinished,
+			ConcurrentRead,
+			Cancelled,
+			Saturated,
+			Stopping,
+			DestinationExists,
+			InvalidRoot,
+			InvalidRelativeFile,
+			PermissionDenied,
+			StorageFull,
+			Filesystem(Str),
+			PublishFailed(Str),
+			CleanupFailed(Str),
 		]
 
 		## Render a body without exposing its request-scoped host identifier.
@@ -628,6 +1011,93 @@ Server :: [].{
 		read_all! : Body => Try(List(U8), [RequestBodyErr(Err)])
 		read_all! = |Body(raw)|
 			Host.request_body_read_all!(raw.host, raw.limit_bytes).map_err(|err| RequestBodyErr(body_err_from_host(err)))
+
+		## Stream all remaining body bytes into a securely created staging file,
+		## then publish it atomically at a validated child path. Parent
+		## directories must already exist. Publication is always CreateNew and
+		## never overwrites an existing destination. Atomic publication describes
+		## name visibility, not crash durability or fsync.
+		write_file! : Body,
+		{
+			root : WritableRoot,
+			relative : RelativeFile,
+			digest : Digest,
+		} => Try(WriteFileSuccess, [BodySinkErr(WriteFileErr)])
+		write_file! = |Body(raw), { root, relative, digest }| {
+			WritableRoot(root_raw) = root
+			Host.request_body_write_file!(
+				raw.host,
+				raw.limit_bytes,
+				root_raw.id,
+				RelativeFile.to_host(relative),
+				digest_to_host(digest),
+			).map_err(|err| BodySinkErr(body_sink_err_from_host(err)))
+		}
+	}
+
+	## A validated HTTP authority. `host` is an ASCII URI host: registered names
+	## and IPv4 addresses are unbracketed, while IPv6 and IPvFuture literals keep
+	## their brackets. `port` is parsed as a `U16`, so applications never need to
+	## split an IPv6 authority on `:`.
+	##
+	## Authority values remain untrusted client input. They are not a canonical
+	## public origin and do not interpret `Forwarded` or `X-Forwarded-*`.
+	Authority := [Authority({ host : Str, port : [Absent, Present(U16)] })].{
+
+		## Return the validated URI host.
+		host : Authority -> Str
+		host = |Authority(value)| value.host
+
+		## Return the explicit port, if the client supplied one.
+		port : Authority -> [Absent, Present(U16)]
+		port = |Authority(value)| value.port
+
+		## Platform ABI conversion hook; not an application API.
+		from_host : Str, Bool, U16 -> Authority
+		from_host = |host_value, port_present, port_value|
+			Authority({
+				host: host_value,
+				port: if port_present {
+					Present(port_value)
+				} else {
+					Absent
+				},
+			})
+	}
+
+	## A protocol-neutral parsed request target.
+	##
+	## Resource paths and queries remain percent-encoded. `Absent` query differs
+	## from `Present("")`, preserving the distinction between `/path` and
+	## `/path?`. Origin-form and absolute-form requests produce the same Resource
+	## shape. CONNECT authority-form and OPTIONS `*` remain distinct, so neither
+	## can accidentally enter ordinary resource routing.
+	Target := [
+		Resource(
+			{
+				raw_path : Str,
+				raw_query : [Absent, Present(Str)],
+			},
+		),
+		Authority(Authority),
+		Asterisk,
+	].{
+
+		## Platform ABI conversion hook; not an application API.
+		from_host : U8, Str, Bool, Str, Str, Bool, U16 -> Target
+		from_host = |tag, raw_path, query_present, raw_query, authority_host, authority_port_present, authority_port|
+			match tag {
+				0 => Resource({
+					raw_path,
+					raw_query: if query_present {
+						Present(raw_query)
+					} else {
+						Absent
+					},
+				})
+				1 => Authority(Authority.from_host(authority_host, authority_port_present, authority_port))
+				_ => Asterisk
+			}
 	}
 
 	## An inbound server request. Its body is always streaming; use
@@ -636,7 +1106,8 @@ Server :: [].{
 	Request := {
 		method : Method.Method,
 		headers : List(Header.Header),
-		target : Str,
+		target : Target,
+		authority : [Absent, Present(Authority)],
 		body : Body,
 	}.{
 
@@ -648,27 +1119,51 @@ Server :: [].{
 		headers : Request -> List(Header.Header)
 		headers = |request| request.headers
 
-		## Return the request target, including any query string.
-		target : Request -> Str
+		## Return the validated, protocol-neutral request target.
+		target : Request -> Target
 		target = |request| request.target
+
+		## Return the effective request authority, when present.
+		##
+		## HTTP/1.1 requires exactly one valid Host field. Absolute-form and
+		## CONNECT authority-form take precedence over that field. HTTP/2 uses
+		## `:authority`, falls back to Host when absent, and rejects disagreement
+		## when both are present. A present but empty Host field represents
+		## `Absent`, as required when the target authority is undefined.
+		authority : Request -> [Absent, Present(Authority)]
+		authority = |request| request.authority
 
 		## Return the request-scoped streaming body capability.
 		body : Request -> Body
 		body = |request| request.body
 
 		## Platform ABI conversion hook; not an application API.
-		from_host : Method.Method, List(Header.Header), Str, Body -> Request
-		from_host = |method_value, header_values, target_value, body_value|
+		from_host : Method.Method, List(Header.Header), Target, [Absent, Present(Authority)], Body -> Request
+		from_host = |method_value, header_values, target_value, authority_value, body_value|
 			Request.{
 				method: method_value,
 				headers: header_values,
 				target: target_value,
+				authority: authority_value,
 				body: body_value,
 			}
 	}
 
-	## A successful request outcome. StopAfter sends its response while beginning
-	## graceful shutdown; the first shutdown cause wins.
+	## A successful request outcome. Ordinary responses have one host-owned
+	## framing contract across HTTP/1.1 and HTTP/2. Header names and values must
+	## be valid; connection-specific fields and transfer coding are rejected.
+	## Content-Length is optional, but when present every value must agree with
+	## the complete returned body before host content coding. The host emits one
+	## canonical length for the bytes it will transmit.
+	##
+	## HEAD transmits no body but reports the returned representation's length.
+	## 204 and 304 require an empty body and no Content-Length; 205 also requires
+	## an empty body. Informational responses and successful CONNECT responses
+	## are unsupported. An invalid response is logged and replaced with a bounded
+	## 500 before any part of it is transmitted.
+	##
+	## StopAfter applies the same validation, sends the resulting response while
+	## beginning graceful shutdown, and preserves the first shutdown cause.
 	Outcome := [
 		Respond(Response.Response),
 		ServeFile(
@@ -714,7 +1209,7 @@ Server :: [].{
 				ServeFile({ files, relative, disposition, cache }) => {
 					FileRoot(root) = files
 					raw_cache = CacheChoice.to_host(cache)
-					(disposition_tag, download_name) = 
+					(disposition_tag, download_name) =
 						match disposition {
 							Inline => (0, "")
 							Attachment(name) => (1, name)
@@ -803,9 +1298,33 @@ body_err_from_host : Host.RequestBodyErr -> Server.Body.Err
 body_err_from_host = |err|
 	match err {
 		TooLarge(payload) => TooLarge(payload)
+		Timeout => Timeout
 		ClientDisconnected => ClientDisconnected
 		InvalidBody(detail) => InvalidBody(detail)
 		RequestFinished => RequestFinished
 		ConcurrentRead => ConcurrentRead
 		Cancelled => Cancelled
+		Stopping => Stopping
+	}
+
+body_sink_err_from_host : Host.BodySinkErr -> Server.Body.WriteFileErr
+body_sink_err_from_host = |err|
+	match err {
+		TooLarge(payload) => TooLarge(payload)
+		Timeout => Timeout
+		ClientDisconnected => ClientDisconnected
+		InvalidBody(detail) => InvalidBody(detail)
+		RequestFinished => RequestFinished
+		ConcurrentRead => ConcurrentRead
+		Cancelled => Cancelled
+		Saturated => Saturated
+		Stopping => Stopping
+		DestinationExists => DestinationExists
+		InvalidRoot => InvalidRoot
+		InvalidRelativeFile => InvalidRelativeFile
+		PermissionDenied => PermissionDenied
+		StorageFull => StorageFull
+		Filesystem(detail) => Filesystem(detail)
+		PublishFailed(detail) => PublishFailed(detail)
+		CleanupFailed(detail) => CleanupFailed(detail)
 	}

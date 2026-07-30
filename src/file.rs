@@ -21,6 +21,9 @@ use crate::host_resource::{
 };
 use crate::path::{path_buf_from_raw_path, IntoRawPath};
 use crate::roc_platform_abi::*;
+use crate::time::nanos_since_unix_epoch;
+#[cfg(unix)]
+use crate::time::system_time_from_unix_parts;
 
 const MAX_MATERIALIZED_FILE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_FILE_READER_BUFFER_BYTES: u64 = 1024 * 1024;
@@ -196,7 +199,7 @@ fn try_file_bool_err(error: IOErr) -> FileBoolResult {
     }
 }
 
-fn try_file_time_ok(value: u128) -> FileTimeResult {
+fn try_file_time_ok(value: i128) -> FileTimeResult {
     FileTimeResult {
         payload: FileTimeResultPayload {
             ok: ManuallyDrop::new(value),
@@ -516,31 +519,13 @@ pub extern "C" fn hosted_file_is_writable(path: HostFileIsWritableArgs) -> FileB
     }
 }
 
-fn nanos_since_epoch(time: std::time::SystemTime) -> io::Result<u128> {
-    time.duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .map_err(|error| io::Error::other(error.to_string()))
-}
-
 fn file_time(
     path: impl IntoRawPath,
     roc_host: &RocHost,
     read_time: fn(&fs::Metadata) -> io::Result<std::time::SystemTime>,
-) -> io::Result<u128> {
+) -> io::Result<i128> {
     let metadata = file_metadata(path, roc_host)?;
-    read_time(&metadata).and_then(nanos_since_epoch)
-}
-
-#[cfg(unix)]
-fn system_time_from_unix_parts(seconds: i64, nanos: i64) -> io::Result<std::time::SystemTime> {
-    if seconds < 0 || nanos < 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "file timestamp is before the Unix epoch",
-        ));
-    }
-
-    Ok(std::time::UNIX_EPOCH + std::time::Duration::new(seconds as u64, nanos as u32))
+    read_time(&metadata).and_then(nanos_since_unix_epoch)
 }
 
 fn file_created_time(metadata: &fs::Metadata) -> io::Result<std::time::SystemTime> {
@@ -637,15 +622,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nanos_since_epoch_returns_zero_for_epoch() {
-        assert_eq!(nanos_since_epoch(std::time::UNIX_EPOCH).unwrap(), 0);
+    fn nanos_since_unix_epoch_returns_zero_for_epoch() {
+        assert_eq!(nanos_since_unix_epoch(std::time::UNIX_EPOCH).unwrap(), 0);
     }
 
     #[cfg(unix)]
     #[test]
     fn unix_timestamp_parts_convert_from_epoch() {
         assert_eq!(
-            nanos_since_epoch(system_time_from_unix_parts(1, 2).unwrap()).unwrap(),
+            nanos_since_unix_epoch(system_time_from_unix_parts(1, 2).unwrap()).unwrap(),
             1_000_000_002
         );
     }

@@ -1,6 +1,6 @@
 ## Demonstrates bounded concurrent handlers with immediate and delayed responses.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -29,7 +29,11 @@ init! = ||
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, _context| {
-	target = request.target()
+	target =
+		match request.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
 	if target == "/fast" {
 		Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("Immediate response"))))
 	} else if target == "/body-fast" {

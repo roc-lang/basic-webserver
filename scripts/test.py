@@ -232,6 +232,15 @@ def validate_skip(owner: str, value: object) -> None:
         fail(f"{owner}: a skipped case requires a GitHub tracking issue URL")
 
 
+def validate_test_skip(owner: str, value: object) -> None:
+    if not isinstance(value, dict) or set(value) != {"reason", "issue"}:
+        fail(f"{owner}: test_skip must contain exactly reason and issue")
+    if not isinstance(value["reason"], str) or not value["reason"].strip():
+        fail(f"{owner}: a skipped test stage requires a non-empty reason")
+    if not isinstance(value["issue"], str) or not ISSUE_URL.fullmatch(value["issue"]):
+        fail(f"{owner}: a skipped test stage requires a GitHub tracking issue URL")
+
+
 def validate_assertions(owner: str, value: dict[str, object], prefix: str = "") -> None:
     allowed = {
         f"{prefix}exact",
@@ -270,12 +279,16 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
         fail(f"{app_path}: duplicate case name {name!r}")
     names.add(name)
     owner = f"{app_path} [{name}]"
-    if case.get("expect_startup_failure", False):
+    startup_failure = case.get("expect_startup_failure", False)
+    if not isinstance(startup_failure, bool):
+        fail(f"{owner}: expect_startup_failure must be a boolean")
+    if startup_failure:
         for incompatible in (
             "requests",
             "concurrent_requests",
             "http2_requests",
             "expect_exit",
+            "wait_for_stdout",
         ):
             if case.get(incompatible):
                 fail(f"{owner}: expect_startup_failure cannot be combined with {incompatible}")
@@ -337,6 +350,9 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
             fail(f"{owner}: raw HTTP/2 requests are not supported")
         if "status" in request:
             fail(f"{owner}: HTTP/2 test requests do not decode response headers")
+        authority = request.get("authority", "")
+        if authority is not None and not isinstance(authority, str):
+            fail(f"{owner}: HTTP/2 authority must be a string or null")
     completion_order = case.get("http2_completion_order", [])
     if not isinstance(completion_order, list) or not all(
         isinstance(name, str) for name in completion_order
@@ -386,6 +402,11 @@ def load_spec() -> tuple[dict[str, bool], list[dict[str, object]]]:
             fail(f"{path}: stages contains an unknown stage")
         if not all(isinstance(value, bool) for value in overrides.values()):
             fail(f"{path}: stage overrides must be booleans")
+        test_enabled = overrides.get("test", defaults["test"])
+        if test_enabled and "test_skip" in app:
+            fail(f"{path}: test_skip is only valid when the test stage is disabled")
+        if not test_enabled:
+            validate_test_skip(path, app.get("test_skip"))
         if app.get("build_opt", "speed") not in BUILD_OPTIMIZATIONS:
             fail(
                 f"{path}: build_opt must be one of "
@@ -935,9 +956,25 @@ def request_body(request: dict[str, object]) -> tuple[bytes, list[tuple[str, str
         headers.extend((str(name), str(value)) for name, value in raw_headers.items())
     elif isinstance(raw_headers, list):
         for header in raw_headers:
-            if not isinstance(header, dict) or set(header) != {"name", "value"}:
-                fail("request headers must contain name/value objects")
-            headers.append((str(header["name"]), str(header["value"])))
+            if not isinstance(header, dict) or "name" not in header:
+                fail("request headers must contain a name")
+            if set(header) == {"name", "value"}:
+                value = str(header["value"])
+            elif set(header) == {"name", "value_repeat", "value_chars"}:
+                pattern = str(header["value_repeat"])
+                raw_length = header["value_chars"]
+                if not isinstance(raw_length, int):
+                    fail("repeated request-header value_chars must be an integer")
+                length = raw_length
+                if not pattern or length < 0 or length > HTTP2_MAX_TEST_BODY_BYTES:
+                    fail("repeated request-header values need 0..1 MiB characters")
+                value = (pattern * (length // len(pattern) + 1))[:length]
+            else:
+                fail(
+                    "request headers need name/value or "
+                    "name/value_repeat/value_chars"
+                )
+            headers.append((str(header["name"]), value))
     else:
         fail("request headers must be an object or array")
 
@@ -1019,8 +1056,8 @@ def hpack_request_headers(
 ) -> bytes:
     method = str(request.get("method", "GET")).upper()
     target = str(request.get("target", "/"))
-    if not target.startswith("/"):
-        fail(f"HTTP/2 test request target must start with '/': {target!r}")
+    if not target.startswith("/") and not (method == "OPTIONS" and target == "*"):
+        fail(f"HTTP/2 test request target must be a resource path or OPTIONS '*': {target!r}")
 
     block = bytearray()
     if method == "GET":
@@ -1036,19 +1073,35 @@ def hpack_request_headers(
     else:
         block.extend(hpack_integer(4, 4))
         block.extend(hpack_string(target))
-    block.extend(hpack_integer(1, 4))  # Literal :authority, without indexing.
-    block.extend(hpack_string(f"127.0.0.1:{port}"))
+    authority = request.get("authority", f"127.0.0.1:{port}")
+    if authority is not None:
+        block.extend(hpack_integer(1, 4))  # Literal :authority, without indexing.
+        block.extend(hpack_string(str(authority)))
 
     names = {name.lower() for name, _ in headers}
     if body and "content-length" not in names:
         headers.append(("content-length", str(len(body))))
+    dynamic_indices: dict[tuple[str, str], int] = {}
     for raw_name, value in headers:
         name = raw_name.lower()
         if name in {"connection", "keep-alive", "proxy-connection", "upgrade"}:
             fail(f"connection-specific header {raw_name!r} is invalid in HTTP/2")
-        block.append(0)  # Literal header with a new name, without indexing.
+        pair = (name, value)
+        dynamic_index = dynamic_indices.get(pair)
+        if dynamic_index is not None:
+            block.extend(hpack_integer(dynamic_index, 7, 0x80))
+            continue
+
+        # Literal with incremental indexing. Repeated identical fields can then
+        # use one-byte dynamic-table references, exercising decoded limits
+        # independently of compressed HPACK size.
+        block.append(0x40)
         block.extend(hpack_string(name))
         block.extend(hpack_string(value))
+        dynamic_indices = {
+            existing: index + 1 for existing, index in dynamic_indices.items()
+        }
+        dynamic_indices[pair] = 62  # Static table has 61 entries.
     return bytes(block)
 
 
@@ -1349,6 +1402,7 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
     if not isinstance(fragments, list):
         fail(f"{owner}: raw fragments must be an array")
     received = bytearray()
+    closed = False
     with socket.create_connection(("127.0.0.1", port), timeout=float(request.get("timeout", 5))) as sock:
         sock.settimeout(float(request.get("timeout", 5)))
         for fragment in fragments:
@@ -1369,8 +1423,11 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
             except TimeoutError:
                 break
             if not chunk:
+                closed = True
                 break
             received.extend(chunk)
+    if request.get("expect_close", False) and not closed:
+        fail(f"{owner}: raw connection did not close before its socket timeout")
     if "response_exact_hex" in request:
         expected = bytes.fromhex(str(request["response_exact_hex"]))
         if received != expected:
@@ -1468,48 +1525,59 @@ def run_server_case(
 
             interaction_error: BaseException | None = None
             try:
-                match = stdout.wait_for(LISTENING, process, timeout)
-                port = int(match.group(1))
-                exchanges = case.get("requests", [])
-                if not isinstance(exchanges, list):
-                    fail(f"{owner}: requests must be an array")
-                for index, exchange in enumerate(exchanges, 1):
-                    if not isinstance(exchange, dict):
-                        fail(f"{owner}: request {index} must be an object")
-                    exchange_owner = f"{owner} request {index}"
-                    if exchange.get("raw", False):
-                        run_raw_exchange(port, exchange, exchange_owner)
-                    else:
-                        run_http_exchange(port, exchange, exchange_owner)
-                concurrent = case.get("concurrent_requests", [])
-                if not isinstance(concurrent, list):
-                    fail(f"{owner}: concurrent_requests must be an array")
-                run_concurrent_http_exchanges(port, concurrent, owner, timeout)
-                http2_requests = case.get("http2_requests", [])
-                http2_completion_order = case.get("http2_completion_order", [])
-                if not isinstance(http2_requests, list):
-                    fail(f"{owner}: http2_requests must be an array")
-                if not isinstance(http2_completion_order, list):
-                    fail(f"{owner}: http2_completion_order must be an array")
-                if http2_requests:
-                    run_http2_exchanges(
-                        port,
-                        http2_requests,
-                        http2_completion_order,
-                        owner,
-                        timeout,
-                    )
-                if case.get("expect_exit", False):
+                if case.get("expect_startup_failure", False):
                     try:
                         process.wait(timeout=timeout)
                     except subprocess.TimeoutExpired:
-                        fail(f"{owner}: server did not exit after {timeout}s")
-                    expected_exit = int(case.get("exit_code", 0))
+                        fail(f"{owner}: server did not fail startup after {timeout}s")
+                    expected_exit = int(case.get("exit_code", 1))
                     if process.returncode != expected_exit:
                         fail(f"{owner}: expected exit {expected_exit}, got {process.returncode}")
-                wait_for = case.get("wait_for_stdout")
-                if isinstance(wait_for, str):
-                    stdout.wait_for(re.compile(re.escape(wait_for)), process, timeout)
+                    if LISTENING.search(stdout.text()) is not None:
+                        fail(f"{owner}: invalid configuration reached listener readiness")
+                else:
+                    match = stdout.wait_for(LISTENING, process, timeout)
+                    port = int(match.group(1))
+                    exchanges = case.get("requests", [])
+                    if not isinstance(exchanges, list):
+                        fail(f"{owner}: requests must be an array")
+                    for index, exchange in enumerate(exchanges, 1):
+                        if not isinstance(exchange, dict):
+                            fail(f"{owner}: request {index} must be an object")
+                        exchange_owner = f"{owner} request {index}"
+                        if exchange.get("raw", False):
+                            run_raw_exchange(port, exchange, exchange_owner)
+                        else:
+                            run_http_exchange(port, exchange, exchange_owner)
+                    concurrent = case.get("concurrent_requests", [])
+                    if not isinstance(concurrent, list):
+                        fail(f"{owner}: concurrent_requests must be an array")
+                    run_concurrent_http_exchanges(port, concurrent, owner, timeout)
+                    http2_requests = case.get("http2_requests", [])
+                    http2_completion_order = case.get("http2_completion_order", [])
+                    if not isinstance(http2_requests, list):
+                        fail(f"{owner}: http2_requests must be an array")
+                    if not isinstance(http2_completion_order, list):
+                        fail(f"{owner}: http2_completion_order must be an array")
+                    if http2_requests:
+                        run_http2_exchanges(
+                            port,
+                            http2_requests,
+                            http2_completion_order,
+                            owner,
+                            timeout,
+                        )
+                    if case.get("expect_exit", False):
+                        try:
+                            process.wait(timeout=timeout)
+                        except subprocess.TimeoutExpired:
+                            fail(f"{owner}: server did not exit after {timeout}s")
+                        expected_exit = int(case.get("exit_code", 0))
+                        if process.returncode != expected_exit:
+                            fail(f"{owner}: expected exit {expected_exit}, got {process.returncode}")
+                    wait_for = case.get("wait_for_stdout")
+                    if isinstance(wait_for, str):
+                        stdout.wait_for(re.compile(re.escape(wait_for)), process, timeout)
             except BaseException as error:
                 interaction_error = error
             finally:

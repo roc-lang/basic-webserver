@@ -13,7 +13,17 @@ InternalServer :: [].{
 		method : U8,
 		method_ext : Str,
 		headers : List(HostHeader),
-		target : Str,
+		target_tag : U8,
+		target_path : Str,
+		target_query_present : Bool,
+		target_query : Str,
+		target_authority_host : Str,
+		target_authority_port_present : Bool,
+		target_authority_port : U16,
+		authority_present : Bool,
+		authority_host : Str,
+		authority_port_present : Bool,
+		authority_port : U16,
 		body_handle : Host.RequestBody,
 		body_limit_bytes : U64,
 		content_length_known : Bool,
@@ -42,6 +52,14 @@ InternalServer :: [].{
 		body_max_bytes : U64,
 		body_chunk_bytes : U32,
 		body_buffered_chunks : U16,
+		header_timeout_ms : U64,
+		body_idle_timeout_ms : U64,
+		keep_alive_idle_timeout_ms : U64,
+		handler_queue_timeout_ms : U64,
+		response_idle_timeout_ms : U64,
+		request_target_max_bytes : U32,
+		request_header_max_bytes : U32,
+		request_header_max_fields : U16,
 		drain_timeout_ms : U64,
 		hook_timeout_ms : U64,
 		max_connections : U32,
@@ -56,6 +74,15 @@ InternalServer :: [].{
 				path_windows_u16s : List(U16),
 				cache_tag : U8,
 				cache_max_age_seconds : U32,
+			},
+		),
+		writable_roots : List(
+			{
+				id : Str,
+				path_tag : U8,
+				path_utf8 : Str,
+				path_unix_bytes : List(U8),
+				path_windows_u16s : List(U16),
 			},
 		),
 		native_file_routes : List(
@@ -73,6 +100,13 @@ InternalServer :: [].{
 		readiness_routes : List({ at : Str, readiness : Host.Readiness }),
 		file_max_concurrent : U16,
 		file_chunk_bytes : U32,
+		body_sink_max_concurrent : U16,
+		body_sink_timeout_ms : U64,
+		access_log_enabled : Bool,
+		access_log_target : U8,
+		access_log_buffer_events : U16,
+		metrics_enabled : Bool,
+		metrics_path : Str,
 	}
 
 	ShutdownReasonFromHost : {
@@ -81,11 +115,45 @@ InternalServer :: [].{
 	}
 
 	from_host_request : RequestFromHost -> Server.Request
-	from_host_request = |{ method, method_ext, headers, target, body_handle, body_limit_bytes, content_length_known, content_length }|
+	from_host_request = |
+		{
+			method,
+			method_ext,
+			headers,
+			target_tag,
+			target_path,
+			target_query_present,
+			target_query,
+			target_authority_host,
+			target_authority_port_present,
+			target_authority_port,
+			authority_present,
+			authority_host,
+			authority_port_present,
+			authority_port,
+			body_handle,
+			body_limit_bytes,
+			content_length_known,
+			content_length,
+		},
+	|
 		Server.Request.from_host(
 			from_host_method(method, method_ext),
 			headers.map(from_host_header),
-			target,
+			Server.Target.from_host(
+				target_tag,
+				target_path,
+				target_query_present,
+				target_query,
+				target_authority_host,
+				target_authority_port_present,
+				target_authority_port,
+			),
+			if authority_present {
+				Present(Server.Authority.from_host(authority_host, authority_port_present, authority_port))
+			} else {
+				Absent
+			},
 			Server.Body.from_host(
 				body_handle,
 				body_limit_bytes,

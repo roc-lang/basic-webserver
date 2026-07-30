@@ -4,10 +4,12 @@ use crate::compression::{
     apply_content_coding, encoded_etag, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, ContentCoding, ContentEncoder,
 };
+use crate::response::{empty_body, full_body, ServerResponse};
 use crate::shutdown::ActiveRequest;
+use crate::telemetry::{ActiveGaugeGuard, Metrics};
 use bytes::Bytes;
 use cap_primitives::fs::{open, open_ambient_dir, open_dir_nofollow, FollowSymlinks, OpenOptions};
-use http_body_util::{combinators::UnsyncBoxBody, BodyExt, Empty, Full};
+use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::header::{
     ACCEPT_RANGES, ALLOW, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_ENCODING, CONTENT_LENGTH,
@@ -20,30 +22,14 @@ use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit, Semaphore};
 
-pub(crate) type ServerBody = UnsyncBoxBody<Bytes, io::Error>;
-pub(crate) type ServerResponse = hyper::Response<ServerBody>;
-
 const MAX_FILE_ROOTS: usize = 64;
 const MAX_RELATIVE_PATH_BYTES: usize = 4 * 1024;
 const MAX_DOWNLOAD_NAME_CHARS: usize = 150;
-
-pub(crate) fn full_body(bytes: Bytes) -> ServerBody {
-    Full::new(bytes)
-        .map_err(|never| match never {})
-        .boxed_unsync()
-}
-
-pub(crate) fn empty_body() -> ServerBody {
-    Empty::<Bytes>::new()
-        .map_err(|never| match never {})
-        .boxed_unsync()
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CachePolicy {
@@ -96,6 +82,13 @@ pub(crate) struct FilePlan {
     cache: Option<CachePolicy>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FileServeFailure {
+    Overloaded,
+    InvalidPlan,
+    StartFailed,
+}
+
 impl FilePlan {
     pub(crate) fn authorized(
         root_id: String,
@@ -124,7 +117,7 @@ pub(crate) struct FileService {
     roots: Arc<BTreeMap<String, Arc<FileRoot>>>,
     transfers: Arc<Semaphore>,
     chunk_bytes: usize,
-    diagnostics: Arc<TransferDiagnostics>,
+    metrics: Arc<Metrics>,
 }
 
 impl FileService {
@@ -132,6 +125,7 @@ impl FileService {
         root_specs: Vec<FileRootSpec>,
         max_concurrent: usize,
         chunk_bytes: usize,
+        metrics: Arc<Metrics>,
     ) -> Result<Self, String> {
         if root_specs.len() > MAX_FILE_ROOTS {
             return Err(format!(
@@ -177,7 +171,7 @@ impl FileService {
             roots: Arc::new(roots),
             transfers: Arc::new(Semaphore::new(max_concurrent)),
             chunk_bytes,
-            diagnostics: Arc::new(TransferDiagnostics::default()),
+            metrics,
         })
     }
 
@@ -203,12 +197,15 @@ impl FileService {
         method: Method,
         headers: HeaderMap,
         active_request: Arc<ActiveRequest>,
-    ) -> ServerResponse {
+    ) -> (ServerResponse, Option<FileServeFailure>) {
         if method != Method::GET && method != Method::HEAD {
-            return simple_response(
-                StatusCode::METHOD_NOT_ALLOWED,
-                &[(ALLOW, "GET, HEAD")],
-                Bytes::from_static(b"Method Not Allowed"),
+            return (
+                simple_response(
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    &[(ALLOW, "GET, HEAD")],
+                    Bytes::from_static(b"Method Not Allowed"),
+                ),
+                None,
             );
         }
         let root = match self.roots.get(&plan.root_id) {
@@ -218,24 +215,31 @@ impl FileService {
                     "Roc returned a file response for undeclared root {:?}",
                     plan.root_id
                 );
-                return simple_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &[],
-                    Bytes::from_static(b"Internal Server Error"),
+                return (
+                    simple_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        &[],
+                        Bytes::from_static(b"Internal Server Error"),
+                    ),
+                    Some(FileServeFailure::InvalidPlan),
                 );
             }
         };
         let permit = match Arc::clone(&self.transfers).try_acquire_owned() {
             Ok(permit) => permit,
             Err(_) => {
-                return simple_response(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    &[],
-                    Bytes::from_static(b"Native file transfer capacity is exhausted"),
+                return (
+                    simple_response(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        &[],
+                        Bytes::from_static(b"Native file transfer capacity is exhausted"),
+                    ),
+                    Some(FileServeFailure::Overloaded),
                 );
             }
         };
-        let lease = TransferLease::new(permit, active_request, Arc::clone(&self.diagnostics));
+        let lease =
+            TransferLease::new(permit, active_request, self.metrics.file_transfer_started());
         let chunk_bytes = self.chunk_bytes;
         let (prepared_sender, prepared_receiver) = oneshot::channel();
         let spawn_result = std::thread::Builder::new()
@@ -252,29 +256,35 @@ impl FileService {
                 );
             });
         if let Err(error) = spawn_result {
-            return simple_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &[],
-                Bytes::from(format!("Failed to start file transfer: {error}")),
+            return (
+                simple_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &[],
+                    Bytes::from(format!("Failed to start file transfer: {error}")),
+                ),
+                Some(FileServeFailure::StartFailed),
             );
         }
 
         match prepared_receiver.await {
-            Ok(prepared) => prepared.into_response(),
-            Err(_) => simple_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &[],
-                Bytes::from_static(b"File transfer failed before producing a response"),
+            Ok(prepared) => (prepared.into_response(), None),
+            Err(_) => (
+                simple_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &[],
+                    Bytes::from_static(b"File transfer failed before producing a response"),
+                ),
+                Some(FileServeFailure::StartFailed),
             ),
         }
     }
 
     pub(crate) fn active_transfers(&self) -> usize {
-        self.diagnostics.active.load(Ordering::Acquire)
+        self.metrics.active_file_transfers()
     }
 
     pub(crate) fn high_water_transfers(&self) -> usize {
-        self.diagnostics.high_water.load(Ordering::Acquire)
+        self.metrics.high_water_file_transfers()
     }
 }
 
@@ -295,38 +305,23 @@ impl FilePlan {
     }
 }
 
-#[derive(Debug, Default)]
-struct TransferDiagnostics {
-    active: AtomicUsize,
-    high_water: AtomicUsize,
-}
-
 struct TransferLease {
     _permit: OwnedSemaphorePermit,
     _active_request: Arc<ActiveRequest>,
-    diagnostics: Arc<TransferDiagnostics>,
+    _metrics: ActiveGaugeGuard,
 }
 
 impl TransferLease {
     fn new(
         permit: OwnedSemaphorePermit,
         active_request: Arc<ActiveRequest>,
-        diagnostics: Arc<TransferDiagnostics>,
+        metrics: ActiveGaugeGuard,
     ) -> Arc<Self> {
-        let active = diagnostics.active.fetch_add(1, Ordering::AcqRel) + 1;
-        diagnostics.high_water.fetch_max(active, Ordering::AcqRel);
         Arc::new(Self {
             _permit: permit,
             _active_request: active_request,
-            diagnostics,
+            _metrics: metrics,
         })
-    }
-}
-
-impl Drop for TransferLease {
-    fn drop(&mut self) {
-        let previous = self.diagnostics.active.fetch_sub(1, Ordering::AcqRel);
-        debug_assert!(previous > 0, "file transfer accounting underflow");
     }
 }
 
@@ -416,21 +411,21 @@ fn prepare_and_stream(
     let segments = match segments {
         Ok(segments) => segments,
         Err(_) => {
-            let _ = prepared_sender.send(not_found());
+            send_without_body(prepared_sender, lease, not_found());
             return;
         }
     };
     let mut file = match open_relative_file(&root.handle, &segments) {
         Ok(file) => file,
         Err(_) => {
-            let _ = prepared_sender.send(not_found());
+            send_without_body(prepared_sender, lease, not_found());
             return;
         }
     };
     let metadata = match file.metadata() {
         Ok(metadata) if metadata.is_file() => metadata,
         _ => {
-            let _ = prepared_sender.send(not_found());
+            send_without_body(prepared_sender, lease, not_found());
             return;
         }
     };
@@ -478,7 +473,11 @@ fn prepare_and_stream(
             response_headers.remove(CONTENT_ENCODING);
             response_headers.insert(CONTENT_LENGTH, hyper::header::HeaderValue::from_static("0"));
         }
-        let _ = prepared_sender.send(Prepared::without_body(status, response_headers));
+        send_without_body(
+            prepared_sender,
+            lease,
+            Prepared::without_body(status, response_headers),
+        );
         return;
     }
 
@@ -497,10 +496,11 @@ fn prepare_and_stream(
                     .expect("content range generated by host is valid"),
             );
             response_headers.insert(CONTENT_LENGTH, hyper::header::HeaderValue::from_static("0"));
-            let _ = prepared_sender.send(Prepared::without_body(
-                StatusCode::RANGE_NOT_SATISFIABLE,
-                response_headers,
-            ));
+            send_without_body(
+                prepared_sender,
+                lease,
+                Prepared::without_body(StatusCode::RANGE_NOT_SATISFIABLE, response_headers),
+            );
             return;
         }
         RangeSelection::Range { start, end } => {
@@ -525,18 +525,22 @@ fn prepare_and_stream(
     }
 
     if method == Method::HEAD || response_length == 0 {
-        let _ = prepared_sender.send(Prepared::without_body(status, response_headers));
+        send_without_body(
+            prepared_sender,
+            lease,
+            Prepared::without_body(status, response_headers),
+        );
         return;
     }
     if file.seek(SeekFrom::Start(start)).is_err() {
-        let _ = prepared_sender.send(not_found());
+        send_without_body(prepared_sender, lease, not_found());
         return;
     }
 
     let (body_sender, body_receiver) = mpsc::channel(1);
     let body = FileBody {
         receiver: body_receiver,
-        lease: Some(Arc::clone(&lease)),
+        lease: Some(lease),
         remaining: content_coding.is_none().then_some(response_length),
     };
     if prepared_sender
@@ -559,6 +563,15 @@ fn prepare_and_stream(
     ) {
         let _ = body_sender.blocking_send(Err(error));
     }
+}
+
+fn send_without_body(
+    sender: oneshot::Sender<Prepared>,
+    lease: Arc<TransferLease>,
+    prepared: Prepared,
+) {
+    drop(lease);
+    let _ = sender.send(prepared);
 }
 
 fn stream_file(
@@ -675,7 +688,7 @@ fn not_found() -> Prepared {
     Prepared::without_body(StatusCode::NOT_FOUND, headers)
 }
 
-fn validate_root_id(id: &str) -> Result<(), String> {
+pub(crate) fn validate_root_id(id: &str) -> Result<(), String> {
     if id.is_empty()
         || id.len() > 64
         || !id
@@ -1059,6 +1072,7 @@ fn parse_range(headers: &HeaderMap, length: u64) -> RangeSelection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::telemetry::Metrics;
     use std::fs;
     use std::io::Read;
 
@@ -1080,6 +1094,7 @@ mod tests {
             ],
             1,
             1,
+            Metrics::new(),
         );
         assert!(duplicate_root
             .unwrap_err()
@@ -1093,6 +1108,7 @@ mod tests {
             }],
             1,
             1,
+            Metrics::new(),
         );
         assert!(absent.unwrap_err().contains("missing, inaccessible"));
         fs::remove_dir(temp).unwrap();
@@ -1222,6 +1238,7 @@ mod tests {
             }],
             1,
             1024,
+            Metrics::new(),
         )
         .unwrap();
         let tracker = RequestTracker::new();
@@ -1234,7 +1251,7 @@ mod tests {
             )
         };
 
-        let first = service
+        let (first, first_failure) = service
             .serve(
                 plan(),
                 Method::GET,
@@ -1242,10 +1259,11 @@ mod tests {
                 Arc::new(tracker.begin().unwrap()),
             )
             .await;
+        assert_eq!(first_failure, None);
         assert_eq!(first.status(), StatusCode::OK);
         assert_eq!(service.active_transfers(), 1);
 
-        let saturated = service
+        let (saturated, saturated_failure) = service
             .serve(
                 plan(),
                 Method::GET,
@@ -1253,6 +1271,7 @@ mod tests {
                 Arc::new(tracker.begin().unwrap()),
             )
             .await;
+        assert_eq!(saturated_failure, Some(FileServeFailure::Overloaded));
         assert_eq!(saturated.status(), StatusCode::SERVICE_UNAVAILABLE);
         drop(saturated);
         drop(first);
@@ -1284,6 +1303,7 @@ mod tests {
             }],
             1,
             1024,
+            Metrics::new(),
         )
         .unwrap();
         let tracker = RequestTracker::new();
@@ -1300,7 +1320,7 @@ mod tests {
             hyper::header::ACCEPT_ENCODING,
             "gzip, br, zstd".parse().unwrap(),
         );
-        let compressed = service
+        let (compressed, compressed_failure) = service
             .serve(
                 plan(),
                 Method::GET,
@@ -1308,6 +1328,7 @@ mod tests {
                 Arc::new(tracker.begin().unwrap()),
             )
             .await;
+        assert_eq!(compressed_failure, None);
         assert_eq!(compressed.status(), StatusCode::OK);
         assert_eq!(compressed.headers()[CONTENT_ENCODING], "zstd");
         assert_eq!(compressed.headers()[hyper::header::VARY], "Accept-Encoding");
@@ -1325,7 +1346,7 @@ mod tests {
         let mut conditional_headers = HeaderMap::new();
         conditional_headers.insert(hyper::header::ACCEPT_ENCODING, "zstd".parse().unwrap());
         conditional_headers.insert(IF_NONE_MATCH, compressed_etag);
-        let not_modified = service
+        let (not_modified, not_modified_failure) = service
             .serve(
                 plan(),
                 Method::GET,
@@ -1333,7 +1354,9 @@ mod tests {
                 Arc::new(tracker.begin().unwrap()),
             )
             .await;
+        assert_eq!(not_modified_failure, None);
         assert_eq!(not_modified.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(service.active_transfers(), 0);
         assert_eq!(not_modified.headers()[CONTENT_ENCODING], "zstd");
         assert_eq!(
             not_modified.headers()[hyper::header::VARY],
@@ -1353,7 +1376,7 @@ mod tests {
             "gzip, br, zstd".parse().unwrap(),
         );
         range_headers.insert(RANGE, "bytes=0-10".parse().unwrap());
-        let ranged = service
+        let (ranged, ranged_failure) = service
             .serve(
                 plan(),
                 Method::GET,
@@ -1361,6 +1384,7 @@ mod tests {
                 Arc::new(tracker.begin().unwrap()),
             )
             .await;
+        assert_eq!(ranged_failure, None);
         assert_eq!(ranged.status(), StatusCode::PARTIAL_CONTENT);
         assert!(!ranged.headers().contains_key(CONTENT_ENCODING));
         assert_eq!(ranged.headers()[CONTENT_LENGTH], "11");

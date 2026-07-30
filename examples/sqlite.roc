@@ -1,6 +1,6 @@
 ## Queries completed todos from SQLite and serves their inspected records.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -26,7 +26,7 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
@@ -41,7 +41,7 @@ respond! = |_request, { db }| {
 		Ok(todos) => {
 			lines = todos.map(|todo| Str.inspect(todo))
 			body = Str.join_with(lines, "\n")
-			response = 
+			response =
 				Response.from_status(200)
 					.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 					.with_body(Str.to_utf8(body))

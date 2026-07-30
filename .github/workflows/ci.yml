@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: roc-lang/roc
-          ref: 306abd6d8b5fe5c3c0967976a5da2e7568b02a37
+          ref: fe0ab22cf0a764249330342fa36363624fc8157d
           path: target/roc-glue-source
           sparse-checkout: src/glue/src/RustGlue.roc
 

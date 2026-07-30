@@ -1,7 +1,7 @@
 ## Streams newline-delimited JSON events into SQLite in short, retry-safe
 ## batches without materializing the complete HTTP request body.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -199,7 +199,7 @@ decode_bytes = |decoder, bytes, events|
 
 decode_line : DecoderData -> Try(DecodedEvent, DecodeError)
 decode_line = |decoder| {
-	line = 
+	line =
 		match List.last(decoder.line) {
 			Ok('\r') => decoder.line.drop_last(1)
 			_ => decoder.line
@@ -208,7 +208,7 @@ decode_line = |decoder| {
 		return Err(BlankLine(decoder.line_number))
 	}
 
-	json = 
+	json =
 		match Str.from_utf8(line) {
 			Ok(value) => value
 			Err(_) => return Err(InvalidUtf8(decoder.line_number))
@@ -216,7 +216,7 @@ decode_line = |decoder| {
 
 	parsed : Try(Event, [InvalidJson(Str), MissingRequiredField(Str)])
 	parsed = Json.parse(json)
-	event = 
+	event =
 		match parsed {
 			Ok(value) => value
 			Err(_) => return Err(InvalidJsonLine(decoder.line_number))
@@ -236,7 +236,7 @@ ingest_add_events! = |ingest, db, events|
 	match events {
 		[] => Ok(ingest)
 		[first, .. as rest] => {
-			ready = 
+			ready =
 				if ingest.batch.is_empty() {
 					ingest
 				} else if ingest.batch.len() >= max_batch_records or ingest.batch_bytes + first.encoded_bytes > max_batch_bytes {
@@ -249,7 +249,7 @@ ingest_add_events! = |ingest, db, events|
 				batch: ready.batch.append(first),
 				batch_bytes: ready.batch_bytes + first.encoded_bytes,
 			}
-			flushed = 
+			flushed =
 				if next.batch.len() >= max_batch_records or next.batch_bytes >= max_batch_bytes {
 					ingest_flush!(next, db)?
 				} else {
@@ -265,7 +265,7 @@ ingest_flush! = |ingest, db| {
 		return Ok(ingest)
 	}
 
-	transaction = 
+	transaction =
 		Sqlite.begin!(db, Immediate)
 			? |err| DatabaseFailed({ committed: ingest.committed, detail: Str.inspect(err) })
 	insert_batch!(transaction, ingest.batch)
@@ -283,7 +283,7 @@ ingest_flush! = |ingest, db| {
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/events.db")
@@ -291,7 +291,7 @@ init! = || {
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
 	ensure_schema!(db) ? |_| Exit(3)
 
-	config = 
+	config =
 		Server.with_request_body_limits(
 			Server.default_config,
 			{
@@ -305,10 +305,10 @@ init! = || {
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, db| {
-	response = 
+	response =
 		match (request.method(), request.target()) {
-			(POST, "/events") => ingest_events!(db, request)
-			(GET, "/events/count") => event_count!(db)
+			(POST, Resource({ raw_path: "/events", .. })) => ingest_events!(db, request)
+			(GET, Resource({ raw_path: "/events/count", .. })) => event_count!(db)
 			_ => text_response(404, "Not found.")
 		}
 
@@ -324,7 +324,7 @@ ingest_events! = |db, request| {
 		return text_response(415, "Content-Type must be application/x-ndjson.")
 	}
 
-	folded = 
+	folded =
 		request
 			.body()
 			.with_limit(max_body_bytes)

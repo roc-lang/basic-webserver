@@ -1,6 +1,6 @@
 ## Parses a bounded multipart form upload and previews an uploaded PNG image.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -19,7 +19,7 @@ init! = || {
 }
 
 upload_form : Response
-upload_form = 
+upload_form =
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 		.with_body(
@@ -56,7 +56,7 @@ display_uploaded_image! = |req| {
 			match parts.find_first(is_png_upload) {
 				Ok(part) => {
 					img = base64_encode(part.data)
-					page = 
+					page =
 						Str.to_utf8(
 							\\<!DOCTYPE html>
 							\\<html lang="en">

@@ -61,6 +61,51 @@ class SpecValidationTests(unittest.TestCase):
         self.assertIn(b"/fast", block)
         self.assertIn(b"127.0.0.1:8000", block)
 
+    def test_http2_authority_can_be_overridden_or_omitted(self) -> None:
+        overridden = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": "example.test:8443"},
+            b"",
+            [],
+        )
+        omitted = test.hpack_request_headers(
+            8000,
+            {"target": "/", "authority": None},
+            b"",
+            [("host", "fallback.test")],
+        )
+
+        self.assertIn(b"example.test:8443", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", overridden)
+        self.assertNotIn(b"127.0.0.1:8000", omitted)
+        self.assertIn(b"fallback.test", omitted)
+
+    def test_repeated_http2_headers_use_dynamic_table_references(self) -> None:
+        block = test.hpack_request_headers(
+            8000,
+            {"method": "GET", "target": "/"},
+            b"",
+            [("x-test", "repeated"), ("x-test", "repeated")],
+        )
+
+        self.assertEqual(block.count(b"repeated"), 1)
+        self.assertEqual(block[-1], 0x80 | 62)
+
+    def test_generated_request_header_values_are_bounded(self) -> None:
+        _, headers = test.request_body(
+            {
+                "headers": [
+                    {
+                        "name": "x-test",
+                        "value_repeat": "abc",
+                        "value_chars": 8,
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(headers, [("x-test", "abcabcab")])
+
     def test_http2_frame_encodes_the_wire_header(self) -> None:
         frame = test.http2_frame(
             test.HTTP2_FRAME_HEADERS,
@@ -82,6 +127,19 @@ class SpecValidationTests(unittest.TestCase):
             test.TestFailure, "must name every HTTP/2 request"
         ):
             test.validate_case("examples/sleep.roc", case, set())
+
+    def test_startup_failure_cases_cannot_send_requests(self) -> None:
+        case = {
+            "name": "invalid-startup",
+            "expect_startup_failure": True,
+            "requests": [{"target": "/"}],
+        }
+
+        with self.assertRaisesRegex(
+            test.TestFailure,
+            "expect_startup_failure cannot be combined with requests",
+        ):
+            test.validate_case("examples/request-limits.roc", case, set())
 
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
@@ -176,6 +234,30 @@ class SpecValidationTests(unittest.TestCase):
                     "reason": "Temporarily unavailable",
                     "issue": "TODO",
                 },
+            )
+
+    def test_test_skip_requires_a_reason_and_tracking_issue(self) -> None:
+        test.validate_test_skip(
+            "example",
+            {
+                "reason": "compiler issue",
+                "issue": "https://github.com/roc-lang/roc/issues/10422",
+            },
+        )
+
+        with self.assertRaisesRegex(test.TestFailure, "non-empty reason"):
+            test.validate_test_skip(
+                "example",
+                {
+                    "reason": "",
+                    "issue": "https://github.com/roc-lang/roc/issues/10422",
+                },
+            )
+
+        with self.assertRaisesRegex(test.TestFailure, "tracking issue"):
+            test.validate_test_skip(
+                "example",
+                {"reason": "compiler issue", "issue": "not-an-issue"},
             )
 
     def test_platform_names_are_validated(self) -> None:

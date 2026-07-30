@@ -1,6 +1,6 @@
 ## Implements a todo web application backed by a SQLite database.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
@@ -9,8 +9,6 @@ import pf.Path
 import pf.Server
 import pf.Sqlite
 import pf.Stdout
-import pf.Url
-import pf.Utc
 import http.Response
 import "todos.html" as todo_html : List(U8)
 
@@ -42,7 +40,7 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), FailedToEnsureSchema(_), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("DB_PATH") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./examples/todos.db")
@@ -65,8 +63,12 @@ handle_req! : Server.Request, Sqlite.Db => Try(Response, _)
 handle_req! = |req, db| {
 	log_request!(req)?
 
-	request_url = Url.resolve(todo_origin, req.target()) ? InvalidRequestTarget
-	path_parts = Str.split_on(Url.path(request_url), "/")
+	raw_path =
+		match req.target() {
+			Resource({ raw_path: path, .. }) => path
+			_ => ""
+		}
+	path_parts = Str.split_on(raw_path, "/")
 
 	match path_parts {
 		["", ""] => Ok(html_response(200, todo_html))
@@ -76,9 +78,6 @@ handle_req! = |req, db| {
 	}
 }
 
-todo_origin : Url
-todo_origin = "http://localhost"
-
 route_todos! : Sqlite.Db, Server.Request => Try(Response, _)
 route_todos! = |db, req|
 	match req.method() {
@@ -87,13 +86,13 @@ route_todos! = |db, req|
 		POST => create_todo_from_request!(db, req)
 
 		other_method =>
-			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${req.target()}"))
+			Ok(text_response(405, "HTTP method ${Str.inspect(other_method)} is not supported for ${Str.inspect(req.target())}"))
 		}
 
 list_todos! : Sqlite.Db => Try(Response, _)
 list_todos! = |db| {
 	stored : List(StoredTodo)
-	stored = 
+	stored =
 		Sqlite.query_many!({
 			db,
 			query: "SELECT id, task, status FROM todos ORDER BY id;",
@@ -111,7 +110,7 @@ create_todo_from_request! : Sqlite.Db, Server.Request => Try(Response, _)
 create_todo_from_request! = |db, req| {
 	body = req.body().with_limit(16 * 1024).read_all!()
 		? |err| RequestErr(Str.inspect(err))
-	json = 
+	json =
 		match Str.from_utf8(body) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Request body must be valid UTF-8 JSON."))
@@ -119,12 +118,12 @@ create_todo_from_request! = |db, req| {
 
 	decoded_result : Try(CreateTodoBody, [InvalidJson(Str), MissingRequiredField(Str)])
 	decoded_result = Json.parse(json)
-	decoded = 
+	decoded =
 		match decoded_result {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Expected JSON with string fields \"task\" and \"status\"."))
 		}
-	status = 
+	status =
 		match parse_todo_status(decoded.status) {
 			Ok(value) => value
 			Err(_) => return Ok(text_response(400, "Status must be \"todo\", \"planned\", \"completed\", or \"in-progress\"."))
@@ -139,7 +138,7 @@ create_todo_from_request! = |db, req| {
 create_todo! : Sqlite.Db, { task : Str, status : TodoStatus } => Try(Response, _)
 create_todo! = |db, params| {
 	stored : StoredTodo
-	stored = 
+	stored =
 		Sqlite.query!({
 			db,
 			query: "INSERT INTO todos (task, status) VALUES (:task, :status) RETURNING id, task, status;",
@@ -195,8 +194,7 @@ ensure_schema! = |db|
 
 log_request! : Server.Request => Try({}, _)
 log_request! = |req| {
-	datetime = Utc.to_iso_8601(Utc.now!())
-	Stdout.line!("${datetime} ${Str.inspect(req.method())} ${req.target()}")
+	Stdout.line!("${Str.inspect(req.method())} ${Str.inspect(req.target())}")
 		? |err| StdoutErr(Str.inspect(err))
 	Ok({})
 }
