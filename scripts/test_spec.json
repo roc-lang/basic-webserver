@@ -686,9 +686,14 @@
             },
             {
               "method": "GET",
+              "target": "/random",
+              "body_regex": ["^[A-Za-z0-9+/]{43}=$"]
+            },
+            {
+              "method": "GET",
               "target": "/metrics",
               "body_contains": [
-                "basic_webserver_http_requests_total{method=\"GET\",destination=\"roc\",completion=\"end_of_stream\"} 1",
+                "basic_webserver_http_requests_total{method=\"GET\",destination=\"roc\",completion=\"end_of_stream\"} 2",
                 "basic_webserver_http_requests_active 1",
                 "# EOF"
               ],

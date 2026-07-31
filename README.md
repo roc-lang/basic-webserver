@@ -162,7 +162,8 @@ The platform exposes typed modules for:
 - pooled outbound HTTP and HTTPS requests;
 - pooled SQLite connections, transactions, and prepared statements;
 - finite command execution with time and output limits;
-- filesystem, environment, path, stdout/stderr, TCP, time, and sleep effects;
+- filesystem, environment, path, cryptographic random bytes, stdout/stderr,
+  TCP, time, and sleep effects;
 - Base64 encoding, HTML construction, URL handling, and multipart form parsing.
 
 `UnixTime` provides the POSIX wall-clock effect and normalized timestamps,

@@ -1280,6 +1280,33 @@ const _: () = assert!(core::mem::size_of::<AnonStruct247809673488181b>() == 24, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct247809673488181b>() == 8, "AnonStruct247809673488181b alignment mismatch");
 
+/// Element type for __AnonStruct_fc642424773bfbcb
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructFc642424773bfbcb {
+    pub max: u64,
+    pub requested: u64,
+}
+
+/// Element type for __AnonStruct_fc642424773bfbcb
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructFc642424773bfbcb {
+    pub max: u64,
+    pub requested: u64,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStructFc642424773bfbcb>() == 16, "AnonStructFc642424773bfbcb size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStructFc642424773bfbcb>() == 8, "AnonStructFc642424773bfbcb alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStructFc642424773bfbcb>() == 16, "AnonStructFc642424773bfbcb size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStructFc642424773bfbcb>() == 8, "AnonStructFc642424773bfbcb alignment mismatch");
+
 /// Element type for __AnonStruct_8dfa7f17f2083a52
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
@@ -4440,6 +4467,156 @@ const _: () = assert!(core::mem::align_of::<InvalidReadinessOrServerStoppingOrSt
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostRandomBytesResultTag {
+    Err = 0,
+    Ok = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union HostRandomBytesResultPayload {
+    pub err: core::mem::ManuallyDrop<EntropyUnavailableOrTooManyBytes>,
+    pub ok: core::mem::ManuallyDrop<RocListWith<u8, false>>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct HostRandomBytesResultPayloadAlignment;
+
+/// Tag union: Try
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRandomBytesResult {
+    pub _payload_alignment: [HostRandomBytesResultPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: HostRandomBytesResultTag,
+}
+
+/// Tag union: Try
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRandomBytesResult {
+    pub payload: HostRandomBytesResultPayload,
+    pub tag: HostRandomBytesResultTag,
+}
+
+impl HostRandomBytesResult {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_err(&self) -> EntropyUnavailableOrTooManyBytes {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const EntropyUnavailableOrTooManyBytes) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_err(&self) -> EntropyUnavailableOrTooManyBytes {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<HostRandomBytesResult>() == 48, "HostRandomBytesResult size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<HostRandomBytesResult>() == 8, "HostRandomBytesResult alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(HostRandomBytesResult, tag) == 40, "HostRandomBytesResult tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<HostRandomBytesResult>() == 32, "HostRandomBytesResult size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<HostRandomBytesResult>() == 8, "HostRandomBytesResult alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(HostRandomBytesResult, tag) == 24, "HostRandomBytesResult tag offset mismatch");
+
+/// Tag discriminant for EntropyUnavailableOrTooManyBytes.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntropyUnavailableOrTooManyBytesTag {
+    EntropyUnavailable = 0,
+    TooManyBytes = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union EntropyUnavailableOrTooManyBytesPayload {
+    pub entropy_unavailable: core::mem::ManuallyDrop<IOErr>,
+    pub too_many_bytes: core::mem::ManuallyDrop<AnonStructFc642424773bfbcb>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct EntropyUnavailableOrTooManyBytesPayloadAlignment;
+
+/// Tag union: EntropyUnavailableOrTooManyBytes
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EntropyUnavailableOrTooManyBytes {
+    pub _payload_alignment: [EntropyUnavailableOrTooManyBytesPayloadAlignment; 0],
+    pub payload: [u8; 16],
+    pub tag: EntropyUnavailableOrTooManyBytesTag,
+}
+
+/// Tag union: EntropyUnavailableOrTooManyBytes
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EntropyUnavailableOrTooManyBytes {
+    pub payload: EntropyUnavailableOrTooManyBytesPayload,
+    pub tag: EntropyUnavailableOrTooManyBytesTag,
+}
+
+impl EntropyUnavailableOrTooManyBytes {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_entropy_unavailable(&self) -> IOErr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_entropy_unavailable(&self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.entropy_unavailable) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_too_many_bytes(&self) -> AnonStructFc642424773bfbcb {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructFc642424773bfbcb) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_too_many_bytes(&self) -> AnonStructFc642424773bfbcb {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.too_many_bytes) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<EntropyUnavailableOrTooManyBytes>() == 40, "EntropyUnavailableOrTooManyBytes size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<EntropyUnavailableOrTooManyBytes>() == 8, "EntropyUnavailableOrTooManyBytes alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(EntropyUnavailableOrTooManyBytes, tag) == 32, "EntropyUnavailableOrTooManyBytes tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<EntropyUnavailableOrTooManyBytes>() == 24, "EntropyUnavailableOrTooManyBytes size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<EntropyUnavailableOrTooManyBytes>() == 8, "EntropyUnavailableOrTooManyBytes alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(EntropyUnavailableOrTooManyBytes, tag) == 16, "EntropyUnavailableOrTooManyBytes tag offset mismatch");
+
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPathTypeResultTag {
     Err = 0,
     Ok = 1,
@@ -6462,6 +6639,15 @@ const _: () = assert!(core::mem::size_of::<HostPathTypeArgs>() == 28, "HostPathT
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<HostPathTypeArgs>() == 4, "HostPathTypeArgs alignment mismatch");
 
+/// Arguments for Host.random_bytes!
+/// Roc signature: U64 => Try(List(U8), [EntropyUnavailable(IOErr), TooManyBytes({ max : U64, requested : U64 })])
+/// Refcounted fields are owned by the hosted function.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostRandomBytesArgs {
+    pub arg0: u64,
+}
+
 /// Arguments for Host.readiness_create!
 /// Roc signature: Bool => Try(Host.Readiness, [ReadinessCapacityExhausted])
 /// Refcounted fields are owned by the hosted function.
@@ -6848,6 +7034,11 @@ pub type CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOr
 pub type HostHttpSendRequestOkHeaders = AnonStruct82a96c5d55d63488;
 pub type HostPathTypeArg0 = AnonStruct2e21b53659f79626;
 pub type HostPathTypeOk = AnonStruct8dfa7f17f2083a52;
+pub type HostRandomBytesErr = EntropyUnavailableOrTooManyBytes;
+pub type HostRandomBytesErrPayload = EntropyUnavailableOrTooManyBytesPayload;
+pub type HostRandomBytesErrTag = EntropyUnavailableOrTooManyBytesTag;
+pub type HostRandomBytesErrTooManyBytes = AnonStructFc642424773bfbcb;
+pub type EntropyUnavailableOrTooManyBytesTooManyBytes = AnonStructFc642424773bfbcb;
 pub type HostReadinessSetErr = InvalidReadinessOrServerStoppingOrStaleReadiness;
 pub type HostRequestBodyReadErr = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge;
 pub type HostRequestBodyReadErrPayload = CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargePayload;
@@ -8751,6 +8942,111 @@ impl InvalidReadinessOrServerStoppingOrStaleReadiness {
     }
 }
 
+impl HostRandomBytesResult {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            HostRandomBytesResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.decref(roc_host); }
+            },
+            HostRandomBytesResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            HostRandomBytesResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.incref(amount); }
+            },
+            HostRandomBytesResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl EntropyUnavailableOrTooManyBytes {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            EntropyUnavailableOrTooManyBytesTag::EntropyUnavailable => {
+                let payload = value.payload_entropy_unavailable();
+                unsafe { payload.decref(roc_host); }
+            },
+            EntropyUnavailableOrTooManyBytesTag::TooManyBytes => {
+                let payload = value.payload_too_many_bytes();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            EntropyUnavailableOrTooManyBytesTag::EntropyUnavailable => {
+                let payload = value.payload_entropy_unavailable();
+                unsafe { payload.incref(amount); }
+            },
+            EntropyUnavailableOrTooManyBytesTag::TooManyBytes => {
+                let payload = value.payload_too_many_bytes();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl AnonStructFc642424773bfbcb {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = value;
+        let _ = roc_host;
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = value;
+        let _ = amount;
+    }
+}
+
 impl HostPathTypeResult {
     /// Recursively decrement Roc-owned payloads.
     ///
@@ -10000,6 +10296,10 @@ unsafe extern "C" {
     /// Hosted symbol for Host.path_type!
     /// Roc signature: { is_windows : Bool, unix_bytes : List(U8), windows_u16s : List(U16) } => Try({ is_dir : Bool, is_file : Bool, is_sym_link : Bool }, IOErr)
     pub fn hosted_path_type(arg0: HostPathTypeArgs) -> HostPathTypeResult;
+
+    /// Hosted symbol for Host.random_bytes!
+    /// Roc signature: U64 => Try(List(U8), [EntropyUnavailable(IOErr), TooManyBytes({ max : U64, requested : U64 })])
+    pub fn hosted_random_bytes(arg0: u64) -> HostRandomBytesResult;
 
     /// Hosted symbol for Host.readiness_create!
     /// Roc signature: Bool => Try(Host.Readiness, [ReadinessCapacityExhausted])

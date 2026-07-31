@@ -26,6 +26,7 @@ platform "webserver"
 		MultipartFormData,
 		OsStr,
 		Path,
+		Random,
 		Server,
 		Sleep,
 		Sqlite,
@@ -78,6 +79,7 @@ platform "webserver"
 		"hosted_file_write_bytes": Host.file_write_bytes!,
 		"hosted_file_write_utf8": Host.file_write_utf8!,
 		"hosted_path_type": Host.path_type!,
+		"hosted_random_bytes": Host.random_bytes!,
 		"hosted_stdout_line": Host.stdout_line!,
 		"hosted_stdout_write": Host.stdout_write!,
 		"hosted_stdout_write_bytes": Host.stdout_write_bytes!,
@@ -128,6 +130,7 @@ import Http
 import IOErr
 import OsStr
 import Path
+import Random
 import Server
 import Sleep
 import Sqlite
