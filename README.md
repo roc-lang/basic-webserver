@@ -164,7 +164,8 @@ The platform exposes typed modules for:
 - finite command execution with time and output limits;
 - filesystem, environment, path, cryptographic random bytes, stdout/stderr,
   TCP, time, and sleep effects;
-- Base64 encoding, HTML construction, URL handling, and multipart form parsing.
+- Base64 encoding, typed cookies, HTML construction, URL handling, and
+  multipart form parsing.
 
 `UnixTime` provides the POSIX wall-clock effect and normalized timestamps,
 including nanosecond precision and instants before the Unix epoch. Calendar

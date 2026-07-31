@@ -6,6 +6,7 @@ app [Context, program] {
 }
 
 import pf.Base64
+import pf.Cookie
 import pf.Random
 import pf.Server
 import pf.Stdout
@@ -40,17 +41,52 @@ respond! = |request, _context| {
 	Stdout.line!("${datetime} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
-	body =
+	response =
 		match request.target() {
 			Resource({ raw_path: "/random", .. }) => {
 				bytes = Random.bytes!(32)
 					? |err| ServerErr("Failed to obtain random bytes: ${Str.inspect(err)}")
-				Base64.encode(bytes)
+				Response.from_status(200).with_body(Str.to_utf8(Base64.encode(bytes)))
 			}
-			_ => "<b>Hello from server</b><br>"
+			Resource({ raw_path: "/cookies", .. }) => {
+				cookies = Cookie.parse_request(request.headers())
+					? |err| ServerErr("Invalid request cookies: ${Str.inspect(err)}")
+				theme = Cookie.get_unique(cookies, "theme")
+					? |err| ServerErr("Ambiguous request cookie: ${Str.inspect(err)}")
+				theme_value =
+					match theme {
+						Absent => "absent"
+						Present(value) => value
+					}
+				session_header =
+					Cookie.set_header({
+						name: "__Host-session",
+						value: "fresh",
+						path: Present("/"),
+						domain: Absent,
+						max_age_seconds: Present(3600),
+						secure: True,
+						http_only: True,
+						same_site: Present(Lax),
+					})
+						? |err| ServerErr("Invalid response cookie: ${Str.inspect(err)}")
+				delete_theme_header =
+					Cookie.delete_header({
+						name: "theme",
+						path: Present("/app"),
+						domain: Present("example.test"),
+						secure: True,
+					})
+						? |err| ServerErr("Invalid deletion cookie: ${Str.inspect(err)}")
+
+				Response.from_status(200)
+					.with_headers([session_header, delete_theme_header])
+					.with_body(Str.to_utf8("count=${cookies.len().to_str()}; theme=${theme_value}"))
+			}
+			_ => Response.from_status(200).with_body(Str.to_utf8("<b>Hello from server</b><br>"))
 		}
 
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(body))))
+	Ok(Server.respond(response))
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

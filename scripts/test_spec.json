@@ -691,9 +691,30 @@
             },
             {
               "method": "GET",
+              "target": "/cookies",
+              "headers": [
+                {
+                  "name": "Cookie",
+                  "value": "session=abc; theme=dark; empty="
+                },
+                {
+                  "name": "cookie",
+                  "value": "session=shadow; SESSION=upper"
+                }
+              ],
+              "response_headers": {
+                "Set-Cookie": [
+                  "__Host-session=fresh; Path=/; Max-Age=3600; Secure; HttpOnly; SameSite=Lax",
+                  "theme=; Path=/app; Domain=example.test; Max-Age=0; Secure"
+                ]
+              },
+              "expect_body": "count=5; theme=dark"
+            },
+            {
+              "method": "GET",
               "target": "/metrics",
               "body_contains": [
-                "basic_webserver_http_requests_total{method=\"GET\",destination=\"roc\",completion=\"end_of_stream\"} 2",
+                "basic_webserver_http_requests_total{method=\"GET\",destination=\"roc\",completion=\"end_of_stream\"} 3",
                 "basic_webserver_http_requests_active 1",
                 "# EOF"
               ],
