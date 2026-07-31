@@ -18,6 +18,7 @@ platform "webserver"
 		Attribute,
 		Base64,
 		Cmd,
+		Cookie,
 		Env,
 		File,
 		Html,
@@ -120,6 +121,7 @@ platform "webserver"
 	}
 
 import Cmd
+import Cookie
 import Env
 import File
 import Host
