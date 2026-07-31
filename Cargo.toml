@@ -32,6 +32,7 @@ cap-primitives = "=4.0.2"
 flate2 = "=1.1.9"
 zstd = { version = "=0.13.3", default-features = false }
 futures = "=0.3.31"
+getrandom = { version = "=0.4.3", features = ["std"] }
 h2 = "=0.4.15"
 hyper = { version = "=1.6.0", features = ["http1", "http2", "client", "server"] }
 http-body-util = "=0.1.3"

@@ -24,6 +24,7 @@ mod http_server;
 mod native_router;
 mod os_str;
 mod path;
+mod random;
 mod readiness;
 mod request_body;
 mod request_limits;

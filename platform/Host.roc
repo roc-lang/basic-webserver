@@ -103,6 +103,11 @@ Host := [].{
 
 	ReadinessSetErr : [InvalidReadiness, StaleReadiness, ServerStopping]
 
+	RandomErr : [
+		EntropyUnavailable(IOErr),
+		TooManyBytes({ requested : U64, max : U64 }),
+	]
+
 	CmdExecErr : [FailedToGetExitCode(IOErr), Timeout, Saturated]
 
 	CmdOutputErr : [
@@ -158,6 +163,8 @@ Host := [].{
 
 	readiness_create! : Bool => Try(Readiness, [ReadinessCapacityExhausted])
 	readiness_set! : Readiness, Bool => Try({}, ReadinessSetErr)
+
+	random_bytes! : U64 => Try(List(U8), RandomErr)
 
 	path_type! : RawPath => Try(PathType, IOErr)
 

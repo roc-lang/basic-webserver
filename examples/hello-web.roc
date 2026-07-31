@@ -5,6 +5,8 @@ app [Context, program] {
 	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
+import pf.Base64
+import pf.Random
 import pf.Server
 import pf.Stdout
 import pf.UnixTime
@@ -38,7 +40,17 @@ respond! = |request, _context| {
 	Stdout.line!("${datetime} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
-	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>Hello from server</b><br>"))))
+	body =
+		match request.target() {
+			Resource({ raw_path: "/random", .. }) => {
+				bytes = Random.bytes!(32)
+					? |err| ServerErr("Failed to obtain random bytes: ${Str.inspect(err)}")
+				Base64.encode(bytes)
+			}
+			_ => "<b>Hello from server</b><br>"
+		}
+
+	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8(body))))
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

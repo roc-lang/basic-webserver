@@ -74,6 +74,14 @@ pub(crate) type PathTypeResultPayload = HostPathTypeResultPayload;
 pub(crate) type PathTypeResultTag = HostPathTypeResultTag;
 pub(crate) type PathInfo = HostPathTypeOk;
 
+pub(crate) type RandomBytesResult = HostRandomBytesResult;
+pub(crate) type RandomBytesResultPayload = HostRandomBytesResultPayload;
+pub(crate) type RandomBytesResultTag = HostRandomBytesResultTag;
+pub(crate) type RandomBytesError = HostRandomBytesErr;
+pub(crate) type RandomBytesErrorPayload = HostRandomBytesErrPayload;
+pub(crate) type RandomBytesErrorTag = HostRandomBytesErrTag;
+pub(crate) type RandomBytesTooMany = HostRandomBytesErrTooManyBytes;
+
 pub(crate) type SqliteHostOpenResult = HostSqliteOpenResult;
 pub(crate) type SqliteHostOpenResultPayload = HostSqliteOpenResultPayload;
 pub(crate) type SqliteHostOpenResultTag = HostSqliteOpenResultTag;

@@ -622,6 +622,7 @@ dependencies = [
  "cap-primitives",
  "flate2",
  "futures",
+ "getrandom 0.4.3",
  "h2",
  "http-body-util",
  "httpdate",
