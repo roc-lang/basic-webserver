@@ -163,7 +163,7 @@ The platform exposes typed modules for:
 - pooled SQLite connections, transactions, and prepared statements;
 - finite command execution with time and output limits;
 - filesystem, environment, path, stdout/stderr, TCP, time, and sleep effects;
-- HTML construction, URL handling, and multipart form parsing.
+- Base64 encoding, HTML construction, URL handling, and multipart form parsing.
 
 `UnixTime` provides the POSIX wall-clock effect and normalized timestamps,
 including nanosecond precision and instants before the Unix epoch. Calendar

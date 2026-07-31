@@ -34,8 +34,8 @@ for a distinct reusable workflow.
 - Native build tools for your operating system. Windows host builds require
   MSVC and the Windows SDK.
 
-The CI action in [`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml)
-records the exact Roc nightly used by the repository.
+The [`.roc-version`](.roc-version) file records the exact Roc nightly used by
+the repository. The shared CI setup action reads the same pin.
 
 ## Build and run locally
 
@@ -108,7 +108,7 @@ rejects platform-specific expected results.
 
 Changes to the `hosted` or `provides` blocks in `platform/main.roc` require
 regenerating `src/roc_platform_abi.rs`. The compiler and `RustGlue.roc` must
-come from the matching revision recorded in `scripts/regenerate_glue.py`.
+come from the matching nightly recorded in [`.roc-version`](.roc-version).
 
 ```sh
 ROC_SRC=/path/to/roc python scripts/regenerate_glue.py

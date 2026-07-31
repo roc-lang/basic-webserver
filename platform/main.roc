@@ -16,6 +16,7 @@ platform "webserver"
 	}
 	exposes [
 		Attribute,
+		Base64,
 		Cmd,
 		Env,
 		File,
@@ -121,6 +122,7 @@ import Env
 import File
 import Host
 import Attribute
+import Base64
 import Html
 import Http
 import IOErr

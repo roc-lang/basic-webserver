@@ -1,10 +1,33 @@
 name: Install the pinned Roc compiler
 description: Install the exact new-compiler nightly used to generate and test this platform
 
+outputs:
+  nightly-tag:
+    description: The immutable nightly release tag read from .roc-version
+    value: ${{ steps.roc_version.outputs.tag }}
+  revision:
+    description: The Roc source revision embedded in the nightly release tag
+    value: ${{ steps.roc_version.outputs.revision }}
+
 runs:
   using: composite
   steps:
+    - id: roc_version
+      name: Read the pinned Roc nightly
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        tag=$(<.roc-version)
+        if [[ ! "$tag" =~ ^nightly-[0-9]{4}-[A-Za-z]+-[0-9]{1,2}-[0-9a-f]{7}$ ]]; then
+          echo "Invalid .roc-version nightly tag: $tag" >&2
+          exit 1
+        fi
+
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        echo "revision=${tag##*-}" >> "$GITHUB_OUTPUT"
+
     - uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427 # ratchet:roc-lang/setup-roc@v0.3.0
       with:
         version: nightly-new-compiler
-        nightly-tag: nightly-2026-July-29-fe0ab22
+        nightly-tag: ${{ steps.roc_version.outputs.tag }}

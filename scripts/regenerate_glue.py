@@ -6,17 +6,34 @@ from __future__ import annotations
 import argparse
 import difflib
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 
-# Glue provenance: the committed Rust glue is generated with the compiler and
-# RustGlue.roc shipped together in nightly-2026-July-29-fe0ab22. Compiler and
-# glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "fe0ab22cf0a764249330342fa36363624fc8157d"
+ROC_VERSION_PATH = ROOT / ".roc-version"
+NIGHTLY_TAG_PATTERN = re.compile(
+    r"^nightly-[0-9]{4}-[A-Za-z]+-[0-9]{1,2}-([0-9a-f]{7})$"
+)
+
+
+def pinned_roc_version() -> tuple[str, str]:
+    try:
+        nightly_tag = ROC_VERSION_PATH.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise SystemExit(f"Could not read {ROC_VERSION_PATH}: {error}") from error
+    match = NIGHTLY_TAG_PATTERN.fullmatch(nightly_tag)
+    if match is None:
+        raise SystemExit(
+            f"{ROC_VERSION_PATH} must contain exactly one immutable Roc nightly tag"
+        )
+    return nightly_tag, match.group(1)
+
+
+PINNED_NIGHTLY, PINNED_ROC_REVISION = pinned_roc_version()
 
 
 def rooted_path(value: str) -> Path:
@@ -44,10 +61,10 @@ def require_known_roc(roc: str) -> None:
         text=True,
     )
     version = f"{result.stdout}\n{result.stderr}"
-    if KNOWN_GOOD_REVISION[:7] not in version:
+    if PINNED_ROC_REVISION not in version:
         raise SystemExit(
             "Rust glue must be generated with the pinned Roc compiler "
-            f"{KNOWN_GOOD_REVISION[:7]}, but `roc version` reported:\n"
+            f"{PINNED_NIGHTLY}, but `roc version` reported:\n"
             f"{version.strip()}"
         )
 
@@ -108,7 +125,7 @@ def run_glue(roc: str, glue_spec: Path, platform_file: Path, out_dir: Path) -> N
         raise SystemExit(
             "Glue generation failed.\n"
             "Use matching Roc and RustGlue.roc revisions; "
-            f"{KNOWN_GOOD_REVISION} is the known-good pair."
+            f"{PINNED_NIGHTLY} is the pinned pair."
         )
 
 
