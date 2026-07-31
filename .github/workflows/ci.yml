@@ -32,6 +32,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install the Zig-based Roc compiler
+        id: roc
         uses: ./.github/actions/setup-roc
 
       - name: Install Zig
@@ -48,13 +49,14 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Checkout the matching Roc glue specification
-        uses: actions/checkout@v7
-        with:
-          repository: roc-lang/roc
-          ref: fe0ab22cf0a764249330342fa36363624fc8157d
-          path: target/roc-glue-source
-          sparse-checkout: src/glue/src/RustGlue.roc
+      - name: Download the matching Roc glue specification
+        env:
+          ROC_REVISION: ${{ steps.roc.outputs.revision }}
+        run: |
+          mkdir -p target/roc-glue-source/src/glue/src
+          curl --fail --location --silent --show-error \
+            --output target/roc-glue-source/src/glue/src/RustGlue.roc \
+            "https://raw.githubusercontent.com/roc-lang/roc/${ROC_REVISION}/src/glue/src/RustGlue.roc"
 
       - name: Check generated Rust glue
         env:

@@ -4,6 +4,7 @@ app [Context, program] {
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
+import pf.Base64
 import pf.Server
 import pf.MultipartFormData
 import http.Response
@@ -55,7 +56,7 @@ display_uploaded_image! = |req| {
 		Ok(parts) =>
 			match parts.find_first(is_png_upload) {
 				Ok(part) => {
-					img = base64_encode(part.data)
+					img = Base64.encode(part.data)
 					page =
 						Str.to_utf8(
 							\\<!DOCTYPE html>
@@ -123,51 +124,3 @@ text_response = |status, body|
 	Response.from_status(status)
 		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
 		.with_body(Str.to_utf8(body))
-
-base64_encode : List(U8) -> Str
-base64_encode = |bytes| Str.from_utf8(base64_bytes(bytes, [])) ?? ""
-
-base64_alphabet : List(U8)
-base64_alphabet = Str.to_utf8("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
-
-base64_bytes : List(U8), List(U8) -> List(U8)
-base64_bytes = |remaining, out|
-	match remaining {
-		[] => out
-
-		[a] =>
-			out.concat(base64_quad(a, 0, 0, 1))
-
-		[a, b] =>
-			out.concat(base64_quad(a, b, 0, 2))
-
-		[a, b, c, ..] =>
-			base64_bytes(remaining.drop_first(3), out.concat(base64_quad(a, b, c, 3)))
-		}
-
-base64_quad : U8, U8, U8, U64 -> List(U8)
-base64_quad = |a, b, c, byte_count| {
-	bits = a.to_u64() * 65_536 + b.to_u64() * 256 + c.to_u64()
-	first = base64_byte(bits // 262_144)
-	second = base64_byte((bits // 4_096) % 64)
-	third = base64_byte((bits // 64) % 64)
-	fourth = base64_byte(bits % 64)
-
-	match byte_count {
-		1 => [first, second, '=', '=']
-		2 => [first, second, third, '=']
-		_ => [first, second, third, fourth]
-	}
-}
-
-base64_byte : U64 -> U8
-base64_byte = |index| base64_alphabet.get(index) ?? 'A'
-
-# These expectations cover empty input and the one- and two-byte tails that
-# require Base64 padding.
-expect {
-	base64_encode(Str.to_utf8("")) == ""
-		and base64_encode(Str.to_utf8("f")) == "Zg=="
-			and base64_encode(Str.to_utf8("fo")) == "Zm8="
-				and base64_encode(Str.to_utf8("foo")) == "Zm9v"
-}
