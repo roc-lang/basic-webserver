@@ -1,6 +1,6 @@
 # Datastar research synthesis and spike contract
 
-Status: research convergence complete; implementation feasibility gates remain
+Status: callable correctness gate cleared; implementation performance gates remain
 
 Date: 2026-08-01
 
@@ -36,13 +36,14 @@ The research supports a coherent first-class SSE and Datastar design for
 This is enough agreement to proceed with focused implementation spikes. It is
 not enough to select the final dynamic-stream ABI or update `design.md`.
 
-The preferred boxed-callable ABI currently crashes through a generated
-provided wrapper. The explicit-state fallback is lifecycle-correct, but its
-single-event transition is about 21 times slower than unique Go state in the
-focused optimized benchmark. The end-state must not institutionalize either
-defect. A supported typed adapter or compiler/glue ownership improvement must
-remove the crash, outer retain/decref pair, and per-step replacement allocation
-before the public API is frozen.
+The preferred boxed-callable ABI now passes the complete local lifecycle
+through generated provided wrappers on Roc main `1c1ceccf`; the former generic
+box teardown crash is fixed. The explicit-state fallback is also
+lifecycle-correct, but its single-event transition is about 21 times slower
+than unique Go state in the focused optimized benchmark. Immutable callable
+continuation replacement likewise allocates once per step. A supported typed
+adapter or compiler/glue ownership improvement must remove the remaining outer
+ARC and per-step replacement allocation before the public API is frozen.
 
 ## Decisions we can make now
 
@@ -223,6 +224,7 @@ resumable output design.
 | Roc state transition | Current speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | ABI/performance gate fails |
 | Synthetic Roc allocation reuse | 16.7 ns/event at batch 1; beats Go only at batch 16 | Lower bound, not an implementation result |
 | Lifecycle ownership | Explicit-state dev/speed tests balance cancellation, migration, concurrency, and nested resources | Keep topology, optimize representation |
+| Boxed callable ownership | Generated dev/speed wrappers balance the full lifecycle on Roc main `1c1ceccf` | Correctness gate passes locally; retain cross-target gate |
 
 Performance comparisons must retain equivalent flush, finish/abort,
 backpressure, validation, and bounded-resource semantics. Batching is useful
@@ -232,9 +234,9 @@ for throughput but cannot be used to conceal the single-event latency gap.
 
 The next compiler/glue spike should compare two supported end-state mechanisms:
 
-1. Fix the generated provided wrapper for a boxed captured callable so it uses
-   callable-aware destruction and can transfer an owned machine without generic
-   box teardown.
+1. Optimize the now-correct generated boxed-callable path so owned machine
+   transitions do not require immutable continuation replacement on every
+   step.
 2. Generate a typed opaque state adapter exposing size/alignment, initialize,
    move/transfer, step, and drop wrappers without revealing layout to Rust.
 

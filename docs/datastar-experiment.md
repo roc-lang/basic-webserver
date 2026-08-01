@@ -60,18 +60,18 @@ or returns a new machine plus a declarative wake condition. No Roc stack or
 native worker remains occupied while the stream is waiting.
 
 The primary feasibility risk is whether the new Zig-based Roc compiler can
-safely retain, invoke, transfer, and destroy boxed captured callables across
-provided entrypoints and host worker threads on every supported target. That
-claim must be proven before the public API is selected.
+safely and efficiently retain, invoke, transfer, and destroy stream state
+across provided entrypoints and host worker threads on every supported target.
+That claim must be proven before the public API is selected.
 
 The first ABI spike found that erased callables are an intentional compiler and
-glue surface, but also reproduced a narrower blocker: a generated provided
-wrapper that consumes even a non-recursive `Box(function)` uses the generic box
-teardown path and crashes in both development and optimized builds. Direct
-development-runtime diagnostics can exercise the callable lifecycle, but that
-unsupported bypass is not a host design. The preferred callable machine is
-therefore blocked on a compiler fix or supported generated typed adapter, and
-the explicit-state `stream!` fallback must be researched in parallel.
+glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
+main `1c1ceccf`, containing merged fix `206f4c30`, now passes the complete local
+generated-wrapper lifecycle in development and optimized builds without a
+private runtime helper. This clears the callable correctness blocker for
+continued research. Cross-target validation and the hot-step performance gate
+remain: immutable callable continuation replacement still allocates once per
+step, so the explicit-state and generated-adapter paths remain active.
 
 The explicit-state follow-up passes the local ownership/lifecycle matrix and
 proves that route packages can keep nominal state private. It does not pass the
@@ -1175,8 +1175,8 @@ loops. Rejected.
 
 ### Fourth application `stream!` entrypoint
 
-Architecturally sound and the preferred supported fallback while boxed
-callables are compiler-blocked. Package-opaque state payloads work inside an
+Architecturally sound and the preferred supported fallback while the dynamic
+state ABI is being selected. Package-opaque state payloads work inside an
 application-owned route union, but central enumeration and dispatch remain.
 Current generated `Box(StreamState)` lowering is allocation- and ARC-heavy
 relative to unique Go state, so this is not yet the final performance choice.
@@ -1267,14 +1267,13 @@ Current evidence:
   teardown.
 - The focused platform spike type-checks the recursive effectful topology and
   emits concrete pointer-only provided symbols.
-- A generated provided wrapper consuming the smallest captured
-  `Box(U64 -> U64)` reproducibly crashes in both development and optimized
-  builds by entering generic box teardown. `Box(U64)` and explicit boxed state
-  without a nested callable drop correctly.
-- A development-only direct erased-callable diagnostic passes thread migration,
-  independent concurrency, cancellation, overlap rejection, nested captures,
-  and resource balance, but its helper is not exported in optimized builds and
-  is not a supported host API.
+- On Roc main `1c1ceccf`, generated provided wrappers correctly consume the
+  smallest captured `Box(U64 -> U64)` and recursively advance and drop the full
+  effectful machine in development and optimized builds.
+- The generated-wrapper path passes thread migration, independent concurrency,
+  cancellation, overlap rejection, nested captures, and exact allocation and
+  opaque-resource balance. The development-only direct helper is no longer
+  needed.
 - The generated-wrapper-only explicit-state fallback passes parked/returned
   drop, sequential thread migration, independent concurrency, overlap
   rejection, in-flight cancellation, nested values, opaque resources, and
@@ -1288,8 +1287,13 @@ Current evidence:
   Go's 1.279 and 1.275, so the current fallback does not meet the performance
   gate.
 
-This means the erased representation is plausible but the preferred fixed
-advance/drop wrapper is currently blocked. Spike 1 remains open.
+This clears the local erased-callable correctness blocker and unblocks the
+remaining Spike 1 research. It does not close Spike 1: cross-target and native
+memory-instrumentation coverage remain. A CPU-pinned optimized million-step run
+consistently measured one allocation and free per immutable callable transition
+and a 109.968 ns/step median. Allocator-ledger atomics make that a cost-class
+diagnostic rather than acceptance evidence. The final dynamic-state
+representation must still pass the controlled Go performance gate.
 
 Minimum prototype:
 
@@ -1336,8 +1340,9 @@ Pass criteria:
 
 Failure response:
 
-- Preserve the boxed-callable compiler reduction and require a compiler fix or
-  supported generated typed adapter before using that topology.
+- Preserve the boxed-callable compiler regression and generated-wrapper
+  lifecycle coverage while measuring whether the callable topology can remove
+  per-step continuation replacement.
 - Preserve the explicit-state fixture as the supported lifecycle fallback, but
   require a compiler/glue unique-state adapter before selecting it as the final
   performance design. If box repacking cannot be optimized, spike generated
@@ -1752,7 +1757,7 @@ feasibility gate.
 These experiment decisions have not yet changed code or the accepted
 `design.md` contract.
 
-### 2026-08-01: Preferred callable machine is compiler-blocked
+### 2026-08-01: Initial callable result was compiler-blocked
 
 The compiler exposes an intentional erased-callable ABI, and a development
 diagnostic can run the proposed lifecycle when it directly invokes that ABI.
@@ -1761,11 +1766,32 @@ reproducibly lowers to generic box teardown and crashes in both development and
 optimized builds.
 
 The host must not call a development-only runtime helper or hand-maintain the
-compiler's callable layout. The preferred three-function application contract
-is blocked until a compiler fix or supported generated typed adapter passes the
-reproducer. The explicit-state fourth `stream!` entrypoint is now an active
-parallel candidate and must be benchmarked against Go rather than treated as an
-unexamined fallback.
+compiler's callable layout. At this point the preferred three-function
+application contract was blocked until a compiler fix or supported generated
+typed adapter passed the reproducer. The explicit-state fourth `stream!`
+entrypoint became an active parallel candidate to benchmark against Go rather
+than an unexamined fallback. The following decision entry supersedes this
+correctness status.
+
+### 2026-08-01: Roc main clears the callable correctness blocker
+
+Roc main `1c1ceccf`, containing merged fix `206f4c30`, makes callable positions
+at hosted and provided ABI boundaries use erased-callable ownership. The
+original non-recursive generated drop wrapper now returns with zero live
+allocations in development and speed builds.
+
+The full generated make/advance/drop path also passes nested captures, opaque
+resources, parked and returned destruction, sequential thread migration,
+independent concurrency, overlap rejection, and in-flight cancellation with
+balanced accounting. The development-only direct helper is no longer part of
+the supported hypothesis.
+
+This supersedes the correctness blocker above but does not select the final
+state representation. A CPU-pinned optimized million-step run still allocates
+and frees one immutable continuation per step and measured a 109.968 ns/step
+median. Its allocator-ledger atomics make the latency diagnostic rather than
+acceptance evidence. Cross-target validation and the controlled Go performance
+gate remain.
 
 ### 2026-08-01: Focused real-browser transport hypothesis passes in Firefox
 
@@ -1827,8 +1853,10 @@ contract live in
 [`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
 
 The dynamic-state representation is deliberately not selected. The preferred
-callable wrapper crashes, while the lifecycle-valid explicit-state fallback is
+callable wrapper is now locally lifecycle-correct, while both immutable
+callable continuation replacement and the representative explicit-state
+fallback allocate once per transition. The explicit-state fallback remains
 about 21x slower than unique Go state for a single-event optimized step. The
-feature's “comparable to or better than Go” goal is a hard compiler/glue gate:
-a repaired callable wrapper or generated opaque adapter must remove avoidable
+feature's “comparable to or better than Go” goal remains a hard compiler/glue
+gate: a callable optimization or generated opaque adapter must remove avoidable
 ARC and per-step allocation before the public application contract is frozen.
