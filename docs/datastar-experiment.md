@@ -66,24 +66,26 @@ That claim must be proven before the public API is selected.
 
 The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
-main `1c1ceccf`, containing merged fix `206f4c30`, now passes the complete local
-generated-wrapper lifecycle in development and optimized builds without a
-private runtime helper. This clears the callable correctness blocker for
-continued research. Cross-target validation and the hot-step performance gate
-remain: immutable callable continuation replacement still allocates once per
-step, so the explicit-state and generated-adapter paths remain active.
+main `1c1ceccf`, containing merged fix `206f4c30`, passes the complete local
+generated-wrapper lifecycle. A follow-up compiler prototype, rebased onto Roc
+main `232552d8bb`, transfers the old callable allocation through the erased
+invocation and recursive constructor, then reuses it through an inline
+runtime-unique fast path. The unique compatible optimized path makes no calls
+to the instrumented Roc allocator/deallocator and has a representative 1.46 ns
+median. This unblocks callable-shaped transport integration research;
+controlled performance, upstream design, cross-target, and end-to-end gates
+remain.
 
 The explicit-state follow-up passes the local ownership/lifecycle matrix and
-proves that route packages can keep nominal state private. It does not pass the
-performance gate: optimized single-event transitions allocate and free once
-per step and measure about 26.7 ns/event versus 1.27 ns/event for uniquely
-owned Go state. The end-state therefore requires generated owned transfer and
-unique state-storage reuse, whether implemented as a repaired callable wrapper
-or an opaque size/alignment/move/step/drop adapter. Batching cannot substitute
-for fixing the single-event path.
+proves that route packages can keep nominal state private, but its current
+single-event transition still allocates and measures about 26.7 ns/event. The
+callable prototype now demonstrates the required owned transfer and unique-
+or-copy storage reuse without exposing application state. Batching remains an
+optional throughput tool, not a substitute for the fixed single-event path.
 
 The transport result is more encouraging. The selected Rust Brotli profiles
-beat matched Go throughput and can reach zero steady-state system allocations.
+beat matched Go encoder time at the tested settings and can reach zero
+steady-state system allocations, with documented wire-size differences.
 No single profile serves every population: standard q3/LGWin12 is the current
 full-compression/default candidate, while recycled q1/LGWin11 is the explicit
 scale candidate. They require separate compressed-stream admission, reusable
@@ -334,9 +336,9 @@ program = { init!, respond!, shutdown! }
 `Sse.Stream`. Applications that never use SSE do not model stream state or add
 a hook.
 
-The compiler cannot currently support the product-preferred drop wrapper. The
-active fallback candidate adds a fourth provided application entrypoint with an
-application-defined `StreamState`:
+Released Roc main does not yet contain the product-preferred owned-update
+wrapper. The supported fallback candidate adds a fourth provided application
+entrypoint with an application-defined `StreamState`:
 
 ```roc
 program = { init!, respond!, stream!, shutdown! }
@@ -356,11 +358,11 @@ nominal type, so package state representation and transition logic can remain
 private; the cost is central wiring, not forced representation exposure.
 
 The fallback is still preferable to a pinned writer, but current optimized
-lowering does not meet the Go performance target. It allocates and frees one
-outer state box per step, and even an identity provided wrapper emits an atomic
-retain/decref pair instead of a pure ownership transfer. The lifecycle topology
-passes locally in development and speed builds; compiler or glue support for
-unique state-storage reuse remains a performance gate.
+explicit-state lowering does not meet the Go performance target. The callable
+compiler prototype meets the hot-allocation requirement while preserving the
+preferred private-machine API, and now advances to controlled Go benchmarking.
+Until that mechanism is accepted upstream, the explicit-state path remains the
+implementable lifecycle fallback rather than the desired final representation.
 
 ## Illustrative Roc API
 
@@ -658,16 +660,22 @@ allocation, invocation metadata, capture destruction, and atomic box
 refcounting. We hypothesize that the new compiler can support the complete
 cross-entrypoint lifecycle required here.
 
-That mechanism existing in generated code is evidence that the spike is
-worthwhile; it is not proof of:
+The compiler prototype splits the evidence below into native generated-host
+lifecycle coverage and four-backend source semantics. Production support still
+requires upstream acceptance and the cross-target execution matrix:
 
 - safe escape from `respond!`;
 - repeated invocation after the original Roc stack is gone;
 - recursive return of the next boxed callable;
 - invocation from a different host worker thread;
 - concurrent invocation of different captured callables;
-- correct destruction of nested captured ARC values on every target;
-- identical behaviour in development and optimized backends.
+- correct native destruction of nested captured ARC values;
+- source-level transition semantics in interpreter, development, Wasm, and
+  LLVM; and
+- generated-host lifecycle behaviour in native development and LLVM speed.
+
+Nested-capture destruction through generated hosts on every release target and
+development-mode allocation/performance parity are not yet established.
 
 Failure of this gate selects the explicit `stream!` application-entrypoint
 fallback. It must not select a long-running writer.
@@ -872,11 +880,12 @@ The footprint sweep disproved the hypothesis that one fixed profile is best
 for every endpoint. The current candidates are:
 
 - standard q3/LGWin12 for `Auto` and full compression: zero steady-state
-  compressor allocations, roughly 378 KiB mature todo state, 90-92.6% savings
-  on active Datastar corpora, and 1.44-1.47x matched-Go throughput;
+  compressor allocations, roughly 378 KiB mature todo state, 90–92.6% savings
+  on official/changing-content corpora but 23% on heartbeat-only, and
+  1.44–1.47x matched-Go encoder speed at non-identical wire sizes;
 - recycled q1/LGWin11 for `Scale`: 13-49 KiB mature state across tested
-  corpora, zero steady-state system allocations, and 1.22-1.25x matched-Go
-  throughput, but weak tiny-event compression and heartbeat expansion; and
+  corpora, zero steady-state system allocations, and 1.22–1.25x matched-Go
+  encoder speed, but weak tiny-event compression and heartbeat expansion; and
 - identity for explicit opt-out, compression-oracle risk, heartbeat-only
   endpoints, or deployments prioritizing connection scale over wire savings.
 
@@ -1287,13 +1296,14 @@ Current evidence:
   Go's 1.279 and 1.275, so the current fallback does not meet the performance
   gate.
 
-This clears the local erased-callable correctness blocker and unblocks the
-remaining Spike 1 research. It does not close Spike 1: cross-target and native
-memory-instrumentation coverage remain. A CPU-pinned optimized million-step run
-consistently measured one allocation and free per immutable callable transition
-and a 109.968 ns/step median. Allocator-ledger atomics make that a cost-class
-diagnostic rather than acceptance evidence. The final dynamic-state
-representation must still pass the controlled Go performance gate.
+The follow-up compiler prototype closes the local hot-allocation part of Spike
+1. A CPU-pinned optimized five-million-step run measured zero instrumented Roc
+allocator/deallocator calls and a representative 1.46 ns median on the unique
+compatible callable path. The closest functional Go source-shape fixture
+allocates once per step; an aggressive mutable-pointer Go reference does not
+allocate and is slightly faster. Spike 1 still requires controlled
+repeated-process timing, upstream compiler design, cross-target execution, and
+native memory-instrumentation coverage.
 
 Minimum prototype:
 
@@ -1474,7 +1484,7 @@ Failure response:
   weakening flush semantics.
 
 Current status: the low-level lifecycle, multi-corpus value, mature state,
-steady-state compressor allocations, matched-Go throughput, Firefox direct
+steady-state compressor allocations, matched-Go encoder time, Firefox direct
 H1, curl h2c, and NGINX-fronted Firefox H2 questions have focused passing
 evidence. The persistent repeated-FLUSH bound, complete owned-frame allocation
 story, q3 browser case, production `ServerBody`, slow-reader/H2 isolation,
@@ -1846,21 +1856,42 @@ call boundary. The exact evidence and the owned-erased-call versus generated
 opaque-state hypotheses are in
 [`docs/research/abi-spike/results/2026-08-01-allocation-provenance.md`](research/abi-spike/results/2026-08-01-allocation-provenance.md).
 
+### 2026-08-01: Owned callable reuse eliminates the hot allocation
+
+A follow-up Roc compiler prototype extends the erased invocation with a
+consumed reuse destination, preserves its ownership through ARC, and threads it
+through private recursive return-position procedure variants. Compatible
+terminal callable packs reuse the old allocation; shared values retain the
+existing allocate-and-consume fallback. Interpreter, development, LLVM, and
+Wasm pass a source-driven refcounted-capture regression. The generated C-host
+lifecycle passes separately in native development and LLVM speed builds.
+
+LLVM's runtime-unique branch is emitted inline. The CPU-pinned unique compatible
+path makes zero instrumented Roc allocator/deallocator calls with a
+representative 1.46 ns/step median. The closest functional Go source-shape
+fixture allocates once, while an aggressive mutable-pointer Go reference does
+not allocate and is slightly faster in this nanobenchmark. This advances the
+callable representation to controlled benchmarking, upstream/compiler, and
+real-transport validation. Full design and evidence:
+[`docs/research/abi-spike/results/2026-08-01-zero-allocation-reuse.md`](research/abi-spike/results/2026-08-01-zero-allocation-reuse.md).
+
 ### 2026-08-01: Brotli uses a measured two-profile policy
 
 The activated multi-corpus sweep rejects q4/LGWin18 as a default and disproves
 the idea that a single low-memory profile preserves the full compression
 benefit. Standard q3/LGWin12 is the current full-compression/default candidate:
-it reaches zero steady compressor allocations, beats matched Go throughput,
-and preserves roughly 90% or better savings on active Datastar corpora, but
-retains roughly 378 KiB per mature todo stream.
+it reaches zero steady compressor allocations and beats matched Go encoder time
+at the selected settings. It saves 90–92.6% on official and changing-content
+corpora but only 23% on heartbeat-only traffic, emits different byte counts
+than Go, and retains roughly 378 KiB per mature todo stream.
 
 Recycled q1/LGWin11 is the named scale candidate. It stays below 49 KiB on
-every tested activated corpus and also beats matched Go, but barely compresses
-the tiny official fixture mix and expands heartbeat-only traffic. Identity is
-therefore a first-class endpoint/admission outcome, not merely an unsupported
-client fallback. Profile choice is fixed before headers and raw Brotli tuning
-does not enter the per-event API.
+every tested activated corpus and also beats matched Go encoder time at the
+selected settings, but barely compresses the tiny official fixture mix and
+expands heartbeat-only traffic. Identity is therefore a first-class
+endpoint/admission outcome, not merely an unsupported client fallback. Profile
+choice is fixed before headers and raw Brotli tuning does not enter the
+per-event API.
 
 Both profiles require separate compressed-stream capacity. The complete
 allocation claim remains open until borrowed reusable encoder output becomes a
@@ -1876,11 +1907,11 @@ two-profile compression policy. The consolidated decision and next spike
 contract live in
 [`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
 
-The dynamic-state representation is deliberately not selected. The preferred
-callable wrapper is now locally lifecycle-correct, while both immutable
-callable continuation replacement and the representative explicit-state
-fallback allocate once per transition. The explicit-state fallback remains
-about 21x slower than unique Go state for a single-event optimized step. The
-feature's “comparable to or better than Go” goal remains a hard compiler/glue
-gate: a callable optimization or generated opaque adapter must remove avoidable
-ARC and per-step allocation before the public application contract is frozen.
+The preferred callable representation now has a strong local selection signal.
+The compiler prototype removes instrumented allocator/deallocator calls from
+the unique compatible continuation replacement path and measures a
+representative 1.46 ns/step. The representative explicit-state fallback still
+allocates once per transition and remains about 21x slower than unique Go state
+at batch 1. The callable design therefore advances to controlled performance,
+upstream/compiler, and real-transport validation; it is not yet a production
+platform commitment.

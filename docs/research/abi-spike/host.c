@@ -247,8 +247,8 @@ static RocErasedCallable direct_advance_machine(RocErasedCallable machine, uint6
         NULL,
         (uint8_t *)&next,
         (const uint8_t *)&args,
-        roc_erased_callable_capture_ptr(machine));
-    direct_drop_machine(machine);
+        roc_erased_callable_capture_ptr(machine),
+        machine);
     check(next != NULL, "erased machine returned a null continuation");
     return next;
 #else

@@ -473,3 +473,26 @@ sound, but add these gates:
 7. Can compiler or glue support make the explicit `stream!` fallback reuse a
    uniquely owned box? Current generated wrappers do not: identity adds an
    atomic retain/decref pair and a real step allocates a replacement box.
+
+## Superseding callable allocation result
+
+The follow-up compiler prototype answers question 3 and the release-speed
+allocation part of question 2 for the optimized retained-callable path. The
+erased call consumes an optional reuse destination, ARC transfers the old outer
+callable ownership into it, and private finite variants carry that destination
+through recursive return calls. LLVM inlines the runtime-unique repack branch
+while retaining allocate-and-consume behavior when the value is shared.
+
+The generated-wrapper lifecycle still balances every allocation and opaque
+resource. Seven CPU-pinned five-million-step samples measure a representative
+1.46 ns median with zero instrumented Roc allocator/deallocator calls in the
+unique compatible path. The closest functional Go source-shape fixture
+allocates once per transition; an aggressive mutable-pointer Go reference does
+not allocate and is slightly faster in this nanobenchmark. Interpreter,
+development, Wasm, and LLVM pass a source-driven refcounted-capture regression.
+Development-mode allocation/performance parity is still open; development
+coverage here is semantic, and the current development fixture still reports
+one allocation and free per step.
+
+The detailed mechanism, ABI consequences, tests, and remaining gates are in
+[`abi-spike/results/2026-08-01-zero-allocation-reuse.md`](abi-spike/results/2026-08-01-zero-allocation-reuse.md).

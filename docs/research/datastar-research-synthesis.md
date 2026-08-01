@@ -1,6 +1,6 @@
 # Datastar research synthesis and spike contract
 
-Status: callable correctness gate cleared; implementation performance gates remain
+Status: callable allocation feasibility passed; controlled performance, upstream, and integration gates remain
 
 Date: 2026-08-01
 
@@ -36,14 +36,17 @@ The research supports a coherent first-class SSE and Datastar design for
 This is enough agreement to proceed with focused implementation spikes. It is
 not enough to select the final dynamic-stream ABI or update `design.md`.
 
-The preferred boxed-callable ABI now passes the complete local lifecycle
-through generated provided wrappers on Roc main `1c1ceccf`; the former generic
-box teardown crash is fixed. The explicit-state fallback is also
-lifecycle-correct, but its single-event transition is about 21 times slower
-than unique Go state in the focused optimized benchmark. Immutable callable
-continuation replacement likewise allocates once per step. A supported typed
-adapter or compiler/glue ownership improvement must remove the remaining outer
-ARC and per-step replacement allocation before the public API is frozen.
+The preferred boxed-callable ABI passes the complete local lifecycle through
+generated provided wrappers. A follow-up compiler prototype on Roc main
+`232552d8bb` also passes ownership of the old callable through the erased
+invocation and recursive constructor. Its unique compatible optimized path
+requests no calls to the instrumented Roc allocator/deallocator and measures a
+representative 1.46 ns median. It is faster than the closest functional Go
+source-shape fixture in these runs, while an aggressive mutable-pointer Go
+reference is slightly faster. This supports advancing the callable shape to
+transport integration research, subject to controlled performance, upstream
+compiler design, cross-target, and end-to-end gates. The allocating
+explicit-state path remains only a lifecycle fallback.
 
 ## Decisions we can make now
 
@@ -171,16 +174,17 @@ The current Pareto decision is:
 | Rejected default | standard q4/LGWin18 | 1,180,995 B | 10.999 GiB projected | 16 allocs/event | Dominated for this product boundary |
 
 Across activated corpora q1/LGWin11 retains 13,297–48,615 requested bytes per
-stream. It is 1.22–1.25 times faster than matched Go, but its encoded/identity
-ratio is 0.889 for the tiny official-fixture mix and 1.231 for heartbeat-only
-traffic. It is not a universal compression default.
+stream. Its measured encoder time is 1.22–1.25 times faster than matched Go,
+but its encoded/identity ratio is 0.889 for the tiny official-fixture mix and
+1.231 for heartbeat-only traffic. It is not a universal compression default.
 
-Standard q3/LGWin12 needs no recycler. It is 1.44–1.47 times faster than
-matched Go, retains 4.7% less mature todo state under the documented
-non-identical accounting methods, and saves roughly 90–92.6% on the active
-Datastar corpora. It retains much more state than q1, so it requires separate
-compressed-stream admission and cannot be the profile for an unconstrained
-10,000-stream promise.
+Standard q3/LGWin12 needs no recycler. Its measured encoder time is 1.44–1.47
+times faster than matched Go at the selected settings, while its wire output is
+not identical to Go's. It retains 4.7% less mature todo state under the
+documented non-identical accounting methods and saves roughly 90–92.6% on the
+official and changing-content corpora, but only 23% on heartbeat-only traffic.
+It retains much more state than q1, so it requires separate compressed-stream
+admission and cannot be the profile for an unconstrained 10,000-stream promise.
 
 The host therefore needs a small endpoint/server policy selected before
 headers:
@@ -218,13 +222,15 @@ resumable output design.
 | HTTP negotiation and metadata | Existing platform policy handles q-values, wildcard, `Vary`, and `no-transform`; Go SDK does not | Preserve platform authority |
 | Progressive Brotli | Rust and Go both expose flushed prefixes | Require real-browser generation gate |
 | Normal Brotli close | Rust spike FINISHes; Go SDK API leaves stream unfinished | Keep stronger lifecycle |
-| Brotli throughput | Selected Rust profiles beat matched Go by 1.22–1.47x | Focus next work on integration and bounds |
+| Brotli encoder time | Selected Rust profiles beat matched Go by 1.22–1.47x at non-identical wire sizes | Focus next work on integration and bounds |
 | Brotli retained state | q1 and q3 focused results meet/beat matched Go under stated accounting caveat | Use explicit profile capacity |
 | Encoder allocations | q1 recycler and standard q3 reach zero steady system allocations | Integrate with owned-frame pooling |
-| Roc state transition | Current speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | ABI/performance gate fails |
+| Roc retained-callable transition | Representative 1.46 ns/step; zero instrumented allocator/free calls on the unique compatible path | Allocation feasibility passes; controlled and end-to-end performance remain |
+| Go references | Functional source-shape fixture allocates once; aggressive mutable-pointer fixture does not and is slightly faster | Neither fixture alone is the production acceptance contract |
+| Roc explicit-state transition | Current representative speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | Keep only as lifecycle fallback |
 | Synthetic Roc allocation reuse | 16.7 ns/event at batch 1; beats Go only at batch 16 | Lower bound, not an implementation result |
 | Lifecycle ownership | Explicit-state dev/speed tests balance cancellation, migration, concurrency, and nested resources | Keep topology, optimize representation |
-| Boxed callable ownership | Generated dev/speed wrappers balance the full lifecycle on Roc main `1c1ceccf` | Correctness gate passes locally; retain cross-target gate |
+| Boxed callable ownership | Generated native dev/speed wrappers balance the full lifecycle | Correctness gate passes locally; retain cross-target gate |
 
 Performance comparisons must retain equivalent flush, finish/abort,
 backpressure, validation, and bounded-resource semantics. Batching is useful
@@ -232,23 +238,23 @@ for throughput but cannot be used to conceal the single-event latency gap.
 
 ## Dynamic-state ABI decision gate
 
-The next compiler/glue spike should compare two supported end-state mechanisms:
+The compiler/glue research evaluated two end-state mechanisms, but implemented
+only the first:
 
-1. Optimize the now-correct generated boxed-callable path so owned machine
-   transitions do not require immutable continuation replacement on every
-   step.
-2. Generate a typed opaque state adapter exposing size/alignment, initialize,
-   move/transfer, step, and drop wrappers without revealing layout to Rust.
+1. The generated boxed-callable path now reuses owned machine storage across
+   the erased call and recursive return in the research compiler.
+2. A typed opaque state adapter exposing size/alignment, initialize,
+   move/transfer, step, and drop wrappers without revealing layout to Rust
+   remains an unimplemented alternative.
 
-Machine-code and compiler-pass tracing now explains both current allocations.
-The callable callback allocates a fresh 40-byte erased continuation because
-the reusable old allocation is held by the caller across an indirect call. The
-representative explicit-state transition allocates a fresh 96-byte outer box
-because the existing reuse recognizer does not cross its multi-branch union
-match. Roc's same-procedure erased repack is also lost during ARC
-materialization; a research-only ownership-complete repair passes all 201 LIR
-tests but, as expected, does not affect the cross-call allocation. See the
-[allocation provenance note](abi-spike/results/2026-08-01-allocation-provenance.md).
+Machine-code and compiler-pass tracing explains both original allocations. The
+callable case is now eliminated by preserving ARC reuse, passing an owned
+destination through the erased ABI, specializing finite return-position calls,
+and inlining LLVM's runtime-unique fast path. The representative explicit-state
+transition still allocates a fresh 96-byte outer box because the existing reuse
+recognizer does not cross its multi-branch union match. See the
+[allocation provenance note](abi-spike/results/2026-08-01-allocation-provenance.md)
+and [zero-allocation result](abi-spike/results/2026-08-01-zero-allocation-reuse.md).
 
 Either candidate must:
 
@@ -262,7 +268,10 @@ Either candidate must:
 - avoid an outer atomic retain/decref on owned transfer;
 - reuse unique state storage or otherwise remove the per-step allocation;
 - move unchanged nested ARC fields rather than retain/release them;
-- meet or beat the unique Go single-event baseline within normal variance.
+- make no steady allocator/deallocator calls on the unique compatible path and
+  stay in the same cost class as the aggressive mutable Go reference; and
+- meet the end-to-end Go Datastar latency/throughput target under equivalent
+  framing, compression, backpressure, cancellation, and resource bounds.
 
 If neither mechanism passes, the experiment remains blocked. The fourth
 `stream!` API may be retained for further research or an explicitly slower
@@ -293,9 +302,12 @@ bounded CPU executor without compromising ordering and cancellation.
 
 ### A. Compiler/glue ownership and reuse
 
-Implement both ABI candidates above, rerun the committed lifecycle fixture,
-and compare batches 1, 4, and 16 against Go 1.26.5. Gate on the single-event
-result, not the amortized batch-16 result.
+Upstream the callable candidate or replace its host-visible fifth argument with
+a generated adapter, rerun the committed lifecycle fixture, and compare batches
+1, 4, and 16 against Go 1.26.5 under controlled repeated-process timing. Keep
+the typed opaque adapter as a contingency if compiler review rejects callable
+reuse. Gate on the single-event and end-to-end results, not amortized batch-16
+alone.
 
 ### B. Production bounded body integration
 
