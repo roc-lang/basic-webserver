@@ -1822,6 +1822,30 @@ allocation plus batch 16 can exceed Go per event, but that does not repair
 single-event latency and is not current behavior. Unique generated ownership
 transfer and state-storage reuse are now explicit gates.
 
+### 2026-08-01: Hot allocation sites are identified
+
+Optimized machine-code tracing identifies both replacement allocations. The
+recursive callable callback requests a fresh 40-byte erased-callable payload
+when it returns the next continuation. Roc already supports repacking adjacent
+same-shape erased callables, but the old allocation is owned by the indirect
+caller while the replacement pack is constructed in the callee, so the local
+reuse pass cannot connect them. The generated wrapper's temporary atomic ARC
+also prevents treating the input as a simple unique transfer.
+
+The explicit-state transition requests a fresh 96-byte outer box after its
+multi-variant state match. The compiler's `box_prepare_update` runtime primitive
+can update a unique box without allocating, as demonstrated by the simple
+state control, but its current rewrite recognizes only straight-line and
+limited join shapes rather than the representative switch.
+
+The trace also found that ARC materialization drops reuse metadata for
+same-procedure erased-callable repacks. An ownership-complete research patch
+and regression test pass all 201 LIR tests; the callable benchmark correctly
+remains at one allocation per step because its reuse opportunity crosses the
+call boundary. The exact evidence and the owned-erased-call versus generated
+opaque-state hypotheses are in
+[`docs/research/abi-spike/results/2026-08-01-allocation-provenance.md`](research/abi-spike/results/2026-08-01-allocation-provenance.md).
+
 ### 2026-08-01: Brotli uses a measured two-profile policy
 
 The activated multi-corpus sweep rejects q4/LGWin18 as a default and disproves

@@ -48,6 +48,9 @@ separate representative explicit-state fixture still measures one replacement
 allocation per transition. Cross-target and native memory-instrumentation
 coverage remain open. The exact validation record is in
 [`results/2026-08-01-main.md`](results/2026-08-01-main.md).
+The allocating procedures, compiler reuse boundary, adjacent ARC regression,
+and two elimination hypotheses are recorded in
+[`results/2026-08-01-allocation-provenance.md`](results/2026-08-01-allocation-provenance.md).
 
 The benchmark is not an end-to-end SSE or Go comparison. Its allocation
 counters use atomics in the allocator and therefore perturb allocation-heavy

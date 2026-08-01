@@ -240,6 +240,16 @@ The next compiler/glue spike should compare two supported end-state mechanisms:
 2. Generate a typed opaque state adapter exposing size/alignment, initialize,
    move/transfer, step, and drop wrappers without revealing layout to Rust.
 
+Machine-code and compiler-pass tracing now explains both current allocations.
+The callable callback allocates a fresh 40-byte erased continuation because
+the reusable old allocation is held by the caller across an indirect call. The
+representative explicit-state transition allocates a fresh 96-byte outer box
+because the existing reuse recognizer does not cross its multi-branch union
+match. Roc's same-procedure erased repack is also lost during ARC
+materialization; a research-only ownership-complete repair passes all 201 LIR
+tests but, as expected, does not affect the cross-call allocation. See the
+[allocation provenance note](abi-spike/results/2026-08-01-allocation-provenance.md).
+
 Either candidate must:
 
 - work in development and speed builds on every supported target;
