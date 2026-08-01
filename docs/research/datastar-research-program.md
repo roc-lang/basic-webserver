@@ -196,6 +196,9 @@ research objective; it no longer blocks on a whole-event FLUSH-size proof.
 The owned-frame follow-up then measured the remaining compatibility cost:
 `Bytes::from_owner` allocates one 56-byte owner per frame, while an internal
 `ServerData::{Bytes, Pooled}` `Buf` path makes zero allocator calls after warmup
-for identity, recycled q1, and standard q3. The next P0 question is now whether
-that internal data type preserves every ordinary and streaming behavior through
-the production listener and tracked-body lifecycle.
+for identity, recycled q1, and standard q3. The production host now uses that
+sum type across ordinary, native, tracked, and HTTP/2 response paths. A pooled
+frame survives a seven-byte H2 window and returns its slot, while all 172 host
+tests and 52 live runtime cases pass. The next P0 question is now the integrated
+SSE transaction: resumable encoding, fixed pool backpressure, request/deadline
+accounting, and cancellation through the production listener.

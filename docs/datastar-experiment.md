@@ -99,10 +99,11 @@ fixed output frame and resumes across as many frames as required. A forced
 seven-byte-frame test passes for q1/LGWin11 and q3/LGWin12 with a 64 KiB item.
 A second follow-up replaces the copy with a pooled custom `Buf` and reaches zero
 measured steady allocator calls across identity, recycled q1, and standard q3.
-The current `ServerBody::Data = Bytes` compatibility adapter costs one 56-byte
-allocation per frame, selecting an internal `ServerData::{Bytes, Pooled}` sum
-type for the production spike. Real-listener cancellation, ordinary-body
-regressions, HTTP/2 isolation, and full-path measurements remain open.
+The former `ServerBody::Data = Bytes` compatibility adapter costs one 56-byte
+allocation per frame. The selected internal `ServerData::{Bytes, Pooled}` sum
+type now passes the production response seam, ordinary/native regression suite,
+and incremental HTTP/2 flow control. Live SSE cancellation, HTTP/2 isolation,
+and full-path allocation measurements remain open.
 
 The reconciled decisions, contradictions, and next objective gates are in
 [`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
@@ -1910,10 +1911,12 @@ choice is fixed before headers and raw Brotli tuning does not enter the
 per-event API.
 
 Both profiles require separate compressed-stream capacity. The resumable
-bounded handshake and zero-allocation custom-`Buf` frame now pass in the
-disposable body. Production integration remains blocked on widening the
-internal `ServerBody` data type and proving the real listener's accounting and
-cancellation lifecycle without regressing ordinary responses.
+bounded handshake and zero-allocation custom-`Buf` frame pass in the disposable
+body. The production host now also uses the selected `ServerData` sum type:
+ordinary responses remain zero-copy `Bytes`, and a 4 KiB pooled frame crosses a
+seven-byte HTTP/2 flow-control window before returning its sole pool slot. The
+172 host tests and 52 live runtime cases pass. The remaining block is the live
+SSE body's accounting and cancellation lifecycle, not Hyper data ownership.
 
 ### 2026-08-02: Brotli output is bounded by resumable frames
 
@@ -1931,7 +1934,7 @@ flow control, and unified close-path integration remain leading gates.
 
 ### 2026-08-02: A custom body-data type removes frame allocations
 
-The current `ServerBody::Data = Bytes` can carry a pooled vector with the
+The former `ServerBody::Data = Bytes` could carry a pooled vector with the
 correct drop callback via `Bytes::from_owner`, but bytes 1.11.1 allocates a
 56-byte owner box for every output frame. A candidate internal
 `ServerData::{Bytes, Pooled}` sum type implements Hyper's `Buf` contract
@@ -1945,8 +1948,10 @@ exactly one allocation/free per output frame. Cancellation tests return
 abandoned, queued, and transport-owned slots exactly once and wake a producer
 blocked on the one-slot pool.
 
-This is now the selected internal direction for the production body spike. The
-focused evidence and limitations are in
+This internal direction now passes in the production response seam, including
+tracked/native bodies and incremental HTTP/2 flow control. It has not yet been
+connected to a live SSE producer, resumable encoder, or unified cancellation
+path. The focused evidence and limitations are in
 [`docs/research/datastar-frame-ownership-findings.md`](research/datastar-frame-ownership-findings.md).
 
 ### 2026-08-01: Research converges conditionally on the state ABI

@@ -70,9 +70,10 @@ The low-level adapter now has three lifecycle-safe properties:
 The compressor can now perform zero steady-state allocations. The later owned-
 frame spike extends that result through a disposable bounded Hyper body: a
 custom `Buf` frame pool reaches zero allocations for identity, q1, and q3.
-Adapting the same frame to the current `ServerBody::Data = Bytes` costs one
-56-byte `Bytes::from_owner` allocation per output frame, so production work now
-targets an internal `ServerData` sum type. See
+Adapting the same frame to the former `ServerBody::Data = Bytes` costs one
+56-byte `Bytes::from_owner` allocation per output frame. The production host
+now uses the selected internal `ServerData` sum type; the remaining allocation
+gate is the integrated live SSE body. See
 [`datastar-frame-ownership-findings.md`](datastar-frame-ownership-findings.md).
 
 ## Method and evidence limits

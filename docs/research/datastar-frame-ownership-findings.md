@@ -1,20 +1,20 @@
 # SSE owned-frame allocation findings
 
-Status: focused feasibility evidence, not a production body implementation.
+Status: production data seam validated; live SSE body not yet implemented.
 This work does not change `design.md`.
 
 ## Conclusion
 
-The remaining steady-state frame allocation is caused by the current internal
+The measured steady-state frame allocation was caused by the former internal
 body-data type, not by Brotli or an unavoidable Hyper requirement.
 
-`ServerBody` is currently fixed to `Body<Data = Bytes>`. A pooled vector can be
+`ServerBody` was fixed to `Body<Data = Bytes>`. A pooled vector can be
 adapted safely with `Bytes::from_owner`: dropping the last `Bytes` invokes the
 frame's destructor, returns the vector, and wakes a blocked producer. However,
 the pinned bytes 1.11.1 implementation boxes every owner. The measured adapter
 therefore allocates and frees exactly one 56-byte owner for every output frame.
 
-A candidate internal sum type removes that adapter:
+The selected internal sum type removes that adapter:
 
 ```rust
 enum ServerData {
@@ -34,10 +34,37 @@ global allocator/deallocator calls for identity, recycled q1/LGWin11, and
 standard q3/LGWin12. Every run ended with the only slot free, no slot in use,
 and high-water exactly one.
 
-This selects the internal `ServerData` direction for the next production-body
-spike. It does not yet justify changing production code: the real Hyper
-listener, `TrackedResponseBody`, H2 flow control, deadlines, shutdown, and
-ordinary response regression matrix must pass with the wider data type.
+The production host now uses this internal `ServerData` direction. Ordinary
+Roc and native responses remain `Bytes`; pooled frames can cross the same body
+and Hyper authority without an ownership adapter.
+
+## Production seam result
+
+Commit `c8375db` migrated `ServerBody`, ordinary response constructors, native
+file streaming, telemetry, tracked bodies, and the manual HTTP/2 sender to
+`ServerData`. The existing pointer-identity tests inspect the body frame
+directly and confirm that widening the sum type does not copy ordinary `Bytes`.
+
+The manual HTTP/2 path cannot split one pooled frame into multiple owned
+values: doing so would reintroduce an allocation or a second ownership control
+block. It instead reserves flow-control capacity, transfers the whole bounded
+`Buf` to h2, and lets h2 advance it incrementally. A focused test sends a
+4,096-byte pooled frame through a seven-byte initial HTTP/2 window, verifies
+the exact wire payload, and observes the sole pool slot return after h2 releases
+the buffer. The finite pool plus h2's 64 KiB send-buffer ceiling bound retained
+data beyond the current flow-control grant.
+
+Validation with Zig compiler `debug-e1d283cb` passed:
+
+- all 172 host unit tests;
+- all 28 disposable transport-spike tests;
+- all 215 platform tests; and
+- all 52 live x64musl runtime specification cases.
+
+This closes the internal data-type compatibility question. It does not yet
+close the end-to-end allocation or lifecycle gate: no production SSE body uses
+the pool, resumable encoder, request accounting, deadlines, or unified close
+path yet.
 
 ## Exact allocation result
 
@@ -80,10 +107,10 @@ Focused tests establish:
 - recycled q1 and standard q3 both retain zero measured steady allocations
   when the custom `ServerData` wrapper is used.
 
-The compatibility test matters because it proves the existing response rules
-and unknown-length framing are already correct. The incompatibility is only
-the `ServerBody::Data` type: the real authority accepts the pooled body after
-conversion to `Bytes`, and that conversion is the measured allocation.
+The compatibility test matters because it proves the response rules and
+unknown-length framing were already correct. Its conversion to `Bytes` remains
+the allocation-attribution baseline; production pooled frames now take the
+direct `ServerData::Pooled` path instead.
 
 ## Why the tempting `Bytes` alternatives do not close the gate
 
@@ -98,21 +125,19 @@ Unsafe access to bytes' private vtable, leaking slabs, or relying on Hyper to
 drop a frame before its next poll are rejected. They would replace a measured
 small allocation with an undocumented lifetime assumption.
 
-## Next production-body spike
+## Remaining production-body spike
 
-1. Prototype `ServerData` in the host and change `ServerBody`/tracked bodies to
-   use it, mapping ordinary `Bytes` bodies without copying.
-2. Keep the pool finite and separately account free, reserved, queued, and
-   transport-owned slots. Saturation returns `Pending`; frame drop wakes the
-   producer.
-3. Run every existing ordinary response, HEAD, file, H1, and H2 case to prove
-   that widening the internal data type has no semantic regression.
-4. Put the resumable identity/q1/q3 body through a real listener. Stop a reader
-   after the pool fills and prove the byte/frame high-water remains fixed.
-5. Cancel before encoding, during PROCESS, during FLUSH, while queued, and while
+1. Connect the resumable identity/q1/q3 SSE body to the production
+   `ServerData::Pooled` path.
+2. Keep each stream's pool finite and separately account free, reserved,
+   queued, and transport-owned slots. Saturation returns `Pending`; frame drop
+   wakes the producer.
+3. Put that body through a real listener. Stop a reader after the pool fills
+   and prove the byte/frame high-water remains fixed.
+4. Cancel before encoding, during PROCESS, during FLUSH, while queued, and while
    transport-owned. All frame, encoder, and request accounting must return to
    zero through the unified close path.
-6. Measure full-path allocations and latency with realistic changing corpora
+5. Measure full-path allocations and latency with realistic changing corpora
    and enough slots for real H2 behavior; then test an unrelated H2 stream and
    ordinary-request p99.
 

@@ -1,6 +1,6 @@
 # Datastar research synthesis and spike contract
 
-Status: production body transaction is the critical path; compiler feasibility passed locally
+Status: production data seam passed; live body transaction is the critical path
 
 Date: 2026-08-02
 
@@ -48,9 +48,10 @@ transport integration research, subject to controlled performance, upstream
 compiler design, cross-target, and end-to-end gates. The allocating
 explicit-state path remains only a lifecycle fallback.
 
-The research is therefore refocused. Retained callable allocation is no longer
-the leading feasibility question. The critical path is one production body
-transaction which carries a bounded Roc item through validation, canonical SSE
+The research is therefore refocused. Retained callable allocation and internal
+Hyper body-data ownership are no longer the leading feasibility questions. The
+critical path is one production body transaction which carries a bounded Roc
+item through validation, canonical SSE
 framing, optional Brotli, an owned output frame, Hyper flow control, and
 cancellation without unbounded buffering or steady-state allocation. Compiler
 upstreaming remains a parallel release dependency, not the work which should
@@ -67,21 +68,16 @@ architecture:
    stopped readers bound retained bytes. Cancellation must release the pending
    framed item, encoder, frame reservation, and returned Roc machine through
    one idempotent close path.
-2. **P0 — production owned-frame steady state.** The disposable custom-`Buf`
-   pool now removes per-frame allocation for identity, q1, and q3. Transfer its
-   internal `ServerData` sum type into the real host, keep all ordinary bodies
-   allocation-neutral, and repeat the measurement through the listener. Zero
-   allocations in the disposable body alone does not close this objective.
-3. **P1 — listener and scheduler isolation.** Carry the transaction through
+2. **P1 — listener and scheduler isolation.** Carry the transaction through
    the response authority, request accounting, deadlines, graceful shutdown,
    HTTP/1.1, and HTTP/2. A stopped stream must not grow its queue or degrade an
    unrelated HTTP/2 stream or ordinary-request p99 beyond the comparison gate.
-4. **P1 — compiler upstream and portability.** Complete review of the retained
+3. **P1 — compiler upstream and portability.** Complete review of the retained
    callable compiler change, controlled batch-1 timing, and supported-target
    lifecycle coverage in parallel with host work. Fall back to a generated
    typed opaque-state adapter only if compiler review invalidates the callable
    mechanism.
-5. **P2 — application ergonomics and browser coverage.** Select the public API
+4. **P2 — application ergonomics and browser coverage.** Select the public API
    only after the body ownership model is real, then compare representative Roc
    applications with Go and finish the Chromium/WebKit/proxy matrix.
 
@@ -261,7 +257,7 @@ the exact input. This removes the need to prove a whole-item repeated-FLUSH
 maximum for correctness.
 
 The owned-frame follow-up isolates and removes the remaining allocation in the
-disposable path. The current `ServerBody::Data = Bytes` can preserve the frame
+disposable path. The former `ServerBody::Data = Bytes` could preserve the frame
 drop callback only through `Bytes::from_owner`, whose pinned implementation
 allocates a 56-byte owner box per output frame. A candidate internal
 `ServerData::{Bytes, Pooled}` sum type implements `Buf` directly. After 2,048
@@ -271,9 +267,13 @@ every run ended at one free slot, zero in use. The `Bytes` compatibility runs
 made exactly one allocation/free per output frame. Cancellation tests release
 abandoned, queued, and transport-owned frames and wake a blocked producer.
 
-This selects the internal sum type for the production-body spike, but does
-**not** close P0: the custom data type is not yet used by the real listener,
-tracked body, H2 flow control, deadlines, or shutdown. See
+The internal sum type is now used by the real listener, tracked body, native
+file body, telemetry, and manual H2 sender. A 4,096-byte pooled frame passes a
+seven-byte H2 flow-control window and returns its sole pool slot; all 172 host
+tests and all 52 live runtime specification cases pass. This closes the
+body-data compatibility seam, but does **not** close P0: the live SSE body has
+not yet joined resumable encoding, pool accounting, deadlines, request
+accounting, and cancellation through one close path. See
 [`datastar-frame-ownership-findings.md`](datastar-frame-ownership-findings.md).
 
 ## Go comparison: where the target stands
@@ -286,7 +286,7 @@ tracked body, H2 flow control, deadlines, or shutdown. See
 | Normal Brotli close | Rust spike FINISHes; Go SDK API leaves stream unfinished | Keep stronger lifecycle |
 | Brotli encoder time | Selected Rust profiles beat matched Go by 1.22–1.47x at non-identical wire sizes | Focus next work on integration and bounds |
 | Brotli retained state | q1 and q3 focused results meet/beat matched Go under stated accounting caveat | Use explicit profile capacity |
-| Complete disposable body allocations | Custom `ServerData` path reaches zero for identity, recycled q1, and standard q3; current `Bytes::from_owner` compatibility costs one 56-byte allocation/frame | Move `ServerData` into the production body and repeat through the listener |
+| Owned response frames | Disposable identity/q1/q3 reaches zero steady allocations; production `ServerData` preserves ordinary responses and returns a pooled frame after incremental H2 flow control | Integrate the live SSE body and repeat full-path allocation/accounting through the listener |
 | Roc retained-callable transition | Representative 1.46 ns/step; zero instrumented allocator/free calls on the unique compatible path | Allocation feasibility passes; controlled and end-to-end performance remain |
 | Go references | Functional source-shape fixture allocates once; aggressive mutable-pointer fixture does not and is slightly faster | Neither fixture alone is the production acceptance contract |
 | Roc explicit-state transition | Current representative speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | Keep only as lifecycle fallback |
@@ -364,22 +364,20 @@ bounded CPU executor without compromising ordering and cancellation.
 
 ## Remaining feasibility spikes
 
-### A. Production body transaction and owned frames
+### A. Live production body transaction
 
-Prototype the selected `ServerData::{Bytes, Pooled}` sum type in the real host
-so ordinary bodies keep their existing `Bytes` representation while SSE frames
-return fixed vectors on `Drop`. Update `ServerBody`, tracked bodies, and native
-body constructors without copying. Preserve explicit free/reserved/queued/
-transport-owned accounting, and repeat identity/q1/q3 allocation and
-cancellation tests through this production seam. This is the current
-highest-value spike.
+Connect the resumable identity/q1/q3 encoder to the production
+`ServerData::Pooled` path. Preserve explicit free/reserved/queued/
+transport-owned accounting, advance PROCESS/FLUSH/FINISH only after reserving a
+frame, and join body drop, deadline, disconnect, and shutdown through one
+idempotent close path. Repeat allocation and cancellation measurements through
+the live listener. This is the current highest-value spike.
 
 ### B. Real listener and H2 isolation
 
-Integrate that adapter with the response authority, request accounting,
-deadlines, graceful shutdown, and HTTP/1.1 and HTTP/2 flow control. Prove a
-fixed high-water mark for stopped readers and isolation of an unrelated H2
-stream and ordinary requests.
+Integrate that body with request accounting, deadlines, graceful shutdown, and
+HTTP/1.1 and HTTP/2 flow control. Prove a fixed high-water mark for stopped
+readers and isolation of an unrelated H2 stream and ordinary requests.
 
 ### C. End-to-end scheduler and scale
 
