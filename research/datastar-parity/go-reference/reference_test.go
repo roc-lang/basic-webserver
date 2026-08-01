@@ -157,6 +157,34 @@ func TestStableGoSDKWireAndHeaderObservations(t *testing.T) {
 			t.Fatalf("Content-Encoding = %q, want server-first br", got)
 		}
 	})
+
+	t.Run("compression overwrites no-transform", func(t *testing.T) {
+		w := &observingWriter{header: http.Header{"Cache-Control": {"private, no-transform"}}}
+		_ = newSSE(w, request(1, "br"), idiomaticBrotli)
+		if got := w.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("Cache-Control = %q, want observed overwrite", got)
+		}
+		if got := w.Header().Get("Content-Encoding"); got != "br" {
+			t.Fatalf("Content-Encoding = %q", got)
+		}
+	})
+
+	t.Run("event fields are emitted without injection validation", func(t *testing.T) {
+		w := &observingWriter{}
+		sse := newSSE(w, request(1, ""), identity)
+		if err := sse.Send(
+			datastar.EventType("custom\ndata: injected"),
+			[]string{"safe\ndata: second-injected"},
+			datastar.WithSSEEventId("cursor\nid: replaced"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, injected := range []string{"data: injected", "id: replaced", "data: second-injected"} {
+			if !strings.Contains(w.body.String(), injected) {
+				t.Fatalf("missing injected field %q in %q", injected, w.body.String())
+			}
+		}
+	})
 }
 
 func TestProgressiveDelivery(t *testing.T) {
