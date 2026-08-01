@@ -4,17 +4,31 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 type state struct {
 	checksum uint64
+	items    []string
+	label    string
 	steps    uint64
+	padding  [16]byte
 }
 
 var sink *state
+
+func newState(seed uint64) *state {
+	return &state{
+		checksum: seed,
+		items: []string{
+			"first retained benchmark string crossing every state step",
+			"second retained benchmark string crossing every state step",
+		},
+		label: "benchmark state carries nested values across every transition",
+	}
+}
 
 //go:noinline
 func roundtrip(current *state) *state {
@@ -39,7 +53,12 @@ func stepUnique(current *state, wake, eventCount uint64) *state {
 //
 //go:noinline
 func stepReplace(current *state, wake, eventCount uint64) *state {
-	next := &state{checksum: current.checksum, steps: current.steps}
+	next := &state{
+		checksum: current.checksum,
+		items:    current.items,
+		label:    current.label,
+		steps:    current.steps,
+	}
 	for index := uint64(0); index < eventCount; index++ {
 		next.steps++
 		next.checksum = next.checksum*6364136223846793005 + wake + index + next.steps
@@ -59,31 +78,38 @@ func positiveEnv(name string, fallback, minimum int) int {
 	return parsed
 }
 
-func allocationCount(operation string, iterations int, batch uint64) {
-	current := &state{checksum: 141}
+func allocationCountRoundtrip(iterations int) {
+	current := newState(141)
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 	for index := 0; index < iterations; index++ {
-		switch operation {
-		case "roundtrip":
-			current = roundtrip(current)
-		case "unique":
+		current = roundtrip(current)
+	}
+	runtime.ReadMemStats(&after)
+	sink = current
+	allocations := after.Mallocs - before.Mallocs
+	fmt.Printf("ALLOC impl=go operation=roundtrip batch=0 steps=%d allocs_per_step=%.6f\n",
+		iterations, float64(allocations)/float64(iterations))
+}
+
+func allocationCountTransition(operation string, iterations int, batch uint64) {
+	current := newState(141)
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	if operation == "unique" {
+		for index := 0; index < iterations; index++ {
 			current = stepUnique(current, uint64(index&7), batch)
-		case "replace":
+		}
+	} else {
+		for index := 0; index < iterations; index++ {
 			current = stepReplace(current, uint64(index&7), batch)
-		default:
-			panic("unknown operation")
 		}
 	}
 	runtime.ReadMemStats(&after)
 	sink = current
 	allocations := after.Mallocs - before.Mallocs
-	if batch == 0 {
-		fmt.Printf("ALLOC impl=go operation=%s batch=0 steps=%d allocs_per_step=%.6f\n",
-			operation, iterations, float64(allocations)/float64(iterations))
-		return
-	}
 	fmt.Printf("ALLOC impl=go operation=%s batch=%d steps=%d allocs_per_step=%.6f allocs_per_event=%.6f\n",
 		operation,
 		batch,
@@ -92,23 +118,7 @@ func allocationCount(operation string, iterations int, batch uint64) {
 		float64(allocations)/(float64(iterations)*float64(batch)))
 }
 
-func timeOperation(operation string, iterations, repetition int, batch uint64) {
-	current := &state{checksum: 241 + uint64(repetition)}
-	started := time.Now()
-	for index := 0; index < iterations; index++ {
-		switch operation {
-		case "roundtrip":
-			current = roundtrip(current)
-		case "unique":
-			current = stepUnique(current, uint64(index&7), batch)
-		case "replace":
-			current = stepReplace(current, uint64(index&7), batch)
-		default:
-			panic("unknown operation")
-		}
-	}
-	elapsed := time.Since(started)
-	sink = current
+func printTiming(operation string, iterations, repetition int, batch uint64, elapsed time.Duration) {
 	events := float64(iterations)
 	if batch != 0 {
 		events *= float64(batch)
@@ -122,9 +132,53 @@ func timeOperation(operation string, iterations, repetition int, batch uint64) {
 		float64(elapsed.Nanoseconds())/events)
 }
 
+func timeRoundtrip(iterations, repetition int) {
+	current := newState(241 + uint64(repetition))
+	for index := 0; index < 10000; index++ {
+		current = roundtrip(current)
+	}
+	runtime.GC()
+	started := time.Now()
+	for index := 0; index < iterations; index++ {
+		current = roundtrip(current)
+	}
+	elapsed := time.Since(started)
+	sink = current
+	printTiming("roundtrip", iterations, repetition, 0, elapsed)
+}
+
+func timeUnique(iterations, repetition int, batch uint64) {
+	current := newState(241 + uint64(repetition))
+	for index := 0; index < 10000; index++ {
+		current = stepUnique(current, uint64(index&7), batch)
+	}
+	runtime.GC()
+	started := time.Now()
+	for index := 0; index < iterations; index++ {
+		current = stepUnique(current, uint64(index&7), batch)
+	}
+	elapsed := time.Since(started)
+	sink = current
+	printTiming("unique", iterations, repetition, batch, elapsed)
+}
+
+func timeReplace(iterations, repetition int, batch uint64) {
+	current := newState(241 + uint64(repetition))
+	for index := 0; index < 10000; index++ {
+		current = stepReplace(current, uint64(index&7), batch)
+	}
+	runtime.GC()
+	started := time.Now()
+	for index := 0; index < iterations; index++ {
+		current = stepReplace(current, uint64(index&7), batch)
+	}
+	elapsed := time.Since(started)
+	sink = current
+	printTiming("replace", iterations, repetition, batch, elapsed)
+}
+
 func main() {
 	runtime.GOMAXPROCS(1)
-	debug.SetGCPercent(-1)
 	iterations := positiveEnv("EXPLICIT_STATE_ITERS", 1000000, 1000)
 	repetitions := positiveEnv("EXPLICIT_STATE_REPS", 9, 3)
 	countIterations := iterations
@@ -132,16 +186,17 @@ func main() {
 		countIterations = 100000
 	}
 
-	allocationCount("roundtrip", countIterations, 0)
+	fmt.Printf("ENV impl=go state_bytes=%d gomaxprocs=%d\n", unsafe.Sizeof(state{}), runtime.GOMAXPROCS(0))
+	allocationCountRoundtrip(countIterations)
 	for _, batch := range []uint64{1, 4, 16} {
-		allocationCount("unique", countIterations, batch)
-		allocationCount("replace", countIterations, batch)
+		allocationCountTransition("unique", countIterations, batch)
+		allocationCountTransition("replace", countIterations, batch)
 	}
 	for repetition := 0; repetition < repetitions; repetition++ {
-		timeOperation("roundtrip", iterations, repetition, 0)
+		timeRoundtrip(iterations, repetition)
 		for _, batch := range []uint64{1, 4, 16} {
-			timeOperation("unique", iterations, repetition, batch)
-			timeOperation("replace", iterations, repetition, batch)
+			timeUnique(iterations, repetition, batch)
+			timeReplace(iterations, repetition, batch)
 		}
 	}
 

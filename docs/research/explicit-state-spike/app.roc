@@ -18,7 +18,12 @@ DashboardState : {
 	steps : U64,
 }
 
-BenchState : { checksum : U64, steps : U64 }
+BenchState : {
+	checksum : U64,
+	items : List(Str),
+	label : Str,
+	steps : U64,
+}
 
 State : [Bench(BenchState), Dashboard(DashboardState), Feed(FeedState)]
 
@@ -52,7 +57,16 @@ init_stream! = |seed|
 	}
 
 init_bench : U64 -> State
-init_bench = |seed| Bench({ checksum: seed + 41, steps: 0 })
+init_bench = |seed|
+	Bench({
+		checksum: seed + 41,
+		items: [
+			"first retained benchmark string crossing every state step",
+			"second retained benchmark string crossing every state step",
+		],
+		label: "benchmark state carries nested ARC values without an opaque resource",
+		steps: 0,
+	})
 
 advance_values : U64, U64, U64, U64 -> { checksum : U64, steps : U64 }
 advance_values = |wake, remaining, steps, checksum|
@@ -70,7 +84,12 @@ step_stream! = |wake, event_count, state|
 		Bench(bench) => {
 			advanced = advance_values(wake, event_count, bench.steps, bench.checksum)
 			ExplicitState.observe!(advanced.checksum)
-			Bench(advanced)
+			Bench({
+				checksum: advanced.checksum,
+				items: bench.items,
+				label: bench.label,
+				steps: advanced.steps,
+			})
 		}
 		Feed(feed) => {
 			advanced = advance_values(wake, event_count, feed.steps, feed.checksum)
@@ -103,7 +122,15 @@ step_stream! = |wake, event_count, state|
 bench_stream : U64, U64, State -> State
 bench_stream = |wake, event_count, state|
 	match state {
-		Bench(bench) => Bench(advance_values(wake, event_count, bench.steps, bench.checksum))
+		Bench(bench) => {
+			advanced = advance_values(wake, event_count, bench.steps, bench.checksum)
+			Bench({
+				checksum: advanced.checksum,
+				items: bench.items,
+				label: bench.label,
+				steps: advanced.steps,
+			})
+		}
 		Feed(feed) => {
 			advanced = advance_values(wake, event_count, feed.steps, feed.checksum)
 			Feed({

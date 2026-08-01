@@ -15,6 +15,10 @@ static _Atomic uint64_t deallocation_calls;
 static _Atomic uint64_t reallocation_calls;
 static _Atomic int64_t live_allocations;
 static bool track_allocations = true;
+static bool benchmark_pool_mode;
+static void *benchmark_cached_state_allocation;
+
+#define BENCHMARK_STATE_ALLOCATION_BYTES 96
 
 static _Atomic uint64_t resource_allocations;
 static _Atomic uint64_t resource_deallocations;
@@ -56,6 +60,16 @@ static size_t normalized_alignment(size_t alignment) {
 }
 
 void *roc_alloc(size_t length, size_t alignment) {
+    if (benchmark_pool_mode) {
+        check(length == BENCHMARK_STATE_ALLOCATION_BYTES,
+              "pooled benchmark made an unexpected allocation");
+        check(alignment <= 8, "pooled benchmark requested unexpected alignment");
+        if (benchmark_cached_state_allocation != NULL) {
+            void *pointer = benchmark_cached_state_allocation;
+            benchmark_cached_state_allocation = NULL;
+            return pointer;
+        }
+    }
     void *pointer = NULL;
     const size_t actual_length = length == 0 ? 1 : length;
     if (posix_memalign(&pointer, normalized_alignment(alignment), actual_length) != 0 ||
@@ -86,6 +100,12 @@ static bool mark_resource_deallocated(void *base) {
 void roc_dealloc(void *pointer, size_t alignment) {
     (void)alignment;
     if (pointer == NULL) {
+        return;
+    }
+    if (benchmark_pool_mode) {
+        check(benchmark_cached_state_allocation == NULL,
+              "pooled benchmark freed more than one allocation per step");
+        benchmark_cached_state_allocation = pointer;
         return;
     }
     if (track_allocations) {
@@ -478,9 +498,21 @@ static void time_operation(
     const char *operation,
     size_t iterations,
     size_t repetition,
-    uint64_t batch) {
+    uint64_t batch,
+    bool use_pool) {
     track_allocations = false;
     RocBox state = roc_explicit_init_bench_state(200 + (uint64_t)repetition);
+    benchmark_pool_mode = use_pool;
+    const size_t warmup_steps = iterations < 10000 ? iterations : 10000;
+    if (batch == 0) {
+        for (size_t index = 0; index < warmup_steps; index += 1) {
+            state = roc_explicit_roundtrip_state(state);
+        }
+    } else {
+        for (size_t index = 0; index < warmup_steps; index += 1) {
+            state = roc_explicit_bench_state(state, (uint64_t)(index & 7), batch);
+        }
+    }
     const uint64_t started = monotonic_nanoseconds();
     if (batch == 0) {
         for (size_t index = 0; index < iterations; index += 1) {
@@ -492,7 +524,10 @@ static void time_operation(
         }
     }
     const uint64_t elapsed = monotonic_nanoseconds() - started;
+    benchmark_pool_mode = false;
     roc_explicit_drop_state(state);
+    free(benchmark_cached_state_allocation);
+    benchmark_cached_state_allocation = NULL;
     track_allocations = true;
     const double events = batch == 0 ? (double)iterations : (double)iterations * (double)batch;
     printf("BENCH impl=roc operation=%s batch=%llu rep=%zu steps=%zu ns_per_step=%.3f ns_per_event=%.3f\n",
@@ -531,10 +566,13 @@ int main(void) {
     count_transition_allocations(count_iterations, 4);
     count_transition_allocations(count_iterations, 16);
     for (size_t repetition = 0; repetition < repetitions; repetition += 1) {
-        time_operation("roundtrip", iterations, repetition, 0);
-        time_operation("transition", iterations, repetition, 1);
-        time_operation("transition", iterations, repetition, 4);
-        time_operation("transition", iterations, repetition, 16);
+        time_operation("roundtrip", iterations, repetition, 0, false);
+        time_operation("transition", iterations, repetition, 1, false);
+        time_operation("transition_pool", iterations, repetition, 1, true);
+        time_operation("transition", iterations, repetition, 4, false);
+        time_operation("transition_pool", iterations, repetition, 4, true);
+        time_operation("transition", iterations, repetition, 16, false);
+        time_operation("transition_pool", iterations, repetition, 16, true);
     }
 
     assert_balanced("final accounting");
