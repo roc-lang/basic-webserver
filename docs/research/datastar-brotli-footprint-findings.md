@@ -32,15 +32,23 @@ stream. It sends 48% more bytes than q1/LGWin 11 and exhibits periodic roughly
 3 ms flushes on the todo trace; it belongs on the Pareto table but should not
 be selected.
 
-For a first-class facility, use q3/LGWin 12 only with a separate finite
-compressed-stream admission unit and explicit capacity accounting. The host
-must decide identity versus Brotli before committing headers. Identity can
-remain the high-scale path when the Brotli admission unit is saturated, if it
-is acceptable under the request's encoding negotiation. If product scope
-requires 10,000 simultaneous Brotli streams in a modest memory budget, the
-current Rust encoder cannot meet it with q3-class compression; that is a
-negative feasibility result, not justification to buffer beyond FLUSH or drop
-the live encoder.
+For a first-class facility, make the profile decision corpus-sensitive and
+endpoint-configurable before committing headers: q3/LGWin 12 for mixed small
+events, heartbeat-heavy streams, and maximum compression; q1/LGWin 11 for
+changing HTML streams where sub-64 KiB state and large populations matter;
+q1/LGWin 10 remains an explicit minimum-memory Pareto alternative with its
+documented wire and latency penalty. A heartbeat-only endpoint should prefer
+identity over q1. Do not attempt to switch coding or profile in the middle of
+a response.
+
+Use q3/LGWin 12 only with a separate finite compressed-stream admission unit
+and explicit capacity accounting. The host must decide identity versus Brotli
+before committing headers. Identity can remain the high-scale path when the
+Brotli admission unit is saturated, if it is acceptable under the request's
+encoding negotiation. If product scope requires 10,000 simultaneous Brotli
+streams in a modest memory budget, the current Rust encoder cannot meet it
+with q3-class compression; that is a negative feasibility result, not
+justification to buffer beyond FLUSH or drop the live encoder.
 
 ## What changed in the spike
 
@@ -77,6 +85,16 @@ does not include allocator metadata. Go uses `runtime.MemStats` after forced
 GC, so its byte accounting is not definitionally identical. Multi-stream
 measurements activate every encoder; whole-trace activation was used to reveal
 window/cache growth rather than reporting lazy pre-use state.
+
+"Mature idle" below means the live encoder after activation, when no event is
+currently being encoded. It includes persistent encoder/history allocations,
+the reusable output buffer's retained capacity, inline state, and any blocks
+currently held by the recycler. `peak_cached_bytes` is the recycler's observed
+cache high-water within that total, not an additional body-output reservation
+and not a proof of maximum Brotli FLUSH output. The separate per-event encoded
+output bound remains unproven; only observed maxima are available from the
+first-wave bound probe. That proof and the body-frame reservation remain
+release gates.
 
 The corpora are:
 
@@ -212,9 +230,10 @@ visible in the profile decision.
 5. Do not advertise q1/w11 as the sole automatic default without explicitly
    accepting poor heartbeat/tiny-event compression. If scale mode is exposed,
    name the tradeoff rather than presenting it as equivalent compression.
-6. The broader release gates remain: browser/proxy progressive delivery,
-   proven FLUSH output bounds, slow-reader isolation, full-frame pooling,
-   cross-target decode, and ordinary-request latency under encoder CPU load.
+6. The broader release gates remain: browser/proxy progressive delivery, a
+   proven repeated-FLUSH output bound, slow-reader isolation, full-frame
+   pooling, cross-target decode, and ordinary-request latency under encoder
+   CPU load.
 
 Raw measurements, environment, and reproduction commands are under
 `research/datastar-transport/results` and `research/datastar-transport/README.md`.
