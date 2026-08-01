@@ -283,6 +283,40 @@ If the effectful recursive callable cannot be expressed, the next prototype is
 the explicit application `stream!` entrypoint with `Box(StreamState)`. A
 long-running writer is not a fallback.
 
+### Negative checkpoint: provided drop wrappers crash
+
+**Observed:** the committed spike type-checks its recursive effectful callable,
+recursive pure callable, and application-defined `Box(State)` fallback. Current
+C and Rust glue generation gives each of their make/advance/drop entrypoints a
+natural pointer-only ABI. Both development and speed builds link successfully.
+
+The first execution checkpoint is negative. In both development and speed
+builds, consuming a freshly returned value with its provided drop wrapper
+segfaults during generated recursive teardown. Reordering isolated both of
+these same-thread parked-drop failures before any thread migration:
+
+- `roc_abi_drop_bench_machine(roc_abi_make_bench_machine(1))`; and
+- `roc_abi_drop_state(roc_abi_init_state(1))`.
+
+A dev-backend GDB trace reaches `roc_builtins_box_decref_with`, then attempts
+to free an address in the native stack range. The failure occurs before the
+cross-thread and concurrency scenarios, so it is not evidence against runtime
+reentrancy. It is also not yet classified as a compiler defect: the standalone
+C host's runtime ABI and the generated wrapper lowering still need independent
+reduction.
+
+Reproduce:
+
+```text
+python3 scripts/spike_retained_callable.py --opt dev --iterations 1000
+python3 scripts/spike_retained_callable.py --opt speed --iterations 1000
+gdb -q -batch -ex run -ex 'thread apply all bt full' --args \
+  build/abi-spike/retained-callable-dev
+```
+
+This negative result keeps Spike 1 open. No allocation or Go-relative result
+from the benchmark is reportable until the ownership crash is explained.
+
 ## Preliminary recommendation for Spike 1 wording
 
 Replace the claim that generated glue merely "contains machinery" with the
@@ -327,4 +361,3 @@ callables are correct.
    stream but adds one argument and requires shutdown ordering either way.
 7. Does the explicit `stream!` fallback permit unique boxed-state reuse more
    reliably than recursive boxed-callable reuse?
-
