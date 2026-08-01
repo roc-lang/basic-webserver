@@ -82,12 +82,13 @@ pub struct ExplicitBrotli {
 
 impl ExplicitBrotli {
     pub fn new(max_segment_bytes: usize) -> Self {
+        Self::new_with_parameters(max_segment_bytes, BROTLI_QUALITY, BROTLI_WINDOW_BITS)
+    }
+
+    pub fn new_with_parameters(max_segment_bytes: usize, quality: u32, window_bits: u32) -> Self {
         let mut state = BrotliEncoderStateStruct::new(StandardAlloc::default());
-        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, BROTLI_QUALITY));
-        assert!(state.set_parameter(
-            BrotliEncoderParameter::BROTLI_PARAM_LGWIN,
-            BROTLI_WINDOW_BITS
-        ));
+        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality));
+        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, window_bits));
         Self {
             state: Some(state),
             max_segment_bytes,
@@ -480,6 +481,23 @@ mod tests {
         let flushed = aborted.encode_event(&events[0]).unwrap();
         drop(aborted);
         assert_eq!(decode_partial(&flushed), events[0]);
+    }
+
+    #[test]
+    fn low_memory_candidate_profile_flushes_and_finishes() {
+        let events = [datastar_event(256, 1), datastar_event(4096, 2)];
+        let mut encoder = ExplicitBrotli::new_with_parameters(128 * 1024, 1, 11);
+        let mut encoded = Vec::new();
+        let mut expected = Vec::new();
+        for event in &events {
+            expected.extend_from_slice(event);
+            encoded.extend_from_slice(&encoder.encode_event(event).unwrap());
+            assert_eq!(decode_partial(&encoded), expected);
+        }
+        let tail = encoder.finish().unwrap();
+        assert!(!tail.is_empty());
+        encoded.extend_from_slice(&tail);
+        assert_eq!(decode_partial(&encoded), expected);
     }
 
     #[derive(Clone)]

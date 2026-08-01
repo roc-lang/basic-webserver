@@ -28,6 +28,12 @@ browser frontend with buffering configured on; the upstream response's
 `X-Accel-Buffering: no` must still make event one visible. Firefox performance
 entries are asserted as `h2` for that path.
 
+Both the earlier semantic-comparison profile (quality 4, LGWin 18) and the
+transport sweep's provisional low-memory candidate (quality 1, LGWin 11) run
+through real Firefox over direct HTTP/1.1 and the NGINX HTTP/2 frontend. The
+candidate profile is therefore browser-observed, not inferred from a
+command-line decoder.
+
 ## Reproduce
 
 Requirements: Rust, Python 3, Firefox, geckodriver, curl with HTTP/2 and Brotli,

@@ -39,6 +39,8 @@ struct Observation {
     accept_encoding: String,
     datastar_request: String,
     selected_encoding: String,
+    brotli_quality: Option<u32>,
+    brotli_window_bits: Option<u32>,
     first_generated_us: Option<u128>,
     second_generated_us: Option<u128>,
     finished_us: Option<u128>,
@@ -84,14 +86,20 @@ impl AppState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Coding {
     Identity,
-    Brotli,
+    Brotli(BrotliProfile),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BrotliProfile {
+    quality: u32,
+    window_bits: u32,
 }
 
 impl Coding {
     fn label(self) -> &'static str {
         match self {
             Self::Identity => "identity",
-            Self::Brotli => "br",
+            Self::Brotli(_) => "br",
         }
     }
 }
@@ -180,7 +188,11 @@ fn page(query: &HashMap<String, String>) -> Response<HttpBody> {
         .get("coding")
         .map(String::as_str)
         .unwrap_or("identity");
-    if !valid_token(id) || !matches!(coding, "identity" | "br") {
+    let profile = query.get("profile").map(String::as_str).unwrap_or("q4-w18");
+    if !valid_token(id)
+        || !matches!(coding, "identity" | "br")
+        || !matches!(profile, "q4-w18" | "q1-w11")
+    {
         return text_response(StatusCode::BAD_REQUEST, "invalid page query\n");
     }
     let body = format!(
@@ -189,7 +201,7 @@ fn page(query: &HashMap<String, String>) -> Response<HttpBody> {
 <head><meta charset="utf-8"><title>Datastar transport spike</title></head>
 <body>
   <main id="phase">initial</main>
-  <div data-init="@get('/stream?id={id}&amp;coding={coding}')"></div>
+  <div data-init="@get('/stream?id={id}&amp;coding={coding}&amp;profile={profile}')"></div>
   <script type="module" src="/datastar.js"></script>
 </body>
 </html>
@@ -223,9 +235,20 @@ async fn stream_response(
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default()
         .to_owned();
+    let profile = match query.get("profile").map(String::as_str) {
+        None | Some("q4-w18") => BrotliProfile {
+            quality: 4,
+            window_bits: 18,
+        },
+        Some("q1-w11") => BrotliProfile {
+            quality: 1,
+            window_bits: 11,
+        },
+        Some(_) => return text_response(StatusCode::BAD_REQUEST, "invalid profile\n"),
+    };
     let coding = match requested_coding {
         "identity" => Coding::Identity,
-        "br" if accepts_brotli(&accept_encoding) => Coding::Brotli,
+        "br" if accepts_brotli(&accept_encoding) => Coding::Brotli(profile),
         "br" => return text_response(StatusCode::NOT_ACCEPTABLE, "br not accepted\n"),
         _ => return text_response(StatusCode::BAD_REQUEST, "invalid coding\n"),
     };
@@ -246,6 +269,14 @@ async fn stream_response(
             .unwrap_or_default()
             .to_owned();
         observation.selected_encoding = coding.label().to_owned();
+        observation.brotli_quality = match coding {
+            Coding::Identity => None,
+            Coding::Brotli(profile) => Some(profile.quality),
+        };
+        observation.brotli_window_bits = match coding {
+            Coding::Identity => None,
+            Coding::Brotli(profile) => Some(profile.window_bits),
+        };
         observation.first_generated_us = Some(state.elapsed_us());
         observation.second_generated_us = None;
         observation.finished_us = None;
@@ -258,7 +289,14 @@ async fn stream_response(
     let first_reservation = producer
         .reserve(FRAME_RESERVATION)
         .expect("new response body has first-frame capacity");
-    let mut encoder = (coding == Coding::Brotli).then(|| ExplicitBrotli::new(FRAME_RESERVATION));
+    let mut encoder = match coding {
+        Coding::Identity => None,
+        Coding::Brotli(profile) => Some(ExplicitBrotli::new_with_parameters(
+            FRAME_RESERVATION,
+            profile.quality,
+            profile.window_bits,
+        )),
+    };
     let first = encode(coding, encoder.as_mut(), &datastar_event(id, "one"))
         .expect("fixture is within bounded encoder output");
     let first_bytes = first.len();
@@ -294,7 +332,7 @@ async fn stream_response(
     response
         .headers_mut()
         .insert("x-accel-buffering", "no".parse().unwrap());
-    if coding == Coding::Brotli {
+    if matches!(coding, Coding::Brotli(_)) {
         response
             .headers_mut()
             .insert(CONTENT_ENCODING, "br".parse().unwrap());
@@ -409,7 +447,7 @@ fn mark_cancelled(state: &AppState, control: &StreamControl) {
 fn encode(coding: Coding, encoder: Option<&mut ExplicitBrotli>, event: &[u8]) -> io::Result<Bytes> {
     match coding {
         Coding::Identity => Ok(Bytes::copy_from_slice(event)),
-        Coding::Brotli => encoder
+        Coding::Brotli(_) => encoder
             .expect("Brotli coding owns an encoder")
             .encode_event(event),
     }

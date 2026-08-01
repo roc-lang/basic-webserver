@@ -263,10 +263,17 @@ def start_server(binary: Path) -> tuple[subprocess.Popen[str], str]:
 
 
 def browser_progressive_case(
-    driver: WebDriver, page_base: str, control_base: str, case_id: str, coding: str
+    driver: WebDriver,
+    page_base: str,
+    control_base: str,
+    case_id: str,
+    coding: str,
+    profile: str = "q4-w18",
 ) -> dict[str, Any]:
     started = time.monotonic_ns()
-    driver.navigate(f"{page_base}/?id={case_id}&coding={coding}")
+    driver.navigate(
+        f"{page_base}/?id={case_id}&coding={coding}&profile={profile}"
+    )
     wait_until(
         lambda: driver.execute(
             'return document.querySelector(\'[data-phase="one"]\') !== null'
@@ -277,6 +284,13 @@ def browser_progressive_case(
     assert before_release["second_generated_us"] is None, before_release
     assert before_release["selected_encoding"] == coding, before_release
     assert before_release["datastar_request"] == "true", before_release
+    if coding == "br":
+        expected_quality, expected_window = {
+            "q4-w18": (4, 18),
+            "q1-w11": (1, 11),
+        }[profile]
+        assert before_release["brotli_quality"] == expected_quality, before_release
+        assert before_release["brotli_window_bits"] == expected_window, before_release
 
     request_text(f"{control_base}/release?id={case_id}")
     wait_until(
@@ -315,6 +329,7 @@ def browser_progressive_case(
         "case": "firefox-progressive",
         "path": "direct" if page_base == control_base else "proxy",
         "coding": coding,
+        "brotli_profile": profile if coding == "br" else None,
         "first_visible_ms": (first_visible - started) / 1_000_000,
         "second_visible_after_first_ms": (second_visible - first_visible) / 1_000_000,
         "before_release": before_release,
@@ -483,6 +498,16 @@ def main() -> int:
                 )
             )
         results.append(
+            browser_progressive_case(
+                driver,
+                base,
+                base,
+                "firefox-direct-br-q1-w11",
+                "br",
+                "q1-w11",
+            )
+        )
+        results.append(
             browser_cancellation_case(
                 driver, base, base, "firefox-direct-cancel-br"
             )
@@ -512,6 +537,16 @@ def main() -> int:
                         coding,
                     )
                 )
+            results.append(
+                browser_progressive_case(
+                    driver,
+                    proxy.base,
+                    base,
+                    "firefox-nginx-br-q1-w11",
+                    "br",
+                    "q1-w11",
+                )
+            )
             results.append(
                 browser_cancellation_case(
                     driver, proxy.base, base, "firefox-nginx-cancel-br"
