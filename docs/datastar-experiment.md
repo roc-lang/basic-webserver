@@ -64,6 +64,15 @@ safely retain, invoke, transfer, and destroy boxed captured callables across
 provided entrypoints and host worker threads on every supported target. That
 claim must be proven before the public API is selected.
 
+The first ABI spike found that erased callables are an intentional compiler and
+glue surface, but also reproduced a narrower blocker: a generated provided
+wrapper that consumes even a non-recursive `Box(function)` uses the generic box
+teardown path and crashes in both development and optimized builds. Direct
+development-runtime diagnostics can exercise the callable lifecycle, but that
+unsupported bypass is not a host design. The preferred callable machine is
+therefore blocked on a compiler fix or supported generated typed adapter, and
+the explicit-state `stream!` fallback must be researched in parallel.
+
 ## Baseline implementation
 
 This branch is based directly on `origin/main` at `2032390`, not on the earlier
@@ -274,7 +283,7 @@ Datastar protocol out of the host runtime.
 
 ### Existing program contract
 
-The preferred design preserves:
+The product-preferred design preserves:
 
 ```roc
 program = { init!, respond!, shutdown! }
@@ -284,8 +293,9 @@ program = { init!, respond!, shutdown! }
 `Sse.Stream`. Applications that never use SSE do not model stream state or add
 a hook.
 
-The fallback design, used only if boxed callables are not viable, adds a fourth
-provided application entrypoint with an application-defined `StreamState`:
+The compiler cannot currently support the product-preferred drop wrapper. The
+active fallback candidate adds a fourth provided application entrypoint with an
+application-defined `StreamState`:
 
 ```roc
 program = { init!, respond!, stream!, shutdown! }
@@ -297,9 +307,12 @@ stream! : Sse.Wake, StreamState, Context
     => Try(Sse.Step(StreamState), [ServerErr(Str), ..])
 ```
 
-That fallback is less ergonomic because all stream routes share one application
-state type, packages cannot privately encapsulate their stream state, and every
-application contract changes. It is still preferable to a pinned writer.
+That candidate is less ergonomic because all stream routes share one
+application state type, packages cannot privately encapsulate their stream
+state, and every application contract changes. It is still preferable to a
+pinned writer, and must now receive the same optimized ownership and Go-relative
+performance testing as the callable design rather than remain only a failure
+note.
 
 ## Illustrative Roc API
 
@@ -1171,6 +1184,26 @@ Stop condition:
 **Question:** Can a captured Roc stream machine safely escape one provided
 entrypoint and be repeatedly invoked and dropped later?
 
+Current evidence:
+
+- The compiler and generated glue deliberately define an erased-callable
+  header, inline captures, atomic outer ARC, invocation, and recursive drop
+  contract. Existing compiler fixtures pass host retention and nested capture
+  teardown.
+- The focused platform spike type-checks the recursive effectful topology and
+  emits concrete pointer-only provided symbols.
+- A generated provided wrapper consuming the smallest captured
+  `Box(U64 -> U64)` reproducibly crashes in both development and optimized
+  builds by entering generic box teardown. `Box(U64)` and explicit boxed state
+  without a nested callable drop correctly.
+- A development-only direct erased-callable diagnostic passes thread migration,
+  independent concurrency, cancellation, overlap rejection, nested captures,
+  and resource balance, but its helper is not exported in optimized builds and
+  is not a supported host API.
+
+This means the erased representation is plausible but the preferred fixed
+advance/drop wrapper is currently blocked. Spike 1 remains open.
+
 Minimum prototype:
 
 - `respond!` returns a box containing a callable that captures nested strings,
@@ -1201,11 +1234,21 @@ Pass criteria:
   target validation as applicable to the repository's supported matrix.
 - Generated glue has a reviewable stable ABI rather than depending on an
   undocumented layout accident.
+- Generated provided advance and drop wrappers select callable-specific ARC and
+  pass the non-recursive boxed-callable reduction in development and optimized
+  builds before the full machine result is considered.
+- Optimized allocation, ARC, ABI crossing, and copy counts are compared with
+  the explicit-state fallback and controlled Go baseline. Development-only
+  direct helper timings do not satisfy this criterion.
 
 Failure response:
 
-- Prototype the explicit application `stream!` entrypoint with boxed
-  application state. Do not implement the synchronous writer fallback.
+- Preserve the boxed-callable compiler reduction and require a compiler fix or
+  supported generated typed adapter before using that topology.
+- In parallel, prototype the explicit application `stream!` entrypoint with
+  boxed application state across the same thread, cancellation, ownership,
+  cross-target, and performance matrix. Do not implement the synchronous
+  writer fallback.
 
 ### Spike 2: Minimal progressive Hyper body
 
@@ -1535,6 +1578,8 @@ Local architecture and implementation:
 - [`src/telemetry.rs`](../src/telemetry.rs)
 - [`src/shutdown.rs`](../src/shutdown.rs)
 - [`src/roc_platform_abi.rs`](../src/roc_platform_abi.rs)
+- [`docs/research/roc-abi-lifecycle.md`](research/roc-abi-lifecycle.md)
+- [`docs/research/abi-spike`](research/abi-spike)
 
 External protocol references to pin during Spike 0:
 
@@ -1583,3 +1628,18 @@ feasibility gate.
 
 These experiment decisions have not yet changed code or the accepted
 `design.md` contract.
+
+### 2026-08-01: Preferred callable machine is compiler-blocked
+
+The compiler exposes an intentional erased-callable ABI, and a development
+diagnostic can run the proposed lifecycle when it directly invokes that ABI.
+However, a generated provided wrapper that consumes a captured boxed callable
+reproducibly lowers to generic box teardown and crashes in both development and
+optimized builds.
+
+The host must not call a development-only runtime helper or hand-maintain the
+compiler's callable layout. The preferred three-function application contract
+is blocked until a compiler fix or supported generated typed adapter passes the
+reproducer. The explicit-state fourth `stream!` entrypoint is now an active
+parallel candidate and must be benchmarked against Go rather than treated as an
+unexamined fallback.
