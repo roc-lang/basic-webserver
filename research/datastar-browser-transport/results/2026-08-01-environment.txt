@@ -1,0 +1,34 @@
+Repository baseline: cd56948d36caca636346763b346a2f9faa9bfab5
+Run date: 2026-08-01 Australia/Melbourne
+
+Linux lbw-B850-GAMING-X-WIFI6E 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul 1 15:50:57 UTC 2 x86_64 GNU/Linux
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+cargo 1.97.1 (c980f4866 2026-06-30)
+Mozilla Firefox 153.0.1
+geckodriver 0.37.0 (2026-07-27)
+curl 8.5.0 with nghttp2/1.59.0 and brotli/1.1.0
+nginx/1.24.0 (Ubuntu), built with OpenSSL 3.0.13 and http_v2_module
+OpenSSL 3.0.13
+
+Pinned Datastar bundle:
+  v1.0.2 commit e24f04d43ca4445d662b4a035e5bfe9ed68de57c
+  SHA-256 2837d87acf6ee0ba8e4e63765926c25a98d63883b02f88be194a86b81d3fd24a
+
+Rootless reference-proxy packages:
+  nginx_1.24.0-2ubuntu7.15_amd64.deb
+  SHA-256 3004458b1e9804ebe5e9c6a4c4fddcc80af012dbbe1a9f0669f275ee0aedc118
+  nginx-common_1.24.0-2ubuntu7.15_all.deb
+  SHA-256 ce7211d826cb36f9454a5bae6270bdbc4da2dfd5d1137820914ba4555c25480d
+
+Build:
+  cargo build --manifest-path research/datastar-transport/Cargo.toml --release --bin browser_transport_server
+
+Run:
+  python3 research/datastar-browser-transport/run_browser_transport.py \
+    --nginx /tmp/datastar-nginx-root/usr/sbin/nginx \
+    --output research/datastar-browser-transport/results/2026-08-01-observations.jsonl
+
+The runner generated a one-day self-signed RSA certificate with OpenSSL for
+the loopback-only NGINX HTTP/2 frontend. Firefox was launched headless with
+acceptInsecureCerts for this test certificate. Public TLS policy is not under
+test.
