@@ -1991,7 +1991,7 @@ async fn watch_signals(shutdown: ShutdownController) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::response_body::ResponseFramePool;
+    use crate::response_body::{ResponseFramePool, SseBody, SseCompression, SseItemSource};
     use std::io::Read;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -2008,6 +2008,58 @@ mod tests {
             method: hyper::Method::GET,
             version: hyper::Version::HTTP_11,
         }
+    }
+
+    struct OneShotSseSource {
+        item: Option<Bytes>,
+        cancellations: Arc<AtomicUsize>,
+    }
+
+    impl SseItemSource for OneShotSseSource {
+        fn poll_item(
+            mut self: Pin<&mut Self>,
+            _context: &mut Context<'_>,
+        ) -> Poll<std::io::Result<Option<Bytes>>> {
+            Poll::Ready(Ok(self.item.take()))
+        }
+
+        fn cancel(self: Pin<&mut Self>) {
+            self.cancellations.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn one_shot_sse_source(item: Bytes) -> (Arc<AtomicUsize>, OneShotSseSource) {
+        let cancellations = Arc::new(AtomicUsize::new(0));
+        (
+            Arc::clone(&cancellations),
+            OneShotSseSource {
+                item: Some(item),
+                cancellations,
+            },
+        )
+    }
+
+    fn decode_brotli(input: &[u8]) -> Vec<u8> {
+        let mut decoded = Vec::new();
+        brotli::Decompressor::new(input, 4096)
+            .read_to_end(&mut decoded)
+            .expect("normally finished Brotli stream should decode");
+        decoded
+    }
+
+    fn large_sse_item() -> Bytes {
+        Bytes::from(
+            [
+                b"event: datastar-patch-elements\n".as_slice(),
+                b"data: selector #todos\n",
+                b"data: elements <ul>",
+                "<li>bounded listener transaction</li>"
+                    .repeat(2048)
+                    .as_bytes(),
+                b"</ul>\n\n",
+            ]
+            .concat(),
+        )
     }
 
     #[test]
@@ -2774,6 +2826,245 @@ mod tests {
             .expect("pooled response should complete");
         assert_eq!(pool.stats().in_use_slots, 0);
         assert_eq!(pool.stats().free_slots, 1);
+    }
+
+    #[tokio::test]
+    async fn brotli_sse_body_finishes_through_the_real_http1_path() {
+        let payload = large_sse_item();
+        let (cancellations, source) = one_shot_sse_source(payload.clone());
+        let (handle, body) = SseBody::new(
+            source,
+            128 * 1024,
+            1,
+            7,
+            SseCompression::Brotli {
+                quality: 3,
+                window_bits: 12,
+            },
+        );
+        let mut response = hyper::Response::new(body.boxed_unsync());
+        response
+            .headers_mut()
+            .insert("content-type", "text/event-stream".parse().unwrap());
+        response
+            .headers_mut()
+            .insert("content-encoding", "br".parse().unwrap());
+        let response = finalize_response(response, &get_http1_semantics()).unwrap();
+        let response = Arc::new(std::sync::Mutex::new(Some(response)));
+
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            let service_response = Arc::clone(&response);
+            let service = hyper::service::service_fn(move |_request| {
+                let response = service_response
+                    .lock()
+                    .expect("test response mutex poisoned")
+                    .take()
+                    .expect("test serves exactly one response");
+                async move { Ok::<_, Infallible>(response) }
+            });
+            hyper::server::conn::http1::Builder::new()
+                .serve_connection(TokioIo::new(server_io), service)
+                .await
+                .expect("HTTP/1.1 server connection should succeed");
+        });
+
+        let (mut sender, connection) =
+            hyper::client::conn::http1::handshake(TokioIo::new(client_io))
+                .await
+                .expect("HTTP/1.1 client handshake should succeed");
+        let client = tokio::spawn(connection);
+        let response = sender
+            .send_request(hyper::Request::new(Full::new(Bytes::new())))
+            .await
+            .expect("HTTP/1.1 SSE request should succeed");
+        assert_eq!(response.headers()["content-encoding"], "br");
+        let encoded = response
+            .into_body()
+            .collect()
+            .await
+            .expect("HTTP/1.1 SSE body should succeed")
+            .to_bytes();
+        assert_eq!(decode_brotli(&encoded), payload);
+
+        drop(sender);
+        client.await.expect("client task should not panic").unwrap();
+        server.await.expect("server task should not panic");
+        assert_eq!(cancellations.load(Ordering::Relaxed), 0);
+        assert!(handle.stats().finished);
+        assert_eq!(handle.stats().frames.in_use_slots, 0);
+        assert_eq!(handle.stats().frames.high_water_slots, 1);
+    }
+
+    #[tokio::test]
+    async fn brotli_sse_body_finishes_through_incremental_http2_flow_control() {
+        let payload = large_sse_item();
+        let (cancellations, source) = one_shot_sse_source(payload.clone());
+        let (handle, body) = SseBody::new(
+            source,
+            128 * 1024,
+            1,
+            7,
+            SseCompression::Brotli {
+                quality: 3,
+                window_bits: 12,
+            },
+        );
+        let mut response = hyper::Response::new(body.boxed_unsync());
+        response
+            .headers_mut()
+            .insert("content-type", "text/event-stream".parse().unwrap());
+        response
+            .headers_mut()
+            .insert("content-encoding", "br".parse().unwrap());
+        let response = finalize_response(
+            response,
+            &RequestSemantics {
+                method: hyper::Method::GET,
+                version: hyper::Version::HTTP_2,
+            },
+        )
+        .unwrap();
+
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::Builder::new()
+                .handshake::<_, ServerData>(server_io)
+                .await
+                .expect("HTTP/2 server handshake should succeed");
+            let (_, responder) = connection
+                .accept()
+                .await
+                .expect("client should open one stream")
+                .expect("request should be valid");
+            let mut response_task = Box::pin(send_h2_response(
+                responder,
+                response,
+                Duration::from_secs(1),
+            ));
+            let response_result = loop {
+                tokio::select! {
+                    result = &mut response_task => break result,
+                    accepted = connection.accept() => {
+                        assert!(accepted.is_some(), "client must stay open during response");
+                    }
+                }
+            };
+            while connection.accept().await.is_some() {}
+            response_result
+        });
+
+        let mut builder = h2::client::Builder::new();
+        builder.initial_window_size(7);
+        let (mut sender, connection) = builder
+            .handshake::<_, Bytes>(client_io)
+            .await
+            .expect("HTTP/2 client handshake should succeed");
+        let client = tokio::spawn(connection);
+        sender = sender.ready().await.expect("client should become ready");
+        let (response, _) = sender
+            .send_request(hyper::Request::new(()), true)
+            .expect("request should be accepted");
+        let response = response.await.expect("response headers should arrive");
+        assert_eq!(response.headers()["content-encoding"], "br");
+        let mut body = response.into_body();
+        let mut encoded = Vec::new();
+        while let Some(data) = body.data().await {
+            let data = data.expect("SSE response stream should remain healthy");
+            encoded.extend_from_slice(&data);
+            body.flow_control()
+                .release_capacity(data.len())
+                .expect("client flow-control capacity should be released");
+        }
+        assert_eq!(decode_brotli(&encoded), payload);
+
+        drop(body);
+        drop(sender);
+        client.abort();
+        server
+            .await
+            .expect("server task should not panic")
+            .expect("SSE response should complete");
+        assert_eq!(cancellations.load(Ordering::Relaxed), 0);
+        assert!(handle.stats().finished);
+        assert_eq!(handle.stats().frames.in_use_slots, 0);
+        assert_eq!(handle.stats().frames.high_water_slots, 1);
+    }
+
+    #[tokio::test]
+    async fn stalled_http2_sse_reader_aborts_without_finish_and_releases_everything() {
+        let payload = large_sse_item();
+        let (cancellations, source) = one_shot_sse_source(payload);
+        let (handle, body) = SseBody::new(
+            source,
+            128 * 1024,
+            1,
+            7,
+            SseCompression::Brotli {
+                quality: 3,
+                window_bits: 12,
+            },
+        );
+        let response = hyper::Response::new(body.boxed_unsync());
+
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::Builder::new()
+                .handshake::<_, ServerData>(server_io)
+                .await
+                .expect("HTTP/2 server handshake should succeed");
+            let (_, responder) = connection
+                .accept()
+                .await
+                .expect("client should open one stream")
+                .expect("request should be valid");
+            let mut response_task = Box::pin(send_h2_response(
+                responder,
+                response,
+                Duration::from_millis(30),
+            ));
+            let result = loop {
+                tokio::select! {
+                    result = &mut response_task => break result,
+                    accepted = connection.accept() => {
+                        assert!(accepted.is_some(), "client must stay open during response");
+                    }
+                }
+            };
+            let _ = tokio::time::timeout(Duration::from_millis(10), connection.accept()).await;
+            result
+        });
+
+        let mut builder = h2::client::Builder::new();
+        builder.initial_window_size(7);
+        let (mut sender, connection) = builder
+            .handshake::<_, Bytes>(client_io)
+            .await
+            .expect("HTTP/2 client handshake should succeed");
+        let client = tokio::spawn(connection);
+        sender = sender.ready().await.expect("client should become ready");
+        let (response, _) = sender
+            .send_request(hyper::Request::new(()), true)
+            .expect("request should be accepted");
+        let body = response
+            .await
+            .expect("response headers should arrive")
+            .into_body();
+
+        assert!(server.await.expect("server task should not panic").is_err());
+        assert_eq!(cancellations.load(Ordering::Relaxed), 1);
+        let stats = handle.stats();
+        assert!(stats.cancelled);
+        assert!(!stats.finished);
+        assert!(!stats.active_encoder);
+        assert_eq!(stats.pending_item_bytes, 0);
+        assert_eq!(stats.frames.in_use_slots, 0);
+        assert_eq!(stats.frames.free_slots, 1);
+        assert_eq!(stats.frames.high_water_slots, 1);
+
+        drop(body);
+        drop(sender);
+        client.abort();
     }
 
     #[tokio::test]

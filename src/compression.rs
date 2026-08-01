@@ -1,5 +1,10 @@
 //! Host-owned response content-coding negotiation and encoders.
 
+use brotli::enc::encode::{
+    BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
+    BrotliEncoderStateStruct,
+};
+use brotli::enc::{interface, InputPair, InputReferenceMut, StandardAlloc, StaticCommand};
 use brotli::CompressorWriter;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -18,6 +23,148 @@ const BROTLI_WINDOW_BITS: u32 = 18;
 const ZSTD_LEVEL: i32 = 3;
 // Bound history-dependent encoder memory to the same 256 KiB window as Brotli.
 const ZSTD_WINDOW_BITS: u32 = 18;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct BrotliEncoderStep {
+    pub(crate) input_consumed: usize,
+    pub(crate) output_written: usize,
+    pub(crate) complete: bool,
+}
+
+/// Persistent Brotli state advanced only into caller-owned output capacity.
+///
+/// Dropping this value aborts without emitting a tail. `finish` must be driven
+/// to completion explicitly on a normal response close.
+pub(crate) struct ResumableBrotli {
+    state: Option<BrotliEncoderStateStruct<StandardAlloc>>,
+}
+
+impl ResumableBrotli {
+    pub(crate) fn new(quality: u32, window_bits: u32) -> Self {
+        assert!(quality <= 11, "Brotli quality must be in 0..=11");
+        assert!(
+            (10..=24).contains(&window_bits),
+            "standard Brotli window bits must be in 10..=24"
+        );
+        let mut state = BrotliEncoderStateStruct::new(StandardAlloc::default());
+        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality));
+        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, window_bits));
+        Self { state: Some(state) }
+    }
+
+    pub(crate) fn process(
+        &mut self,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+    ) -> io::Result<BrotliEncoderStep> {
+        brotli_operation_step(
+            self.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
+            input,
+            input_offset,
+            output,
+        )
+    }
+
+    pub(crate) fn flush(&mut self, output: &mut [u8]) -> io::Result<BrotliEncoderStep> {
+        let mut input_offset = 0;
+        brotli_operation_step(
+            self.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
+
+    pub(crate) fn finish(&mut self, output: &mut [u8]) -> io::Result<BrotliEncoderStep> {
+        let mut input_offset = 0;
+        brotli_operation_step(
+            self.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
+}
+
+impl Drop for ResumableBrotli {
+    fn drop(&mut self) {
+        if let Some(mut state) = self.state.take() {
+            BrotliEncoderDestroyInstance(&mut state);
+        }
+    }
+}
+
+fn brotli_operation_step(
+    state: &mut BrotliEncoderStateStruct<StandardAlloc>,
+    operation: BrotliEncoderOperation,
+    input: &[u8],
+    input_offset: &mut usize,
+    output: &mut [u8],
+) -> io::Result<BrotliEncoderStep> {
+    if output.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Brotli output reservation must not be empty",
+        ));
+    }
+    if *input_offset > input.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Brotli input offset exceeds the supplied input",
+        ));
+    }
+
+    let before_input_offset = *input_offset;
+    let mut available_in = input.len() - *input_offset;
+    let mut available_out = output.len();
+    let mut output_offset = 0;
+    let mut total_out = Some(0);
+    let mut callback = |_data: &mut interface::PredictionModeContextMap<InputReferenceMut>,
+                        _commands: &mut [StaticCommand],
+                        _input: InputPair,
+                        _allocator: &mut StandardAlloc| {};
+    let valid = state.compress_stream(
+        operation,
+        &mut available_in,
+        input,
+        input_offset,
+        &mut available_out,
+        output,
+        &mut output_offset,
+        &mut total_out,
+        &mut callback,
+    );
+    if !valid {
+        return Err(io::Error::other("Brotli streaming encoder rejected input"));
+    }
+
+    let complete = match operation {
+        BrotliEncoderOperation::BROTLI_OPERATION_PROCESS => {
+            available_in == 0 && !state.has_more_output()
+        }
+        BrotliEncoderOperation::BROTLI_OPERATION_FLUSH => {
+            available_in == 0
+                && !state.has_more_output()
+                && state.stream_state_
+                    == brotli::enc::encode::BrotliEncoderStreamState::BROTLI_STREAM_PROCESSING
+        }
+        BrotliEncoderOperation::BROTLI_OPERATION_FINISH => state.is_finished(),
+        BrotliEncoderOperation::BROTLI_OPERATION_EMIT_METADATA => unreachable!(),
+    };
+    let step = BrotliEncoderStep {
+        input_consumed: *input_offset - before_input_offset,
+        output_written: output_offset,
+        complete,
+    };
+    if !step.complete && step.input_consumed == 0 && step.output_written == 0 {
+        return Err(io::Error::other("Brotli encoder made no progress"));
+    }
+    Ok(step)
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ContentCoding {

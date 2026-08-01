@@ -6,6 +6,9 @@
 
 #[path = "../../../src/compression.rs"]
 mod host_compression;
+mod compression {
+    pub(crate) use crate::host_compression::ResumableBrotli;
+}
 #[path = "../../../src/response.rs"]
 mod host_response;
 #[path = "../../../src/response_body.rs"]
