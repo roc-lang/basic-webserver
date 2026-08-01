@@ -1,6 +1,10 @@
-app [State, program] { pf: platform "./platform/main.roc" }
+app [State, program] {
+	pf: platform "./platform/main.roc",
+	route: "./route-package/main.roc",
+}
 
 import pf.ExplicitState
+import route.FeedRoute
 
 FeedState : {
 	checksum : U64,
@@ -25,9 +29,9 @@ BenchState : {
 	steps : U64,
 }
 
-State : [Bench(BenchState), Dashboard(DashboardState), Feed(FeedState)]
+State : [Bench(BenchState), Dashboard(DashboardState), Feed(FeedState), Packaged(FeedRoute.FeedRoute)]
 
-program = { init_stream!, init_bench, step_stream!, bench_stream }
+program = { init_stream!, init_bench, init_packaged, step_stream!, bench_stream }
 
 init_stream! : U64 => State
 init_stream! = |seed|
@@ -67,6 +71,9 @@ init_bench = |seed|
 		label: "benchmark state carries nested ARC values without an opaque resource",
 		steps: 0,
 	})
+
+init_packaged : U64 -> State
+init_packaged = |seed| Packaged(FeedRoute.init(seed))
 
 advance_values : U64, U64, U64, U64 -> { checksum : U64, steps : U64 }
 advance_values = |wake, remaining, steps, checksum|
@@ -117,6 +124,11 @@ step_stream! = |wake, event_count, state|
 				steps: advanced.steps,
 			})
 		}
+		Packaged(packaged) => {
+			next = FeedRoute.step(wake, event_count, packaged)
+			ExplicitState.observe!(FeedRoute.checksum(next))
+			Packaged(next)
+		}
 	}
 
 bench_stream : U64, U64, State -> State
@@ -151,4 +163,5 @@ bench_stream = |wake, event_count, state|
 				steps: advanced.steps,
 			})
 		}
+		Packaged(packaged) => Packaged(FeedRoute.step(wake, event_count, packaged))
 	}

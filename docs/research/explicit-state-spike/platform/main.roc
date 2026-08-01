@@ -3,6 +3,7 @@ platform "explicit-state-spike"
 		[State : state] for program : {
 			init_stream! : U64 => state,
 			init_bench : U64 -> state,
+			init_packaged : U64 -> state,
 			step_stream! : U64, U64, state => state,
 			bench_stream : U64, U64, state -> state,
 		}
@@ -12,6 +13,7 @@ platform "explicit-state-spike"
 	provides {
 		"roc_explicit_init_state": init_state_for_host!,
 		"roc_explicit_init_bench_state": init_bench_state_for_host,
+		"roc_explicit_init_packaged_state": init_packaged_state_for_host,
 		"roc_explicit_step_state": step_state_for_host!,
 		"roc_explicit_bench_state": bench_state_for_host,
 		"roc_explicit_roundtrip_state": roundtrip_state_for_host,
@@ -34,6 +36,9 @@ init_state_for_host! = |seed| Box.box((program.init_stream!)(seed))
 
 init_bench_state_for_host : U64 -> Box(State)
 init_bench_state_for_host = |seed| Box.box((program.init_bench)(seed))
+
+init_packaged_state_for_host : U64 -> Box(State)
+init_packaged_state_for_host = |seed| Box.box((program.init_packaged)(seed))
 
 step_state_for_host! : Box(State), U64, U64 => Box(State)
 step_state_for_host! = |boxed_state, wake, event_count|

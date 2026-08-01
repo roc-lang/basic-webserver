@@ -329,6 +329,11 @@ static void test_parked_and_returned_drop(void) {
     RocBox returned = roc_explicit_step_state(roc_explicit_init_state(3), 7, 4);
     roc_explicit_drop_state(returned);
     assert_balanced("returned-state drop");
+
+    RocBox packaged = roc_explicit_init_packaged_state(5);
+    packaged = roc_explicit_step_state(packaged, 11, 4);
+    roc_explicit_drop_state(packaged);
+    assert_balanced("package-opaque route state");
 }
 
 static void test_sequential_thread_migration(void) {
