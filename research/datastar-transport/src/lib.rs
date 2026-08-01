@@ -7,6 +7,11 @@
 #[path = "../../../src/compression.rs"]
 mod host_compression;
 
+use brotli::enc::encode::{
+    BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
+    BrotliEncoderStateStruct,
+};
+use brotli::enc::{interface, InputPair, InputReferenceMut, StandardAlloc, StaticCommand};
 use bytes::Bytes;
 use host_compression::{ContentCoding, ContentEncoder};
 use hyper::body::{Body, Frame, SizeHint};
@@ -62,6 +67,130 @@ impl Write for SegmentSink {
 /// returns only bytes produced since the previous flush.
 pub struct PersistentBrotli {
     encoder: ContentEncoder<SegmentSink>,
+}
+
+/// Low-level alternative which separates FLUSH, FINISH, and abort.
+///
+/// Unlike `CompressorWriter`, dropping this value destroys the encoder state
+/// without attempting to emit a Brotli tail. `finish` propagates all encoder
+/// and output-limit failures. This uses public-but-low-level crate APIs, so API
+/// stability remains a release gate.
+pub struct ExplicitBrotli {
+    state: Option<BrotliEncoderStateStruct<StandardAlloc>>,
+    max_segment_bytes: usize,
+}
+
+impl ExplicitBrotli {
+    pub fn new(max_segment_bytes: usize) -> Self {
+        let mut state = BrotliEncoderStateStruct::new(StandardAlloc::default());
+        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, BROTLI_QUALITY));
+        assert!(state.set_parameter(
+            BrotliEncoderParameter::BROTLI_PARAM_LGWIN,
+            BROTLI_WINDOW_BITS
+        ));
+        Self {
+            state: Some(state),
+            max_segment_bytes,
+        }
+    }
+
+    pub fn encode_event(&mut self, framed_event: &[u8]) -> io::Result<Bytes> {
+        let mut encoded = Vec::new();
+        self.operation(
+            BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
+            framed_event,
+            &mut encoded,
+        )?;
+        self.operation(
+            BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
+            &[],
+            &mut encoded,
+        )?;
+        Ok(Bytes::from(encoded))
+    }
+
+    pub fn finish(mut self) -> io::Result<Bytes> {
+        let mut encoded = Vec::new();
+        self.operation(
+            BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
+            &[],
+            &mut encoded,
+        )?;
+        Ok(Bytes::from(encoded))
+    }
+
+    fn operation(
+        &mut self,
+        operation: BrotliEncoderOperation,
+        input: &[u8],
+        encoded: &mut Vec<u8>,
+    ) -> io::Result<()> {
+        let state = self.state.as_mut().expect("live encoder has state");
+        let mut available_in = input.len();
+        let mut input_offset = 0;
+        let mut total_out = Some(0);
+        let mut callback = |_data: &mut interface::PredictionModeContextMap<InputReferenceMut>,
+                            _commands: &mut [StaticCommand],
+                            _input: InputPair,
+                            _allocator: &mut StandardAlloc| {};
+
+        loop {
+            let before_input = available_in;
+            let before_output = encoded.len();
+            let remaining = self
+                .max_segment_bytes
+                .checked_sub(encoded.len())
+                .ok_or_else(|| io::Error::other("bounded Brotli segment output exhausted"))?;
+            if remaining == 0 {
+                return Err(io::Error::other("bounded Brotli segment output exhausted"));
+            }
+            let chunk_bytes = remaining.min(4096);
+            let mut output = [0_u8; 4096];
+            let mut available_out = chunk_bytes;
+            let mut output_offset = 0;
+            let valid = state.compress_stream(
+                operation,
+                &mut available_in,
+                input,
+                &mut input_offset,
+                &mut available_out,
+                &mut output[..chunk_bytes],
+                &mut output_offset,
+                &mut total_out,
+                &mut callback,
+            );
+            if !valid {
+                return Err(io::Error::other("Brotli streaming encoder rejected input"));
+            }
+            encoded.extend_from_slice(&output[..output_offset]);
+
+            let complete = match operation {
+                BrotliEncoderOperation::BROTLI_OPERATION_PROCESS => {
+                    available_in == 0 && !state.has_more_output()
+                }
+                BrotliEncoderOperation::BROTLI_OPERATION_FLUSH => available_in == 0
+                    && !state.has_more_output()
+                    && state.stream_state_
+                        == brotli::enc::encode::BrotliEncoderStreamState::BROTLI_STREAM_PROCESSING,
+                BrotliEncoderOperation::BROTLI_OPERATION_FINISH => state.is_finished(),
+                BrotliEncoderOperation::BROTLI_OPERATION_EMIT_METADATA => unreachable!(),
+            };
+            if complete {
+                return Ok(());
+            }
+            if before_input == available_in && before_output == encoded.len() {
+                return Err(io::Error::other("Brotli encoder made no progress"));
+            }
+        }
+    }
+}
+
+impl Drop for ExplicitBrotli {
+    fn drop(&mut self) {
+        if let Some(mut state) = self.state.take() {
+            BrotliEncoderDestroyInstance(&mut state);
+        }
+    }
 }
 
 impl PersistentBrotli {
@@ -301,6 +430,7 @@ mod tests {
     use super::*;
     use http_body_util::BodyExt;
     use std::io::Read;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
     fn decode_partial(input: &[u8]) -> Vec<u8> {
@@ -324,6 +454,89 @@ mod tests {
         }
         encoded.extend_from_slice(&encoder.finish().unwrap());
         assert_eq!(decode_partial(&encoded), expected);
+    }
+
+    #[test]
+    fn low_level_encoder_matches_writer_and_can_abort_without_finish() {
+        let events = [datastar_event(256, 1), datastar_event(4096, 2)];
+        let mut writer = PersistentBrotli::new(128 * 1024).unwrap();
+        let mut explicit = ExplicitBrotli::new(128 * 1024);
+        let mut writer_bytes = Vec::new();
+        let mut explicit_bytes = Vec::new();
+        for event in &events {
+            writer_bytes.extend_from_slice(&writer.encode_event(event).unwrap());
+            explicit_bytes.extend_from_slice(&explicit.encode_event(event).unwrap());
+        }
+        assert_eq!(writer_bytes, explicit_bytes);
+        writer_bytes.extend_from_slice(&writer.finish().unwrap());
+        explicit_bytes.extend_from_slice(&explicit.finish().unwrap());
+        assert_eq!(writer_bytes, explicit_bytes);
+
+        // Destruction without FINISH is a separate operation and cannot write
+        // output because the low-level state owns no writer.
+        let mut aborted = ExplicitBrotli::new(128 * 1024);
+        let flushed = aborted.encode_event(&events[0]).unwrap();
+        drop(aborted);
+        assert_eq!(decode_partial(&flushed), events[0]);
+    }
+
+    #[derive(Clone)]
+    struct SwitchableSink {
+        bytes: Arc<Mutex<Vec<u8>>>,
+        fail: Arc<AtomicBool>,
+    }
+
+    impl Write for SwitchableSink {
+        fn write(&mut self, input: &[u8]) -> io::Result<usize> {
+            if self.fail.load(Ordering::Acquire) {
+                return Err(io::Error::other("injected sink failure"));
+            }
+            self.bytes.lock().unwrap().extend_from_slice(input);
+            Ok(input.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn current_writer_finishes_on_drop_and_swallows_finish_errors() {
+        let bytes = Arc::new(Mutex::new(Vec::new()));
+        let fail = Arc::new(AtomicBool::new(false));
+        let sink = SwitchableSink {
+            bytes: Arc::clone(&bytes),
+            fail: Arc::clone(&fail),
+        };
+        let mut encoder = ContentEncoder::new(ContentCoding::Brotli, sink).unwrap();
+        encoder.write_all(&datastar_event(256, 1)).unwrap();
+        encoder.flush().unwrap();
+        let after_flush = bytes.lock().unwrap().len();
+        drop(encoder);
+        assert!(bytes.lock().unwrap().len() > after_flush);
+
+        let sink = SwitchableSink {
+            bytes: Arc::new(Mutex::new(Vec::new())),
+            fail: Arc::clone(&fail),
+        };
+        let mut encoder = ContentEncoder::new(ContentCoding::Brotli, sink).unwrap();
+        encoder.write_all(&datastar_event(256, 1)).unwrap();
+        encoder.flush().unwrap();
+        fail.store(true, Ordering::Release);
+        assert!(
+            encoder.finish().is_ok(),
+            "CompressorWriter::into_inner currently suppresses the injected FINISH error"
+        );
+    }
+
+    #[test]
+    fn low_level_output_limit_fails_closed() {
+        let mut encoder = ExplicitBrotli::new(1);
+        let error = encoder
+            .encode_event(&datastar_event(4096, 1))
+            .expect_err("one output byte cannot hold an event and flush");
+        assert_eq!(error.kind(), io::ErrorKind::Other);
+        drop(encoder);
     }
 
     #[tokio::test]
