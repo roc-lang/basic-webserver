@@ -99,6 +99,42 @@ with an unknown encoded length, not an alternate HTTP server or framing path.
 Its lifecycle and stream-specific limits will be new, but final headers and
 wire-version invariants still pass through the common response authority.
 
+## Pinned Datastar reference
+
+Spike 0 pins the stable Datastar client `v1.0.2` at
+`e24f04d43ca4445d662b4a035e5bfe9ed68de57c` and the official Go SDK `v1.2.2`
+at `60dc10ebdaad3207d71e4bd8c1f158e65bb4acb0`. The byte fixtures, executable
+Go observations, preliminary microbenchmarks, and detailed contract matrix are
+in [`research/datastar-parity`](../research/datastar-parity/README.md).
+
+The stable client is the compatibility authority. Moving documentation and
+client `main` already differ from the release in request cancellation, retry
+option names, visibility reopen, and DELETE signal placement, so a future pin
+upgrade must regenerate fixtures and rerun browser tests rather than silently
+following live prose.
+
+Important established constraints are:
+
+- Datastar uses a custom Fetch stream, not the browser `EventSource` API.
+- Stable GET and DELETE actions send JSON signals in the `datastar` query
+  parameter; POST, PUT, and PATCH send a JSON body. Form mode sends form data,
+  not signals.
+- The client also accepts finite `text/html`, `application/json`, and
+  `text/javascript` responses. One element or signal patch need not use SSE.
+- The only Datastar SSE event names are `datastar-patch-elements` and
+  `datastar-patch-signals`; script execution is an element-patch convenience.
+- `Last-Event-ID` is maintained only inside one action's retry/reopen loop. An
+  empty `id:` clears it, and an absent ID retains it.
+- Default retry mode does not reconnect after a clean status-200 EOF. A maximum
+  stream lifetime cannot assume transparent reconnect.
+- The stable Go SDK is an ergonomic/performance reference, not a wire
+  authority: it emits an extra blank record, does not validate field injection,
+  ignores `Accept-Encoding` q-values/wildcards, omits `Vary`, overwrites
+  `no-transform`, and never finishes its retained Brotli encoder.
+
+The finished Roc path should match the pinned client's logical and canonical
+wire contract while deliberately improving on those Go SDK limitations.
+
 ## Proposed product boundary
 
 ### Candidate contract
@@ -422,13 +458,17 @@ able to hot-loop indefinitely without yielding to the scheduler.
 The first-party module should at least provide:
 
 - `Datastar.is_request` or equivalent access to `Datastar-Request`.
-- `Datastar.read_signals!` with typed decoding and request-body limits.
+- `Datastar.read_signals!` with typed decoding and request-body limits,
+  reading stable GET/DELETE query signals and POST/PUT/PATCH JSON bodies.
+- Ordinary finite HTML element-patch and JSON signal-patch responses.
 - `Datastar.respond` for finite actions.
 - `Datastar.stream` for persistent responses.
 - `Datastar.patch_elements`.
 - `Datastar.patch_signals`.
-- Closed patch modes and namespace choices.
-- Selector, view-transition, and `onlyIfMissing` options.
+- All eight closed patch modes and all three namespace choices.
+- Selector, view-transition, view-transition-selector, and `onlyIfMissing`
+  options.
+- JSON null signal removal.
 - Event ID and retry integration inherited from `Sse.Event`.
 - Clearly named unsafe HTML/script escape hatches where unavoidable.
 
@@ -440,6 +480,11 @@ behaviour or retry rules have changed across releases.
 Authentication and authorization occur before selecting the SSE outcome.
 `Datastar-Request` and client signals are untrusted input, not authentication or
 server state.
+
+Form action mode contains ordinary form fields rather than Datastar signals and
+uses the platform's bounded form parsing. A one-patch response should use the
+ordinary response path; multi-event finite SSE remains a complete bounded
+response and does not consume a persistent stream slot.
 
 ## Stream-machine runtime model
 
@@ -696,6 +741,12 @@ not select `Content-Encoding`, call a compressor, tune it per event, or need a
 different `Datastar.stream` API. Compression is a host transport property just
 as it is for ordinary and native-file responses.
 
+This is a deliberate improvement over the pinned Go SDK, whose compression is
+opt-in and whose parser treats `br;q=0` as accepted, does not match wildcard,
+ignores quality ranking under server priority, and omits `Vary`. Go SDK wire
+behavior must not replace the platform's existing RFC-aware negotiation as the
+contract.
+
 A finite SSE response with a known body may use the ordinary minimum-size
 threshold and remain identity when compression would not be useful. A
 progressive or persistent stream cannot switch coding after commitment or
@@ -745,6 +796,12 @@ body closes. Disconnect drops the encoder without trying to finish output.
 After headers have committed to `br`, an encoder error or impossible output
 bound closes the stream and records a compression failure; it cannot fall back
 mid-response to identity.
+
+The pinned Go SDK flushes a progressively decodable prefix after every event
+but never calls its compressor's required close operation, so handler return
+leaves an unfinished Brotli stream. Semantic-equivalence performance tests may
+record that behavior, but the platform's normal-close gate requires a valid
+finished stream and correct encoder release.
 
 #### Defaults, value, and security
 
@@ -924,6 +981,13 @@ Candidate API behaviour:
 - Never claim host-managed replay.
 - Document that event IDs are application cursors.
 
+Datastar's pinned Fetch client retains and clears the header inside one action's
+retry or hidden-page reopen loop; a new independent action has no cursor unless
+the application supplies one through another mechanism. Its default `auto`
+retry mode finishes after clean status-200 EOF and retries Fetch/network
+exceptions. Only `retry: always` reconnects after a clean EOF. This differs
+from native `EventSource` and must be exercised explicitly.
+
 A replayable feed stores events or monotonically revisioned facts in SQLite or
 an external service. On reconnect, the handler validates the cursor and returns
 events or a current representation after it.
@@ -972,7 +1036,7 @@ finite controls for all of these resources:
 | Timer frequency | Milliseconds | Clamp/reject below finite minimum |
 | Heartbeat interval | Milliseconds | Finite configured range |
 | Slow-reader duration | Milliseconds | Close stream |
-| Stream lifetime | Milliseconds | Close and let client reconnect |
+| Stream lifetime | Milliseconds | Optional close; do not assume default client reconnect |
 | Pulse capabilities | Handles | Typed saturation during initialization |
 | Pulse waiters | Waiter slots | Reject wait/close stream deliberately |
 
@@ -1066,7 +1130,8 @@ match?
 
 Work:
 
-- Select a Datastar client release or exact commit for the experiment.
+- Use the pinned Datastar client `v1.0.2` commit and Go SDK `v1.2.2` commit;
+  record any later pin change as a fixture-affecting decision.
 - Record its supported backend response content types.
 - Extract event fixtures for patch elements and patch signals.
 - Characterize signal transport for every backend action method and content
@@ -1075,12 +1140,25 @@ Work:
   last-event-ID behaviour, and response EOF.
 - Compare the official Go SDK's framing, headers, flush, compression, and
   errors.
+- Distinguish canonical client fixtures from harmless Go SDK wire differences,
+  including the SDK's extra LF record.
+- Exercise clean EOF, abrupt reset, HTTP errors, 204, visibility changes,
+  automatic replacement, cleanup cancellation, and explicit AbortController
+  under every applicable retry mode.
+- Exercise finite HTML/JSON/JavaScript responses in addition to SSE.
 
 Pass evidence:
 
 - A versioned protocol fixture directory independent of browser timing.
-- Browser integration cases exercising the pinned client.
+- Browser integration cases exercising the pinned client in Chromium, Firefox,
+  and available WebKit/Safari coverage.
 - A list of behaviours owned by Datastar versus generic SSE.
+- Byte-exact canonical events terminating with one blank line, plus explicit
+  `id` set/retain/clear and multiline Unicode cases.
+- A request matrix covering GET, POST, PUT, PATCH, and DELETE in JSON and form
+  modes, including cross-origin preflight where applicable.
+- A retry/cancellation matrix that proves whether each close condition reopens
+  and what `Last-Event-ID` is sent.
 
 Stop condition:
 
@@ -1210,6 +1288,9 @@ Minimum prototype:
   as the identity prototype.
 - Instrument encoder input, output, scratch/history memory, CPU time, and each
   buffer between framing and socket transport.
+- Compare both the Go SDK's idiomatic Brotli quality-6/automatic-window path
+  and an exactly matched quality/window path. Measure encoder construction and
+  retained idle state separately from per-event work.
 
 Pass criteria:
 
@@ -1227,6 +1308,9 @@ Pass criteria:
   and does not starve ordinary Roc handlers or async transport workers.
 - Representative Datastar traces show material wire-byte savings without a
   material regression in event latency or ordinary-request tail latency.
+- Changing realistic patches, heartbeat-only streams, and incompressible
+  maximum events are included; repeated identical patches are not accepted as
+  the only compression corpus.
 - All supported native targets produce streams decoded by independent Brotli
   implementations and browsers.
 
@@ -1335,7 +1419,11 @@ The eventual feature needs coverage for:
 - Zero, one, and multiple events.
 - Event IDs set, retained by client, cleared, and replayed from durable state.
 - Datastar signal decoding for every supported action method and content mode.
+- Finite HTML, JSON, and explicit JavaScript response handling.
 - Hidden-page cancellation/reopen and explicit request cancellation.
+- Same-method-and-URL automatic cancellation, cleanup cancellation, and
+  disabled overlap.
+- Clean EOF, abrupt reset, HTTP error, and 204 behavior under each retry mode.
 - Disconnect before commitment, while waiting, under backpressure, and during a
   callback.
 - Slow client isolation.
@@ -1402,8 +1490,8 @@ into the design contract.
    operational surface?
 8. Should `X-Accel-Buffering: no` be unconditional, configurable, or documented
    application metadata?
-9. What finite maximum stream lifetime best balances resource auditing with
-   transparent Datastar reconnect?
+9. Should there be any default maximum stream lifetime, given that the pinned
+   Datastar client's default retry mode does not reconnect after clean EOF?
 10. Is `Pulse` sufficiently valuable for the initial release, or should timer
     polling be the first complete contract?
 11. How should callback-ready work be scheduled so 10,000 simultaneous wakes
