@@ -38,7 +38,7 @@ not enough to select the final dynamic-stream ABI or update `design.md`.
 
 The preferred boxed-callable ABI passes the complete local lifecycle through
 generated provided wrappers. A follow-up compiler prototype on Roc main
-`232552d8bb` also passes ownership of the old callable through the erased
+`9b601b5dac` also passes ownership of the old callable through the erased
 invocation and recursive constructor. Its unique compatible optimized path
 requests no calls to the instrumented Roc allocator/deallocator and measures a
 representative 1.46 ns median. It is faster than the closest functional Go

@@ -52,7 +52,7 @@ The development-only direct erased-callable helper remains available as a
 diagnostic comparison, but the supported result no longer depends on it.
 
 That compiler baseline clears the local callable correctness blocker. A
-follow-up compiler prototype on Roc main `232552d8bb` also transfers the old
+follow-up compiler prototype on Roc main `9b601b5dac` also transfers the old
 callable allocation through the erased call and recursive constructor, then
 inlines LLVM's runtime-unique repack path. A CPU-pinned five-million-step speed
 run measures a representative 1.46 ns median with zero calls to the

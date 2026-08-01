@@ -68,7 +68,7 @@ The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
 main `1c1ceccf`, containing merged fix `206f4c30`, passes the complete local
 generated-wrapper lifecycle. A follow-up compiler prototype, rebased onto Roc
-main `232552d8bb`, transfers the old callable allocation through the erased
+main `9b601b5dac`, transfers the old callable allocation through the erased
 invocation and recursive constructor, then reuses it through an inline
 runtime-unique fast path. The unique compatible optimized path makes no calls
 to the instrumented Roc allocator/deallocator and has a representative 1.46 ns

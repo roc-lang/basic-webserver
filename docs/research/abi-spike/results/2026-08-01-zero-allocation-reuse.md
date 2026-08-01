@@ -1,23 +1,24 @@
 # Zero-allocation retained-callable reuse
 
-This follow-up records compiler feasibility commits `2c54467b8d` and
-`f450d1ae25`, based on Roc main
-`232552d8bb192c088b759db0b8bc7a4368a5dd61`. Validation also includes
-`939c44a07d` (procedure-scoped ARC uniqueness certification) and `4885527bc3`
+This follow-up records compiler feasibility commits `1f7c37be91` and
+`786cfa96ff`, based on Roc main
+`9b601b5dac740eb250fb125a947446d9236c169a`. Validation also includes
+`68e0139e59` (procedure-scoped ARC uniqueness certification) and `e1d283cbff`
 (restrict hosted `Try` adapters to closed error rows). They close the specific
 allocation question identified in
 [`2026-08-01-allocation-provenance.md`](2026-08-01-allocation-provenance.md);
 this is not yet an upstream Roc change or a production `basic-webserver`
-implementation.
+implementation. The compiler work is published for review as
+[roc-lang/roc#10530](https://github.com/roc-lang/roc/pull/10530).
 
 ## Result
 
 The optimized, uniquely owned, layout-compatible retained-callable transition
 now requests **zero calls to the instrumented Roc allocator or deallocator per
 step**. After rebasing onto the newer compiler main, one CPU-pinned
-five-million-step run at final compiler commit `4885527bc3` produced seven
-samples from 1.446–1.461 ns/step, with a 1.460 ns median. The simple
-explicit-state control measured 1.453–1.464 ns/step in the same process.
+five-million-step run at final compiler commit `e1d283cbff` produced seven
+samples from 1.447–1.459 ns/step, with a 1.458 ns median. The simple
+explicit-state control measured 1.450–1.459 ns/step in the same process.
 
 The complete lifecycle still passed:
 
@@ -109,7 +110,7 @@ so these nanosecond timings choose cost classes, not acceptance margins.
 
 | Machine | Median ns/step | Allocations/step | Meaning |
 | --- | ---: | ---: | --- |
-| Roc retained callable | 1.460 | 0 | Immutable callable API; unique compatible benchmark path |
+| Roc retained callable | 1.458 | 0 | Immutable callable API; unique compatible benchmark path |
 | Go functional closure | 9.563 | 1 | Closest source shape: return a newly captured continuation |
 | Go reused machine | 1.090 | 0 | Aggressive mutable-pointer reference with indirect dispatch |
 
@@ -142,13 +143,13 @@ The prototype adds or exercises:
 
 Before the rebase, the callable commits passed focused postcheck, LIR, backend,
 LLVM, glue ABI, fx-platform, and four-backend eval suites; Roc MiniCI ran all 74
-phases successfully. After rebasing the clean commits onto `232552d8bb`, the
+phases successfully. After rebasing the clean commits onto `9b601b5dac`, the
 check-module unit suite passed, the optimized lifecycle reproduced zero hot
 allocator/deallocator calls, and `python3 scripts/test.py` passed all 52
 basic-webserver runtime cases. The full basic-webserver run also exposed two
 pre-existing recent-main compiler regressions: procedure-global ARC uniqueness
-certification and hosted `Try` adaptation of record errors. Commits `939c44a07d`
-and `4885527bc3` isolate those fixes. This validation does not establish
+certification and hosted `Try` adaptation of record errors. Commits `68e0139e59`
+and `e1d283cbff` isolate those fixes. This validation does not establish
 cross-target runtime or sanitizer coverage.
 
 Development mode still reports one allocation and free per step and is not the
