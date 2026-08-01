@@ -67,10 +67,11 @@ architecture:
    stopped readers bound retained bytes. Cancellation must release the pending
    framed item, encoder, frame reservation, and returned Roc machine through
    one idempotent close path.
-2. **P0 — owned-frame steady state.** Replace per-frame allocation/copying with
-   a fixed-capacity owned-frame pool or an equally bounded ownership transfer.
-   Measure the complete identity, q1, and q3 paths after warmup. Zero encoder
-   allocations alone does not close this objective.
+2. **P0 — production owned-frame steady state.** The disposable custom-`Buf`
+   pool now removes per-frame allocation for identity, q1, and q3. Transfer its
+   internal `ServerData` sum type into the real host, keep all ordinary bodies
+   allocation-neutral, and repeat the measurement through the listener. Zero
+   allocations in the disposable body alone does not close this objective.
 3. **P1 — listener and scheduler isolation.** Carry the transaction through
    the response authority, request accounting, deadlines, graceful shutdown,
    HTTP/1.1, and HTTP/2. A stopped stream must not grow its queue or degrade an
@@ -257,9 +258,23 @@ item. Every encoder call follows a successful one-frame reservation; PROCESS,
 FLUSH, and FINISH span as many frames as required; every reservation is released
 by body polling; and the flushed and finished streams independently decode to
 the exact input. This removes the need to prove a whole-item repeated-FLUSH
-maximum for correctness. It does **not** close production integration or the
-allocation gate: the disposable queue still creates `Bytes` with a copy and is
-not wired through the real listener/accounting/cancellation path.
+maximum for correctness.
+
+The owned-frame follow-up isolates and removes the remaining allocation in the
+disposable path. The current `ServerBody::Data = Bytes` can preserve the frame
+drop callback only through `Bytes::from_owner`, whose pinned implementation
+allocates a 56-byte owner box per output frame. A candidate internal
+`ServerData::{Bytes, Pooled}` sum type implements `Buf` directly. After 2,048
+warmup events, 10,000 identity, recycled-q1, and standard-q3 events through the
+bounded queue and resumable body made zero global allocator/deallocator calls;
+every run ended at one free slot, zero in use. The `Bytes` compatibility runs
+made exactly one allocation/free per output frame. Cancellation tests release
+abandoned, queued, and transport-owned frames and wake a blocked producer.
+
+This selects the internal sum type for the production-body spike, but does
+**not** close P0: the custom data type is not yet used by the real listener,
+tracked body, H2 flow control, deadlines, or shutdown. See
+[`datastar-frame-ownership-findings.md`](datastar-frame-ownership-findings.md).
 
 ## Go comparison: where the target stands
 
@@ -271,7 +286,7 @@ not wired through the real listener/accounting/cancellation path.
 | Normal Brotli close | Rust spike FINISHes; Go SDK API leaves stream unfinished | Keep stronger lifecycle |
 | Brotli encoder time | Selected Rust profiles beat matched Go by 1.22–1.47x at non-identical wire sizes | Focus next work on integration and bounds |
 | Brotli retained state | q1 and q3 focused results meet/beat matched Go under stated accounting caveat | Use explicit profile capacity |
-| Encoder allocations | q1 recycler and standard q3 reach zero steady system allocations | Integrate with owned-frame pooling |
+| Complete disposable body allocations | Custom `ServerData` path reaches zero for identity, recycled q1, and standard q3; current `Bytes::from_owner` compatibility costs one 56-byte allocation/frame | Move `ServerData` into the production body and repeat through the listener |
 | Roc retained-callable transition | Representative 1.46 ns/step; zero instrumented allocator/free calls on the unique compatible path | Allocation feasibility passes; controlled and end-to-end performance remain |
 | Go references | Functional source-shape fixture allocates once; aggressive mutable-pointer fixture does not and is slightly faster | Neither fixture alone is the production acceptance contract |
 | Roc explicit-state transition | Current representative speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | Keep only as lifecycle fallback |
@@ -351,11 +366,12 @@ bounded CPU executor without compromising ordering and cancellation.
 
 ### A. Production body transaction and owned frames
 
-Move the resumable one-frame handshake into a disposable adapter around the
-real `ServerBody` type. Add reusable owned frames and explicit live accounting
-for framed input, queued output, encoder state, and the returned Roc machine.
-Force PROCESS, FLUSH, and FINISH across multiple frames; cancel in each phase;
-measure steady-state allocations for identity, q1, and q3. This is the current
+Prototype the selected `ServerData::{Bytes, Pooled}` sum type in the real host
+so ordinary bodies keep their existing `Bytes` representation while SSE frames
+return fixed vectors on `Drop`. Update `ServerBody`, tracked bodies, and native
+body constructors without copying. Preserve explicit free/reserved/queued/
+transport-owned accounting, and repeat identity/q1/q3 allocation and
+cancellation tests through this production seam. This is the current
 highest-value spike.
 
 ### B. Real listener and H2 isolation
@@ -422,6 +438,8 @@ message bus.
   [`datastar-browser-transport-findings.md`](datastar-browser-transport-findings.md)
 - Brotli Pareto frontier:
   [`datastar-brotli-footprint-findings.md`](datastar-brotli-footprint-findings.md)
+- Owned frame allocation and `ServerData` decision:
+  [`datastar-frame-ownership-findings.md`](datastar-frame-ownership-findings.md)
 - Callable and explicit-state ABI:
   [`roc-abi-lifecycle.md`](roc-abi-lifecycle.md) and
   [`explicit-state-spike/README.md`](explicit-state-spike/README.md)

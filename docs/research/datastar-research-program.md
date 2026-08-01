@@ -192,3 +192,10 @@ for the disposable body: all three Brotli operations resume across pre-reserved
 seven-byte frames for both selected profiles. The synthesis now makes real-body
 integration, reusable frame ownership, and cancellation accounting the P0
 research objective; it no longer blocks on a whole-event FLUSH-size proof.
+
+The owned-frame follow-up then measured the remaining compatibility cost:
+`Bytes::from_owner` allocates one 56-byte owner per frame, while an internal
+`ServerData::{Bytes, Pooled}` `Buf` path makes zero allocator calls after warmup
+for identity, recycled q1, and standard q3. The next P0 question is now whether
+that internal data type preserves every ordinary and streaming behavior through
+the production listener and tracked-body lifecycle.

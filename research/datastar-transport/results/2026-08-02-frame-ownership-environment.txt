@@ -1,0 +1,12 @@
+Date: 2026-08-02 Australia/Melbourne
+Repository checkpoint used for measurements: b68c465e035614b9bd581e33ed65308c25590a4d
+OS: Linux 7.0.0-28-generic x86_64
+CPU: AMD Ryzen 7 9700X 8-Core Processor
+Rust: rustc 1.97.1 (8bab26f4f 2026-07-14), LLVM 22.1.6
+Rust bytes: bytes 1.11.1
+Rust Brotli: brotli 8.0.4
+Build mode: Rust --release
+Allocation evidence: exact requested Layout sizes observed by the process global allocator; allocator metadata/RSS excluded
+Body fixture: one preallocated 4096-byte slot; synchronous immediate consumer; 4096-byte-target Datastar-shaped event
+Warmup: 2048 events on one persistent encoder and body before the allocation snapshot
+Measurement: 10000 events; identity, recycled q1/LGWin11, and standard q3/LGWin12; PROCESS and FLUSH after every compressed event

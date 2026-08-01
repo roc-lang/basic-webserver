@@ -97,9 +97,12 @@ A follow-up low-level adapter removes the need to reserve a maximum compressed
 whole-item size: it advances PROCESS, FLUSH, and FINISH only after reserving one
 fixed output frame and resumes across as many frames as required. A forced
 seven-byte-frame test passes for q1/LGWin11 and q3/LGWin12 with a 64 KiB item.
-The disposable test still allocates/copies `Bytes`, so reusable frame ownership,
-real-listener cancellation, HTTP/2 isolation, and full-path steady-state
-allocation measurements are now the highest-priority feasibility work.
+A second follow-up replaces the copy with a pooled custom `Buf` and reaches zero
+measured steady allocator calls across identity, recycled q1, and standard q3.
+The current `ServerBody::Data = Bytes` compatibility adapter costs one 56-byte
+allocation per frame, selecting an internal `ServerData::{Bytes, Pooled}` sum
+type for the production spike. Real-listener cancellation, ordinary-body
+regressions, HTTP/2 isolation, and full-path measurements remain open.
 
 The reconciled decisions, contradictions, and next objective gates are in
 [`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
@@ -931,8 +934,9 @@ The existing negotiation and header authority should remain the single source
 of truth. The ordinary whole-response buffering path is not reusable as the
 SSE body implementation. The low-level adapter has proven progressive decoding
 and explicit FINISH/abort behavior. The resumable follow-up has also removed
-the need for a whole-item repeated-FLUSH bound. Production integration,
-owned-frame reuse, and full-path allocation/accounting remain open.
+the need for a whole-item repeated-FLUSH bound. The custom-`Buf` follow-up also
+proves zero-allocation owned-frame reuse in the disposable body. Production
+`ServerData` integration and full-path allocation/accounting remain open.
 
 ### Reverse proxy
 
@@ -1498,9 +1502,10 @@ Current status: the low-level lifecycle, multi-corpus value, mature state,
 steady-state compressor allocations, matched-Go encoder time, Firefox direct
 H1, curl h2c, and NGINX-fronted Firefox H2 questions have focused passing
 evidence. The repeated-FLUSH size question is resolved by the disposable
-resumable handshake. The complete owned-frame allocation story, q3 browser
-case, production `ServerBody`, slow-reader/H2 isolation, ordinary-request CPU
-isolation, cross-browser, and cross-target gates remain open.
+resumable handshake, and the disposable owned-frame allocation story now has a
+zero-allocation candidate. Production `ServerData`, q3 browser, slow-reader/H2
+isolation, ordinary-request CPU isolation, cross-browser, and cross-target
+gates remain open.
 
 ### Spike 6: `Pulse`
 
@@ -1904,11 +1909,11 @@ endpoint/admission outcome, not merely an unsupported client fallback. Profile
 choice is fixed before headers and raw Brotli tuning does not enter the
 per-event API.
 
-Both profiles require separate compressed-stream capacity. The complete
-allocation claim remains open until borrowed reusable encoder output becomes a
-bounded owned body frame. The resumable bounded handshake now passes in the
-disposable body; production integration remains blocked on transferring it to
-the real `ServerBody` and proving its accounting and cancellation lifecycle.
+Both profiles require separate compressed-stream capacity. The resumable
+bounded handshake and zero-allocation custom-`Buf` frame now pass in the
+disposable body. Production integration remains blocked on widening the
+internal `ServerBody` data type and proving the real listener's accounting and
+cancellation lifecycle without regressing ordinary responses.
 
 ### 2026-08-02: Brotli output is bounded by resumable frames
 
@@ -1920,9 +1925,29 @@ stream. This replaces the whole-event compressed-size proof with a stronger
 operational bound: the encoder cannot emit or advance into unavailable body
 capacity.
 
-The test still copies into newly allocated `Bytes` and is not connected to the
-production response authority, listener, H2 flow control, or unified close
-path. Those are now the leading research gates.
+The first version still copied into newly allocated `Bytes`. The owned-frame
+follow-up below isolates and removes that allocation; production listener, H2
+flow control, and unified close-path integration remain leading gates.
+
+### 2026-08-02: A custom body-data type removes frame allocations
+
+The current `ServerBody::Data = Bytes` can carry a pooled vector with the
+correct drop callback via `Bytes::from_owner`, but bytes 1.11.1 allocates a
+56-byte owner box for every output frame. A candidate internal
+`ServerData::{Bytes, Pooled}` sum type implements Hyper's `Buf` contract
+directly. Ordinary responses retain `Bytes`; SSE frames return their fixed
+vector and wake a blocked producer from `Drop`.
+
+After 2,048 warmup events, 10,000 measured identity, recycled-q1, and
+standard-q3 events through the bounded queue and resumable body made zero
+allocator/deallocator calls with `ServerData`. Compatibility measurements made
+exactly one allocation/free per output frame. Cancellation tests return
+abandoned, queued, and transport-owned slots exactly once and wake a producer
+blocked on the one-slot pool.
+
+This is now the selected internal direction for the production body spike. The
+focused evidence and limitations are in
+[`docs/research/datastar-frame-ownership-findings.md`](research/datastar-frame-ownership-findings.md).
 
 ### 2026-08-01: Research converges conditionally on the state ABI
 

@@ -108,3 +108,28 @@ This is a correctness and boundedness result, not an allocation result. The
 test copies each produced slice into a new `Bytes`; production feasibility still
 requires reusable owned frames and integration with the real response body,
 listener accounting, deadlines, HTTP/2 flow control, and cancellation.
+
+## Owned-frame allocation follow-up
+
+The next fixture replaces that copy with one preallocated vector whose custom
+`Buf` frame returns the slot and wakes the producer from `Drop`. It compares a
+candidate internal `ServerData::Pooled` wrapper with the compatibility path
+required by today's `ServerBody::Data = Bytes`.
+
+```sh
+cargo build --manifest-path research/datastar-transport/Cargo.toml --release --bin brotli_footprint
+research/datastar-transport/target/release/brotli_footprint body-ownership server-data identity 10000
+research/datastar-transport/target/release/brotli_footprint body-ownership server-data q1 10000
+research/datastar-transport/target/release/brotli_footprint body-ownership server-data q3 10000
+research/datastar-transport/target/release/brotli_footprint body-ownership bytes-owner identity 10000
+research/datastar-transport/target/release/brotli_footprint body-ownership bytes-owner q1 10000
+research/datastar-transport/target/release/brotli_footprint body-ownership bytes-owner q3 10000
+```
+
+After 2,048 warmup events, the `server-data` runs make zero allocator calls for
+all three modes. `bytes-owner` makes exactly one 56-byte allocation and free per
+output frame because bytes 1.11.1 boxes every owner. Cancellation tests cover
+abandoned reservations, queued frames, and transport-owned frames, including
+waking a blocked producer. Raw results and the resulting internal type decision
+are in
+[`datastar-frame-ownership-findings.md`](../../docs/research/datastar-frame-ownership-findings.md).

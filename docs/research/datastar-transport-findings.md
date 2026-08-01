@@ -234,7 +234,8 @@ direct evidence about a future Roc framing ABI.
   workers and ordinary Roc handlers retain capacity during wake herds.
 - Production integration of the later pre-reserved resumable PROCESS/FLUSH/
   FINISH handshake.
-- Removal or justified retention of Rust's per-event allocation churn.
+- Production adoption and listener validation of the later zero-allocation
+  `ServerData::{Bytes, Pooled}` frame path.
 - Realistic changing Datastar HTML/signal traces instead of a repeated payload.
 - Debug failure injection, disconnect during compression, and shutdown races
   through the integrated host lifecycle.
