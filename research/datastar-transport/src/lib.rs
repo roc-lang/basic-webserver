@@ -6,6 +6,8 @@
 
 #[path = "../../../src/compression.rs"]
 mod host_compression;
+#[path = "../../../src/response.rs"]
+mod host_response;
 
 use brotli::enc::encode::{
     BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
@@ -15,7 +17,7 @@ use brotli::enc::{
     interface, Allocator, BrotliAlloc, InputPair, InputReferenceMut, SliceWrapper, SliceWrapperMut,
     StandardAlloc, StaticCommand,
 };
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use host_compression::{ContentCoding, ContentEncoder};
 use hyper::body::{Body, Frame, SizeHint};
 use std::any::TypeId;
@@ -509,6 +511,12 @@ pub struct ResumableBrotli {
     core: EncoderCore<StandardAlloc>,
 }
 
+/// Resumable encoder using the bounded scratch recycler selected for the q1
+/// scale profile.
+pub struct ResumableRecyclingBrotli {
+    core: EncoderCore<RecyclingAlloc>,
+}
+
 impl ResumableBrotli {
     pub fn with_settings(quality: u32, window_bits: u32) -> Self {
         Self {
@@ -554,6 +562,65 @@ impl ResumableBrotli {
             &mut input_offset,
             output,
         )
+    }
+}
+
+impl ResumableRecyclingBrotli {
+    pub fn with_settings(quality: u32, window_bits: u32, max_recycled_bytes: usize) -> Self {
+        Self {
+            core: EncoderCore::new(
+                1,
+                quality,
+                window_bits,
+                RecyclingAlloc::new(max_recycled_bytes),
+            ),
+        }
+    }
+
+    pub fn process(
+        &mut self,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+    ) -> io::Result<EncoderStep> {
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
+            input,
+            input_offset,
+            output,
+        )
+    }
+
+    pub fn flush(&mut self, output: &mut [u8]) -> io::Result<EncoderStep> {
+        let mut input_offset = 0;
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
+
+    pub fn finish(&mut self, output: &mut [u8]) -> io::Result<EncoderStep> {
+        let mut input_offset = 0;
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
+
+    pub fn recycler_stats(&self) -> RecyclerStats {
+        self.core
+            .state
+            .as_ref()
+            .expect("live encoder has state")
+            .m8
+            .stats()
     }
 }
 
@@ -850,6 +917,397 @@ impl Drop for BoundedBody {
     }
 }
 
+/// Accounting for a fixed-capacity owned output-frame pool.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct OwnedFrameStats {
+    pub slots: usize,
+    pub frame_bytes: usize,
+    pub free_slots: usize,
+    pub in_use_slots: usize,
+    pub high_water_slots: usize,
+}
+
+struct OwnedFramePoolState {
+    free: Vec<Vec<u8>>,
+    slots: usize,
+    frame_bytes: usize,
+    in_use: usize,
+    high_water: usize,
+    producer_waker: Option<Waker>,
+}
+
+#[derive(Clone)]
+struct OwnedFramePool {
+    state: Arc<Mutex<OwnedFramePoolState>>,
+}
+
+impl OwnedFramePool {
+    fn new(slots: usize, frame_bytes: usize) -> Self {
+        assert!(slots > 0);
+        assert!(frame_bytes > 0);
+        let mut free = Vec::with_capacity(slots);
+        for _ in 0..slots {
+            free.push(vec![0; frame_bytes]);
+        }
+        Self {
+            state: Arc::new(Mutex::new(OwnedFramePoolState {
+                free,
+                slots,
+                frame_bytes,
+                in_use: 0,
+                high_water: 0,
+                producer_waker: None,
+            })),
+        }
+    }
+
+    fn poll_reserve(&self, context: &Context<'_>) -> Poll<OwnedFrameReservation> {
+        let mut state = self.state.lock().expect("frame pool mutex is not poisoned");
+        let Some(buffer) = state.free.pop() else {
+            state.producer_waker = Some(context.waker().clone());
+            return Poll::Pending;
+        };
+        state.in_use += 1;
+        state.high_water = state.high_water.max(state.in_use);
+        drop(state);
+        Poll::Ready(OwnedFrameReservation {
+            pool: self.clone(),
+            buffer: Some(buffer),
+        })
+    }
+
+    fn release(&self, mut buffer: Vec<u8>) {
+        let mut state = self.state.lock().expect("frame pool mutex is not poisoned");
+        assert!(buffer.capacity() >= state.frame_bytes);
+        buffer.resize(state.frame_bytes, 0);
+        state.in_use -= 1;
+        state.free.push(buffer);
+        if let Some(waker) = state.producer_waker.take() {
+            waker.wake();
+        }
+    }
+
+    fn stats(&self) -> OwnedFrameStats {
+        let state = self.state.lock().expect("frame pool mutex is not poisoned");
+        OwnedFrameStats {
+            slots: state.slots,
+            frame_bytes: state.frame_bytes,
+            free_slots: state.free.len(),
+            in_use_slots: state.in_use,
+            high_water_slots: state.high_water,
+        }
+    }
+
+    fn wake_producer(&self) {
+        let waker = self
+            .state
+            .lock()
+            .expect("frame pool mutex is not poisoned")
+            .producer_waker
+            .take();
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
+
+struct OwnedFrameReservation {
+    pool: OwnedFramePool,
+    buffer: Option<Vec<u8>>,
+}
+
+impl OwnedFrameReservation {
+    fn output_mut(&mut self) -> &mut [u8] {
+        self.buffer
+            .as_mut()
+            .expect("live reservation owns its buffer")
+            .as_mut_slice()
+    }
+
+    fn commit(mut self, output_bytes: usize) -> PooledFrame {
+        let buffer = self
+            .buffer
+            .take()
+            .expect("live reservation owns its buffer");
+        assert!(output_bytes <= buffer.len());
+        PooledFrame {
+            pool: self.pool.clone(),
+            buffer: Some(buffer),
+            offset: 0,
+            output_bytes,
+        }
+    }
+}
+
+impl Drop for OwnedFrameReservation {
+    fn drop(&mut self) {
+        if let Some(buffer) = self.buffer.take() {
+            self.pool.release(buffer);
+        }
+    }
+}
+
+/// Body data which returns its fixed-capacity vector and wakes a waiting
+/// producer when the transport drops the frame.
+pub struct PooledFrame {
+    pool: OwnedFramePool,
+    buffer: Option<Vec<u8>>,
+    offset: usize,
+    output_bytes: usize,
+}
+
+impl std::fmt::Debug for PooledFrame {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PooledFrame")
+            .field("remaining", &self.remaining())
+            .field("capacity", &self.buffer.as_ref().map(Vec::capacity))
+            .finish()
+    }
+}
+
+impl PooledFrame {
+    /// Adapt this frame to the current production `ServerBody::Data = Bytes`.
+    /// `Bytes::from_owner` provides the required drop callback but allocates
+    /// one owner box for every frame; the allocation comparison quantifies it.
+    pub fn into_bytes(self) -> Bytes {
+        Bytes::from_owner(self)
+    }
+}
+
+impl AsRef<[u8]> for PooledFrame {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer.as_ref().expect("live frame owns its buffer")[self.offset..self.output_bytes]
+    }
+}
+
+impl Buf for PooledFrame {
+    fn remaining(&self) -> usize {
+        self.output_bytes - self.offset
+    }
+
+    fn chunk(&self) -> &[u8] {
+        self.as_ref()
+    }
+
+    fn advance(&mut self, count: usize) {
+        assert!(count <= self.remaining());
+        self.offset += count;
+    }
+}
+
+impl Drop for PooledFrame {
+    fn drop(&mut self) {
+        if let Some(buffer) = self.buffer.take() {
+            self.pool.release(buffer);
+        }
+    }
+}
+
+/// Candidate internal body-data sum type. Ordinary responses retain `Bytes`;
+/// pooled SSE frames retain their drop callback without adapting through
+/// `Bytes::from_owner`.
+#[derive(Debug)]
+pub enum PrototypeServerData {
+    Bytes(Bytes),
+    Pooled(PooledFrame),
+}
+
+impl Buf for PrototypeServerData {
+    fn remaining(&self) -> usize {
+        match self {
+            Self::Bytes(bytes) => bytes.remaining(),
+            Self::Pooled(frame) => frame.remaining(),
+        }
+    }
+
+    fn chunk(&self) -> &[u8] {
+        match self {
+            Self::Bytes(bytes) => bytes.chunk(),
+            Self::Pooled(frame) => frame.chunk(),
+        }
+    }
+
+    fn advance(&mut self, count: usize) {
+        match self {
+            Self::Bytes(bytes) => bytes.advance(count),
+            Self::Pooled(frame) => frame.advance(count),
+        }
+    }
+}
+
+impl From<Bytes> for PrototypeServerData {
+    fn from(bytes: Bytes) -> Self {
+        Self::Bytes(bytes)
+    }
+}
+
+impl From<PooledFrame> for PrototypeServerData {
+    fn from(frame: PooledFrame) -> Self {
+        Self::Pooled(frame)
+    }
+}
+
+struct PooledBodyState {
+    queue: VecDeque<PooledFrame>,
+    closed: bool,
+    cancelled: bool,
+    body_waker: Option<Waker>,
+}
+
+#[derive(Clone)]
+pub struct PooledProducer {
+    pool: OwnedFramePool,
+    body: Arc<Mutex<PooledBodyState>>,
+}
+
+pub struct PooledReservation {
+    body: Arc<Mutex<PooledBodyState>>,
+    frame: Option<OwnedFrameReservation>,
+}
+
+impl PooledProducer {
+    pub fn poll_reserve(
+        &self,
+        context: &Context<'_>,
+    ) -> Poll<Result<PooledReservation, ReserveError>> {
+        {
+            let body = self.body.lock().expect("body state mutex is not poisoned");
+            if body.closed || body.cancelled {
+                return Poll::Ready(Err(ReserveError::Closed));
+            }
+        }
+        match self.pool.poll_reserve(context) {
+            Poll::Ready(frame) => {
+                let body = self.body.lock().expect("body state mutex is not poisoned");
+                if body.closed || body.cancelled {
+                    drop(body);
+                    drop(frame);
+                    return Poll::Ready(Err(ReserveError::Closed));
+                }
+                Poll::Ready(Ok(PooledReservation {
+                    body: Arc::clone(&self.body),
+                    frame: Some(frame),
+                }))
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    pub fn close(&self) {
+        let mut body = self.body.lock().expect("body state mutex is not poisoned");
+        body.closed = true;
+        if let Some(waker) = body.body_waker.take() {
+            waker.wake();
+        }
+        drop(body);
+        self.pool.wake_producer();
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.body
+            .lock()
+            .expect("body state mutex is not poisoned")
+            .cancelled
+    }
+
+    pub fn frame_stats(&self) -> OwnedFrameStats {
+        self.pool.stats()
+    }
+}
+
+impl PooledReservation {
+    pub fn output_mut(&mut self) -> &mut [u8] {
+        self.frame
+            .as_mut()
+            .expect("live body reservation owns a frame")
+            .output_mut()
+    }
+
+    pub fn commit(mut self, output_bytes: usize) -> Result<(), ReserveError> {
+        let frame = self
+            .frame
+            .take()
+            .expect("live body reservation owns a frame")
+            .commit(output_bytes);
+        let mut body = self.body.lock().expect("body state mutex is not poisoned");
+        if body.closed || body.cancelled {
+            drop(body);
+            drop(frame);
+            return Err(ReserveError::Closed);
+        }
+        body.queue.push_back(frame);
+        if let Some(waker) = body.body_waker.take() {
+            waker.wake();
+        }
+        Ok(())
+    }
+}
+
+pub struct PooledBody {
+    pool: OwnedFramePool,
+    body: Arc<Mutex<PooledBodyState>>,
+}
+
+pub fn pooled_body(frame_slots: usize, frame_bytes: usize) -> (PooledProducer, PooledBody) {
+    let pool = OwnedFramePool::new(frame_slots, frame_bytes);
+    let body = Arc::new(Mutex::new(PooledBodyState {
+        queue: VecDeque::with_capacity(frame_slots),
+        closed: false,
+        cancelled: false,
+        body_waker: None,
+    }));
+    (
+        PooledProducer {
+            pool: pool.clone(),
+            body: Arc::clone(&body),
+        },
+        PooledBody { pool, body },
+    )
+}
+
+impl Body for PooledBody {
+    type Data = PooledFrame;
+    type Error = io::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let mut body = self.body.lock().expect("body state mutex is not poisoned");
+        if let Some(frame) = body.queue.pop_front() {
+            return Poll::Ready(Some(Ok(Frame::data(frame))));
+        }
+        if body.closed || body.cancelled {
+            Poll::Ready(None)
+        } else {
+            body.body_waker = Some(context.waker().clone());
+            Poll::Pending
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        let body = self.body.lock().expect("body state mutex is not poisoned");
+        (body.closed || body.cancelled) && body.queue.is_empty()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        SizeHint::new()
+    }
+}
+
+impl Drop for PooledBody {
+    fn drop(&mut self) {
+        let queued = {
+            let mut body = self.body.lock().expect("body state mutex is not poisoned");
+            body.cancelled = true;
+            mem::take(&mut body.queue)
+        };
+        drop(queued);
+        self.pool.wake_producer();
+    }
+}
+
 /// Deterministic, repetitive Datastar-shaped patch event of approximately the
 /// requested framed size. The exact result can be a few bytes larger.
 pub fn datastar_event(target_bytes: usize, sequence: usize) -> Vec<u8> {
@@ -872,15 +1330,24 @@ pub fn datastar_event(target_bytes: usize, sequence: usize) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::task::noop_waker;
     use http_body_util::BodyExt;
     use std::io::Read;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::task::Wake;
     use std::time::Duration;
 
     fn decode_partial(input: &[u8]) -> Vec<u8> {
         let mut decoded = Vec::new();
         let _ = brotli::Decompressor::new(input, 4096).read_to_end(&mut decoded);
         decoded
+    }
+
+    fn ready<T>(poll: Poll<T>) -> T {
+        match poll {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("operation unexpectedly remained pending"),
+        }
     }
 
     #[test]
@@ -1181,6 +1648,126 @@ mod tests {
             assert!(body.frame().await.is_none());
             assert_eq!(decode_partial(&encoded), event);
         }
+    }
+
+    struct CountWake(AtomicUsize);
+
+    impl Wake for CountWake {
+        fn wake(self: Arc<Self>) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+
+        fn wake_by_ref(self: &Arc<Self>) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn pooled_frame_drop_returns_capacity_and_wakes_the_producer() {
+        let (producer, mut body) = pooled_body(1, 64);
+        let wake_count = Arc::new(CountWake(AtomicUsize::new(0)));
+        let waker = Waker::from(Arc::clone(&wake_count));
+        let mut context = Context::from_waker(&waker);
+
+        let mut reservation = ready(producer.poll_reserve(&context)).unwrap();
+        reservation.output_mut()[..7].copy_from_slice(b"encoded");
+        reservation.commit(7).unwrap();
+        assert_eq!(producer.frame_stats().in_use_slots, 1);
+
+        let frame = ready(Pin::new(&mut body).poll_frame(&mut context))
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+        assert_eq!(frame.chunk(), b"encoded");
+        assert!(producer.poll_reserve(&context).is_pending());
+        assert_eq!(wake_count.0.load(Ordering::Relaxed), 0);
+
+        drop(frame);
+        assert_eq!(wake_count.0.load(Ordering::Relaxed), 1);
+        assert_eq!(producer.frame_stats().free_slots, 1);
+        drop(ready(producer.poll_reserve(&context)).unwrap());
+        assert_eq!(producer.frame_stats().in_use_slots, 0);
+    }
+
+    #[test]
+    fn pooled_frames_release_in_every_cancellation_phase() {
+        let waker = noop_waker();
+        let mut context = Context::from_waker(&waker);
+
+        let (producer, body) = pooled_body(1, 64);
+        drop(ready(producer.poll_reserve(&context)).unwrap());
+        assert_eq!(producer.frame_stats().free_slots, 1);
+        drop(body);
+        assert!(producer.is_cancelled());
+
+        let (producer, body) = pooled_body(1, 64);
+        ready(producer.poll_reserve(&context))
+            .unwrap()
+            .commit(7)
+            .unwrap();
+        drop(body);
+        assert!(producer.is_cancelled());
+        assert_eq!(producer.frame_stats().in_use_slots, 0);
+
+        let (producer, mut body) = pooled_body(1, 64);
+        ready(producer.poll_reserve(&context))
+            .unwrap()
+            .commit(7)
+            .unwrap();
+        let frame = ready(Pin::new(&mut body).poll_frame(&mut context))
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+        let wake_count = Arc::new(CountWake(AtomicUsize::new(0)));
+        let cancel_waker = Waker::from(Arc::clone(&wake_count));
+        let cancel_context = Context::from_waker(&cancel_waker);
+        assert!(producer.poll_reserve(&cancel_context).is_pending());
+        drop(body);
+        assert_eq!(wake_count.0.load(Ordering::Relaxed), 1);
+        assert!(producer.is_cancelled());
+        assert_eq!(producer.frame_stats().in_use_slots, 1);
+        drop(frame);
+        assert_eq!(producer.frame_stats().in_use_slots, 0);
+        assert_eq!(producer.frame_stats().free_slots, 1);
+    }
+
+    #[test]
+    fn bytes_owner_adapter_passes_the_real_response_authority() {
+        let (producer, body) = pooled_body(1, 64);
+        let waker = noop_waker();
+        let mut context = Context::from_waker(&waker);
+        let mut reservation = ready(producer.poll_reserve(&context)).unwrap();
+        reservation.output_mut()[..7].copy_from_slice(b"encoded");
+        reservation.commit(7).unwrap();
+        producer.close();
+
+        let server_body = body
+            .map_frame(|frame| frame.map_data(PooledFrame::into_bytes))
+            .boxed_unsync();
+        let request = hyper::Request::builder()
+            .version(hyper::Version::HTTP_2)
+            .body(())
+            .unwrap();
+        let semantics = host_response::RequestSemantics::from_request(&request);
+        let mut response =
+            host_response::finalize_response(hyper::Response::new(server_body), &semantics)
+                .unwrap();
+        assert!(!response
+            .headers()
+            .contains_key(hyper::header::CONTENT_LENGTH));
+
+        let bytes = ready(Pin::new(response.body_mut()).poll_frame(&mut context))
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+        assert_eq!(bytes, Bytes::from_static(b"encoded"));
+        assert_eq!(producer.frame_stats().in_use_slots, 1);
+        drop(bytes);
+        assert_eq!(producer.frame_stats().in_use_slots, 0);
+        assert!(ready(Pin::new(response.body_mut()).poll_frame(&mut context)).is_none());
     }
 
     #[tokio::test]

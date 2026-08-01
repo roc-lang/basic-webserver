@@ -1,9 +1,17 @@
-use datastar_transport_spike::{ExplicitBrotli, RecyclerStats, RecyclingBrotli};
+use bytes::Buf;
+use datastar_transport_spike::{
+    datastar_event, pooled_body, ExplicitBrotli, PooledBody, PooledProducer, PrototypeServerData,
+    RecyclerStats, RecyclingBrotli, ResumableBrotli, ResumableRecyclingBrotli,
+};
+use futures::task::noop_waker;
+use hyper::body::Body;
 use serde::Serialize;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::mem::size_of;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::task::{Context, Poll};
 use std::time::Instant;
 
 const DEFAULT_CACHE_BYTES: usize = 256 * 1024;
@@ -601,6 +609,243 @@ fn steady(
     }
 }
 
+enum BodyEncoder {
+    Identity,
+    Scale(ResumableRecyclingBrotli),
+    Full(ResumableBrotli),
+}
+
+impl BodyEncoder {
+    fn new(mode: &str) -> Self {
+        match mode {
+            "identity" => Self::Identity,
+            "q1" => Self::Scale(ResumableRecyclingBrotli::with_settings(
+                1,
+                11,
+                DEFAULT_CACHE_BYTES,
+            )),
+            "q3" => Self::Full(ResumableBrotli::with_settings(3, 12)),
+            _ => panic!("unknown body encoder {mode:?}; expected identity, q1, or q3"),
+        }
+    }
+}
+
+fn ready<T>(poll: Poll<T>) -> T {
+    match poll {
+        Poll::Ready(value) => value,
+        Poll::Pending => panic!("single-frame ownership benchmark unexpectedly backpressured"),
+    }
+}
+
+fn publish_reserved_frame(
+    adapter: &str,
+    output_bytes: usize,
+    reservation: datastar_transport_spike::PooledReservation,
+    body: &mut PooledBody,
+    context: &mut Context<'_>,
+) -> usize {
+    if output_bytes == 0 {
+        drop(reservation);
+        return 0;
+    }
+    reservation.commit(output_bytes).unwrap();
+    let frame = ready(Pin::new(body).poll_frame(context))
+        .unwrap()
+        .unwrap()
+        .into_data()
+        .unwrap();
+    let observed = frame.remaining();
+    match adapter {
+        "server-data" => drop(black_box(PrototypeServerData::from(frame))),
+        "bytes-owner" => drop(black_box(frame.into_bytes())),
+        _ => panic!("unknown frame adapter {adapter:?}; expected server-data or bytes-owner"),
+    };
+    observed
+}
+
+fn reserve(
+    producer: &PooledProducer,
+    context: &Context<'_>,
+) -> datastar_transport_spike::PooledReservation {
+    ready(producer.poll_reserve(context)).unwrap()
+}
+
+fn body_event(
+    adapter: &str,
+    encoder: &mut BodyEncoder,
+    event: &[u8],
+    producer: &PooledProducer,
+    body: &mut PooledBody,
+    context: &mut Context<'_>,
+) -> (usize, usize) {
+    let mut wire_bytes = 0;
+    let mut frames = 0;
+    match encoder {
+        BodyEncoder::Identity => {
+            let mut offset = 0;
+            while offset < event.len() {
+                let mut reservation = reserve(producer, context);
+                let output = reservation.output_mut();
+                let bytes = output.len().min(event.len() - offset);
+                output[..bytes].copy_from_slice(&event[offset..offset + bytes]);
+                offset += bytes;
+                wire_bytes += publish_reserved_frame(adapter, bytes, reservation, body, context);
+                frames += 1;
+            }
+        }
+        BodyEncoder::Scale(encoder) => {
+            let mut input_offset = 0;
+            loop {
+                let mut reservation = reserve(producer, context);
+                let step = encoder
+                    .process(event, &mut input_offset, reservation.output_mut())
+                    .unwrap();
+                wire_bytes += publish_reserved_frame(
+                    adapter,
+                    step.output_written,
+                    reservation,
+                    body,
+                    context,
+                );
+                frames += usize::from(step.output_written > 0);
+                if step.complete {
+                    break;
+                }
+            }
+            loop {
+                let mut reservation = reserve(producer, context);
+                let step = encoder.flush(reservation.output_mut()).unwrap();
+                wire_bytes += publish_reserved_frame(
+                    adapter,
+                    step.output_written,
+                    reservation,
+                    body,
+                    context,
+                );
+                frames += usize::from(step.output_written > 0);
+                if step.complete {
+                    break;
+                }
+            }
+        }
+        BodyEncoder::Full(encoder) => {
+            let mut input_offset = 0;
+            loop {
+                let mut reservation = reserve(producer, context);
+                let step = encoder
+                    .process(event, &mut input_offset, reservation.output_mut())
+                    .unwrap();
+                wire_bytes += publish_reserved_frame(
+                    adapter,
+                    step.output_written,
+                    reservation,
+                    body,
+                    context,
+                );
+                frames += usize::from(step.output_written > 0);
+                if step.complete {
+                    break;
+                }
+            }
+            loop {
+                let mut reservation = reserve(producer, context);
+                let step = encoder.flush(reservation.output_mut()).unwrap();
+                wire_bytes += publish_reserved_frame(
+                    adapter,
+                    step.output_written,
+                    reservation,
+                    body,
+                    context,
+                );
+                frames += usize::from(step.output_written > 0);
+                if step.complete {
+                    break;
+                }
+            }
+        }
+    }
+    (wire_bytes, frames)
+}
+
+#[derive(Serialize)]
+struct BodyOwnershipResult {
+    adapter: String,
+    encoder: String,
+    evidence: &'static str,
+    frame_bytes: usize,
+    warmup_events: usize,
+    measured_events: usize,
+    output_frames: usize,
+    wire_bytes: usize,
+    allocation_calls: u64,
+    deallocation_calls: u64,
+    allocated_bytes: u64,
+    deallocated_bytes: u64,
+    live_allocations_delta: i64,
+    live_bytes_delta: i64,
+    free_slots_after: usize,
+    in_use_slots_after: usize,
+    high_water_slots: usize,
+}
+
+fn body_ownership(adapter: &str, mode: &str, measured_events: usize) -> BodyOwnershipResult {
+    const FRAME_BYTES: usize = 4096;
+    const WARMUP_EVENTS: usize = 2048;
+
+    let event = datastar_event(FRAME_BYTES, 1);
+    let (producer, mut body) = pooled_body(1, FRAME_BYTES);
+    let mut encoder = BodyEncoder::new(mode);
+    let waker = noop_waker();
+    let mut context = Context::from_waker(&waker);
+    for _ in 0..WARMUP_EVENTS {
+        black_box(body_event(
+            adapter,
+            &mut encoder,
+            &event,
+            &producer,
+            &mut body,
+            &mut context,
+        ));
+    }
+
+    let before = snapshot();
+    let mut wire_bytes = 0;
+    let mut output_frames = 0;
+    for _ in 0..measured_events {
+        let (event_wire_bytes, event_frames) = body_event(
+            adapter,
+            &mut encoder,
+            &event,
+            &producer,
+            &mut body,
+            &mut context,
+        );
+        wire_bytes += event_wire_bytes;
+        output_frames += event_frames;
+    }
+    let after = snapshot();
+    let stats = producer.frame_stats();
+    BodyOwnershipResult {
+        adapter: adapter.to_string(),
+        encoder: mode.to_string(),
+        evidence: "exact-process-global-allocation-requests-after-warmup",
+        frame_bytes: FRAME_BYTES,
+        warmup_events: WARMUP_EVENTS,
+        measured_events,
+        output_frames,
+        wire_bytes,
+        allocation_calls: after.alloc_calls - before.alloc_calls,
+        deallocation_calls: after.dealloc_calls - before.dealloc_calls,
+        allocated_bytes: after.allocated - before.allocated,
+        deallocated_bytes: after.deallocated - before.deallocated,
+        live_allocations_delta: after.live_allocations - before.live_allocations,
+        live_bytes_delta: after.live_bytes - before.live_bytes,
+        free_slots_after: stats.free_slots,
+        in_use_slots_after: stats.in_use_slots,
+        high_water_slots: stats.high_water_slots,
+    }
+}
+
 fn parse<T: std::str::FromStr>(value: Option<String>, name: &str) -> T {
     value
         .unwrap_or_else(|| panic!("missing {name}"))
@@ -706,8 +951,14 @@ fn main() {
             let trace = trace(&arguments.next().expect("missing trace"));
             print_json(&verify(quality, window_bits, &trace));
         }
+        Some("body-ownership") => {
+            let adapter = arguments.next().expect("missing frame adapter");
+            let encoder = arguments.next().expect("missing encoder");
+            let events = parse(arguments.next(), "events");
+            print_json(&body_ownership(&adapter, &encoder, events));
+        }
         _ => panic!(
-            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] [ACTIVATION_EVENTS] | steady IMPL Q W TRACE EVENTS [CACHE_KIB] | verify Q W TRACE"
+            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] [ACTIVATION_EVENTS] | steady IMPL Q W TRACE EVENTS [CACHE_KIB] | verify Q W TRACE | body-ownership ADAPTER ENCODER EVENTS"
         ),
     }
 }
