@@ -144,6 +144,28 @@ Important established constraints are:
 The finished Roc path should match the pinned client's logical and canonical
 wire contract while deliberately improving on those Go SDK limitations.
 
+### Focused browser and listener evidence
+
+The second-wave harness and observations are in
+[`research/datastar-browser-transport`](../research/datastar-browser-transport/README.md),
+with conclusions in
+[`docs/research/datastar-browser-transport-findings.md`](research/datastar-browser-transport-findings.md).
+
+**Observed in Firefox 153:** pinned Datastar v1.0.2 applied a flushed identity,
+Brotli q4/LGWin18, and Brotli q1/LGWin11 event while a real Hyper listener still
+proved that event two had not been generated. All profiles then applied event
+two and ended cleanly. Brotli normal close emitted a valid FINISH tail and did
+not cause a Datastar retry. Navigation cancellation dropped the body and
+released the producer without generating event two or FINISHing the encoder.
+
+The same generation-gated progressive behavior passed with Firefox through a
+real NGINX 1.24 TLS HTTP/2 frontend configured with `proxy_buffering on`; the
+upstream response supplied `X-Accel-Buffering: no`. Direct cleartext
+prior-knowledge HTTP/2 passed with curl. These results close a focused protocol
+question, not the production integration gate: Chromium, WebKit, the actual
+`basic-webserver` body/accounting/deadline path, slow readers, H2 fairness, and
+cross-target coverage remain open.
+
 ## Proposed product boundary
 
 ### Candidate contract
@@ -1266,6 +1288,9 @@ Minimum prototype:
 Pass criteria:
 
 - A client observes headers and event one before event two exists.
+- The test exposes a server-side generation gate: it observes event one,
+  verifies that event two has not been generated, and only then releases event
+  two. A fixed timer alone is insufficient evidence against hidden buffering.
 - There is no `Content-Length` or invalid H2 connection header.
 - One slow H2 stream does not block an unrelated stream on the same connection.
 - Body drop promptly cancels the timer and releases the stream record.
@@ -1334,6 +1359,10 @@ Minimum prototype:
 - Compare both the Go SDK's idiomatic Brotli quality-6/automatic-window path
   and an exactly matched quality/window path. Measure encoder construction and
   retained idle state separately from per-event work.
+- Include the transport sweep's provisional q1/LGWin11 low-memory profile in
+  the browser/proxy and realistic-value matrix. Its Firefox compatibility is
+  observed, but the fixed default still depends on compression value, scale,
+  and production integration.
 
 Pass criteria:
 
@@ -1477,6 +1506,8 @@ The eventual feature needs coverage for:
 - Progressive Brotli decode after each event and heartbeat, clean encoded EOF,
   disconnect without finish, and an incompressible maximum-size event.
 - Reverse-proxy buffering and timeout configuration.
+- A server-controlled event-two generation gate for every progressive browser
+  and proxy case; client timing against a sleep is not sufficient.
 - Graceful shutdown and hard-deadline behaviour.
 - Debug ownership assertions and native memory instrumentation.
 - Every active example maintaining exactly one `scripts/test_spec.json` entry.
@@ -1643,3 +1674,17 @@ is blocked until a compiler fix or supported generated typed adapter passes the
 reproducer. The explicit-state fourth `stream!` entrypoint is now an active
 parallel candidate and must be benchmarked against Go rather than treated as an
 unexamined fallback.
+
+### 2026-08-01: Focused real-browser transport hypothesis passes in Firefox
+
+Pinned Datastar v1.0.2 running in Firefox processed flushed identity and
+Brotli event one before a real listener was allowed to generate event two.
+This passed over direct HTTP/1.1 and a real NGINX TLS HTTP/2 frontend, including
+the provisional q1/LGWin11 low-memory profile. Direct h2c also passed with an
+independent curl client. Normal Brotli EOF FINISHed; browser navigation aborted
+without a tail and reached producer cleanup.
+
+This evidence supports the proposed flush, finish/abort, and
+`X-Accel-Buffering: no` semantics. It does not accept the product boundary or
+close production listener, remaining-browser, bounded-memory, scheduler,
+cross-target, or scale gates.

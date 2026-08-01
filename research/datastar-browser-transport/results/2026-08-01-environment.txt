@@ -1,4 +1,6 @@
 Repository baseline: cd56948d36caca636346763b346a2f9faa9bfab5
+Harness checkpoint: b66c6fe
+Low-memory profile checkpoint: d0f6b32
 Run date: 2026-08-01 Australia/Melbourne
 
 Linux lbw-B850-GAMING-X-WIFI6E 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul 1 15:50:57 UTC 2 x86_64 GNU/Linux
