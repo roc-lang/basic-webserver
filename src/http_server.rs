@@ -25,7 +25,7 @@ use crate::request_parts::RequestPartsBacking;
 use crate::request_target::{RequestMetadata, TargetKind};
 use crate::response::{
     application_parts, finalize_response, full_body, safe_internal_server_error, RequestSemantics,
-    ServerBody, ServerResponse,
+    ServerBody, ServerData, ServerResponse,
 };
 use crate::roc_platform_abi::*;
 use crate::server_transport::{detect_protocol, Http1Activity, Http1Io, PrefixedStream, Protocol};
@@ -34,7 +34,7 @@ use crate::telemetry::{
     AccessLogConfig, ActiveGaugeGuard, Destination, LogTarget, Metrics, RejectionReason, Telemetry,
     TelemetryConfig, TelemetryHandle,
 };
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::BodyExt;
 #[cfg(test)]
@@ -1110,7 +1110,7 @@ impl TrackedResponseBody {
     fn pending_body(
         &mut self,
         context: &mut Context<'_>,
-    ) -> Poll<Option<Result<Frame<Bytes>, std::io::Error>>> {
+    ) -> Poll<Option<Result<Frame<ServerData>, std::io::Error>>> {
         let Some(timeout) = self.body_idle_timeout else {
             return Poll::Pending;
         };
@@ -1135,7 +1135,7 @@ impl TrackedResponseBody {
 }
 
 impl Body for TrackedResponseBody {
-    type Data = Bytes;
+    type Data = ServerData;
     type Error = std::io::Error;
 
     fn poll_frame(
@@ -1153,7 +1153,7 @@ impl Body for TrackedResponseBody {
                 Poll::Ready(Some(Err(error)))
             }
             Poll::Ready(Some(Ok(frame))) => {
-                let made_progress = frame.data_ref().is_some_and(|data| !data.is_empty())
+                let made_progress = frame.data_ref().is_some_and(Buf::has_remaining)
                     || frame.trailers_ref().is_some();
                 if made_progress {
                     this.body_progress();
@@ -1573,7 +1573,7 @@ fn h2_request_body(mut body: h2::RecvStream) -> RequestBodyStream {
 }
 
 async fn send_h2_response(
-    mut responder: h2::server::SendResponse<Bytes>,
+    mut responder: h2::server::SendResponse<ServerData>,
     response: ServerResponse,
     idle_timeout: Duration,
 ) -> Result<(), String> {
@@ -1600,11 +1600,46 @@ async fn send_h2_response(
                 let mut data = frame
                     .into_data()
                     .expect("a data frame contains a data buffer");
-                if data.is_empty() {
+                if !data.has_remaining() {
                     continue;
                 }
-                while !data.is_empty() {
-                    sender.reserve_capacity(data.len());
+                if data.is_pooled() {
+                    // A pooled frame must stay one owned value so its Drop can
+                    // return the vector exactly once. Wait for positive flow
+                    // capacity, then let h2 consume the remainder incrementally.
+                    // The frame pool and h2's configured send-buffer ceiling
+                    // bound the bytes retained beyond the current grant.
+                    sender.reserve_capacity(data.remaining());
+                    match tokio::time::timeout_at(
+                        deadline,
+                        futures::future::poll_fn(|context| sender.poll_capacity(context)),
+                    )
+                    .await
+                    {
+                        Ok(Some(Ok(capacity))) if capacity > 0 => {}
+                        Ok(Some(Ok(_))) => continue,
+                        Ok(Some(Err(error))) => return Err(error.to_string()),
+                        Ok(None) => return Err("HTTP/2 response stream closed".to_owned()),
+                        Err(_) => {
+                            sender.send_reset(h2::Reason::CANCEL);
+                            return Err(
+                                "HTTP/2 response flow control made no progress before its deadline"
+                                    .to_owned(),
+                            );
+                        }
+                    }
+                    let end_stream = body.is_end_stream();
+                    sender
+                        .send_data(data, end_stream)
+                        .map_err(|error| error.to_string())?;
+                    deadline = tokio::time::Instant::now() + idle_timeout;
+                    if end_stream {
+                        return Ok(());
+                    }
+                    continue;
+                }
+                while data.has_remaining() {
+                    sender.reserve_capacity(data.remaining());
                     let capacity = match tokio::time::timeout_at(
                         deadline,
                         futures::future::poll_fn(|context| sender.poll_capacity(context)),
@@ -1623,9 +1658,9 @@ async fn send_h2_response(
                             );
                         }
                     };
-                    let count = capacity.min(data.len());
-                    let chunk = data.split_to(count);
-                    let end_stream = data.is_empty() && body.is_end_stream();
+                    let count = capacity.min(data.remaining());
+                    let chunk = data.split_bytes_to(count);
+                    let end_stream = !data.has_remaining() && body.is_end_stream();
                     sender
                         .send_data(chunk, end_stream)
                         .map_err(|error| error.to_string())?;
@@ -1652,7 +1687,7 @@ async fn send_h2_response(
             }
             None => {
                 sender
-                    .send_data(Bytes::new(), true)
+                    .send_data(ServerData::empty(), true)
                     .map_err(|error| error.to_string())?;
                 return Ok(());
             }
@@ -1663,7 +1698,7 @@ async fn send_h2_response(
 fn spawn_h2_request(
     tasks: &mut JoinSet<()>,
     request: hyper::Request<h2::RecvStream>,
-    responder: h2::server::SendResponse<Bytes>,
+    responder: h2::server::SendResponse<ServerData>,
     context: ServerContext,
 ) {
     tasks.spawn(async move {
@@ -1704,7 +1739,7 @@ async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
         // The response sender reserves exact flow-control capacity before
         // handing bytes to h2; one 64 KiB flow-control grant is sufficient.
         .max_send_buffer_size(64 * 1024);
-    let handshake = builder.handshake::<_, Bytes>(stream);
+    let handshake = builder.handshake::<_, ServerData>(stream);
     let mut connection = match tokio::time::timeout(context.config.header_timeout, handshake).await
     {
         Ok(Ok(connection)) => connection,
@@ -1956,6 +1991,7 @@ async fn watch_signals(shutdown: ShutdownController) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::response_body::ResponseFramePool;
     use std::io::Read;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -2118,7 +2154,16 @@ mod tests {
         .unwrap();
         assert_eq!(crate::request_parts::active_backings(), 1);
 
-        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body = response
+            .into_body()
+            .frame()
+            .await
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .into_bytes()
+            .expect("an ordinary Roc response retains its Bytes body");
         assert_eq!(body.as_ptr(), escaped_ptr);
         assert_eq!(body.as_ref(), b"/a/long/request/target");
         assert_eq!(crate::request_parts::active_backings(), 1);
@@ -2202,7 +2247,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(drops.load(Ordering::Acquire), 0);
-        let transmitted = response.into_body().collect().await.unwrap().to_bytes();
+        let transmitted = response
+            .into_body()
+            .frame()
+            .await
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .into_bytes()
+            .expect("an ordinary Roc response retains its Bytes body");
         assert_eq!(transmitted.as_ptr(), original_ptr);
         assert_eq!(transmitted.as_ref(), b"escaped body chunk");
         assert_eq!(drops.load(Ordering::Acquire), 0);
@@ -2263,7 +2317,8 @@ mod tests {
     async fn stalled_http1_body_times_out_and_releases_request_accounting() {
         let requests = RequestTracker::new();
         let active_request = Arc::new(requests.begin().expect("request should be admitted"));
-        let pending_frames = futures::stream::pending::<Result<Frame<Bytes>, std::io::Error>>();
+        let pending_frames =
+            futures::stream::pending::<Result<Frame<ServerData>, std::io::Error>>();
         let response = track_response(
             hyper::Response::new(http_body_util::StreamBody::new(pending_frames).boxed_unsync()),
             Some(active_request),
@@ -2513,7 +2568,8 @@ mod tests {
     async fn stalled_http2_response_resets_only_its_stream() {
         let (client_io, server_io) = tokio::io::duplex(4096);
         let server = tokio::spawn(async move {
-            let mut connection = h2::server::handshake(server_io)
+            let mut connection = h2::server::Builder::new()
+                .handshake::<_, ServerData>(server_io)
                 .await
                 .expect("HTTP/2 server handshake should succeed");
             let (_, stalled_responder) = connection
@@ -2634,6 +2690,90 @@ mod tests {
 
         drop(sender);
         client.abort();
+    }
+
+    #[tokio::test]
+    async fn pooled_http2_frame_survives_incremental_flow_control_and_returns_its_slot() {
+        let pool = ResponseFramePool::new(1, 4096);
+        let payload = (0..4096)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        let mut reservation = futures::future::poll_fn(|context| pool.poll_reserve(context)).await;
+        reservation.output_mut().copy_from_slice(&payload);
+        let body = Full::new(ServerData::from(reservation.commit(payload.len())))
+            .map_err(|never| match never {})
+            .boxed_unsync();
+        let response = hyper::Response::new(body);
+        assert_eq!(pool.stats().in_use_slots, 1);
+
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::Builder::new()
+                .handshake::<_, ServerData>(server_io)
+                .await
+                .expect("HTTP/2 server handshake should succeed");
+            let (_, responder) = connection
+                .accept()
+                .await
+                .expect("client should open one stream")
+                .expect("request should be valid");
+            let mut response_task = Box::pin(send_h2_response(
+                responder,
+                response,
+                Duration::from_secs(1),
+            ));
+            let response_result = loop {
+                tokio::select! {
+                    result = &mut response_task => break result,
+                    accepted = connection.accept() => {
+                        assert!(
+                            accepted.is_some(),
+                            "client connection should remain open while the response is active"
+                        );
+                    }
+                }
+            };
+
+            // Keep driving h2 until the client has consumed the queued frame
+            // and closed the connection. That is when h2 releases its Buf.
+            while connection.accept().await.is_some() {}
+            response_result
+        });
+
+        let mut builder = h2::client::Builder::new();
+        builder.initial_window_size(7);
+        let (mut sender, connection) = builder
+            .handshake::<_, Bytes>(client_io)
+            .await
+            .expect("HTTP/2 client handshake should succeed");
+        let client = tokio::spawn(connection);
+        sender = sender.ready().await.expect("client should become ready");
+        let (response, _) = sender
+            .send_request(hyper::Request::new(()), true)
+            .expect("request should be accepted");
+        let mut body = response
+            .await
+            .expect("response headers should arrive")
+            .into_body();
+        let mut received = Vec::with_capacity(payload.len());
+        while let Some(data) = body.data().await {
+            let data = data.expect("pooled response stream should remain healthy");
+            received.extend_from_slice(&data);
+            body.flow_control()
+                .release_capacity(data.len())
+                .expect("client flow-control capacity should be released");
+        }
+        assert_eq!(received, payload);
+
+        drop(body);
+        drop(sender);
+        client.abort();
+        server
+            .await
+            .expect("server task should not panic")
+            .expect("pooled response should complete");
+        assert_eq!(pool.stats().in_use_slots, 0);
+        assert_eq!(pool.stats().free_slots, 1);
     }
 
     #[tokio::test]

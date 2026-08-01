@@ -8,6 +8,8 @@
 mod host_compression;
 #[path = "../../../src/response.rs"]
 mod host_response;
+#[path = "../../../src/response_body.rs"]
+mod response_body;
 
 use brotli::enc::encode::{
     BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
@@ -1744,7 +1746,11 @@ mod tests {
         producer.close();
 
         let server_body = body
-            .map_frame(|frame| frame.map_data(PooledFrame::into_bytes))
+            .map_frame(|frame| {
+                frame.map_data(|frame| {
+                    response_body::ServerData::from(PooledFrame::into_bytes(frame))
+                })
+            })
             .boxed_unsync();
         let request = hyper::Request::builder()
             .version(hyper::Version::HTTP_2)
@@ -1762,7 +1768,9 @@ mod tests {
             .unwrap()
             .unwrap()
             .into_data()
-            .unwrap();
+            .unwrap()
+            .into_bytes()
+            .expect("the ownership-adapter fixture emits ordinary Bytes data");
         assert_eq!(bytes, Bytes::from_static(b"encoded"));
         assert_eq!(producer.frame_stats().in_use_slots, 1);
         drop(bytes);

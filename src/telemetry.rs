@@ -6,8 +6,8 @@
 
 #[cfg(test)]
 use crate::response::empty_body;
-use crate::response::{full_body, ServerBody, ServerResponse};
-use bytes::Bytes;
+use crate::response::{full_body, ServerBody, ServerData, ServerResponse};
+use bytes::{Buf, Bytes};
 use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::header::{HeaderValue, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE};
@@ -1039,7 +1039,7 @@ impl CompletionBody {
 }
 
 impl Body for CompletionBody {
-    type Data = Bytes;
+    type Data = ServerData;
     type Error = io::Error;
 
     fn poll_frame(
@@ -1051,7 +1051,7 @@ impl Body for CompletionBody {
                 if let Some(data) = frame.data_ref() {
                     self.response_bytes = self
                         .response_bytes
-                        .saturating_add(data.len().try_into().unwrap_or(u64::MAX));
+                        .saturating_add(data.remaining().try_into().unwrap_or(u64::MAX));
                 }
                 // Hyper is allowed to stop polling as soon as `is_end_stream`
                 // becomes true. A body such as `Full` reaches that state while
@@ -1136,9 +1136,9 @@ mod tests {
         let handle = telemetry.handle();
         let failed = handle.start_request(&Method::GET, "/failed");
         failed.set_destination(Destination::NativeFile);
-        let error_body = StreamBody::new(stream::iter([Err::<Frame<Bytes>, _>(io::Error::other(
-            "read failed",
-        ))]))
+        let error_body = StreamBody::new(stream::iter([Err::<Frame<ServerData>, _>(
+            io::Error::other("read failed"),
+        )]))
         .boxed_unsync();
         let response = failed.instrument(hyper::Response::new(error_body));
         assert!(response.into_body().frame().await.unwrap().is_err());
