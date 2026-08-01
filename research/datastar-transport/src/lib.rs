@@ -412,9 +412,11 @@ impl Drop for BoundedBody {
 /// requested framed size. The exact result can be a few bytes larger.
 pub fn datastar_event(target_bytes: usize, sequence: usize) -> Vec<u8> {
     let prefix = format!(
-        "event: datastar-patch-elements\nid: {sequence}\ndata: selector #todos\ndata: mode replace\ndata: elements <ul data-seq=\"{sequence}\">"
+        "event: datastar-patch-elements\ndata: selector #todos\ndata: mode replace\ndata: elements <ul data-seq=\"{sequence}\">"
     );
-    let suffix = "</ul>\n\n";
+    // Datastar Go v1.2.2 writes a newline for the final data field followed by
+    // its `DoubleNewLine` constant, producing three line feeds on the wire.
+    let suffix = "</ul>\n\n\n";
     let row = "<li class=\"todo\"><span>write bounded streaming tests</span></li>";
     let mut event = String::with_capacity(target_bytes + row.len());
     event.push_str(&prefix);
