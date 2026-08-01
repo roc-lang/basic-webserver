@@ -210,6 +210,66 @@ struct MemoryResult {
     retained_bytes_per_stream: f64,
 }
 
+#[derive(Serialize)]
+struct BoundObservation {
+    implementation: &'static str,
+    evidence: &'static str,
+    corpus: &'static str,
+    input_bytes_per_event: usize,
+    events: usize,
+    maximum_event_flush_bytes: usize,
+    finish_tail_bytes: usize,
+    total_encoded_bytes: u64,
+    one_shot_max_compressed_size: usize,
+    note: &'static str,
+}
+
+fn pseudorandom_bytes(bytes: usize, seed: u64) -> Vec<u8> {
+    let mut state = seed.max(1);
+    let mut output = Vec::with_capacity(bytes);
+    for _ in 0..bytes {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        output.push(state as u8);
+    }
+    output
+}
+
+fn observe_bounds(events: usize) {
+    for input_bytes in [256, 4096, 65_536, 1_048_576] {
+        let segment_limit = input_bytes * 2 + 64 * 1024;
+        let mut encoder = ExplicitBrotli::new(segment_limit);
+        let mut maximum = 0;
+        let mut total = 0_u64;
+        for sequence in 0..events {
+            let input = pseudorandom_bytes(input_bytes, sequence as u64 + 1);
+            let encoded = encoder.encode_event(&input).unwrap();
+            maximum = maximum.max(encoded.len());
+            total += encoded.len() as u64;
+        }
+        let tail = encoder.finish().unwrap();
+        total += tail.len() as u64;
+        println!(
+            "{}",
+            serde_json::to_string(&BoundObservation {
+                implementation: "rust-low-level-q4-w18",
+                evidence: "observed-not-proven",
+                corpus: "xorshift64-incompressible-candidates",
+                input_bytes_per_event: input_bytes,
+                events,
+                maximum_event_flush_bytes: maximum,
+                finish_tail_bytes: tail.len(),
+                total_encoded_bytes: total,
+                one_shot_max_compressed_size:
+                    brotli::enc::BrotliEncoderMaxCompressedSize(input_bytes),
+                note: "The exported bound is for one-shot FINISH, not a proof for repeated FLUSH operations.",
+            })
+            .unwrap()
+        );
+    }
+}
+
 fn memory(streams: usize) {
     let event = datastar_event(256, 1);
     let before = snapshot();
@@ -258,6 +318,13 @@ fn main() {
                 .parse()
                 .expect("stream count must be an integer");
             memory(streams);
+        }
+        Some("observe-bounds") => {
+            let events = arguments
+                .next()
+                .map(|value| value.parse().expect("events must be an integer"))
+                .unwrap_or(100);
+            observe_bounds(events);
         }
         Some(command) => panic!("unknown command {command:?}"),
     }
