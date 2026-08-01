@@ -232,7 +232,8 @@ direct evidence about a future Roc framing ABI.
 - Slow-reader closure latency and global/per-stream output high-water marks.
 - Producer scheduling proving compression never runs on async transport
   workers and ordinary Roc handlers retain capacity during wake herds.
-- A proven persistent-FLUSH output bound or a deliberate encoder replacement.
+- Production integration of the later pre-reserved resumable PROCESS/FLUSH/
+  FINISH handshake.
 - Removal or justified retention of Rust's per-event allocation churn.
 - Realistic changing Datastar HTML/signal traces instead of a repeated payload.
 - Debug failure injection, disconnect during compression, and shutdown races

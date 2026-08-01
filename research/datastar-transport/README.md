@@ -83,3 +83,28 @@ its final argument can run a whole trace through each encoder to expose mature
 window and cache growth. See
 [`docs/research/datastar-brotli-footprint-findings.md`](../../docs/research/datastar-brotli-footprint-findings.md)
 for the interpretation and recommendation.
+
+## Bounded resumable output follow-up
+
+The low-level spike also tests the alternative to proving a maximum compressed
+size for an entire persistent-stream item. `ResumableBrotli` advances one
+PROCESS, FLUSH, or FINISH operation only into caller-owned capacity which has
+already been reserved by `BoundedBody`. If that capacity fills, encoder state
+and the input offset are retained and the operation resumes only after the body
+returns capacity.
+
+`resumable_brotli_never_advances_without_one_bounded_frame` deliberately uses
+one queued frame of only seven bytes and a 64 KiB Datastar-shaped item. It
+passes for q1/LGWin11 and q3/LGWin12, forces each operation to span multiple
+frames, proves backpressure between frames, incrementally decodes the FLUSHed
+prefix, and independently decodes the FINISHed stream.
+
+```sh
+cargo test --manifest-path research/datastar-transport/Cargo.toml --release \
+  resumable_brotli_never_advances_without_one_bounded_frame
+```
+
+This is a correctness and boundedness result, not an allocation result. The
+test copies each produced slice into a new `Bytes`; production feasibility still
+requires reusable owned frames and integration with the real response body,
+listener accounting, deadlines, HTTP/2 flow control, and cancellation.

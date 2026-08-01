@@ -140,8 +140,8 @@ agree:
    unavailable?
 3. Can encoding occur in the admitted stream-production operation without
    unfairly extending a Roc execution permit?
-4. What exact flush operation makes one persistent Brotli stream incrementally
-   decodable, and what is its worst-case event output bound?
+4. Can PROCESS, FLUSH, and FINISH pause on a fixed output-frame boundary so the
+   body need not reserve a worst-case whole-event compressed size?
 5. Which Datastar actions are genuinely persistent versus finite SSE responses,
    and should both use the same outcome kind?
 6. Does browser cancellation map promptly enough to body drop to release the
@@ -186,3 +186,9 @@ accept the scope change.
 This condition was met on 2026-08-01. The cross-track owner is
 [`datastar-research-synthesis.md`](datastar-research-synthesis.md); its open
 spikes remain release gates rather than unfinished coordination work.
+
+On 2026-08-02 the follow-up transport spike answered cross-track question 4
+for the disposable body: all three Brotli operations resume across pre-reserved
+seven-byte frames for both selected profiles. The synthesis now makes real-body
+integration, reusable frame ownership, and cancellation accounting the P0
+research objective; it no longer blocks on a whole-event FLUSH-size proof.

@@ -59,10 +59,12 @@ a time through a fixed platform ABI. A step emits a bounded event batch, ends,
 or returns a new machine plus a declarative wake condition. No Roc stack or
 native worker remains occupied while the stream is waiting.
 
-The primary feasibility risk is whether the new Zig-based Roc compiler can
-safely and efficiently retain, invoke, transfer, and destroy stream state
-across provided entrypoints and host worker threads on every supported target.
-That claim must be proven before the public API is selected.
+The original primary feasibility risk was whether the new Zig-based Roc
+compiler could safely and efficiently retain, invoke, transfer, and destroy
+stream state across provided entrypoints and host worker threads. The local
+callable prototype now passes that allocation/lifecycle gate. Upstream review
+and supported-target coverage remain release dependencies, while the active
+critical path has moved to bounded production body ownership and backpressure.
 
 The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
@@ -89,7 +91,15 @@ steady-state system allocations, with documented wire-size differences.
 No single profile serves every population: standard q3/LGWin12 is the current
 full-compression/default candidate, while recycled q1/LGWin11 is the explicit
 scale candidate. They require separate compressed-stream admission, reusable
-owned output frames, and a still-unproven persistent-FLUSH output bound.
+owned output frames, and production response-body integration.
+
+A follow-up low-level adapter removes the need to reserve a maximum compressed
+whole-item size: it advances PROCESS, FLUSH, and FINISH only after reserving one
+fixed output frame and resumes across as many frames as required. A forced
+seven-byte-frame test passes for q1/LGWin11 and q3/LGWin12 with a 64 KiB item.
+The disposable test still allocates/copies `Bytes`, so reusable frame ownership,
+real-listener cancellation, HTTP/2 isolation, and full-path steady-state
+allocation measurements are now the highest-priority feasibility work.
 
 The reconciled decisions, contradictions, and next objective gates are in
 [`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
@@ -920,8 +930,9 @@ existing response-compression contract.
 The existing negotiation and header authority should remain the single source
 of truth. The ordinary whole-response buffering path is not reusable as the
 SSE body implementation. The low-level adapter has proven progressive decoding
-and explicit FINISH/abort behavior; production integration, owned-frame reuse,
-and the persistent repeated-FLUSH output bound remain open.
+and explicit FINISH/abort behavior. The resumable follow-up has also removed
+the need for a whole-item repeated-FLUSH bound. Production integration,
+owned-frame reuse, and full-path allocation/accounting remain open.
 
 ### Reverse proxy
 
@@ -1479,17 +1490,17 @@ Failure response:
 
 - Try a lower quality/window or a different streaming Brotli adapter while
   preserving the same contract. If the browser/proxy latency or a finite
-  worst-case output bound cannot be demonstrated, keep identity temporarily
-  and treat first-class Brotli as a release blocker rather than silently
-  weakening flush semantics.
+  per-frame output/backpressure bound cannot be demonstrated in production,
+  keep identity temporarily and treat first-class Brotli as a release blocker
+  rather than silently weakening flush semantics.
 
 Current status: the low-level lifecycle, multi-corpus value, mature state,
 steady-state compressor allocations, matched-Go encoder time, Firefox direct
 H1, curl h2c, and NGINX-fronted Firefox H2 questions have focused passing
-evidence. The persistent repeated-FLUSH bound, complete owned-frame allocation
-story, q3 browser case, production `ServerBody`, slow-reader/H2 isolation,
-ordinary-request CPU isolation, cross-browser, and cross-target gates remain
-open.
+evidence. The repeated-FLUSH size question is resolved by the disposable
+resumable handshake. The complete owned-frame allocation story, q3 browser
+case, production `ServerBody`, slow-reader/H2 isolation, ordinary-request CPU
+isolation, cross-browser, and cross-target gates remain open.
 
 ### Spike 6: `Pulse`
 
@@ -1895,8 +1906,23 @@ per-event API.
 
 Both profiles require separate compressed-stream capacity. The complete
 allocation claim remains open until borrowed reusable encoder output becomes a
-bounded owned body frame, and production integration remains blocked on a
-proven repeated-FLUSH maximum or a resumable bounded handshake.
+bounded owned body frame. The resumable bounded handshake now passes in the
+disposable body; production integration remains blocked on transferring it to
+the real `ServerBody` and proving its accounting and cancellation lifecycle.
+
+### 2026-08-02: Brotli output is bounded by resumable frames
+
+The transport spike now advances Brotli PROCESS, FLUSH, and FINISH only into
+one pre-reserved fixed-capacity body frame. A q1/LGWin11 and q3/LGWin12 test
+uses a single seven-byte queue slot with a 64 KiB item, repeatedly observes
+backpressure, and independently decodes both the FLUSHed prefix and FINISHed
+stream. This replaces the whole-event compressed-size proof with a stronger
+operational bound: the encoder cannot emit or advance into unavailable body
+capacity.
+
+The test still copies into newly allocated `Bytes` and is not connected to the
+production response authority, listener, H2 flow control, or unified close
+path. Those are now the leading research gates.
 
 ### 2026-08-01: Research converges conditionally on the state ABI
 

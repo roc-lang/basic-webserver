@@ -1,8 +1,8 @@
 # Datastar research synthesis and spike contract
 
-Status: callable allocation feasibility passed; controlled performance, upstream, and integration gates remain
+Status: production body transaction is the critical path; compiler feasibility passed locally
 
-Date: 2026-08-01
+Date: 2026-08-02
 
 Branch: `datastar-experiment`
 
@@ -34,7 +34,7 @@ The research supports a coherent first-class SSE and Datastar design for
   negotiation, opt-out, admission, or endpoint policy.
 
 This is enough agreement to proceed with focused implementation spikes. It is
-not enough to select the final dynamic-stream ABI or update `design.md`.
+not enough to accept the scope change in `design.md` or ship a public API.
 
 The preferred boxed-callable ABI passes the complete local lifecycle through
 generated provided wrappers. A follow-up compiler prototype on Roc main
@@ -47,6 +47,48 @@ reference is slightly faster. This supports advancing the callable shape to
 transport integration research, subject to controlled performance, upstream
 compiler design, cross-target, and end-to-end gates. The allocating
 explicit-state path remains only a lifecycle fallback.
+
+The research is therefore refocused. Retained callable allocation is no longer
+the leading feasibility question. The critical path is one production body
+transaction which carries a bounded Roc item through validation, canonical SSE
+framing, optional Brotli, an owned output frame, Hyper flow control, and
+cancellation without unbounded buffering or steady-state allocation. Compiler
+upstreaming remains a parallel release dependency, not the work which should
+hold up transport integration research.
+
+## Refocused objective hierarchy
+
+The next work is ordered by the earliest uncertainty which could invalidate the
+architecture:
+
+1. **P0 — bounded production body transaction.** Prove in the real
+   `ServerBody` path that encoder state advances only after one fixed output
+   frame is reserved, that PROCESS and FLUSH can pause across frames, and that
+   stopped readers bound retained bytes. Cancellation must release the pending
+   framed item, encoder, frame reservation, and returned Roc machine through
+   one idempotent close path.
+2. **P0 — owned-frame steady state.** Replace per-frame allocation/copying with
+   a fixed-capacity owned-frame pool or an equally bounded ownership transfer.
+   Measure the complete identity, q1, and q3 paths after warmup. Zero encoder
+   allocations alone does not close this objective.
+3. **P1 — listener and scheduler isolation.** Carry the transaction through
+   the response authority, request accounting, deadlines, graceful shutdown,
+   HTTP/1.1, and HTTP/2. A stopped stream must not grow its queue or degrade an
+   unrelated HTTP/2 stream or ordinary-request p99 beyond the comparison gate.
+4. **P1 — compiler upstream and portability.** Complete review of the retained
+   callable compiler change, controlled batch-1 timing, and supported-target
+   lifecycle coverage in parallel with host work. Fall back to a generated
+   typed opaque-state adapter only if compiler review invalidates the callable
+   mechanism.
+5. **P2 — application ergonomics and browser coverage.** Select the public API
+   only after the body ownership model is real, then compare representative Roc
+   applications with Go and finish the Chromium/WebKit/proxy matrix.
+
+The P0 gate closes only with a real-body test which forces multiple output
+frames, repeatedly reaches backpressure, proves incremental decode after
+FLUSH, proves normal FINISH and cancellation-without-FINISH, and reports live
+frame/byte/encoder/machine accounting returning to zero. A compressor-only
+test or an observed maximum output size is insufficient.
 
 ## Decisions we can make now
 
@@ -156,9 +198,10 @@ proxy timeout/heartbeat behavior, and cross-target decoding as release gates.
 Use a low-level lifecycle adapter, not the current `CompressorWriter` wrapper:
 
 1. PROCESS a fully framed item.
-2. FLUSH it into reusable bounded encoder output.
-3. Transfer/copy that output into an already-reserved owned body frame.
-4. FINISH explicitly and fallibly on normal EOF.
+2. Before every encoder call, reserve one fixed-capacity owned output frame.
+3. Advance PROCESS or FLUSH only into that frame, commit any produced bytes,
+   and pause when the next frame is backpressured.
+4. FINISH through the same resumable frame handshake on normal EOF.
 5. Destroy encoder state without emitting output on cancellation.
 
 The existing wrapper FINISHes from `Drop` and can lose finish errors; those are
@@ -208,11 +251,15 @@ compression capacity is unavailable, identity fallback is allowed only when
 the negotiated request permits it and the policy says fallback is acceptable;
 otherwise reject before commitment.
 
-The exact repeated-FLUSH maximum output for a maximum incompressible item is
-not yet proven. Observed maxima and the one-shot Brotli maximum-size function
-do not establish that persistent-stream bound. This blocks production use of
-the reserve-before-mutation algorithm until proved or replaced with a bounded,
-resumable output design.
+The disposable transport spike now demonstrates the bounded, resumable option
+with seven-byte body frames for both q1/LGWin11 and q3/LGWin12 over a 64 KiB
+item. Every encoder call follows a successful one-frame reservation; PROCESS,
+FLUSH, and FINISH span as many frames as required; every reservation is released
+by body polling; and the flushed and finished streams independently decode to
+the exact input. This removes the need to prove a whole-item repeated-FLUSH
+maximum for correctness. It does **not** close production integration or the
+allocation gate: the disposable queue still creates `Bytes` with a copy and is
+not wired through the real listener/accounting/cancellation path.
 
 ## Go comparison: where the target stands
 
@@ -284,13 +331,15 @@ One admitted step follows this order:
 1. Reserve callback execution and the maximum uncompressed step budget.
 2. Advance the owned Roc machine once.
 3. Validate and frame a bounded event batch.
-4. Before mutating a selected Brotli encoder, reserve the proven maximum encoded
-   segment and an owned body frame; identity reserves its exact frame size.
-5. PROCESS and FLUSH one logical item at a time, transferring each result into
-   the bounded body queue.
-6. Park the returned machine only after all step output is accepted into host
-   ownership, or discard it on cancellation/failure.
-7. Release callback capacity and schedule the declared wake condition.
+4. Hold the returned machine and framed item in a host-owned draining-step
+   record; do not invoke the machine again.
+5. Reserve one fixed output frame before each encoder call. Advance PROCESS and
+   FLUSH resumably, committing each frame before waiting for more capacity.
+   Identity chunks through the same body reservation boundary.
+6. Park the returned machine only after the whole logical item is flushed into
+   host ownership, or discard it with the pending item on cancellation/failure.
+7. Release callback capacity at the defined CPU boundary and schedule the
+   declared wake condition only after draining completes.
 
 This order prevents the host from advancing application state while a previous
 step is backpressured, makes framed-but-unsent bytes host-owned, and keeps
@@ -298,37 +347,38 @@ compression CPU out of async transport workers. A prototype must determine
 whether encoding shares the finite callback operation or uses a separately
 bounded CPU executor without compromising ordering and cancellation.
 
-## Next feasibility spikes
+## Remaining feasibility spikes
 
-### A. Compiler/glue ownership and reuse
+### A. Production body transaction and owned frames
 
-Upstream the callable candidate or replace its host-visible fifth argument with
-a generated adapter, rerun the committed lifecycle fixture, and compare batches
-1, 4, and 16 against Go 1.26.5 under controlled repeated-process timing. Keep
-the typed opaque adapter as a contingency if compiler review rejects callable
-reuse. Gate on the single-event and end-to-end results, not amortized batch-16
-alone.
+Move the resumable one-frame handshake into a disposable adapter around the
+real `ServerBody` type. Add reusable owned frames and explicit live accounting
+for framed input, queued output, encoder state, and the returned Roc machine.
+Force PROCESS, FLUSH, and FINISH across multiple frames; cancel in each phase;
+measure steady-state allocations for identity, q1, and q3. This is the current
+highest-value spike.
 
-### B. Production bounded body integration
+### B. Real listener and H2 isolation
 
-Integrate the synthetic `ServerBody` semantics with the real listener,
-response authority, request accounting, deadlines, graceful shutdown, and H2
-flow control. Prove a fixed high-water mark for stopped readers and isolation
-of an unrelated H2 stream.
+Integrate that adapter with the response authority, request accounting,
+deadlines, graceful shutdown, and HTTP/1.1 and HTTP/2 flow control. Prove a
+fixed high-water mark for stopped readers and isolation of an unrelated H2
+stream and ordinary requests.
 
-### C. Persistent FLUSH bound and frame ownership
-
-Prove the maximum encoded output of PROCESS+FLUSH for every admitted item size
-and selected profile, or implement a resumable bounded encoder/body handshake.
-Pool/reuse owned frames so the complete q1 and q3 paths, not just compressor
-scratch, have measured steady-state allocation behavior.
-
-### D. End-to-end scheduler and scale
+### C. End-to-end scheduler and scale
 
 Exercise idle, hot, timer-herd, slow-reader, disconnect, and shutdown workloads
 with ordinary request load. Measure stream state, encoder state, task count,
 queue high-water, wake latency, event latency, and ordinary p99. Run q1 scale,
 q3 full-compression, and identity populations separately and mixed.
+
+### D. Compiler/glue upstream and cross-target ownership
+
+Resolve review of the callable candidate or replace its host-visible fifth
+argument with a generated adapter. Rerun the lifecycle fixture on supported
+targets and compare batches 1, 4, and 16 against Go 1.26.5 under controlled
+repeated-process timing. Gate on batch 1 and end-to-end results, not amortized
+batch 16 alone.
 
 ### E. API ergonomics and browser matrix
 
@@ -337,7 +387,7 @@ and post-commit wake examples. Compare source complexity and error plumbing to
 the official Go SDK. Run the generation-gated harness in Chromium and WebKit
 and through the eventual production deployment topology.
 
-### F. Cross-target lifecycle and decoding
+### F. Cross-target transport and decoding
 
 Run state ownership/drop fixtures and independently decode completed and
 cancelled streams for every supported target. A target-specific semantic skip
@@ -347,6 +397,8 @@ is not acceptable for release.
 
 - Whether the final internal ABI is a repaired boxed callable or generated
   opaque state adapter.
+- Whether encoding retains the Roc execution permit while a step drains or
+  moves to a separately bounded CPU admission unit.
 - Whether the scale profile is selected by a server route table, a typed
   `Sse.Options` value, or a high-level constructor.
 - Whether `Pulse` is valuable enough for the initial release; timer polling is

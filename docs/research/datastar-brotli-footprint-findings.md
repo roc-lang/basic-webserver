@@ -90,11 +90,12 @@ window/cache growth rather than reporting lazy pre-use state.
 currently being encoded. It includes persistent encoder/history allocations,
 the reusable output buffer's retained capacity, inline state, and any blocks
 currently held by the recycler. `peak_cached_bytes` is the recycler's observed
-cache high-water within that total, not an additional body-output reservation
-and not a proof of maximum Brotli FLUSH output. The separate per-event encoded
-output bound remains unproven; only observed maxima are available from the
-first-wave bound probe. That proof and the body-frame reservation remain
-release gates.
+cache high-water within that total, not an additional body-output reservation.
+The follow-up no longer relies on a maximum whole-event FLUSH output: a
+low-level adapter advances PROCESS, FLUSH, and FINISH through independently
+reserved fixed-capacity frames. Its seven-byte-frame test passes for both
+selected profiles and a 64 KiB item. Real-body integration and reusable owned
+frames remain release gates.
 
 The corpora are:
 
@@ -220,8 +221,10 @@ visible in the profile decision.
 
 1. Keep explicit FLUSH, fallible FINISH, and non-emitting abort. Do not return
    to `CompressorWriter` lifecycle semantics.
-2. Use reusable output. Integrate it with a bounded owned-frame pool before
-   claiming the complete SSE body is zero-allocation.
+2. Use the resumable fixed-frame handshake. Reserve one owned frame before each
+   encoder call and pause before the next call when the body is backpressured.
+   Integrate it with a reusable frame pool before claiming the complete SSE
+   body is zero-allocation.
 3. Prefer standard allocation at q3/w12. Retain the bounded recycler as an
    optional q1 mechanism, not unconditional per-stream overhead.
 4. Add a dedicated compressed-stream resource unit. Account the selected
@@ -230,10 +233,9 @@ visible in the profile decision.
 5. Do not advertise q1/w11 as the sole automatic default without explicitly
    accepting poor heartbeat/tiny-event compression. If scale mode is exposed,
    name the tradeoff rather than presenting it as equivalent compression.
-6. The broader release gates remain: browser/proxy progressive delivery, a
-   proven repeated-FLUSH output bound, slow-reader isolation, full-frame
-   pooling, cross-target decode, and ordinary-request latency under encoder
-   CPU load.
+6. The broader release gates remain: production listener/browser progressive
+   delivery, slow-reader and HTTP/2 isolation, full-frame pooling, cross-target
+   decode, and ordinary-request latency under encoder CPU load.
 
 Raw measurements, environment, and reproduction commands are under
 `research/datastar-transport/results` and `research/datastar-transport/README.md`.

@@ -181,7 +181,8 @@ exception retry path. The useful comparison here is precise:
   multiplexing fairness, and an unrelated stream beside a blocked stream.
 - Proxy timeout/heartbeat behavior and a proxy configured to ignore
   `X-Accel-Buffering`.
-- A proven persistent-FLUSH output bound and integrated failure injection.
+- Production integration of the pre-reserved resumable FLUSH handshake and
+  failure injection in every encoder phase.
 - Cross-target and cross-browser release coverage.
 - Public TLS policy; the self-signed loopback certificate only enables genuine
   browser H2 in the disposable test.

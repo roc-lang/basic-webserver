@@ -292,6 +292,14 @@ struct EncoderCore<Alloc: BrotliAlloc> {
     output: Vec<u8>,
 }
 
+/// Result of advancing one Brotli operation into caller-owned bounded output.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EncoderStep {
+    pub input_consumed: usize,
+    pub output_written: usize,
+    pub complete: bool,
+}
+
 impl<Alloc: BrotliAlloc> EncoderCore<Alloc> {
     fn new(max_segment_bytes: usize, quality: u32, window_bits: u32, allocator: Alloc) -> Self {
         assert!(quality <= 11, "Brotli quality must be in 0..=11");
@@ -414,6 +422,73 @@ impl<Alloc: BrotliAlloc> EncoderCore<Alloc> {
             }
         }
     }
+
+    fn operation_step(
+        state: &mut BrotliEncoderStateStruct<Alloc>,
+        operation: BrotliEncoderOperation,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+    ) -> io::Result<EncoderStep> {
+        if output.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Brotli output reservation must not be empty",
+            ));
+        }
+        if *input_offset > input.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Brotli input offset exceeds the supplied input",
+            ));
+        }
+
+        let before_input_offset = *input_offset;
+        let mut available_in = input.len() - *input_offset;
+        let mut available_out = output.len();
+        let mut output_offset = 0;
+        let mut total_out = Some(0);
+        let mut callback = |_data: &mut interface::PredictionModeContextMap<InputReferenceMut>,
+                            _commands: &mut [StaticCommand],
+                            _input: InputPair,
+                            _allocator: &mut Alloc| {};
+        let valid = state.compress_stream(
+            operation,
+            &mut available_in,
+            input,
+            input_offset,
+            &mut available_out,
+            output,
+            &mut output_offset,
+            &mut total_out,
+            &mut callback,
+        );
+        if !valid {
+            return Err(io::Error::other("Brotli streaming encoder rejected input"));
+        }
+
+        let complete =
+            match operation {
+                BrotliEncoderOperation::BROTLI_OPERATION_PROCESS => {
+                    available_in == 0 && !state.has_more_output()
+                }
+                BrotliEncoderOperation::BROTLI_OPERATION_FLUSH => available_in == 0
+                    && !state.has_more_output()
+                    && state.stream_state_
+                        == brotli::enc::encode::BrotliEncoderStreamState::BROTLI_STREAM_PROCESSING,
+                BrotliEncoderOperation::BROTLI_OPERATION_FINISH => state.is_finished(),
+                BrotliEncoderOperation::BROTLI_OPERATION_EMIT_METADATA => unreachable!(),
+            };
+        let step = EncoderStep {
+            input_consumed: *input_offset - before_input_offset,
+            output_written: output_offset,
+            complete,
+        };
+        if !step.complete && step.input_consumed == 0 && step.output_written == 0 {
+            return Err(io::Error::other("Brotli encoder made no progress"));
+        }
+        Ok(step)
+    }
 }
 
 impl<Alloc: BrotliAlloc> Drop for EncoderCore<Alloc> {
@@ -426,6 +501,60 @@ impl<Alloc: BrotliAlloc> Drop for EncoderCore<Alloc> {
 
 pub struct ExplicitBrotli {
     core: EncoderCore<StandardAlloc>,
+}
+
+/// Persistent Brotli encoder which advances only into output capacity already
+/// reserved by the body. PROCESS, FLUSH, and FINISH may each span many frames.
+pub struct ResumableBrotli {
+    core: EncoderCore<StandardAlloc>,
+}
+
+impl ResumableBrotli {
+    pub fn with_settings(quality: u32, window_bits: u32) -> Self {
+        Self {
+            // The reusable vector is unused by the step API. Keep the limit at
+            // one so the shared lifecycle container does not reserve a large
+            // speculative segment.
+            core: EncoderCore::new(1, quality, window_bits, StandardAlloc::default()),
+        }
+    }
+
+    pub fn process(
+        &mut self,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+    ) -> io::Result<EncoderStep> {
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
+            input,
+            input_offset,
+            output,
+        )
+    }
+
+    pub fn flush(&mut self, output: &mut [u8]) -> io::Result<EncoderStep> {
+        let mut input_offset = 0;
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
+
+    pub fn finish(&mut self, output: &mut [u8]) -> io::Result<EncoderStep> {
+        let mut input_offset = 0;
+        EncoderCore::operation_step(
+            self.core.state.as_mut().expect("live encoder has state"),
+            BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
+            &[],
+            &mut input_offset,
+            output,
+        )
+    }
 }
 
 impl ExplicitBrotli {
@@ -966,6 +1095,92 @@ mod tests {
         let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
         assert_eq!(frame, encoded);
         assert_eq!(producer.reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn resumable_brotli_never_advances_without_one_bounded_frame() {
+        const FRAME_BYTES: usize = 7;
+
+        for (quality, window_bits) in [(1, 11), (3, 12)] {
+            let event = datastar_event(65_536, quality as usize);
+            let (producer, mut body) = bounded_body(1, FRAME_BYTES);
+            let mut encoder = ResumableBrotli::with_settings(quality, window_bits);
+            let mut input_offset = 0;
+            let mut encoded = Vec::new();
+            let mut frames = 0;
+
+            loop {
+                let reservation = producer.reserve(FRAME_BYTES).unwrap();
+                let mut output = [0_u8; FRAME_BYTES];
+                let step = encoder
+                    .process(&event, &mut input_offset, &mut output)
+                    .unwrap();
+                if step.output_written == 0 {
+                    drop(reservation);
+                } else {
+                    reservation
+                        .commit(Bytes::copy_from_slice(&output[..step.output_written]))
+                        .unwrap();
+                    assert_eq!(producer.reserved_bytes(), FRAME_BYTES);
+                    assert_eq!(producer.reserve(1).err(), Some(ReserveError::Backpressured));
+                    let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
+                    assert!(frame.len() <= FRAME_BYTES);
+                    encoded.extend_from_slice(&frame);
+                    frames += 1;
+                    assert_eq!(producer.reserved_bytes(), 0);
+                }
+                if step.complete {
+                    break;
+                }
+            }
+            assert_eq!(input_offset, event.len());
+
+            loop {
+                let reservation = producer.reserve(FRAME_BYTES).unwrap();
+                let mut output = [0_u8; FRAME_BYTES];
+                let step = encoder.flush(&mut output).unwrap();
+                if step.output_written == 0 {
+                    drop(reservation);
+                } else {
+                    reservation
+                        .commit(Bytes::copy_from_slice(&output[..step.output_written]))
+                        .unwrap();
+                    assert_eq!(producer.reserved_bytes(), FRAME_BYTES);
+                    let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
+                    assert!(frame.len() <= FRAME_BYTES);
+                    encoded.extend_from_slice(&frame);
+                    frames += 1;
+                    assert_eq!(producer.reserved_bytes(), 0);
+                }
+                if step.complete {
+                    break;
+                }
+            }
+
+            assert!(frames > 1, "the test must exercise resumable output");
+            assert_eq!(decode_partial(&encoded), event);
+
+            loop {
+                let reservation = producer.reserve(FRAME_BYTES).unwrap();
+                let mut output = [0_u8; FRAME_BYTES];
+                let step = encoder.finish(&mut output).unwrap();
+                if step.output_written == 0 {
+                    drop(reservation);
+                } else {
+                    reservation
+                        .commit(Bytes::copy_from_slice(&output[..step.output_written]))
+                        .unwrap();
+                    let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
+                    encoded.extend_from_slice(&frame);
+                }
+                if step.complete {
+                    break;
+                }
+            }
+            producer.close();
+            assert!(body.frame().await.is_none());
+            assert_eq!(decode_partial(&encoded), event);
+        }
     }
 
     #[tokio::test]
