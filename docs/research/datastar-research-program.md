@@ -1,6 +1,7 @@
 # Datastar experiment research program
 
-Status: active research coordination
+Status: initial research convergence complete; follow-up feasibility spikes are
+tracked in `datastar-research-synthesis.md`
 
 Branch: `datastar-experiment`
 
@@ -157,19 +158,19 @@ experiment. They are not averaged into vague prose.
 
 Before research changes are pushed to the draft PR:
 
-- [ ] The research branch has coherent commits and a clean worktree.
-- [ ] Commands and raw observations are reproducible from committed files.
-- [ ] Primary sources are pinned to versions or commits.
-- [ ] Measurements satisfy the comparison contract or clearly state why they
+- [x] The research branch has coherent commits and a clean worktree.
+- [x] Commands and raw observations are reproducible from committed files.
+- [x] Primary sources are pinned to versions or commits.
+- [x] Measurements satisfy the comparison contract or clearly state why they
       are preliminary.
-- [ ] Findings distinguish hard evidence from inference and hypothesis.
-- [ ] Negative results and failed preferred designs are preserved.
-- [ ] Recommended changes identify exact experiment sections and gate wording.
-- [ ] No research result silently changes `design.md` or expands the accepted
+- [x] Findings distinguish hard evidence from inference and hypothesis.
+- [x] Negative results and failed preferred designs are preserved.
+- [x] Recommended changes identify exact experiment sections and gate wording.
+- [x] No research result silently changes `design.md` or expands the accepted
       platform contract.
-- [ ] Integrated prose has one owner and no conflicting duplicate source of
+- [x] Integrated prose has one owner and no conflicting duplicate source of
       truth.
-- [ ] The draft PR status and unresolved gates are updated after each milestone.
+- [x] The draft PR status and unresolved gates are updated after each milestone.
 
 ## Completion condition
 
@@ -181,3 +182,7 @@ performance/correctness gates.
 
 It does not mean first-class SSE is implemented or that `design.md` should yet
 accept the scope change.
+
+This condition was met on 2026-08-01. The cross-track owner is
+[`datastar-research-synthesis.md`](datastar-research-synthesis.md); its open
+spikes remain release gates rather than unfinished coordination work.

@@ -73,6 +73,25 @@ unsupported bypass is not a host design. The preferred callable machine is
 therefore blocked on a compiler fix or supported generated typed adapter, and
 the explicit-state `stream!` fallback must be researched in parallel.
 
+The explicit-state follow-up passes the local ownership/lifecycle matrix and
+proves that route packages can keep nominal state private. It does not pass the
+performance gate: optimized single-event transitions allocate and free once
+per step and measure about 26.7 ns/event versus 1.27 ns/event for uniquely
+owned Go state. The end-state therefore requires generated owned transfer and
+unique state-storage reuse, whether implemented as a repaired callable wrapper
+or an opaque size/alignment/move/step/drop adapter. Batching cannot substitute
+for fixing the single-event path.
+
+The transport result is more encouraging. The selected Rust Brotli profiles
+beat matched Go throughput and can reach zero steady-state system allocations.
+No single profile serves every population: standard q3/LGWin12 is the current
+full-compression/default candidate, while recycled q1/LGWin11 is the explicit
+scale candidate. They require separate compressed-stream admission, reusable
+owned output frames, and a still-unproven persistent-FLUSH output bound.
+
+The reconciled decisions, contradictions, and next objective gates are in
+[`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
+
 ## Baseline implementation
 
 This branch is based directly on `origin/main` at `2032390`, not on the earlier
@@ -781,7 +800,9 @@ Otherwise it emits identity coding and still varies on `Accept-Encoding` when
 the selected representation could differ for another request. Applications do
 not select `Content-Encoding`, call a compressor, tune it per event, or need a
 different `Datastar.stream` API. Compression is a host transport property just
-as it is for ordinary and native-file responses.
+as it is for ordinary and native-file responses. An endpoint may select a
+named host policy (`Auto`, `Scale`, or `Identity`) before commitment; it cannot
+change Brotli parameters or coding after observing individual events.
 
 This is a deliberate improvement over the pinned Go SDK, whose compression is
 opt-in and whose parser treats `br;q=0` as accepted, does not match wildcard,
@@ -847,11 +868,33 @@ finished stream and correct encoder release.
 
 #### Defaults, value, and security
 
-The encoder should use one measured, host-owned low-latency configuration with
-a fixed quality and window. Exposing Brotli quality in the Roc application API
-would make CPU and retained memory part of route policy without improving the
-common experience. A server-level expert setting is justified only if the
-scale spike shows materially different deployment needs.
+The footprint sweep disproved the hypothesis that one fixed profile is best
+for every endpoint. The current candidates are:
+
+- standard q3/LGWin12 for `Auto` and full compression: zero steady-state
+  compressor allocations, roughly 378 KiB mature todo state, 90-92.6% savings
+  on active Datastar corpora, and 1.44-1.47x matched-Go throughput;
+- recycled q1/LGWin11 for `Scale`: 13-49 KiB mature state across tested
+  corpora, zero steady-state system allocations, and 1.22-1.25x matched-Go
+  throughput, but weak tiny-event compression and heartbeat expansion; and
+- identity for explicit opt-out, compression-oracle risk, heartbeat-only
+  endpoints, or deployments prioritizing connection scale over wire savings.
+
+q1/LGWin10 remains a measured minimum-memory expert Pareto point at 18,400
+bytes per mature todo stream, but its larger wire output and periodic roughly
+3 ms flushes make it unsuitable as a default. q4/LGWin18 retains about 1.18 MiB
+per mature todo stream and is rejected as the platform default.
+
+Applications should select named intent rather than raw Brotli quality/window.
+The exact ergonomic surface is still a spike: a server route policy,
+`Sse.Options`, or higher-level scale constructor could all preserve pre-header
+selection. A response never switches profile or coding after commitment.
+
+Compressed streams need a separate finite admission unit because q3 and q1
+have materially different retained state. The host accounts the selected
+profile, reusable output, and bounded body frames before committing headers.
+Identity fallback on compression saturation is valid only when negotiation and
+endpoint policy permit it; otherwise admission fails before commitment.
 
 Flushing every small item has a ratio and CPU cost, so the experiment must
 compare identity and Brotli over realistic finite, progressive, and persistent
@@ -865,11 +908,11 @@ risk and recommend `Cache-Control: no-transform` for sensitive routes whose
 content creates such an oracle. This opt-out composes with the platform's
 existing response-compression contract.
 
-The existing negotiation, header, and encoder configuration should remain the
-single source of truth where possible. The ordinary whole-response buffering
-path is not reusable as the SSE body implementation, and the current
-`ContentEncoder::flush` behavior is a hypothesis until progressive decoding is
-proven by the spike.
+The existing negotiation and header authority should remain the single source
+of truth. The ordinary whole-response buffering path is not reusable as the
+SSE body implementation. The low-level adapter has proven progressive decoding
+and explicit FINISH/abort behavior; production integration, owned-frame reuse,
+and the persistent repeated-FLUSH output bound remain open.
 
 ### Reverse proxy
 
@@ -1071,8 +1114,9 @@ finite controls for all of these resources:
 | Framed SSE bytes per step | Uncompressed bytes | Reject step and close stream |
 | Buffered frames per stream | Frames | Backpressure production |
 | Total buffered SSE output | Bytes | Backpressure and/or slow-reader close |
+| Admitted compressed streams by profile | q3/q1 stream slots | Select coding or reject before commitment |
 | Brotli output per event/flush | Content-coded bytes | Reserve proven worst-case capacity or close deliberately |
-| Brotli encoder state | Bytes per encoded stream | Fixed window, scratch, and pending-output ceilings |
+| Brotli encoder state | Bytes per selected profile | Account mature history, scratch/recycler, reusable output, and body frames |
 | Concurrent Brotli work | Encoder operations or CPU time | Bound within the SSE production domain; never consume async transport workers |
 | Immediate advances | Consecutive steps | Yield or close after finite budget |
 | Timer frequency | Milliseconds | Clamp/reject below finite minimum |
@@ -1387,10 +1431,11 @@ Minimum prototype:
 - Compare both the Go SDK's idiomatic Brotli quality-6/automatic-window path
   and an exactly matched quality/window path. Measure encoder construction and
   retained idle state separately from per-event work.
-- Include the transport sweep's provisional q1/LGWin11 low-memory profile in
-  the browser/proxy and realistic-value matrix. Its Firefox compatibility is
-  observed, but the fixed default still depends on compression value, scale,
-  and production integration.
+- Carry forward both measured Pareto candidates: standard q3/LGWin12 for full
+  compression and recycled q1/LGWin11 for scale. q1 Firefox compatibility is
+  observed; q3 still needs the same browser/proxy production matrix.
+- Reserve compressed-stream capacity by profile before committing headers and
+  integrate reusable compressor output with bounded owned body frames.
 
 Pass criteria:
 
@@ -1404,8 +1449,9 @@ Pass criteria:
   configured ceilings.
 - Disconnect drops encoder state promptly, normal EOF produces a valid Brotli
   tail, and injected encoder failure closes without emitting identity bytes.
-- The selected fixed quality/window has measured per-stream retained memory
-  and does not starve ordinary Roc handlers or async transport workers.
+- Each selected profile has measured per-stream retained memory, a separate
+  admission capacity, and does not starve ordinary Roc handlers or async
+  transport workers.
 - Representative Datastar traces show material wire-byte savings without a
   material regression in event latency or ordinary-request tail latency.
 - Changing realistic patches, heartbeat-only streams, and incompressible
@@ -1421,6 +1467,14 @@ Failure response:
   worst-case output bound cannot be demonstrated, keep identity temporarily
   and treat first-class Brotli as a release blocker rather than silently
   weakening flush semantics.
+
+Current status: the low-level lifecycle, multi-corpus value, mature state,
+steady-state compressor allocations, matched-Go throughput, Firefox direct
+H1, curl h2c, and NGINX-fronted Firefox H2 questions have focused passing
+evidence. The persistent repeated-FLUSH bound, complete owned-frame allocation
+story, q3 browser case, production `ServerBody`, slow-reader/H2 isolation,
+ordinary-request CPU isolation, cross-browser, and cross-target gates remain
+open.
 
 ### Spike 6: `Pulse`
 
@@ -1545,16 +1599,17 @@ The eventual feature needs coverage for:
 
 The experiment is ready to propose an enduring design change only when:
 
-1. The retained-machine ABI or explicit-state fallback passes ownership and
-   cross-target tests.
+1. The retained-machine ABI or explicit-state fallback passes ownership,
+   cross-target, unique-transfer/reuse, and single-event Go performance gates.
 2. Progressive delivery, cancellation, backpressure, and shutdown work through
    the real listener under HTTP/1.1 and HTTP/2.
 3. Resource units, bounds, saturation, ownership, and release points are known.
 4. Idle-stream retained memory and callback scheduling have been measured.
 5. The first-party Datastar API has been exercised by realistic examples and
    compared with the pinned official SDK.
-6. Streaming Brotli passes progressive browser/proxy delivery, finite memory,
-   CPU-isolation, cross-target, and useful-compression gates.
+6. Streaming Brotli's full-compression and scale profiles pass progressive
+   browser/proxy delivery, finite memory/output, admission, CPU-isolation,
+   cross-target, and useful-compression gates.
 7. `Pulse` either passes its non-durable bounded contract or is removed from the
    base design.
 8. The scope change can be expressed without weakening the continuing
@@ -1607,6 +1662,12 @@ into the design contract.
 15. Can generated explicit-state adapters consume an owned box without an
     outer retain/decref pair and reuse its storage when unique, or is a separate
     opaque size/alignment/move/step/drop ABI required?
+16. Should named `Scale` compression intent live in `Sse.Options`, server route
+    configuration, or a higher-level constructor while keeping raw Brotli
+    parameters out of application code?
+17. Can a finite persistent PROCESS+FLUSH output bound be proven for every
+    selected profile and maximum event, or must the encoder/body handshake be
+    resumable under a fixed reservation?
 
 ## Candidate implementation sequence after the gates
 
@@ -1734,3 +1795,40 @@ misses the performance target at batches 1, 4, and 16. A fixture-only cached
 allocation plus batch 16 can exceed Go per event, but that does not repair
 single-event latency and is not current behavior. Unique generated ownership
 transfer and state-storage reuse are now explicit gates.
+
+### 2026-08-01: Brotli uses a measured two-profile policy
+
+The activated multi-corpus sweep rejects q4/LGWin18 as a default and disproves
+the idea that a single low-memory profile preserves the full compression
+benefit. Standard q3/LGWin12 is the current full-compression/default candidate:
+it reaches zero steady compressor allocations, beats matched Go throughput,
+and preserves roughly 90% or better savings on active Datastar corpora, but
+retains roughly 378 KiB per mature todo stream.
+
+Recycled q1/LGWin11 is the named scale candidate. It stays below 49 KiB on
+every tested activated corpus and also beats matched Go, but barely compresses
+the tiny official fixture mix and expands heartbeat-only traffic. Identity is
+therefore a first-class endpoint/admission outcome, not merely an unsupported
+client fallback. Profile choice is fixed before headers and raw Brotli tuning
+does not enter the per-event API.
+
+Both profiles require separate compressed-stream capacity. The complete
+allocation claim remains open until borrowed reusable encoder output becomes a
+bounded owned body frame, and production integration remains blocked on a
+proven repeated-FLUSH maximum or a resumable bounded handshake.
+
+### 2026-08-01: Research converges conditionally on the state ABI
+
+The independent protocol, browser/transport, compression, and ABI tracks agree
+on the host-scheduled pull-machine architecture, canonical Datastar contract,
+bounded body ownership, explicit Brotli FLUSH/FINISH/abort lifecycle, and
+two-profile compression policy. The consolidated decision and next spike
+contract live in
+[`docs/research/datastar-research-synthesis.md`](research/datastar-research-synthesis.md).
+
+The dynamic-state representation is deliberately not selected. The preferred
+callable wrapper crashes, while the lifecycle-valid explicit-state fallback is
+about 21x slower than unique Go state for a single-event optimized step. The
+feature's “comparable to or better than Go” goal is a hard compiler/glue gate:
+a repaired callable wrapper or generated opaque adapter must remove avoidable
+ARC and per-step allocation before the public application contract is frozen.
