@@ -1,7 +1,8 @@
 use bytes::Buf;
 use datastar_transport_spike::{
-    datastar_event, pooled_body, ExplicitBrotli, PooledBody, PooledProducer, PrototypeServerData,
-    RecyclerStats, RecyclingBrotli, ResumableBrotli, ResumableRecyclingBrotli,
+    datastar_event, pooled_body, ExplicitBrotli, PooledBody, PooledProducer,
+    ProductionSseBodyFixture, PrototypeServerData, RecyclerStats, RecyclingBrotli, ResumableBrotli,
+    ResumableRecyclingBrotli,
 };
 use futures::task::noop_waker;
 use hyper::body::Body;
@@ -846,6 +847,40 @@ fn body_ownership(adapter: &str, mode: &str, measured_events: usize) -> BodyOwne
     }
 }
 
+fn production_body(mode: &str, measured_events: usize) -> BodyOwnershipResult {
+    const FRAME_BYTES: usize = 4096;
+    const WARMUP_EVENTS: usize = 2048;
+
+    let mut fixture = ProductionSseBodyFixture::new(mode, FRAME_BYTES);
+    black_box(fixture.advance(WARMUP_EVENTS));
+    let before = snapshot();
+    reset_peaks(before);
+    let measured = black_box(fixture.advance(measured_events));
+    let after = snapshot();
+    let stats = fixture.stats();
+    black_box(fixture.finish());
+
+    BodyOwnershipResult {
+        adapter: "production-server-data".to_owned(),
+        encoder: mode.to_owned(),
+        evidence: "production-sse-body-global-allocation-requests-after-warmup",
+        frame_bytes: FRAME_BYTES,
+        warmup_events: WARMUP_EVENTS,
+        measured_events,
+        output_frames: measured.output_frames,
+        wire_bytes: measured.wire_bytes,
+        allocation_calls: after.alloc_calls - before.alloc_calls,
+        deallocation_calls: after.dealloc_calls - before.dealloc_calls,
+        allocated_bytes: after.allocated - before.allocated,
+        deallocated_bytes: after.deallocated - before.deallocated,
+        live_allocations_delta: after.live_allocations - before.live_allocations,
+        live_bytes_delta: after.live_bytes - before.live_bytes,
+        free_slots_after: stats.free_slots,
+        in_use_slots_after: stats.in_use_slots,
+        high_water_slots: stats.high_water_slots,
+    }
+}
+
 fn parse<T: std::str::FromStr>(value: Option<String>, name: &str) -> T {
     value
         .unwrap_or_else(|| panic!("missing {name}"))
@@ -957,8 +992,13 @@ fn main() {
             let events = parse(arguments.next(), "events");
             print_json(&body_ownership(&adapter, &encoder, events));
         }
+        Some("production-body") => {
+            let encoder = arguments.next().expect("missing encoder");
+            let events = parse(arguments.next(), "events");
+            print_json(&production_body(&encoder, events));
+        }
         _ => panic!(
-            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] [ACTIVATION_EVENTS] | steady IMPL Q W TRACE EVENTS [CACHE_KIB] | verify Q W TRACE | body-ownership ADAPTER ENCODER EVENTS"
+            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] [ACTIVATION_EVENTS] | steady IMPL Q W TRACE EVENTS [CACHE_KIB] | verify Q W TRACE | body-ownership ADAPTER ENCODER EVENTS | production-body ENCODER EVENTS"
         ),
     }
 }

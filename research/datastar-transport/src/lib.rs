@@ -1332,6 +1332,187 @@ pub fn datastar_event(target_bytes: usize, sequence: usize) -> Vec<u8> {
     event.into_bytes()
 }
 
+struct ControlledSseSourceState {
+    available: usize,
+    closed: bool,
+    cancelled: bool,
+    waiter: Option<Waker>,
+}
+
+struct ControlledSseSource {
+    item: Bytes,
+    state: Arc<Mutex<ControlledSseSourceState>>,
+}
+
+impl response_body::SseItemSource for ControlledSseSource {
+    fn poll_item(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<io::Result<Option<Bytes>>> {
+        let mut state = self.state.lock().expect("controlled SSE source poisoned");
+        if state.available > 0 {
+            state.available -= 1;
+            return Poll::Ready(Ok(Some(self.item.clone())));
+        }
+        if state.closed {
+            return Poll::Ready(Ok(None));
+        }
+        state.waiter = Some(context.waker().clone());
+        Poll::Pending
+    }
+
+    fn cancel(self: Pin<&mut Self>) {
+        self.state
+            .lock()
+            .expect("controlled SSE source poisoned")
+            .cancelled = true;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProductionSseBodyAdvance {
+    pub output_frames: usize,
+    pub wire_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProductionSseBodyStats {
+    pub free_slots: usize,
+    pub reserved_slots: usize,
+    pub transport_owned_slots: usize,
+    pub in_use_slots: usize,
+    pub high_water_slots: usize,
+    pub finished: bool,
+    pub cancelled: bool,
+}
+
+/// Allocation fixture around the production-internal SSE body.
+///
+/// Construction, corpus creation, and stream FINISH stay outside the measured
+/// steady-state window. `advance` exposes a fixed number of reusable items and
+/// synchronously drops every returned transport frame.
+pub struct ProductionSseBodyFixture {
+    body: response_body::SseBody,
+    handle: response_body::SseBodyHandle,
+    source: Arc<Mutex<ControlledSseSourceState>>,
+}
+
+impl ProductionSseBodyFixture {
+    pub fn new(mode: &str, frame_bytes: usize) -> Self {
+        let item = Bytes::from(datastar_event(frame_bytes, 1));
+        let source = Arc::new(Mutex::new(ControlledSseSourceState {
+            available: 0,
+            closed: false,
+            cancelled: false,
+            waiter: None,
+        }));
+        let compression = match mode {
+            "identity" => response_body::SseCompression::Identity,
+            "q1" => response_body::SseCompression::RecycledBrotli {
+                quality: 1,
+                window_bits: 11,
+                max_recycled_bytes: 256 * 1024,
+            },
+            "q1-standard" => response_body::SseCompression::Brotli {
+                quality: 1,
+                window_bits: 11,
+            },
+            "q3" => response_body::SseCompression::Brotli {
+                quality: 3,
+                window_bits: 12,
+            },
+            _ => panic!(
+                "unknown production SSE mode {mode:?}; expected identity, q1, q1-standard, or q3"
+            ),
+        };
+        let (handle, body) = response_body::SseBody::new(
+            ControlledSseSource {
+                item: item.clone(),
+                state: Arc::clone(&source),
+            },
+            item.len(),
+            1,
+            frame_bytes,
+            compression,
+        );
+        Self {
+            body,
+            handle,
+            source,
+        }
+    }
+
+    pub fn advance(&mut self, events: usize) -> ProductionSseBodyAdvance {
+        let waiter = {
+            let mut source = self.source.lock().expect("controlled SSE source poisoned");
+            source.available = source
+                .available
+                .checked_add(events)
+                .expect("fixture event availability must fit usize");
+            source.waiter.take()
+        };
+        if let Some(waiter) = waiter {
+            waiter.wake();
+        }
+        self.drain(false)
+    }
+
+    pub fn finish(&mut self) -> ProductionSseBodyAdvance {
+        let waiter = {
+            let mut source = self.source.lock().expect("controlled SSE source poisoned");
+            source.closed = true;
+            source.waiter.take()
+        };
+        if let Some(waiter) = waiter {
+            waiter.wake();
+        }
+        self.drain(true)
+    }
+
+    pub fn stats(&self) -> ProductionSseBodyStats {
+        let stats = self.handle.stats();
+        ProductionSseBodyStats {
+            free_slots: stats.frames.free_slots,
+            reserved_slots: stats.frames.reserved_slots,
+            transport_owned_slots: stats.frames.transport_owned_slots,
+            in_use_slots: stats.frames.in_use_slots,
+            high_water_slots: stats.frames.high_water_slots,
+            finished: stats.finished,
+            cancelled: stats.cancelled,
+        }
+    }
+
+    fn drain(&mut self, expect_end: bool) -> ProductionSseBodyAdvance {
+        let waker = futures::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
+        let mut output_frames = 0;
+        let mut wire_bytes = 0;
+        loop {
+            match Pin::new(&mut self.body).poll_frame(&mut context) {
+                Poll::Ready(Some(Ok(frame))) => {
+                    let data = frame.into_data().expect("production SSE body emits data");
+                    wire_bytes += data.remaining();
+                    output_frames += 1;
+                    drop(data);
+                }
+                Poll::Ready(Some(Err(error))) => panic!("production SSE body failed: {error}"),
+                Poll::Ready(None) => {
+                    assert!(expect_end, "active fixture ended before close");
+                    break;
+                }
+                Poll::Pending => {
+                    assert!(!expect_end, "closed fixture must reach FINISH");
+                    break;
+                }
+            }
+        }
+        ProductionSseBodyAdvance {
+            output_frames,
+            wire_bytes,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -269,7 +269,15 @@ impl Drop for PooledResponseFrame {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SseCompression {
     Identity,
-    Brotli { quality: u32, window_bits: u32 },
+    Brotli {
+        quality: u32,
+        window_bits: u32,
+    },
+    RecycledBrotli {
+        quality: u32,
+        window_bits: u32,
+        max_recycled_bytes: usize,
+    },
 }
 
 /// Pull source for already validated and canonically framed SSE items.
@@ -368,7 +376,7 @@ impl SseBody {
         );
         let pool = ResponseFramePool::new(frame_slots, frame_bytes);
         let lifecycle = Arc::new(Mutex::new(SseLifecycle {
-            active_encoder: matches!(compression, SseCompression::Brotli { .. }),
+            active_encoder: !matches!(compression, SseCompression::Identity),
             ..SseLifecycle::default()
         }));
         let encoder = match compression {
@@ -377,6 +385,15 @@ impl SseBody {
                 quality,
                 window_bits,
             } => Some(ResumableBrotli::new(quality, window_bits)),
+            SseCompression::RecycledBrotli {
+                quality,
+                window_bits,
+                max_recycled_bytes,
+            } => Some(ResumableBrotli::new_recycled(
+                quality,
+                window_bits,
+                max_recycled_bytes,
+            )),
         };
         let handle = SseBodyHandle {
             pool: pool.clone(),
@@ -777,6 +794,11 @@ mod tests {
                 quality: 1,
                 window_bits: 11,
             },
+            SseCompression::RecycledBrotli {
+                quality: 1,
+                window_bits: 11,
+                max_recycled_bytes: 256 * 1024,
+            },
             SseCompression::Brotli {
                 quality: 3,
                 window_bits: 12,
@@ -806,7 +828,9 @@ mod tests {
             assert!(frames > 1);
             let decoded = match compression {
                 SseCompression::Identity => output,
-                SseCompression::Brotli { .. } => decode_partial(&output),
+                SseCompression::Brotli { .. } | SseCompression::RecycledBrotli { .. } => {
+                    decode_partial(&output)
+                }
             };
             assert_eq!(decoded, event);
             assert_eq!(cancellations.load(Ordering::Relaxed), 0);

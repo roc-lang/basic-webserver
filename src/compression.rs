@@ -4,7 +4,10 @@ use brotli::enc::encode::{
     BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
     BrotliEncoderStateStruct,
 };
-use brotli::enc::{interface, InputPair, InputReferenceMut, StandardAlloc, StaticCommand};
+use brotli::enc::{
+    interface, Allocator, BrotliAlloc, InputPair, InputReferenceMut, SliceWrapper, SliceWrapperMut,
+    StandardAlloc, StaticCommand,
+};
 use brotli::CompressorWriter;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -13,7 +16,10 @@ use hyper::header::{
     ETAG, VARY,
 };
 use hyper::{HeaderMap, StatusCode};
+use std::any::TypeId;
 use std::io::{self, Write};
+use std::mem;
+use std::ptr::{self, NonNull};
 
 pub(crate) const MIN_COMPRESSION_BYTES: u64 = 1024;
 pub(crate) const MAX_BUFFERED_COMPRESSION_BYTES: usize = 8 * 1024 * 1024;
@@ -23,6 +29,201 @@ const BROTLI_WINDOW_BITS: u32 = 18;
 const ZSTD_LEVEL: i32 = 3;
 // Bound history-dependent encoder memory to the same 256 KiB window as Brotli.
 const ZSTD_WINDOW_BITS: u32 = 18;
+const BROTLI_RECYCLER_SLOTS: usize = 32;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct RecyclerStats {
+    pub allocation_requests: u64,
+    pub cache_hits: u64,
+    pub system_allocations: u64,
+    pub frees: u64,
+    pub uncached_frees: u64,
+    pub cached_blocks: usize,
+    pub cached_bytes: usize,
+    pub peak_cached_bytes: usize,
+}
+
+struct CachedBlock {
+    type_id: TypeId,
+    pointer: NonNull<u8>,
+    len: usize,
+    bytes: usize,
+    drop_block: unsafe fn(NonNull<u8>, usize),
+}
+
+// A cached pointer came from a `Box<[T]>` where T was Send and is recovered
+// only as that same T by the owning encoder's allocator.
+unsafe impl Send for CachedBlock {}
+
+impl CachedBlock {
+    fn from_box<T: Send + 'static>(data: Box<[T]>) -> Self {
+        assert!(!data.is_empty());
+        let len = data.len();
+        let bytes = len
+            .checked_mul(mem::size_of::<T>())
+            .expect("allocated Brotli block size fits usize");
+        let raw = Box::into_raw(data);
+        let pointer = NonNull::new(raw.cast::<T>().cast::<u8>())
+            .expect("non-empty Box has a non-null data pointer");
+        Self {
+            type_id: TypeId::of::<T>(),
+            pointer,
+            len,
+            bytes,
+            drop_block: drop_cached_block::<T>,
+        }
+    }
+
+    fn matches<T: 'static>(&self, len: usize) -> bool {
+        self.type_id == TypeId::of::<T>() && self.len == len
+    }
+
+    unsafe fn into_box<T: 'static>(self) -> Box<[T]> {
+        assert!(self.matches::<T>(self.len));
+        // SAFETY: `matches` proves the TypeId and length are identical to the
+        // allocation captured by `from_box`, and removing the entry transfers
+        // its sole ownership to this Box.
+        unsafe {
+            Box::from_raw(ptr::slice_from_raw_parts_mut(
+                self.pointer.cast::<T>().as_ptr(),
+                self.len,
+            ))
+        }
+    }
+}
+
+unsafe fn drop_cached_block<T>(pointer: NonNull<u8>, len: usize) {
+    // SAFETY: this monomorphized function is stored only with a pointer created
+    // from `Box<[T]>` and its original length.
+    unsafe {
+        drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
+            pointer.cast::<T>().as_ptr(),
+            len,
+        )));
+    }
+}
+
+pub struct RecycledMemory<T>(Option<Box<[T]>>);
+
+impl<T> Default for RecycledMemory<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T> SliceWrapper<T> for RecycledMemory<T> {
+    fn slice(&self) -> &[T] {
+        self.0.as_deref().unwrap_or(&[])
+    }
+}
+
+impl<T> SliceWrapperMut<T> for RecycledMemory<T> {
+    fn slice_mut(&mut self) -> &mut [T] {
+        self.0.as_deref_mut().unwrap_or(&mut [])
+    }
+}
+
+/// Per-stream, fixed-slot allocator for Brotli's transient scratch memory.
+pub struct RecyclingAlloc {
+    blocks: [Option<CachedBlock>; BROTLI_RECYCLER_SLOTS],
+    max_cached_bytes: usize,
+    stats: RecyclerStats,
+}
+
+impl RecyclingAlloc {
+    pub fn new(max_cached_bytes: usize) -> Self {
+        Self {
+            blocks: std::array::from_fn(|_| None),
+            max_cached_bytes,
+            stats: RecyclerStats::default(),
+        }
+    }
+
+    pub fn stats(&self) -> RecyclerStats {
+        self.stats
+    }
+}
+
+impl Drop for RecyclingAlloc {
+    fn drop(&mut self) {
+        for block in &mut self.blocks {
+            if let Some(block) = block.take() {
+                // SAFETY: each entry carries the destructor for its original
+                // typed Box allocation and is solely owned by this cache.
+                unsafe { (block.drop_block)(block.pointer, block.len) };
+            }
+        }
+    }
+}
+
+impl<T> Allocator<T> for RecyclingAlloc
+where
+    T: Clone + Default + Send + 'static,
+{
+    type AllocatedMemory = RecycledMemory<T>;
+
+    fn alloc_cell(&mut self, len: usize) -> Self::AllocatedMemory {
+        self.stats.allocation_requests += 1;
+        if len == 0 {
+            return RecycledMemory::default();
+        }
+        if let Some(index) = self
+            .blocks
+            .iter()
+            .position(|block| block.as_ref().is_some_and(|block| block.matches::<T>(len)))
+        {
+            let block = self.blocks[index]
+                .take()
+                .expect("matching cache entry exists");
+            self.stats.cache_hits += 1;
+            self.stats.cached_blocks -= 1;
+            self.stats.cached_bytes -= block.bytes;
+            // SAFETY: TypeId and length match, and taking the slot transferred
+            // the cache's unique ownership here.
+            let mut data = unsafe { block.into_box::<T>() };
+            for item in &mut data {
+                *item = T::default();
+            }
+            return RecycledMemory(Some(data));
+        }
+
+        self.stats.system_allocations += 1;
+        RecycledMemory(Some(vec![T::default(); len].into_boxed_slice()))
+    }
+
+    fn free_cell(&mut self, mut data: Self::AllocatedMemory) {
+        self.stats.frees += 1;
+        let Some(data) = data.0.take() else {
+            return;
+        };
+        if data.is_empty() {
+            return;
+        }
+        let block = CachedBlock::from_box(data);
+        let within_byte_limit = self
+            .stats
+            .cached_bytes
+            .checked_add(block.bytes)
+            .is_some_and(|bytes| bytes <= self.max_cached_bytes);
+        if within_byte_limit {
+            if let Some(slot) = self.blocks.iter_mut().find(|slot| slot.is_none()) {
+                self.stats.cached_blocks += 1;
+                self.stats.cached_bytes += block.bytes;
+                self.stats.peak_cached_bytes =
+                    self.stats.peak_cached_bytes.max(self.stats.cached_bytes);
+                *slot = Some(block);
+                return;
+            }
+        }
+
+        self.stats.uncached_frees += 1;
+        // SAFETY: the block owns its original allocation and corresponding
+        // typed destructor.
+        unsafe { (block.drop_block)(block.pointer, block.len) };
+    }
+}
+
+impl BrotliAlloc for RecyclingAlloc {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct BrotliEncoderStep {
@@ -35,21 +236,34 @@ pub(crate) struct BrotliEncoderStep {
 ///
 /// Dropping this value aborts without emitting a tail. `finish` must be driven
 /// to completion explicitly on a normal response close.
+enum ResumableBrotliState {
+    Standard(Option<BrotliEncoderStateStruct<StandardAlloc>>),
+    Recycled(Option<BrotliEncoderStateStruct<RecyclingAlloc>>),
+}
+
 pub(crate) struct ResumableBrotli {
-    state: Option<BrotliEncoderStateStruct<StandardAlloc>>,
+    state: ResumableBrotliState,
 }
 
 impl ResumableBrotli {
     pub(crate) fn new(quality: u32, window_bits: u32) -> Self {
-        assert!(quality <= 11, "Brotli quality must be in 0..=11");
-        assert!(
-            (10..=24).contains(&window_bits),
-            "standard Brotli window bits must be in 10..=24"
-        );
-        let mut state = BrotliEncoderStateStruct::new(StandardAlloc::default());
-        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality));
-        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, window_bits));
-        Self { state: Some(state) }
+        Self {
+            state: ResumableBrotliState::Standard(Some(new_brotli_state(
+                quality,
+                window_bits,
+                StandardAlloc::default(),
+            ))),
+        }
+    }
+
+    pub(crate) fn new_recycled(quality: u32, window_bits: u32, max_recycled_bytes: usize) -> Self {
+        Self {
+            state: ResumableBrotliState::Recycled(Some(new_brotli_state(
+                quality,
+                window_bits,
+                RecyclingAlloc::new(max_recycled_bytes),
+            ))),
+        }
     }
 
     pub(crate) fn process(
@@ -58,8 +272,7 @@ impl ResumableBrotli {
         input_offset: &mut usize,
         output: &mut [u8],
     ) -> io::Result<BrotliEncoderStep> {
-        brotli_operation_step(
-            self.state.as_mut().expect("live encoder has state"),
+        self.operation(
             BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
             input,
             input_offset,
@@ -69,8 +282,7 @@ impl ResumableBrotli {
 
     pub(crate) fn flush(&mut self, output: &mut [u8]) -> io::Result<BrotliEncoderStep> {
         let mut input_offset = 0;
-        brotli_operation_step(
-            self.state.as_mut().expect("live encoder has state"),
+        self.operation(
             BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
             &[],
             &mut input_offset,
@@ -80,26 +292,85 @@ impl ResumableBrotli {
 
     pub(crate) fn finish(&mut self, output: &mut [u8]) -> io::Result<BrotliEncoderStep> {
         let mut input_offset = 0;
-        brotli_operation_step(
-            self.state.as_mut().expect("live encoder has state"),
+        self.operation(
             BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
             &[],
             &mut input_offset,
             output,
         )
     }
-}
 
-impl Drop for ResumableBrotli {
-    fn drop(&mut self) {
-        if let Some(mut state) = self.state.take() {
-            BrotliEncoderDestroyInstance(&mut state);
+    fn operation(
+        &mut self,
+        operation: BrotliEncoderOperation,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+    ) -> io::Result<BrotliEncoderStep> {
+        match &mut self.state {
+            ResumableBrotliState::Standard(state) => brotli_operation_step(
+                state.as_mut().expect("live encoder has state"),
+                operation,
+                input,
+                input_offset,
+                output,
+            ),
+            ResumableBrotliState::Recycled(state) => brotli_operation_step(
+                state.as_mut().expect("live encoder has state"),
+                operation,
+                input,
+                input_offset,
+                output,
+            ),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn recycler_stats(&self) -> Option<RecyclerStats> {
+        match &self.state {
+            ResumableBrotliState::Standard(_) => None,
+            ResumableBrotliState::Recycled(state) => {
+                Some(state.as_ref().expect("live encoder has state").m8.stats())
+            }
         }
     }
 }
 
-fn brotli_operation_step(
-    state: &mut BrotliEncoderStateStruct<StandardAlloc>,
+impl Drop for ResumableBrotli {
+    fn drop(&mut self) {
+        match &mut self.state {
+            ResumableBrotliState::Standard(state) => {
+                if let Some(mut state) = state.take() {
+                    BrotliEncoderDestroyInstance(&mut state);
+                }
+            }
+            ResumableBrotliState::Recycled(state) => {
+                if let Some(mut state) = state.take() {
+                    BrotliEncoderDestroyInstance(&mut state);
+                }
+            }
+        }
+    }
+}
+
+fn new_brotli_state<Alloc: BrotliAlloc>(
+    quality: u32,
+    window_bits: u32,
+    allocator: Alloc,
+) -> BrotliEncoderStateStruct<Alloc> {
+    assert!(quality <= 11, "Brotli quality must be in 0..=11");
+    assert!(
+        (10..=24).contains(&window_bits),
+        "standard Brotli window bits must be in 10..=24"
+    );
+    let mut state = BrotliEncoderStateStruct::new(allocator);
+    assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality));
+    assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, window_bits));
+    state
+}
+
+fn brotli_operation_step<Alloc: BrotliAlloc>(
+    state: &mut BrotliEncoderStateStruct<Alloc>,
     operation: BrotliEncoderOperation,
     input: &[u8],
     input_offset: &mut usize,
@@ -126,7 +397,7 @@ fn brotli_operation_step(
     let mut callback = |_data: &mut interface::PredictionModeContextMap<InputReferenceMut>,
                         _commands: &mut [StaticCommand],
                         _input: InputPair,
-                        _allocator: &mut StandardAlloc| {};
+                        _allocator: &mut Alloc| {};
     let valid = state.compress_stream(
         operation,
         &mut available_in,
@@ -510,6 +781,43 @@ mod tests {
             headers.insert(ACCEPT_ENCODING, value.parse().unwrap());
         }
         AcceptedEncodings::from_headers(&headers)
+    }
+
+    fn advance_resumable_event(encoder: &mut ResumableBrotli, input: &[u8]) {
+        let mut input_offset = 0;
+        loop {
+            let mut output = [0_u8; 4096];
+            let step = encoder
+                .process(input, &mut input_offset, &mut output)
+                .unwrap();
+            if step.complete {
+                break;
+            }
+        }
+        loop {
+            let mut output = [0_u8; 4096];
+            let step = encoder.flush(&mut output).unwrap();
+            if step.complete {
+                break;
+            }
+        }
+    }
+
+    #[test]
+    fn resumable_q1_recycles_transient_scratch_after_warmup() {
+        let input = vec![b'x'; 4096];
+        let mut encoder = ResumableBrotli::new_recycled(1, 11, 256 * 1024);
+        advance_resumable_event(&mut encoder, &input);
+        let after_first = encoder.recycler_stats().unwrap();
+        assert!(after_first.system_allocations > 0);
+        advance_resumable_event(&mut encoder, &input);
+        let after_second = encoder.recycler_stats().unwrap();
+        assert_eq!(
+            after_second.system_allocations,
+            after_first.system_allocations
+        );
+        assert!(after_second.cache_hits > after_first.cache_hits);
+        assert!(after_second.cached_bytes <= 256 * 1024);
     }
 
     #[test]
