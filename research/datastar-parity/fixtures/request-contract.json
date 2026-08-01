@@ -1,0 +1,21 @@
+{
+  "methods": {
+    "GET": { "json": "query:datastar", "form": "query:form-fields", "open_when_hidden_default": false },
+    "POST": { "json": "body:application/json", "form": "body:form-encoding", "open_when_hidden_default": true },
+    "PUT": { "json": "body:application/json", "form": "body:form-encoding", "open_when_hidden_default": true },
+    "PATCH": { "json": "body:application/json", "form": "body:form-encoding", "open_when_hidden_default": true },
+    "DELETE": { "json": "query:datastar", "form": "query:form-fields", "open_when_hidden_default": true }
+  },
+  "default_headers": {
+    "Accept": "text/event-stream, text/html, application/json",
+    "Datastar-Request": "true"
+  },
+  "response_content_types": [
+    "text/event-stream",
+    "text/html",
+    "application/json",
+    "text/javascript"
+  ],
+  "request_cancellation": ["auto", "cleanup", "disabled", "AbortController"],
+  "retry": ["auto", "error", "always", "never"]
+}

@@ -1,0 +1,11 @@
+: heartbeat
+event: datastar-patch-elements
+id: cursor-42
+retry: 1500
+data: elements <div id="status">λ</div>
+
+event: datastar-patch-signals
+id:
+data:
+data: signals {"ready":true}
+
