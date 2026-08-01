@@ -356,6 +356,67 @@ supported generated typed callable adapter a prerequisite for the preferred
 machine. The explicit `stream!` state fallback remains viable enough for its
 own optimized cross-thread benchmark, but it has not passed that gate yet.
 
+### Explicit state passes local lifecycle but not the Go performance gate
+
+**Observed:** the independent
+[`explicit-state-spike`](explicit-state-spike/README.md) uses only fixed
+generated provided functions over `Box(StreamState)`; it does not use the
+boxed-callable diagnostic. Development and speed builds both pass:
+
+- parked and just-returned state destruction;
+- twelve sequential ownership-consuming steps across four pthreads;
+- concurrent in-flight steps for independent states;
+- host-side same-stream overlap rejection;
+- cancellation during a blocked hosted effect and drop of its returned state;
+- nested string/list and opaque-resource lifetime; and
+- exact allocation and resource balance.
+
+Both backends finish with seven opaque resources created and seven destroyed,
+zero live allocations, and a measured independent-callback high-water mark of
+two. This is strong local evidence that the fourth-entrypoint fallback has a
+sound ownership topology. Cross-target and native memory-instrumentation gates
+remain open.
+
+**Observed:** package state representation can remain private. A compiled
+sibling Roc package exposes an opaque nominal route state and public transition
+methods. The application places that nominal type inside its shared stream
+route union and dispatches to the package without seeing the payload. The
+fallback still requires central enumeration and dispatch, but it does not
+require packages to expose their state representation.
+
+**Measured:** on the pinned Ryzen 7 9700X CPU, nine optimized one-million-step
+samples give these medians against Go 1.26.5:
+
+| Transition | Batch 1 ns/event | Batch 4 ns/event | Batch 16 ns/event | Allocations/step |
+| --- | ---: | ---: | ---: | ---: |
+| Roc explicit state | 26.702 | 6.868 | 1.713 | 1 |
+| Go unique state | 1.271 | 1.279 | 1.275 | 0 |
+| Go replacement state | 16.916 | 4.514 | 1.811 | 1 |
+
+The Go unique transition is the semantic target: transfer-only ownership
+allows storage reuse. The replacement version is diagnostic, not a reason to
+weaken that target.
+
+**Observed:** optimized Roc lowering allocates and frees one 96-byte outer box
+per step for all batch sizes. Even a generated wrapper that returns the input
+box unchanged performs an atomic outer retain and generated decref; it measures
+7.844 ns versus Go's 0.907 ns. The real transition also retains nested ARC
+values, constructs the new box, and decrefs the old state.
+
+A fixture-only one-slot allocator cache lowers optimized Roc medians to 16.744,
+4.271, and 1.057 ns/event for batches 1, 4, and 16. That is a synthetic storage
+reuse lower bound, not current allocation behavior or a safe cross-thread host
+allocator. It shows batching plus cheap allocation can exceed Go at batch 16,
+but remains 13x slower for one event. Batching must not wait for more events or
+hide the decisive single-event result.
+
+**Inferred:** the explicit fallback should remain available for transport
+feasibility, but should not be selected as the final performance design until
+generated ownership transfer eliminates the temporary outer ARC pair and
+reuses uniquely owned state storage. A supported opaque size/alignment/move/
+step/drop adapter is the next compiler-level alternative if `Box` repacking
+cannot be optimized.
+
 ## Preliminary recommendation for Spike 1 wording
 
 Replace the claim that generated glue merely "contains machinery" with the
@@ -383,6 +444,17 @@ rather than mentioned only as a failure response. It may outperform recursive
 closure reconstruction and could be the better platform design even if boxed
 callables are correct.
 
+The local benchmark now exists and rejects that optimistic performance claim
+for current lowering. Keep the fallback in research because its lifecycle is
+sound, but add these gates:
+
+- an identity ownership transfer does not retain then release the outer box;
+- a unique state transition does not allocate replacement storage;
+- unchanged nested ARC values move without balancing hot-path retain/release;
+- batch 1 meets the controlled Go baseline; and
+- batches are emitted opportunistically, never filled by delaying a ready
+  event.
+
 ## Open questions
 
 1. Can a recursive effectful function be boxed at this platform boundary with
@@ -398,5 +470,6 @@ callables are correct.
 6. Should the application context be captured inside each machine or supplied
    to every advance wrapper? Supplying it avoids one retained reference per
    stream but adds one argument and requires shutdown ordering either way.
-7. Does the explicit `stream!` fallback permit unique boxed-state reuse more
-   reliably than recursive boxed-callable reuse?
+7. Can compiler or glue support make the explicit `stream!` fallback reuse a
+   uniquely owned box? Current generated wrappers do not: identity adds an
+   atomic retain/decref pair and a real step allocates a replacement box.

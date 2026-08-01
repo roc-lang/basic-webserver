@@ -330,11 +330,18 @@ stream! : Sse.Wake, StreamState, Context
 ```
 
 That candidate is less ergonomic because all stream routes share one
-application state type, packages cannot privately encapsulate their stream
-state, and every application contract changes. It is still preferable to a
-pinned writer, and must now receive the same optimized ownership and Go-relative
-performance testing as the callable design rather than remain only a failure
-note.
+application state type, the application must centrally enumerate and dispatch
+those routes, and every application contract changes. A compiled package
+fixture shows that each union payload can still be a package-owned opaque
+nominal type, so package state representation and transition logic can remain
+private; the cost is central wiring, not forced representation exposure.
+
+The fallback is still preferable to a pinned writer, but current optimized
+lowering does not meet the Go performance target. It allocates and frees one
+outer state box per step, and even an identity provided wrapper emits an atomic
+retain/decref pair instead of a pure ownership transfer. The lifecycle topology
+passes locally in development and speed builds; compiler or glue support for
+unique state-storage reuse remains a performance gate.
 
 ## Illustrative Roc API
 
@@ -1124,9 +1131,11 @@ loops. Rejected.
 
 ### Fourth application `stream!` entrypoint
 
-Architecturally sound and the preferred fallback if boxed callables fail. It is
-less composable and changes all application contracts, so it is not the first
-choice.
+Architecturally sound and the preferred supported fallback while boxed
+callables are compiler-blocked. Package-opaque state payloads work inside an
+application-owned route union, but central enumeration and dispatch remain.
+Current generated `Box(StreamState)` lowering is allocation- and ARC-heavy
+relative to unique Go state, so this is not yet the final performance choice.
 
 ### Generic host pub/sub or payload channels
 
@@ -1222,6 +1231,18 @@ Current evidence:
   independent concurrency, cancellation, overlap rejection, nested captures,
   and resource balance, but its helper is not exported in optimized builds and
   is not a supported host API.
+- The generated-wrapper-only explicit-state fallback passes parked/returned
+  drop, sequential thread migration, independent concurrency, overlap
+  rejection, in-flight cancellation, nested values, opaque resources, and
+  exact accounting in development and speed builds.
+- A package-opaque nominal route state compiles and runs inside the shared
+  application route union. Packages can hide payload representation, although
+  the application still owns enumeration and dispatch.
+- Optimized explicit state allocates and frees one 96-byte outer box per step.
+  Median batch-1 latency is 26.702 ns versus 1.271 ns for equivalent unique Go
+  1.26.5 state. Batches 4 and 16 amortize to 6.868 and 1.713 ns/event versus
+  Go's 1.279 and 1.275, so the current fallback does not meet the performance
+  gate.
 
 This means the erased representation is plausible but the preferred fixed
 advance/drop wrapper is currently blocked. Spike 1 remains open.
@@ -1262,15 +1283,22 @@ Pass criteria:
 - Optimized allocation, ARC, ABI crossing, and copy counts are compared with
   the explicit-state fallback and controlled Go baseline. Development-only
   direct helper timings do not satisfy this criterion.
+- For an explicit-state selection, an identity ownership transfer does not add
+  a temporary outer retain/decref pair, a unique step reuses state storage, and
+  unchanged nested ARC values move without balancing hot-path retains.
+- Batch 1 meets the controlled Go baseline. Larger batches may amortize one
+  transition only for events already ready; the producer never delays a ready
+  event to fill a batch.
 
 Failure response:
 
 - Preserve the boxed-callable compiler reduction and require a compiler fix or
   supported generated typed adapter before using that topology.
-- In parallel, prototype the explicit application `stream!` entrypoint with
-  boxed application state across the same thread, cancellation, ownership,
-  cross-target, and performance matrix. Do not implement the synchronous
-  writer fallback.
+- Preserve the explicit-state fixture as the supported lifecycle fallback, but
+  require a compiler/glue unique-state adapter before selecting it as the final
+  performance design. If box repacking cannot be optimized, spike generated
+  opaque size/alignment/move/step/drop adapters. Do not replace it with a
+  dynamically typed state bag or synchronous writer.
 
 ### Spike 2: Minimal progressive Hyper body
 
@@ -1576,6 +1604,9 @@ into the design contract.
     retry modes we intend to document?
 14. What reference deployment and proxy configuration should define the
     end-to-end progressive-delivery smoke test?
+15. Can generated explicit-state adapters consume an owned box without an
+    outer retain/decref pair and reuse its storage when unique, or is a separate
+    opaque size/alignment/move/step/drop ABI required?
 
 ## Candidate implementation sequence after the gates
 
@@ -1688,3 +1719,18 @@ This evidence supports the proposed flush, finish/abort, and
 `X-Accel-Buffering: no` semantics. It does not accept the product boundary or
 close production listener, remaining-browser, bounded-memory, scheduler,
 cross-target, or scale gates.
+
+### 2026-08-01: Explicit state passes lifecycle but needs unique reuse
+
+A generated-wrapper-only `Box(StreamState)` fixture passes the local lifecycle
+matrix in development and speed builds, including cancellation during an
+in-flight step and exact opaque-resource balance. A package-opaque nominal
+state also compiles inside an application route union, correcting the earlier
+assumption that package representation could not remain private.
+
+Current optimized lowering allocates one replacement outer box per step and
+adds ARC traffic even for identity transfer. Against unique Go 1.26.5 state it
+misses the performance target at batches 1, 4, and 16. A fixture-only cached
+allocation plus batch 16 can exceed Go per event, but that does not repair
+single-event latency and is not current behavior. Unique generated ownership
+transfer and state-storage reuse are now explicit gates.
