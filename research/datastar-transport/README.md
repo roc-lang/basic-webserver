@@ -53,3 +53,33 @@ event with two LFs. Production Roc framing should use the canonical form.
 
 Raw results and the machine description are under [`results`](results). The
 numbers are indicative single-host measurements, not a portable guarantee.
+
+## Footprint and Pareto follow-up
+
+`brotli_footprint` adds canonical two-LF Datastar traces, exact requested-size
+allocation accounting, a bounded scratch recycler, reusable event output, and
+a matched Go runner. Its traces are `todo`, `dashboard`, `official` (Rust
+only), `heartbeat`, and `large` (changing approximately 64 KiB HTML events).
+
+```sh
+cargo build --manifest-path research/datastar-transport/Cargo.toml --release --bin brotli_footprint
+taskset -c 2 research/datastar-transport/target/release/brotli_footprint screen recycled todo 2
+taskset -c 2 research/datastar-transport/target/release/brotli_footprint run recycled 1 11 todo 7 16
+taskset -c 2 research/datastar-transport/target/release/brotli_footprint run standard 3 12 todo 7 16
+research/datastar-transport/target/release/brotli_footprint steady recycled 1 11 todo 10000
+research/datastar-transport/target/release/brotli_footprint memory recycled 1 11 10000 todo 256 1
+research/datastar-transport/target/release/brotli_footprint verify 1 11 large
+
+cd research/datastar-transport/go
+GOTOOLCHAIN=local /tmp/go1.26.5/bin/go build -trimpath -o /tmp/datastar-go-brotli-footprint ./cmd/footprint
+taskset -c 2 /tmp/datastar-go-brotli-footprint run 1 11 todo 7 16
+taskset -c 2 /tmp/datastar-go-brotli-footprint memory 1 11 100 todo 512
+```
+
+Rust memory results add the encoder's inline size to exact requested heap
+bytes; they exclude allocator metadata. Go memory results use `runtime.MemStats`
+after a forced GC. `memory` activates every retained encoder before measuring;
+its final argument can run a whole trace through each encoder to expose mature
+window and cache growth. See
+[`docs/research/datastar-brotli-footprint-findings.md`](../../docs/research/datastar-brotli-footprint-findings.md)
+for the interpretation and recommendation.

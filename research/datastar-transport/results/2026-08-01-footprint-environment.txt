@@ -1,0 +1,14 @@
+Date: 2026-08-01 Australia/Melbourne
+Repository checkpoint used for final measurements: 353b91ba1533204b7fe997d68835b40c360d76eb
+OS: Linux 7.0.0-28-generic x86_64 (Ubuntu 24.04.1 kernel build)
+CPU: AMD Ryzen 7 9700X 8-Core Processor, 8 cores / 16 threads
+Benchmark affinity: logical CPU 2 via taskset
+Rust: rustc 1.97.1 (8bab26f4f 2026-07-14), LLVM 22.1.6
+Go: go1.26.5 linux/amd64
+Rust Brotli: brotli 8.0.4
+Go Brotli: github.com/andybalholm/brotli v1.2.0
+Build mode: Rust --release; Go default optimized build with -trimpath
+Rust allocation evidence: exact requested Layout sizes observed by the process global allocator; allocator metadata/RSS excluded
+Go allocation evidence: runtime.MemStats after runtime.GC; allocator metadata treatment is Go-runtime-defined
+Timing samples: seven independent encoder runs, with each run processing at least 16 MiB except heartbeat (1 MiB) and official fixtures (4 MiB)
+Corpus framing: canonical Datastar/WHATWG two-LF event termination

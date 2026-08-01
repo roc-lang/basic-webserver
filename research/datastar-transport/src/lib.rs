@@ -872,6 +872,26 @@ mod tests {
         assert_eq!(decode_partial(&flushed), event);
     }
 
+    #[test]
+    fn recycler_does_not_change_q1_or_q3_output() {
+        let events = [datastar_event(4096, 1), datastar_event(65_536, 2)];
+        for (quality, window_bits) in [(1, 11), (3, 12)] {
+            let mut standard = ExplicitBrotli::with_settings(256 * 1024, quality, window_bits);
+            let mut recycled =
+                RecyclingBrotli::with_settings(256 * 1024, quality, window_bits, 256 * 1024);
+            let mut standard_bytes = Vec::new();
+            let mut recycled_bytes = Vec::new();
+            for event in &events {
+                standard_bytes.extend_from_slice(standard.encode_event_reusable(event).unwrap());
+                recycled_bytes.extend_from_slice(recycled.encode_event_reusable(event).unwrap());
+            }
+            standard_bytes.extend_from_slice(&standard.finish().unwrap());
+            recycled_bytes.extend_from_slice(&recycled.finish().unwrap());
+            assert_eq!(recycled_bytes, standard_bytes);
+            assert_eq!(decode_partial(&recycled_bytes), events.concat());
+        }
+    }
+
     #[derive(Clone)]
     struct SwitchableSink {
         bytes: Arc<Mutex<Vec<u8>>>,
