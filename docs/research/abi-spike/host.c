@@ -24,6 +24,12 @@ static _Atomic uint64_t observed_sum;
 static _Atomic uint64_t active_observers;
 static _Atomic uint64_t max_active_observers;
 
+#ifdef ABI_SPIKE_DIRECT_ERASED_CALLABLE
+extern void roc_builtins_erased_callable_decref(
+    RocErasedCallable callable,
+    struct RocOps *ops);
+#endif
+
 static pthread_mutex_t observe_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t observe_condition = PTHREAD_COND_INITIALIZER;
 static bool block_observe;
@@ -76,13 +82,11 @@ static bool mark_resource_deallocated(void *base) {
     pthread_mutex_lock(&resource_mutex);
     for (size_t index = 0; index < MAX_TRACKED_RESOURCES; index += 1) {
         if (resources[index].base == base) {
-            if (!resources[index].live) {
-                pthread_mutex_unlock(&resource_mutex);
-                fail("opaque resource allocation was deallocated twice");
+            if (resources[index].live) {
+                resources[index].live = false;
+                found = true;
+                break;
             }
-            resources[index].live = false;
-            found = true;
-            break;
         }
     }
     pthread_mutex_unlock(&resource_mutex);
@@ -218,14 +222,50 @@ struct MachineWorker {
     bool drop_result;
 };
 
+struct U64Args {
+    uint64_t arg0;
+};
+
+static void direct_drop_machine(RocErasedCallable machine) {
+#ifdef ABI_SPIKE_DIRECT_ERASED_CALLABLE
+    check(machine != NULL, "attempted to drop a null erased callable");
+    roc_builtins_erased_callable_decref(machine, NULL);
+#else
+    (void)machine;
+    fail("direct erased-callable diagnostic is unavailable in this build");
+#endif
+}
+
+static RocErasedCallable direct_advance_machine(RocErasedCallable machine, uint64_t wake) {
+#ifdef ABI_SPIKE_DIRECT_ERASED_CALLABLE
+    check(machine != NULL, "attempted to advance a null erased callable");
+    RocErasedCallablePayload *payload = roc_erased_callable_payload_ptr(machine);
+    struct U64Args args = {.arg0 = wake};
+    RocErasedCallable next = NULL;
+    payload->callable_fn_ptr(
+        NULL,
+        (uint8_t *)&next,
+        (const uint8_t *)&args,
+        roc_erased_callable_capture_ptr(machine));
+    direct_drop_machine(machine);
+    check(next != NULL, "erased machine returned a null continuation");
+    return next;
+#else
+    (void)machine;
+    (void)wake;
+    fail("direct erased-callable diagnostic is unavailable in this build");
+    return NULL;
+#endif
+}
+
 static void *run_machine_worker(void *raw_worker) {
     struct MachineWorker *worker = raw_worker;
     RocErasedCallable machine = worker->machine;
     for (size_t index = 0; index < worker->advances; index += 1) {
-        machine = roc_abi_advance_machine(machine, worker->wake + index);
+        machine = direct_advance_machine(machine, worker->wake + index);
     }
     if (worker->drop_result) {
-        roc_abi_drop_machine(machine);
+        direct_drop_machine(machine);
         machine = NULL;
     }
     worker->machine = machine;
@@ -252,9 +292,9 @@ static bool advance_slot(struct MachineSlot *slot, uint64_t wake) {
     RocErasedCallable input = slot->machine;
     slot->machine = NULL;
     check(input != NULL, "slot acquired without an owned machine");
-    RocErasedCallable next = roc_abi_advance_machine(input, wake);
+    RocErasedCallable next = direct_advance_machine(input, wake);
     if (atomic_load_explicit(&slot->cancelled, memory_order_acquire)) {
-        roc_abi_drop_machine(next);
+        direct_drop_machine(next);
     } else {
         slot->machine = next;
     }
@@ -320,17 +360,17 @@ static void test_sequential_thread_migration(void) {
         check(pthread_join(thread, NULL) == 0, "failed to join migration worker");
         machine = worker.machine;
     }
-    roc_abi_drop_machine(machine);
+    direct_drop_machine(machine);
     assert_no_live_allocations("sequential migration");
 }
 
 static void test_parked_and_returned_drop(void) {
     RocErasedCallable parked = roc_abi_make_machine(20);
-    roc_abi_drop_machine(parked);
+    direct_drop_machine(parked);
     assert_no_live_allocations("parked drop");
 
-    RocErasedCallable returned = roc_abi_advance_machine(roc_abi_make_machine(21), 7);
-    roc_abi_drop_machine(returned);
+    RocErasedCallable returned = direct_advance_machine(roc_abi_make_machine(21), 7);
+    direct_drop_machine(returned);
     assert_no_live_allocations("returned-value drop");
 }
 
@@ -385,7 +425,7 @@ static void test_overlap_rejection(void) {
     release_observers();
     check(pthread_join(first_thread, NULL) == 0, "failed to join overlap worker");
     check(first.advanced, "first slot advance did not run");
-    roc_abi_drop_machine(slot.machine);
+    direct_drop_machine(slot.machine);
     configure_observe_block(false);
     assert_no_live_allocations("overlap rejection");
 }
@@ -436,14 +476,14 @@ static void benchmark_machine(size_t iterations, size_t repetition) {
         atomic_load_explicit(&deallocation_calls, memory_order_relaxed);
     const uint64_t started = monotonic_nanoseconds();
     for (size_t index = 0; index < iterations; index += 1) {
-        machine = roc_abi_advance_bench_machine(machine, (uint64_t)(index & 7));
+        machine = direct_advance_machine(machine, (uint64_t)(index & 7));
     }
     const uint64_t elapsed = monotonic_nanoseconds() - started;
     const uint64_t allocations =
         atomic_load_explicit(&allocation_calls, memory_order_relaxed) - allocations_before;
     const uint64_t deallocations =
         atomic_load_explicit(&deallocation_calls, memory_order_relaxed) - deallocations_before;
-    roc_abi_drop_bench_machine(machine);
+    direct_drop_machine(machine);
     printf("BENCH machine rep=%zu iterations=%zu ns_per_op=%.3f allocs_per_op=%.6f frees_per_op=%.6f\n",
            repetition,
            iterations,
@@ -476,15 +516,44 @@ static void benchmark_state(size_t iterations, size_t repetition) {
            (double)deallocations / (double)iterations);
 }
 
+static int run_wrapper_negative(void) {
+    puts("RUN plain_box_parked_drop");
+    fflush(stdout);
+    roc_abi_drop_box(roc_abi_make_box(1));
+    assert_no_live_allocations("plain box parked drop");
+    puts("RUN platform_nonrecursive_callable_parked_drop");
+    fflush(stdout);
+    RocErasedCallable platform_callable = roc_abi_make_platform_callable(1);
+    printf("POINTER platform_callable=%p\n", (void *)platform_callable);
+    fflush(stdout);
+    roc_abi_drop_callable(platform_callable);
+    fail("generated boxed-callable drop wrapper unexpectedly returned");
+    return 1;
+}
+
 int main(void) {
+    const char *mode = getenv("ABI_SPIKE_MODE");
+    if (mode != NULL && strcmp(mode, "wrapper-negative") == 0) {
+        return run_wrapper_negative();
+    }
+
+    puts("RUN direct_platform_nonrecursive_callable_parked_drop");
+    fflush(stdout);
+    direct_drop_machine(roc_abi_make_platform_callable(1));
+    assert_no_live_allocations("direct platform nonrecursive callable parked drop");
+    puts("RUN direct_app_nonrecursive_callable_parked_drop");
+    fflush(stdout);
+    direct_drop_machine(roc_abi_make_callable(1));
+    assert_no_live_allocations("direct app nonrecursive callable parked drop");
     puts("RUN explicit_state_parked_drop");
     fflush(stdout);
     roc_abi_drop_state(roc_abi_init_state(1));
     assert_no_live_allocations("explicit state parked drop");
-    puts("RUN pure_recursive_parked_drop");
+    puts("RUN direct_pure_recursive_parked_drop");
     fflush(stdout);
-    roc_abi_drop_bench_machine(roc_abi_make_bench_machine(1));
-    assert_no_live_allocations("pure recursive parked drop");
+    direct_drop_machine(roc_abi_make_bench_machine(1));
+    assert_no_live_allocations("direct pure recursive parked drop");
+
     puts("RUN parked_and_returned_drop");
     fflush(stdout);
     test_parked_and_returned_drop();

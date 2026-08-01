@@ -3,6 +3,7 @@ platform "abi-spike"
         [State : state] for program : {
             make_machine! : U64 => Abi.Machine,
             make_bench_machine : U64 -> Abi.BenchMachine,
+            make_callable : U64 -> Box(U64 -> U64),
             init_state! : U64 => state,
             step_state! : U64, state => state,
             bench_step_state : U64, state -> state,
@@ -21,6 +22,11 @@ platform "abi-spike"
         "roc_abi_step_state": step_state_for_host!,
         "roc_abi_bench_step_state": bench_step_state_for_host,
         "roc_abi_drop_state": drop_state_for_host!,
+        "roc_abi_make_box": make_box_for_host,
+        "roc_abi_drop_box": drop_box_for_host,
+        "roc_abi_make_callable": make_callable_for_host,
+        "roc_abi_make_platform_callable": make_platform_callable_for_host,
+        "roc_abi_drop_callable": drop_callable_for_host,
     }
     hosted {
         "hosted_abi_make_resource": Abi.make_resource!,
@@ -71,3 +77,18 @@ bench_step_state_for_host = |boxed_state, wake|
 
 drop_state_for_host! : Box(State) => {}
 drop_state_for_host! = |_state| {}
+
+make_box_for_host : U64 -> Box(U64)
+make_box_for_host = |value| Box.box(value)
+
+drop_box_for_host : Box(U64) -> {}
+drop_box_for_host = |_boxed| {}
+
+make_callable_for_host : U64 -> Box(U64 -> U64)
+make_callable_for_host = program.make_callable
+
+drop_callable_for_host : Box(U64 -> U64) -> {}
+drop_callable_for_host = |_callable| {}
+
+make_platform_callable_for_host : U64 -> Box(U64 -> U64)
+make_platform_callable_for_host = |offset| Box.box(|value| value + offset)

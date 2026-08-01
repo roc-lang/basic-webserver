@@ -111,8 +111,8 @@ lifecycle. In particular, the inspected tests do not jointly prove:
 - identical results on every platform release target; or
 - optimized steady-state allocation and crossing cost relative to Go.
 
-**Inferred:** the preferred design is feasible enough to justify a focused
-prototype, but Spike 1 is not passed.
+**Observed:** the preferred provided-wrapper topology currently fails its
+smallest drop case. Spike 1 is not passed.
 
 ### A fixed Roc wrapper is the safer host boundary
 
@@ -283,39 +283,78 @@ If the effectful recursive callable cannot be expressed, the next prototype is
 the explicit application `stream!` entrypoint with `Box(StreamState)`. A
 long-running writer is not a fallback.
 
-### Negative checkpoint: provided drop wrappers crash
+### Classified negative: provided boxed-callable drop wrappers crash
 
 **Observed:** the committed spike type-checks its recursive effectful callable,
 recursive pure callable, and application-defined `Box(State)` fallback. Current
 C and Rust glue generation gives each of their make/advance/drop entrypoints a
 natural pointer-only ABI. Both development and speed builds link successfully.
 
-The first execution checkpoint is negative. In both development and speed
-builds, consuming a freshly returned value with its provided drop wrapper
-segfaults during generated recursive teardown. Reordering isolated both of
-these same-thread parked-drop failures before any thread migration:
+The failure is specifically the generated provided teardown of
+`Box(function)`. In both development and speed builds, this sequence segfaults
+before any migration or concurrency:
 
-- `roc_abi_drop_bench_machine(roc_abi_make_bench_machine(1))`; and
-- `roc_abi_drop_state(roc_abi_init_state(1))`.
+```text
+callable = roc_abi_make_platform_callable(1)
+roc_abi_drop_callable(callable)
+```
 
-A dev-backend GDB trace reaches `roc_builtins_box_decref_with`, then attempts
-to free an address in the native stack range. The failure occurs before the
-cross-thread and concurrency scenarios, so it is not evidence against runtime
-reentrancy. It is also not yet classified as a compiler defect: the standalone
-C host's runtime ABI and the generated wrapper lowering still need independent
-reduction.
+The callable is a non-recursive platform closure with one `U64` capture. The
+same host first creates and drops `Box(U64)` through generated provided wrappers
+successfully. An explicit `Box(State)` containing strings, a list, numeric
+fields, and an opaque resource also drops successfully after its nested boxed
+callable is removed. Putting a boxed callable inside that state reintroduces
+the failure.
+
+**Observed:** a development-backend GDB trace from
+`roc_abi_drop_callable` enters `roc_builtins_box_decref_with` rather than the
+erased-callable decrement path. It subtracts the generic box header from the
+erased-callable payload and passes an invalid allocation address to `free`.
+The generated C header correctly declares the argument as
+`RocErasedCallable`, so the standalone host is passing the declared type.
+
+**Inferred:** this is a compiler lowering defect for a provided function that
+consumes `Box(function)`, not a cross-thread failure and not evidence that the
+documented erased-callable representation itself is invalid. The fixed
+provided advance/drop wrapper proposed by the experiment is blocked until the
+compiler emits the callable-specific decrement or generated glue exposes a
+supported typed adapter.
+
+The development runtime exports `roc_builtins_erased_callable_decref`. A
+diagnostic host that bypasses the broken provided drop wrapper and calls the
+erased callable header directly passed:
+
+- parked and returned-machine destruction;
+- sequential migration through four pthreads;
+- concurrent advancement of two independent machines;
+- host-side rejection of overlapping advancement of one machine;
+- cancellation while an effectful advance is in flight;
+- nested strings, lists, another callable, and opaque-resource teardown; and
+- exact allocation/resource balance.
+
+That diagnostic is not an implementation option. The helper is not exported
+by speed builds, passes runtime operations outside a generated typed adapter,
+and would make the HTTP host own compiler layout and result cleanup.
 
 Reproduce:
 
 ```text
-python3 scripts/spike_retained_callable.py --opt dev --iterations 1000
-python3 scripts/spike_retained_callable.py --opt speed --iterations 1000
-gdb -q -batch -ex run -ex 'thread apply all bt full' --args \
-  build/abi-spike/retained-callable-dev
+python3 scripts/spike_retained_callable.py --opt all --iterations 1000 \
+  --mode wrapper-negative
+python3 scripts/spike_retained_callable.py --opt dev --iterations 100000 \
+  --mode diagnostic
 ```
 
-This negative result keeps Spike 1 open. No allocation or Go-relative result
-from the benchmark is reportable until the ownership crash is explained.
+Seven 100,000-operation development runs measured approximately 157–164 ns per
+direct recursive-machine step and 318–323 ns per explicit boxed-state provided
+step. Both paths allocated and freed one object per step. These atomic-counter
+instrumented development figures are preliminary diagnostic observations, not
+optimized or Go-relative evidence, and must not choose the public API.
+
+This negative result keeps Spike 1 open. It makes a Roc compiler fix or a
+supported generated typed callable adapter a prerequisite for the preferred
+machine. The explicit `stream!` state fallback remains viable enough for its
+own optimized cross-thread benchmark, but it has not passed that gate yet.
 
 ## Preliminary recommendation for Spike 1 wording
 

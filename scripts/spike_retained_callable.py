@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import shutil
 import subprocess
 from pathlib import Path
@@ -19,6 +20,17 @@ BUILD = ROOT / "build" / "abi-spike"
 def run(args: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
     print("+", " ".join(args), flush=True)
     subprocess.run(args, cwd=cwd, env=env, check=True)
+
+
+def run_expected_segfault(args: list[str], *, env: dict[str, str]) -> None:
+    print("+", " ".join(args), "# expect SIGSEGV", flush=True)
+    completed = subprocess.run(args, cwd=ROOT, env=env, check=False)
+    if completed.returncode not in (-signal.SIGSEGV, 128 + signal.SIGSEGV):
+        raise SystemExit(
+            "Expected the generated boxed-callable drop wrapper to segfault; "
+            f"exit status was {completed.returncode}"
+        )
+    print("EXPECTED wrapper-negative SIGSEGV reproduced", flush=True)
 
 
 def find_roc_source(roc: str) -> Path:
@@ -40,7 +52,7 @@ def find_roc_source(roc: str) -> Path:
     raise SystemExit("Could not find the Roc source tree; set ROC_SRC=/path/to/roc")
 
 
-def prepare_host(roc: str, zig: str) -> None:
+def prepare_host(roc: str, zig: str, *, direct_diagnostic: bool) -> None:
     roc_source = find_roc_source(roc)
     glue_dir = BUILD / "glue-c"
     glue_dir.mkdir(parents=True, exist_ok=True)
@@ -56,23 +68,24 @@ def prepare_host(roc: str, zig: str) -> None:
     )
 
     host_object = BUILD / "host.o"
-    run(
-        [
-            zig,
-            "cc",
-            "-target",
-            "x86_64-linux-musl",
-            "-std=c11",
-            "-O3",
-            "-pthread",
-            "-I",
-            str(glue_dir),
-            "-c",
-            str(SPIKE / "host.c"),
-            "-o",
-            str(host_object),
-        ]
-    )
+    compile_args = [
+        zig,
+        "cc",
+        "-target",
+        "x86_64-linux-musl",
+        "-std=c11",
+        "-O3",
+        "-pthread",
+        "-I",
+        str(glue_dir),
+        "-c",
+        str(SPIKE / "host.c"),
+        "-o",
+        str(host_object),
+    ]
+    if direct_diagnostic:
+        compile_args.insert(2, "-DABI_SPIKE_DIRECT_ERASED_CALLABLE=1")
+    run(compile_args)
 
     target_dir = PLATFORM / "targets" / "x64musl"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -99,19 +112,29 @@ def main() -> None:
         default=1_000_000,
         help="advance calls per benchmark repetition",
     )
+    parser.add_argument(
+        "--mode",
+        choices=("diagnostic", "wrapper-negative"),
+        default="wrapper-negative",
+        help="run the direct-helper lifecycle diagnostic or the preserved compiler failure",
+    )
     args = parser.parse_args()
     if args.iterations < 1000:
         parser.error("--iterations must be at least 1000")
+    if args.mode == "diagnostic" and args.opt != "dev":
+        parser.error("direct erased-callable diagnostics are available only with --opt dev")
 
     roc = os.environ.get("ROC", "roc")
     zig = os.environ.get("ZIG", "zig")
     BUILD.mkdir(parents=True, exist_ok=True)
     run([roc, "version"])
-    prepare_host(roc, zig)
+    prepare_host(roc, zig, direct_diagnostic=args.mode == "diagnostic")
 
     modes = ("dev", "speed") if args.opt == "all" else (args.opt,)
     run_env = os.environ.copy()
     run_env["ABI_SPIKE_ITERS"] = str(args.iterations)
+    if args.mode == "wrapper-negative":
+        run_env["ABI_SPIKE_MODE"] = "wrapper-negative"
     for mode in modes:
         executable = BUILD / f"retained-callable-{mode}"
         run(
@@ -125,7 +148,10 @@ def main() -> None:
                 str(SPIKE / "app.roc"),
             ]
         )
-        run([str(executable)], env=run_env)
+        if args.mode == "wrapper-negative":
+            run_expected_segfault([str(executable)], env=run_env)
+        else:
+            run([str(executable)], env=run_env)
 
 
 if __name__ == "__main__":
