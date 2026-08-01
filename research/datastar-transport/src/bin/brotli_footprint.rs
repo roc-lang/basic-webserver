@@ -181,6 +181,39 @@ fn dashboard_trace() -> Trace {
     Trace::new("changing-dashboard-mixed", events)
 }
 
+fn heartbeat_trace() -> Trace {
+    Trace::new("heartbeat-only", vec![b": keepalive\n\n".to_vec(); 512])
+}
+
+fn large_html_trace() -> Trace {
+    let mut events = Vec::with_capacity(128);
+    for sequence in 0..128 {
+        let mut event = format!(
+            "event: datastar-patch-elements\ndata: selector #catalog\ndata: mode replace\ndata: elements <section id=\"catalog\" data-version=\"{sequence}\">"
+        );
+        let mut row = 0;
+        loop {
+            let id = sequence * 10_000 + row;
+            let candidate = format!(
+                "<article id=\"item-{id}\" data-stock=\"{}\" data-zone=\"{}\"><h3>Inventory item {id}</h3><p>Changing description token {} for bounded Datastar patch validation.</p><strong>${}.{:02}</strong></article>",
+                (sequence * 37 + row * 19) % 251,
+                ["mel", "syd", "sin", "fra"][row % 4],
+                (sequence * 7919 + row * 104729) % 1_000_003,
+                (sequence * 97 + row * 43) % 500,
+                (sequence + row * 7) % 100,
+            );
+            if event.len() + candidate.len() + "</section>\n\n".len() > 65_536 {
+                break;
+            }
+            event.push_str(&candidate);
+            row += 1;
+        }
+        event.push_str("</section>\n\n");
+        events.push(event.into_bytes());
+    }
+    Trace::new("changing-64k-html", events)
+}
+
 fn official_fixture_trace() -> Trace {
     const FIXTURES: [&[u8]; 12] = [
         include_bytes!("../../../datastar-parity/fixtures/official/execute-script-all-options.sse"),
@@ -209,7 +242,11 @@ fn trace(name: &str) -> Trace {
         "todo" => todo_trace(),
         "dashboard" => dashboard_trace(),
         "official" => official_fixture_trace(),
-        _ => panic!("unknown trace {name:?}; expected todo, dashboard, or official"),
+        "heartbeat" => heartbeat_trace(),
+        "large" => large_html_trace(),
+        _ => panic!(
+            "unknown trace {name:?}; expected todo, dashboard, official, heartbeat, or large"
+        ),
     }
 }
 
@@ -395,6 +432,7 @@ struct MemoryResult {
     window_bits: u32,
     trace: &'static str,
     streams: usize,
+    activation_events_per_stream: usize,
     inline_bytes_per_stream: usize,
     heap_live_allocations: i64,
     heap_requested_bytes: i64,
@@ -414,13 +452,18 @@ fn memory(
     streams: usize,
     trace: &Trace,
     cache_bytes: usize,
+    activation_events: usize,
 ) -> MemoryResult {
     let mut encoders = Vec::with_capacity(streams);
     let before = snapshot();
     reset_peaks(before);
     for index in 0..streams {
         let mut encoder = MeasuredEncoder::new(implementation, quality, window_bits, cache_bytes);
-        black_box(encoder.encode_event(&trace.events[index % trace.events.len()]));
+        for event_index in 0..activation_events {
+            black_box(
+                encoder.encode_event(&trace.events[(index + event_index) % trace.events.len()]),
+            );
+        }
         encoders.push(encoder);
     }
     let after = snapshot();
@@ -438,6 +481,7 @@ fn memory(
         window_bits,
         trace: trace.name,
         streams,
+        activation_events_per_stream: activation_events,
         inline_bytes_per_stream: inline_bytes,
         heap_live_allocations: after.live_allocations - before.live_allocations,
         heap_requested_bytes: heap_bytes,
@@ -451,6 +495,53 @@ fn memory(
     };
     black_box(encoders);
     result
+}
+
+#[derive(Serialize)]
+struct VerifyResult {
+    implementation: &'static str,
+    quality: u32,
+    window_bits: u32,
+    trace: &'static str,
+    events: usize,
+    input_bytes: usize,
+    wire_bytes: usize,
+    compression_ratio: f64,
+    independently_decoded: bool,
+}
+
+fn verify(quality: u32, window_bits: u32, trace: &Trace) -> VerifyResult {
+    use std::io::Read;
+
+    let max_event = trace.events.iter().map(Vec::len).max().unwrap();
+    let mut encoder = RecyclingBrotli::with_settings(
+        max_event * 2 + 64 * 1024,
+        quality,
+        window_bits,
+        DEFAULT_CACHE_BYTES,
+    );
+    let mut expected = Vec::with_capacity(trace.input_bytes);
+    let mut encoded = Vec::new();
+    for event in &trace.events {
+        expected.extend_from_slice(event);
+        encoded.extend_from_slice(encoder.encode_event_reusable(event).unwrap());
+    }
+    encoded.extend_from_slice(&encoder.finish().unwrap());
+    let mut decoded = Vec::new();
+    brotli::Decompressor::new(encoded.as_slice(), 4096)
+        .read_to_end(&mut decoded)
+        .unwrap();
+    VerifyResult {
+        implementation: "rust-recycled",
+        quality,
+        window_bits,
+        trace: trace.name,
+        events: trace.events.len(),
+        input_bytes: expected.len(),
+        wire_bytes: encoded.len(),
+        compression_ratio: encoded.len() as f64 / expected.len() as f64,
+        independently_decoded: decoded == expected,
+    }
 }
 
 #[derive(Serialize)]
@@ -576,6 +667,10 @@ fn main() {
                 .next()
                 .map(|value| value.parse::<usize>().expect("invalid cache KiB"))
                 .unwrap_or(DEFAULT_CACHE_BYTES / 1024);
+            let activation_events = arguments
+                .next()
+                .map(|value| value.parse::<usize>().expect("invalid activation events"))
+                .unwrap_or(1);
             print_json(&memory(
                 &implementation,
                 quality,
@@ -583,6 +678,7 @@ fn main() {
                 streams,
                 &trace,
                 cache_kib * 1024,
+                activation_events,
             ));
         }
         Some("steady") => {
@@ -604,8 +700,14 @@ fn main() {
                 cache_kib * 1024,
             ));
         }
+        Some("verify") => {
+            let quality = parse(arguments.next(), "quality");
+            let window_bits = parse(arguments.next(), "window bits");
+            let trace = trace(&arguments.next().expect("missing trace"));
+            print_json(&verify(quality, window_bits, &trace));
+        }
         _ => panic!(
-            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] | steady IMPL Q W TRACE EVENTS [CACHE_KIB]"
+            "usage: brotli_footprint run IMPL Q W TRACE SAMPLES MIB [CACHE_KIB] | screen IMPL TRACE [MIB] | memory IMPL Q W STREAMS TRACE [CACHE_KIB] [ACTIVATION_EVENTS] | steady IMPL Q W TRACE EVENTS [CACHE_KIB] | verify Q W TRACE"
         ),
     }
 }

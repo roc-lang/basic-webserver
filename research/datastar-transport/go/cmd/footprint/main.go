@@ -79,12 +79,53 @@ func dashboardTrace() trace {
 	return newTrace("changing-dashboard-mixed", events)
 }
 
+func heartbeatTrace() trace {
+	events := make([][]byte, 512)
+	for index := range events {
+		events[index] = []byte(": keepalive\n\n")
+	}
+	return newTrace("heartbeat-only", events)
+}
+
+func largeHTMLTrace() trace {
+	events := make([][]byte, 0, 128)
+	zones := []string{"mel", "syd", "sin", "fra"}
+	for sequence := range 128 {
+		var event strings.Builder
+		fmt.Fprintf(&event, "event: datastar-patch-elements\ndata: selector #catalog\ndata: mode replace\ndata: elements <section id=\"catalog\" data-version=\"%d\">", sequence)
+		for row := 0; ; row++ {
+			id := sequence*10000 + row
+			candidate := fmt.Sprintf(
+				"<article id=\"item-%d\" data-stock=\"%d\" data-zone=\"%s\"><h3>Inventory item %d</h3><p>Changing description token %d for bounded Datastar patch validation.</p><strong>$%d.%02d</strong></article>",
+				id,
+				(sequence*37+row*19)%251,
+				zones[row%4],
+				id,
+				(sequence*7919+row*104729)%1000003,
+				(sequence*97+row*43)%500,
+				(sequence+row*7)%100,
+			)
+			if event.Len()+len(candidate)+len("</section>\n\n") > 65536 {
+				break
+			}
+			event.WriteString(candidate)
+		}
+		event.WriteString("</section>\n\n")
+		events = append(events, []byte(event.String()))
+	}
+	return newTrace("changing-64k-html", events)
+}
+
 func selectTrace(name string) trace {
 	switch name {
 	case "todo":
 		return todoTrace()
 	case "dashboard":
 		return dashboardTrace()
+	case "heartbeat":
+		return heartbeatTrace()
+	case "large":
+		return largeHTMLTrace()
 	default:
 		panic(fmt.Sprintf("unknown trace %q", name))
 	}
@@ -194,6 +235,7 @@ type memoryResult struct {
 	WindowBits             int     `json:"window_bits"`
 	Trace                  string  `json:"trace"`
 	Streams                int     `json:"streams"`
+	ActivationEvents       int     `json:"activation_events_per_stream"`
 	HeapLiveAllocations    uint64  `json:"heap_live_allocations"`
 	HeapBytes              int64   `json:"heap_bytes"`
 	HeapBytesPerStream     float64 `json:"heap_bytes_per_stream"`
@@ -203,7 +245,7 @@ type memoryResult struct {
 	ConstructionAllocBytes uint64  `json:"construction_allocated_bytes"`
 }
 
-func memory(quality, windowBits, streams int, input trace) (memoryResult, error) {
+func memory(quality, windowBits, streams, activationEvents int, input trace) (memoryResult, error) {
 	encoders := make([]*brotli.Writer, 0, streams)
 	writers := make([]*countingWriter, 0, streams)
 	runtime.GC()
@@ -211,11 +253,13 @@ func memory(quality, windowBits, streams int, input trace) (memoryResult, error)
 	for index := range streams {
 		writer := &countingWriter{}
 		encoder := brotli.NewWriterOptions(writer, brotli.WriterOptions{Quality: quality, LGWin: windowBits})
-		if _, err := encoder.Write(input.events[index%len(input.events)]); err != nil {
-			return memoryResult{}, err
-		}
-		if err := encoder.Flush(); err != nil {
-			return memoryResult{}, err
+		for eventIndex := range activationEvents {
+			if _, err := encoder.Write(input.events[(index+eventIndex)%len(input.events)]); err != nil {
+				return memoryResult{}, err
+			}
+			if err := encoder.Flush(); err != nil {
+				return memoryResult{}, err
+			}
 		}
 		writers = append(writers, writer)
 		encoders = append(encoders, encoder)
@@ -231,6 +275,7 @@ func memory(quality, windowBits, streams int, input trace) (memoryResult, error)
 		WindowBits:             windowBits,
 		Trace:                  input.name,
 		Streams:                streams,
+		ActivationEvents:       activationEvents,
 		HeapLiveAllocations:    after.Mallocs - after.Frees - (before.Mallocs - before.Frees),
 		HeapBytes:              retained,
 		HeapBytesPerStream:     perStream,
@@ -340,10 +385,14 @@ func main() {
 			}
 		}
 	case "memory":
-		if len(os.Args) != 6 {
-			panic("usage: footprint memory Q W STREAMS TRACE")
+		if len(os.Args) != 6 && len(os.Args) != 7 {
+			panic("usage: footprint memory Q W STREAMS TRACE [ACTIVATION_EVENTS]")
 		}
-		emit(memory(integer(os.Args[2], "quality"), integer(os.Args[3], "window bits"), integer(os.Args[4], "streams"), selectTrace(os.Args[5])))
+		activationEvents := 1
+		if len(os.Args) == 7 {
+			activationEvents = integer(os.Args[6], "activation events")
+		}
+		emit(memory(integer(os.Args[2], "quality"), integer(os.Args[3], "window bits"), integer(os.Args[4], "streams"), activationEvents, selectTrace(os.Args[5])))
 	case "steady":
 		if len(os.Args) != 6 {
 			panic("usage: footprint steady Q W TRACE EVENTS")
