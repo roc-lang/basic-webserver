@@ -78,55 +78,87 @@ pub struct PersistentBrotli {
 pub struct ExplicitBrotli {
     state: Option<BrotliEncoderStateStruct<StandardAlloc>>,
     max_segment_bytes: usize,
+    output: Vec<u8>,
 }
 
 impl ExplicitBrotli {
     pub fn new(max_segment_bytes: usize) -> Self {
-        Self::new_with_parameters(max_segment_bytes, BROTLI_QUALITY, BROTLI_WINDOW_BITS)
+        Self::with_settings(max_segment_bytes, BROTLI_QUALITY, BROTLI_WINDOW_BITS)
     }
 
+    /// Compatibility constructor used by the real-browser harness.
     pub fn new_with_parameters(max_segment_bytes: usize, quality: u32, window_bits: u32) -> Self {
+        Self::with_settings(max_segment_bytes, quality, window_bits)
+    }
+
+    pub fn with_settings(max_segment_bytes: usize, quality: u32, window_bits: u32) -> Self {
+        assert!(quality <= 11, "Brotli quality must be in 0..=11");
+        assert!(
+            (10..=24).contains(&window_bits),
+            "standard Brotli window bits must be in 10..=24"
+        );
         let mut state = BrotliEncoderStateStruct::new(StandardAlloc::default());
         assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality));
-        assert!(state.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, window_bits));
+        assert!(state.set_parameter(
+            BrotliEncoderParameter::BROTLI_PARAM_LGWIN,
+            window_bits
+        ));
         Self {
             state: Some(state),
             max_segment_bytes,
+            output: Vec::with_capacity(max_segment_bytes.min(4096)),
         }
     }
 
     pub fn encode_event(&mut self, framed_event: &[u8]) -> io::Result<Bytes> {
-        let mut encoded = Vec::new();
-        self.operation(
+        Ok(Bytes::copy_from_slice(
+            self.encode_event_reusable(framed_event)?,
+        ))
+    }
+
+    /// Encode and flush one event into storage retained by this encoder.
+    ///
+    /// The returned bytes are valid until the next mutable operation. A body
+    /// adapter must copy them into an already-reserved frame or otherwise
+    /// transfer ownership before calling this encoder again.
+    pub fn encode_event_reusable(&mut self, framed_event: &[u8]) -> io::Result<&[u8]> {
+        self.output.clear();
+        Self::operation(
+            self.state.as_mut().expect("live encoder has state"),
+            self.max_segment_bytes,
             BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
             framed_event,
-            &mut encoded,
+            &mut self.output,
         )?;
-        self.operation(
+        Self::operation(
+            self.state.as_mut().expect("live encoder has state"),
+            self.max_segment_bytes,
             BrotliEncoderOperation::BROTLI_OPERATION_FLUSH,
             &[],
-            &mut encoded,
+            &mut self.output,
         )?;
-        Ok(Bytes::from(encoded))
+        Ok(&self.output)
     }
 
     pub fn finish(mut self) -> io::Result<Bytes> {
-        let mut encoded = Vec::new();
-        self.operation(
+        self.output.clear();
+        Self::operation(
+            self.state.as_mut().expect("live encoder has state"),
+            self.max_segment_bytes,
             BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
             &[],
-            &mut encoded,
+            &mut self.output,
         )?;
-        Ok(Bytes::from(encoded))
+        Ok(Bytes::from(std::mem::take(&mut self.output)))
     }
 
     fn operation(
-        &mut self,
+        state: &mut BrotliEncoderStateStruct<StandardAlloc>,
+        max_segment_bytes: usize,
         operation: BrotliEncoderOperation,
         input: &[u8],
         encoded: &mut Vec<u8>,
     ) -> io::Result<()> {
-        let state = self.state.as_mut().expect("live encoder has state");
         let mut available_in = input.len();
         let mut input_offset = 0;
         let mut total_out = Some(0);
@@ -138,8 +170,7 @@ impl ExplicitBrotli {
         loop {
             let before_input = available_in;
             let before_output = encoded.len();
-            let remaining = self
-                .max_segment_bytes
+            let remaining = max_segment_bytes
                 .checked_sub(encoded.len())
                 .ok_or_else(|| io::Error::other("bounded Brotli segment output exhausted"))?;
             if remaining == 0 {
