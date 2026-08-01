@@ -114,7 +114,7 @@ listener accounting, deadlines, HTTP/2 flow control, and cancellation.
 The next fixture replaces that copy with one preallocated vector whose custom
 `Buf` frame returns the slot and wakes the producer from `Drop`. It compares a
 candidate internal `ServerData::Pooled` wrapper with the compatibility path
-required by today's `ServerBody::Data = Bytes`.
+required by the former `ServerBody::Data = Bytes`.
 
 ```sh
 cargo build --manifest-path research/datastar-transport/Cargo.toml --release --bin brotli_footprint
@@ -133,3 +133,25 @@ abandoned reservations, queued frames, and transport-owned frames, including
 waking a blocked producer. Raw results and the resulting internal type decision
 are in
 [`datastar-frame-ownership-findings.md`](../../docs/research/datastar-frame-ownership-findings.md).
+
+## Production body allocation follow-up
+
+The controlled fixture drives the production-internal `SseBody`, production
+`ServerData` pool, and production resumable encoder. It reuses one item and one
+frame slot, warms one persistent stream for 2,048 events, and counts the next
+10,000 events. Stream construction and FINISH are outside the window.
+
+```sh
+cargo build --manifest-path research/datastar-transport/Cargo.toml --release --bin brotli_footprint
+research/datastar-transport/target/release/brotli_footprint production-body identity 10000
+research/datastar-transport/target/release/brotli_footprint production-body q1-standard 10000
+research/datastar-transport/target/release/brotli_footprint production-body q1 10000
+research/datastar-transport/target/release/brotli_footprint production-body q3 10000
+```
+
+Identity, recycled q1, and standard q3 make zero calls to the counted global
+allocator. Standard q1 makes four allocations and requests 14,096 bytes per
+event; the bounded 256 KiB recycler removes them without changing frame or wire
+counts. The body also passes normal H1/H2 and stalled-H2 cancellation tests.
+Raw results and remaining boundaries are in
+[`datastar-production-body-findings.md`](../../docs/research/datastar-production-body-findings.md).

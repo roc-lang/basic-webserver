@@ -1,6 +1,6 @@
 # Datastar research synthesis and spike contract
 
-Status: production data seam passed; live body transaction is the critical path
+Status: production body passed with scripted source; Roc source integration is critical
 
 Date: 2026-08-02
 
@@ -48,26 +48,24 @@ transport integration research, subject to controlled performance, upstream
 compiler design, cross-target, and end-to-end gates. The allocating
 explicit-state path remains only a lifecycle fallback.
 
-The research is therefore refocused. Retained callable allocation and internal
-Hyper body-data ownership are no longer the leading feasibility questions. The
-critical path is one production body transaction which carries a bounded Roc
-item through validation, canonical SSE
-framing, optional Brotli, an owned output frame, Hyper flow control, and
-cancellation without unbounded buffering or steady-state allocation. Compiler
-upstreaming remains a parallel release dependency, not the work which should
-hold up transport integration research.
+The research is therefore refocused. Retained callable allocation, internal
+Hyper body-data ownership, and the scripted production body transaction are no
+longer the leading feasibility questions. The critical path is connecting the
+selected retained Roc machine to that body while preserving the proven
+reservation-before-advance, cancellation, and zero-allocation invariants.
+Compiler upstreaming remains a parallel release dependency, not the work which
+should hold up host integration research.
 
 ## Refocused objective hierarchy
 
 The next work is ordered by the earliest uncertainty which could invalidate the
 architecture:
 
-1. **P0 — bounded production body transaction.** Prove in the real
-   `ServerBody` path that encoder state advances only after one fixed output
-   frame is reserved, that PROCESS and FLUSH can pause across frames, and that
-   stopped readers bound retained bytes. Cancellation must release the pending
-   framed item, encoder, frame reservation, and returned Roc machine through
-   one idempotent close path.
+1. **P0 — retained Roc source transaction.** Implement `SseItemSource` for the
+   selected Roc machine ABI. The production body already reserves before
+   source polling and encoder mutation; now prove that pending and returned Roc
+   states join body error, deadline, disconnect, and shutdown through the same
+   idempotent close path without allocation or double drop.
 2. **P1 — listener and scheduler isolation.** Carry the transaction through
    the response authority, request accounting, deadlines, graceful shutdown,
    HTTP/1.1, and HTTP/2. A stopped stream must not grow its queue or degrade an
@@ -81,11 +79,11 @@ architecture:
    only after the body ownership model is real, then compare representative Roc
    applications with Go and finish the Chromium/WebKit/proxy matrix.
 
-The P0 gate closes only with a real-body test which forces multiple output
-frames, repeatedly reaches backpressure, proves incremental decode after
-FLUSH, proves normal FINISH and cancellation-without-FINISH, and reports live
-frame/byte/encoder/machine accounting returning to zero. A compressor-only
-test or an observed maximum output size is insufficient.
+The host-only parts of that P0 gate now pass: the real body forces multiple
+output frames, repeatedly reaches backpressure, incrementally decodes after
+FLUSH, normally FINISHes, cancels without FINISH, and returns frame/item/encoder
+accounting to zero. P0 still requires the same proof with the actual retained
+Roc machine plus admission, request tracking, and shutdown accounting.
 
 ## Decisions we can make now
 
@@ -271,10 +269,25 @@ The internal sum type is now used by the real listener, tracked body, native
 file body, telemetry, and manual H2 sender. A 4,096-byte pooled frame passes a
 seven-byte H2 flow-control window and returns its sole pool slot; all 172 host
 tests and all 52 live runtime specification cases pass. This closes the
-body-data compatibility seam, but does **not** close P0: the live SSE body has
-not yet joined resumable encoding, pool accounting, deadlines, request
-accounting, and cancellation through one close path. See
+body-data compatibility seam. The live-body follow-up below then joins
+resumable encoding, pool accounting, and response deadlines; retained Roc
+state and global request/shutdown accounting remain outside that fixture. See
 [`datastar-frame-ownership-findings.md`](datastar-frame-ownership-findings.md).
+
+The production-body follow-up connects that seam to a pull source and the
+resumable encoder. With one seven-byte slot, normal q3 responses pass the real
+H1 path and the manual H2 path under a seven-byte flow-control window. A stalled
+H2 reader hits the response deadline, cancels the source exactly once, aborts
+Brotli without FINISH, and returns pending item, encoder, reserved-frame, and
+transport-owned-frame accounting to zero.
+
+After 2,048 warmup events, a 10,000-event counted window through the production
+body makes zero allocation/deallocation calls for identity, recycled
+q1/LGWin11, and standard q3/LGWin12. The controlled standard-q1 comparison
+makes 40,000 allocations requesting 140,960,000 bytes; the production 256 KiB
+fixed-slot scratch recycler removes them without changing frame or wire counts.
+See
+[`datastar-production-body-findings.md`](datastar-production-body-findings.md).
 
 ## Go comparison: where the target stands
 
@@ -286,7 +299,7 @@ accounting, and cancellation through one close path. See
 | Normal Brotli close | Rust spike FINISHes; Go SDK API leaves stream unfinished | Keep stronger lifecycle |
 | Brotli encoder time | Selected Rust profiles beat matched Go by 1.22–1.47x at non-identical wire sizes | Focus next work on integration and bounds |
 | Brotli retained state | q1 and q3 focused results meet/beat matched Go under stated accounting caveat | Use explicit profile capacity |
-| Owned response frames | Disposable identity/q1/q3 reaches zero steady allocations; production `ServerData` preserves ordinary responses and returns a pooled frame after incremental H2 flow control | Integrate the live SSE body and repeat full-path allocation/accounting through the listener |
+| Production SSE body | Identity, recycled q1, and standard q3 reach zero measured steady allocations; normal H1/H2 and stalled-H2 cancellation pass with one slot | Connect the retained Roc source and global admission/shutdown accounting; then count the complete Hyper/socket path |
 | Roc retained-callable transition | Representative 1.46 ns/step; zero instrumented allocator/free calls on the unique compatible path | Allocation feasibility passes; controlled and end-to-end performance remain |
 | Go references | Functional source-shape fixture allocates once; aggressive mutable-pointer fixture does not and is slightly faster | Neither fixture alone is the production acceptance contract |
 | Roc explicit-state transition | Current representative speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | Keep only as lifecycle fallback |
@@ -364,20 +377,20 @@ bounded CPU executor without compromising ordering and cancellation.
 
 ## Remaining feasibility spikes
 
-### A. Live production body transaction
+### A. Retained Roc source transaction
 
-Connect the resumable identity/q1/q3 encoder to the production
-`ServerData::Pooled` path. Preserve explicit free/reserved/queued/
-transport-owned accounting, advance PROCESS/FLUSH/FINISH only after reserving a
-frame, and join body drop, deadline, disconnect, and shutdown through one
-idempotent close path. Repeat allocation and cancellation measurements through
-the live listener. This is the current highest-value spike.
+Implement the production `SseItemSource` adapter for the selected retained Roc
+machine. Preserve the body's reservation-before-poll invariant and prove that
+pending and returned machines, framed items, callback capacity, and nested Roc
+resources are released exactly once on body error, deadline, disconnect, and
+shutdown. This is the current highest-value spike.
 
 ### B. Real listener and H2 isolation
 
-Integrate that body with request accounting, deadlines, graceful shutdown, and
-HTTP/1.1 and HTTP/2 flow control. Prove a fixed high-water mark for stopped
-readers and isolation of an unrelated H2 stream and ordinary requests.
+Admit that body and its encoder through finite host resources before response
+commitment. Integrate request accounting, declarative wakes, heartbeat, and
+graceful shutdown. Prove a fixed high-water mark for stopped readers and
+isolation of an unrelated H2 stream and ordinary requests.
 
 ### C. End-to-end scheduler and scale
 

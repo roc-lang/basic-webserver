@@ -937,7 +937,8 @@ SSE body implementation. The low-level adapter has proven progressive decoding
 and explicit FINISH/abort behavior. The resumable follow-up has also removed
 the need for a whole-item repeated-FLUSH bound. The custom-`Buf` follow-up also
 proves zero-allocation owned-frame reuse in the disposable body. Production
-`ServerData` integration and full-path allocation/accounting remain open.
+`ServerData` and scripted `SseBody` integration now pass; retained Roc source,
+global admission/shutdown, and complete Hyper/socket accounting remain open.
 
 ### Reverse proxy
 
@@ -1953,6 +1954,31 @@ tracked/native bodies and incremental HTTP/2 flow control. It has not yet been
 connected to a live SSE producer, resumable encoder, or unified cancellation
 path. The focused evidence and limitations are in
 [`docs/research/datastar-frame-ownership-findings.md`](research/datastar-frame-ownership-findings.md).
+
+### 2026-08-02: The production body transaction reaches zero steady allocations
+
+The production-internal `SseBody` reserves one fixed frame before polling its
+bounded source and before every identity copy or Brotli PROCESS, FLUSH, and
+FINISH call. It has no intermediate queue. Free, reserved, and
+transport-owned slots are separately observable, and body failure or drop
+cancels the source and aborts Brotli without emitting a tail.
+
+With one seven-byte slot, normal q3 passes the real H1 path and the manual H2
+path under a seven-byte flow-control window. A stalled H2 reader reaches the
+response deadline and returns source, item, encoder, reservation, and
+transport-owned frame accounting to zero. Oversized framed items fail before
+encoding.
+
+In a 10,000-event window after 2,048 warmup events, the production body makes
+zero allocator/deallocator calls for identity, recycled q1/LGWin11, and
+standard q3/LGWin12. Standard q1 makes four Brotli scratch allocations per
+event—40,000 calls and 140,960,000 requested bytes in the same run. The bounded
+256 KiB recycler removes them without changing frame or wire counts.
+
+This advances the critical path to the retained Roc `SseItemSource` adapter,
+finite stream/encoder admission, request and shutdown accounting, mixed-stream
+isolation, and full Hyper/socket measurements. Detailed evidence is in
+[`docs/research/datastar-production-body-findings.md`](research/datastar-production-body-findings.md).
 
 ### 2026-08-01: Research converges conditionally on the state ABI
 

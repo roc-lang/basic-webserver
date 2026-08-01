@@ -199,6 +199,12 @@ The owned-frame follow-up then measured the remaining compatibility cost:
 for identity, recycled q1, and standard q3. The production host now uses that
 sum type across ordinary, native, tracked, and HTTP/2 response paths. A pooled
 frame survives a seven-byte H2 window and returns its slot, while all 172 host
-tests and 52 live runtime cases pass. The next P0 question is now the integrated
-SSE transaction: resumable encoding, fixed pool backpressure, request/deadline
-accounting, and cancellation through the production listener.
+tests and 52 live runtime cases pass.
+
+The production-body follow-up now completes the host-only transaction with a
+scripted pull source. Identity, recycled q1, and standard q3 make zero measured
+steady allocator calls; normal H1/H2 and stalled-H2 cancellation pass with one
+slot. Standard q1 attributes four scratch allocations and 14,096 requested
+bytes per event, all removed by the production recycler. The next P0 question
+is the retained Roc source adapter plus global admission, request, and shutdown
+accounting.

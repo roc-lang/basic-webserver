@@ -1,6 +1,6 @@
 # SSE owned-frame allocation findings
 
-Status: production data seam validated; live SSE body not yet implemented.
+Status: production body and owned-frame transaction validated with a scripted source.
 This work does not change `design.md`.
 
 ## Conclusion
@@ -61,10 +61,11 @@ Validation with Zig compiler `debug-e1d283cb` passed:
 - all 215 platform tests; and
 - all 52 live x64musl runtime specification cases.
 
-This closes the internal data-type compatibility question. It does not yet
-close the end-to-end allocation or lifecycle gate: no production SSE body uses
-the pool, resumable encoder, request accounting, deadlines, or unified close
-path yet.
+This closes the internal data-type compatibility question. The follow-up
+production body now uses the pool and resumable encoder through real H1/H2
+paths and reaches zero measured steady allocations for identity, recycled q1,
+and standard q3. The retained Roc source, admission, request accounting, and
+shutdown lifecycle remain open.
 
 ## Exact allocation result
 
@@ -125,21 +126,13 @@ Unsafe access to bytes' private vtable, leaking slabs, or relying on Hyper to
 drop a frame before its next poll are rejected. They would replace a measured
 small allocation with an undocumented lifetime assumption.
 
-## Remaining production-body spike
+## Follow-up production-body result
 
-1. Connect the resumable identity/q1/q3 SSE body to the production
-   `ServerData::Pooled` path.
-2. Keep each stream's pool finite and separately account free, reserved,
-   queued, and transport-owned slots. Saturation returns `Pending`; frame drop
-   wakes the producer.
-3. Put that body through a real listener. Stop a reader after the pool fills
-   and prove the byte/frame high-water remains fixed.
-4. Cancel before encoding, during PROCESS, during FLUSH, while queued, and while
-   transport-owned. All frame, encoder, and request accounting must return to
-   zero through the unified close path.
-5. Measure full-path allocations and latency with realistic changing corpora
-   and enough slots for real H2 behavior; then test an unrelated H2 stream and
-   ordinary-request p99.
+The body integration, live H1/H2 lifecycle, slow-reader timeout, and production
+allocation results are in
+[`datastar-production-body-findings.md`](datastar-production-body-findings.md).
+The next ownership gate is the real retained Roc source adapter rather than the
+frame representation.
 
 Raw output is in
 [`2026-08-02-frame-ownership.jsonl`](../../research/datastar-transport/results/2026-08-02-frame-ownership.jsonl)
