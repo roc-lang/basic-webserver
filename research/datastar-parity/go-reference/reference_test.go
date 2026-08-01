@@ -266,13 +266,16 @@ func BenchmarkOfficialSDKFinite(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/%d", tc.name, size), func(b *testing.B) {
 				b.ReportAllocs()
 				b.SetBytes(int64(len(payload)))
+				var wireBytes int64
 				for range b.N {
 					w := &countingWriter{}
 					sse := newSSE(w, request(1, "br"), tc.coding)
 					if err := sse.PatchElements(payload); err != nil {
 						b.Fatal(err)
 					}
+					wireBytes += w.bytes
 				}
+				b.ReportMetric(float64(wireBytes)/float64(b.N), "wire-B/response")
 			})
 		}
 	}
