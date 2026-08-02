@@ -60,6 +60,16 @@ consumed, which removes stale process-global slot reuse from the measurement,
 but a production feasibility spike must move the sole deposit into generated
 platform code and ensure user transition code never receives the capability.
 
+The focused
+[`private-sink-spike`](../../private-sink-spike/README.md) now demonstrates
+that corrected source boundary. An exposed `Sse.unfold!` wraps a user
+transition returning next application state; a hidden platform capability is
+available only to the wrapper's `advance_for_host!` conversion hook. Roc
+`check`, an optimized archive build, and C glue generation pass on
+`debug-e1d283cb`. Runtime lifecycle and allocation measurement of that corrected
+wrapper remain deliberately open while work moves to the preferred composite
+compiler fix.
+
 ## Observations
 
 Both development and speed runs pass the complete lifecycle matrix:
@@ -129,8 +139,10 @@ Until that feature exists, the safe composite result costs one allocation and
 free per emitted item. The private one-shot cell is the only measured
 allocation-free speed-path alternative, but it splits the logical result over a
 hosted deposit and direct return. It may be selected only after removing the
-fixture's mutex distortion and proving exactly-once deposit, post-return join,
-cancellation, and private platform-only visibility in the production adapter.
+low-level fixture's application-visible capability and proving exactly-once
+deposit, post-return join, cancellation, and the corrected platform wrapper's
+allocation cost in the production adapter. The source-only private fixture now
+proves the intended visibility boundary, not those runtime properties.
 
 The complete scheduler and body contract is in
 [`../../datastar-retained-source-contract.md`](../../datastar-retained-source-contract.md).

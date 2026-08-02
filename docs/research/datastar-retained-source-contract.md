@@ -106,6 +106,15 @@ adds one hosted crossing and splits one logical result across two ABI actions.
 It is selected only by equivalent lifecycle tests and a material measured win,
 never merely because it is easier for the current compiler.
 
+A minimal source-only fixture now proves the intended privacy topology is
+expressible: `Sse.unfold!` wraps a user transition whose result contains next
+application state rather than a next machine; the platform-owned wrapper alone
+receives the hidden sink capability, deposits the lowered result, and directly
+returns its next stream. Check, optimized archive build, and generated C ABI
+pass. Runtime ownership and allocation measurements remain open, so this does
+not select the alternative. See
+[`private-sink-spike`](private-sink-spike/README.md).
+
 ## Production adapter state
 
 One admitted source owns exactly one of these states:

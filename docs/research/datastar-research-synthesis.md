@@ -400,7 +400,9 @@ callable boundary. Measure allocations and batch-one cost separately from item
 construction. Exercise aliased static items, unique changing items, both
 destruction orders, and Continue, Wait, End, and Error. Compare the private
 one-shot result slot only as the bounded alternative defined in the
-[retained-source contract](datastar-retained-source-contract.md).
+[retained-source contract](datastar-retained-source-contract.md). Its corrected
+platform-private source topology now check/build/glue passes, but runtime
+lifecycle and allocation evidence remain open.
 
 ### B. Retained Roc source transaction
 

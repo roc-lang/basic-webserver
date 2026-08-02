@@ -2011,6 +2011,13 @@ until the final identity frame is committed or Brotli FLUSH completes. The
 complete state machine, ordering, and acceptance matrix are in
 [`docs/research/datastar-retained-source-contract.md`](research/datastar-retained-source-contract.md).
 
+A source-only follow-up moves that deposit into a platform-owned
+`Sse.unfold!` wrapper: the application transition sees only typed state and
+wake, while the hidden one-shot capability appears only in the host conversion
+hook. Check, optimized archive build, and generated C ABI pass. Its runtime
+lifecycle and allocation cost remain unmeasured, so the composite result stays
+preferred and compiler work remains the immediate gate.
+
 ### 2026-08-01: Research converges conditionally on the state ABI
 
 The independent protocol, browser/transport, compression, and ABI tracks agree
