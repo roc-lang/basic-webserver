@@ -1,6 +1,7 @@
 # Datastar research synthesis and spike contract
 
-Status: production body passed; the production-shaped Roc source ABI is critical
+Status: production body and composite-callable reuse passed; consuming glue and
+the retained scheduler transaction are critical
 
 Date: 2026-08-02
 
@@ -35,6 +36,13 @@ The research supports a coherent first-class SSE and Datastar design for
 
 This is enough agreement to proceed with focused implementation spikes. It is
 not enough to accept the scope change in `design.md` or ship a public API.
+`design.md` deliberately excludes application-defined SSE runtimes and
+Roc-produced incremental responses. The experiment can invalidate that
+assumption only by proving a narrower exception: a closed native response plan
+whose finite Roc transitions remain request-local while the host owns and
+bounds every long-lived transport, scheduling, timer, compression, and
+shutdown resource. A generic writer, callback registry, detached task, or
+application scheduler fails the product-scope gate even if it benchmarks well.
 
 The preferred boxed-callable ABI passes the complete local lifecycle through
 generated provided wrappers. A follow-up compiler prototype on Roc main
@@ -47,22 +55,29 @@ reference is slightly faster.
 
 The production-shaped result is a materially different compiler boundary. A
 step returns framed bytes, its next callable, and its next wake inside a tagged
-record. On compiler `debug-e1d283cb`, that composite transition allocates and
-frees one 80-byte continuation envelope per emitted item even though the item
-is shared static storage. The direct result therefore did not close the
-allocation gate. A first attempt to broaden reuse also proved that result
-ordering matters: overwriting the old capture before evaluating sibling fields
-silently changed the returned wake value; a later candidate let ARC free a
-capture still borrowed by the result construction and segfaulted.
+record. On compiler `debug-e1d283cb`, that composite transition allocated and
+freed one 80-byte continuation envelope per emitted item even though the item
+was shared static storage. The first attempted fixes exposed sibling-read and
+capture-lifetime hazards rather than closing the gate.
 
-The research is therefore refocused on the exact composite transaction. The
-critical path is a safe, allocation-free nested-callable ownership transfer,
-then a scheduler adapter that preserves reservation-before-advance,
-drain-before-wake, and cancellation invariants. Internal Hyper body-data
-ownership and the scripted production body are no longer leading feasibility
-questions. Compiler work is now a P0 prerequisite unless the separately
-measured private one-shot result-slot alternative proves materially better.
-The allocating explicit-state path remains only a lifecycle fallback. See the
+Roc candidate `d4921d8658` now closes that compiler feasibility question. It
+threads one selected aggregate callable destination through lowering with
+explicit ownership provenance and snapshots every old-capture dependency
+before reuse. Seven 100,000-step samples report zero allocator calls, frees,
+or requested bytes per transition at 61.45--61.58 ns/step. The lifecycle run
+ends with 174 allocations, 174 deallocations, and zero live allocations, and
+the compiler's interpreter, development, Wasm, LLVM, eval, and build-ci suites
+pass. The candidate is under review in
+[`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
+
+The research is therefore refocused on consuming the composite result safely
+and composing it with the bounded body. The immediate critical path is a
+generated consuming tag-payload projection, then a scheduler adapter that
+preserves reservation-before-advance, drain-before-wake, and cancellation
+invariants. Internal Hyper body-data ownership, resumable Brotli, and composite
+callable allocation are no longer leading feasibility questions. The private
+one-shot cell and allocating explicit-state path remain historical fallbacks,
+not parallel implementation targets. See the
 [retained-source contract](datastar-retained-source-contract.md).
 
 ## Refocused objective hierarchy
@@ -70,15 +85,16 @@ The allocating explicit-state path remains only a lifecycle fallback. See the
 The next work is ordered by the earliest uncertainty which could invalidate the
 architecture:
 
-1. **P0 — production-shaped Roc step ABI.** Make the composite
-   `Continue { item, next, wake } | Wait | End | Error` transition safe and
-   allocation-free on its unique optimized path. Keep the composite return as
-   the semantic reference. Compare a private preallocated one-shot result slot
-   only if it preserves the same atomic ownership and cancellation contract.
+1. **P0 — consuming generated step ABI.** Replace borrowed owning-field
+   accessors with a named consuming projection for
+   `Continue { item, next, wake } | Wait | End | Error`. Prove whole-step drop
+   before extraction and exactly one owner for every extracted field after it.
+   Keep compiler candidate review and the erased-call host ownership contract
+   explicit; neither permits a handwritten callable layout in the platform.
 2. **P0 — retained Roc source transaction.** Implement the scheduler adapter
-   for the selected ABI. Prove consuming result projection, pre-admission of
-   callback and byte budgets, cancellation while advancing, and exactly one
-   drain acknowledgement before the next wake is armed.
+   for that ABI. Prove pre-admission of callback, waiter, and maximum-byte
+   budgets, cancellation while advancing, and exactly one drain
+   acknowledgement before the next wake is armed.
 3. **P1 — listener and scheduler isolation.** Carry the transaction through
    the response authority, request accounting, deadlines, graceful shutdown,
    HTTP/1.1, and HTTP/2. A stopped stream must not grow its queue or degrade an
@@ -98,6 +114,19 @@ accounting to zero. The body now acknowledges `item_drained` only after the
 final identity frame is committed or Brotli FLUSH completes. The remaining P0
 proof needs the actual retained Roc machine, consuming projections, admission,
 request tracking, and shutdown accounting.
+
+## Gate status ledger
+
+| Gate | Current evidence | Status | Next falsifying test |
+| --- | --- | --- | --- |
+| Product scope | Closed native response plan and host-owned topology are specified; accepted design still excludes SSE runtimes | Open | Show the complete runtime needs no generic callback registry, detached work, or application scheduler |
+| Composite Roc transition | Candidate `d4921d8658` is allocation-free and lifecycle-balanced in the production-shaped fixture | Passed for feasibility; upstream review open | Cross-target generated-wrapper lifecycle and controlled batch-one comparison |
+| Consuming result ownership | Generated C/Rust/Zig payload accessors return owning fields from a borrowed shell | Open, immediate | Generated `take_*` projection plus whole-drop/move/drop-order tests |
+| Body/frame ownership | One-slot identity and Brotli body reaches zero steady allocations and balanced cancellation | Passed for host-only fixture | Compose one retained Roc transition across repeated body `Pending` states |
+| Admission and scheduler | State machine and resource units are specified | Open | Bounded timer/immediate scheduler with stale-wake, cancellation, and herd tests |
+| Listener/shutdown isolation | H1/H2 body paths and stalled-reader deadline pass without retained Roc state | Partial | Mixed ordinary/SSE load, global accounting, graceful drain, and unrelated-H2 isolation |
+| Brotli value | Progressive Firefox/proxy delivery and q1/q3 footprint evidence exist | Partial | Production scheduler composition, cross-target decode, Chromium/WebKit, and scale admissions |
+| Public API and scope change | Candidate Roc API is documented only | Deferred | Realistic applications and Go comparison after the ownership/runtime gates pass |
 
 ## Decisions we can make now
 
@@ -315,7 +344,7 @@ See
 | Brotli retained state | q1 and q3 focused results meet/beat matched Go under stated accounting caveat | Use explicit profile capacity |
 | Production SSE body | Identity, recycled q1, and standard q3 reach zero measured steady allocations; normal H1/H2 and stalled-H2 cancellation pass with one slot | Connect the retained Roc source and global admission/shutdown accounting; then count the complete Hyper/socket path |
 | Direct Roc retained-callable transition | Representative 1.46 ns/step; zero instrumented allocator/free calls on the unique compatible path | Useful lower bound, not the production result shape |
-| Composite Roc source transition | One 80-byte continuation allocation/free per emitted static item on `debug-e1d283cb`; lifecycle paths balance | Eliminate safely before selecting the adapter ABI |
+| Composite Roc source transition | Candidate `d4921d8658` reports zero steady allocations at 61.45--61.58 ns/step and balances the complete lifecycle | Compose through consuming generated glue and retain upstream/cross-target gates |
 | Go references | Functional source-shape fixture allocates once; aggressive mutable-pointer fixture does not and is slightly faster | Neither fixture alone is the production acceptance contract |
 | Roc explicit-state transition | Current representative speed build is 26.7 ns/event versus 1.27 ns/event unique Go at batch 1 | Keep only as lifecycle fallback |
 | Synthetic Roc allocation reuse | 16.7 ns/event at batch 1; beats Go only at batch 16 | Lower bound, not an implementation result |
@@ -328,8 +357,8 @@ for throughput but cannot be used to conceal the single-event latency gap.
 
 ## Dynamic-state ABI decision gate
 
-The compiler/glue research evaluated two end-state mechanisms, but implemented
-only the first:
+The compiler/glue research evaluated two end-state mechanisms and selected the
+first for continued feasibility work:
 
 1. The generated boxed-callable path now reuses owned machine storage across
    the erased call and recursive return in the research compiler.
@@ -346,7 +375,7 @@ recognizer does not cross its multi-branch union match. See the
 [allocation provenance note](abi-spike/results/2026-08-01-allocation-provenance.md)
 and [zero-allocation result](abi-spike/results/2026-08-01-zero-allocation-reuse.md).
 
-Either candidate must:
+The selected candidate must:
 
 - work in development and speed builds on every supported target;
 - use generated/supported ABI only, never a development runtime helper or
@@ -363,9 +392,11 @@ Either candidate must:
 - meet the end-to-end Go Datastar latency/throughput target under equivalent
   framing, compression, backpressure, cancellation, and resource bounds.
 
-If neither mechanism passes, the experiment remains blocked. The fourth
-`stream!` API may be retained for further research or an explicitly slower
-prototype, but it is not the “absolute best” first-class design requested.
+The composite boxed-callable candidate passes the local unique-allocation and
+lifecycle portion of this gate. The generated consuming projection,
+cross-target coverage, controlled Go comparison, and end-to-end composition
+remain open. The fourth `stream!` API is retained only as fallback research; it
+is not the “absolute best” first-class design requested.
 
 ## Cross-track ownership agreement
 
@@ -392,17 +423,16 @@ bounded CPU executor without compromising ordering and cancellation.
 
 ## Remaining feasibility spikes
 
-### A. Production-shaped retained Roc ABI
+### A. Consuming generated step ABI and compiler upstreaming
 
-Complete and review the safe nested-callable reuse path for the composite
-result, including read-before-overwrite ordering and ARC flow through the boxed
-callable boundary. Measure allocations and batch-one cost separately from item
-construction. Exercise aliased static items, unique changing items, both
-destruction orders, and Continue, Wait, End, and Error. Compare the private
-one-shot result slot only as the bounded alternative defined in the
-[retained-source contract](datastar-retained-source-contract.md). Its corrected
-platform-private source topology now check/build/glue passes, but runtime
-lifecycle and allocation evidence remain open.
+Generate a named consuming projection for each owning tag payload in the C,
+Rust, and Zig glue surfaces. The API must make the shell unusable after a
+successful extraction and document that branch validation precedes the move.
+Exercise whole-step drop, extracted item-first and machine-first destruction,
+aliased static and unique changing items, Continue, Wait, End, and Error. Keep
+the callable-reuse candidate and its fifth erased-call ownership argument under
+upstream review; no platform code may depend on a development helper or
+hand-maintained callable layout.
 
 ### B. Retained Roc source transaction
 
@@ -427,13 +457,12 @@ with ordinary request load. Measure stream state, encoder state, task count,
 queue high-water, wake latency, event latency, and ordinary p99. Run q1 scale,
 q3 full-compression, and identity populations separately and mixed.
 
-### E. Compiler/glue upstream and cross-target ownership
+### E. Compiler portability and cross-target ownership
 
-Resolve review of the callable candidate or replace its host-visible fifth
-argument with a generated adapter. Rerun the lifecycle fixture on supported
-targets and compare batches 1, 4, and 16 against Go 1.26.5 under controlled
-repeated-process timing. Gate on batch 1 and end-to-end results, not amortized
-batch 16 alone.
+Resolve review of the callable candidate and its host-visible fifth argument.
+Rerun the lifecycle fixture on supported targets and compare batches 1, 4, and
+16 against Go 1.26.5 under controlled repeated-process timing. Gate on batch 1
+and end-to-end results, not amortized batch 16 alone.
 
 ### F. API ergonomics and browser matrix
 
@@ -442,7 +471,7 @@ and post-commit wake examples. Compare source complexity and error plumbing to
 the official Go SDK. Run the generation-gated harness in Chromium and WebKit
 and through the eventual production deployment topology.
 
-### F. Cross-target transport and decoding
+### G. Cross-target transport and decoding
 
 Run state ownership/drop fixtures and independently decode completed and
 cancelled streams for every supported target. A target-specific semantic skip
@@ -450,8 +479,8 @@ is not acceptable for release.
 
 ## Explicitly unresolved product choices
 
-- Whether the final internal ABI is a repaired boxed callable or generated
-  opaque state adapter.
+- Whether upstream review changes the selected boxed-callable implementation;
+  the composite semantic ABI remains selected unless new evidence reopens it.
 - Whether encoding retains the Roc execution permit while a step drains or
   moves to a separately bounded CPU admission unit.
 - Whether the scale profile is selected by a server route table, a typed

@@ -1,8 +1,8 @@
 # Retained Roc SSE source contract
 
-Status: ownership contract refocused; composite-return compiler feasibility is
-proven by Roc candidate `d4921d8658`; the production scheduler adapter remains
-open and implementation research is paused.
+Status: composite-return compiler feasibility is proven by Roc candidate
+`d4921d8658`; research has resumed at the consuming projection and production
+scheduler adapter.
 
 Date: 2026-08-02
 

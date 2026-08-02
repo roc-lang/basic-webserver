@@ -62,11 +62,10 @@ native worker remains occupied while the stream is waiting.
 The original primary feasibility risk was whether the new Zig-based Roc
 compiler could safely and efficiently retain, invoke, transfer, and destroy
 stream state across provided entrypoints and host worker threads. The local
-direct-callable prototype passes its allocation/lifecycle gate, but the actual
-composite step result does not yet. Upstream review and supported-target
-coverage remain release dependencies, while the active critical path is now
-the production-shaped result ownership followed by its bounded scheduler/body
-transaction.
+direct-callable and production-shaped composite prototypes now pass their
+allocation/lifecycle gates. Upstream review and supported-target coverage
+remain release dependencies, while the active critical path is now consuming
+composite-result ownership followed by its bounded scheduler/body transaction.
 
 The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
@@ -77,10 +76,12 @@ invocation and a direct recursive callable result, then reuses it through an
 inline runtime-unique fast path. The unique compatible optimized path makes no
 calls to the instrumented Roc allocator/deallocator and has a representative
 1.46 ns median. A more realistic `Emit { item, machine, wake } | End` result
-reopens that gate: on `debug-e1d283cb` it allocates and frees one 80-byte
-continuation envelope per emitted static item. This distinguishes the direct
-lower bound from the production ABI that must pass controlled performance,
-upstream design, cross-target, and end-to-end gates.
+initially reopened that gate: on `debug-e1d283cb` it allocated and freed one
+80-byte continuation envelope per emitted static item. Candidate `d4921d8658`
+now eliminates that allocation with explicit aggregate ownership provenance
+and capture snapshotting. This selects the composite semantic ABI for the next
+spike while controlled performance, upstream design, cross-target, and
+end-to-end gates remain.
 
 The explicit-state follow-up passes the local ownership/lifecycle matrix and
 proves that route packages can keep nominal state private, but its current
@@ -2017,6 +2018,51 @@ wake, while the hidden one-shot capability appears only in the host conversion
 hook. Check, optimized archive build, and generated C ABI pass. Its runtime
 lifecycle and allocation cost remain unmeasured, so the composite result stays
 preferred and compiler work remains the immediate gate.
+
+### 2026-08-02: Aggregate callable reuse closes the compiler feasibility gate
+
+Roc candidate `d4921d8658` implements a whole-result demand for exactly one
+erased-callable ownership slot, snapshots old captures before reuse, and
+threads explicit ownership provenance through aggregate construction. In the
+production-shaped source fixture, seven 100,000-step samples report zero
+allocations, zero frees, and zero requested bytes per transition at
+61.45--61.58 ns/step. Complete lifecycle accounting ends at 174 allocations,
+174 deallocations, and zero live allocations. Interpreter, development, Wasm,
+LLVM, eval, and build-ci validation pass. The compiler work is under review in
+[`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
+
+This supersedes the allocating status above. The composite functional result
+is the selected semantic ABI; the private result cell and explicit-state paths
+remain fallbacks only if upstream evidence invalidates it. The next ownership
+gate is generated consuming projection: current glue payload accessors can
+bit-copy an owning list and callable from a borrowed step shell, which cannot
+be the production move contract.
+
+### 2026-08-02: Research resumes with a product-scope falsification gate
+
+The experiment is intentionally not treating compiler success as permission
+to add a public SSE API. The accepted `design.md` excludes Roc-produced
+incremental responses and application-defined SSE runtimes because they could
+turn the platform into a general asynchronous runtime. The remaining work must
+prove a narrower exception: one closed native response plan, finite synchronous
+Roc transitions, parked request-local state, and host-owned bounded admission,
+timers, heartbeats, backpressure, compression, cancellation, and shutdown.
+
+The immediate sequence is:
+
+1. generate and test a consuming tag-payload projection for the composite
+   source step;
+2. compose the retained Roc machine with `SseBody` through explicit
+   pre-admission and `item_drained` acknowledgement;
+3. prove timer/immediate fairness, stale-wake rejection, cancellation races,
+   and zero terminal accounting;
+4. integrate stream and compression admission with the real listener,
+   graceful shutdown, and HTTP/2 isolation; and
+5. only then select the Roc/Datastar API and propose the enduring scope change.
+
+Any design which needs a general callback registry, detached Roc work,
+application-visible socket/writer, or application scheduler fails this gate
+regardless of performance.
 
 ### 2026-08-01: Research converges conditionally on the state ABI
 
