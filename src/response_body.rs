@@ -291,6 +291,18 @@ pub(crate) trait SseItemSource: Send {
         context: &mut Context<'_>,
     ) -> Poll<io::Result<Option<Bytes>>>;
 
+    /// Acknowledge that the current logical item has been copied into identity
+    /// frames or completely FLUSHed into Brotli frames owned by the host.
+    ///
+    /// A retained Roc source uses this boundary to move its returned machine
+    /// from draining to parked and only then arm the declared next wake. It is
+    /// never called for an item abandoned by error or cancellation.
+    ///
+    /// This transition must be infallible and nonblocking. Any waiter or timer
+    /// capacity it needs must be admitted before the item is returned. It must
+    /// not synchronously advance Roc.
+    fn item_drained(self: Pin<&mut Self>);
+
     fn cancel(self: Pin<&mut Self>) {}
 }
 
@@ -473,6 +485,18 @@ impl SseBody {
     fn reservation(&self, context: &Context<'_>) -> Poll<ResponseFrameReservation> {
         self.pool.poll_reserve(context)
     }
+
+    fn acknowledge_item(&mut self) {
+        self.item = Bytes::new();
+        self.input_offset = 0;
+        self.set_pending_item_bytes(0);
+        self.phase = SsePhase::PollSource;
+        self.source
+            .as_mut()
+            .expect("live SSE body has a source")
+            .as_mut()
+            .item_drained();
+    }
 }
 
 impl Body for SseBody {
@@ -541,6 +565,7 @@ impl Body for SseBody {
                             Poll::Pending => return Poll::Pending,
                         }
                     };
+                    let mut identity_complete = false;
                     let output_bytes = if let Some(encoder) = &mut this.encoder {
                         match encoder.process(
                             &this.item,
@@ -567,10 +592,7 @@ impl Body for SseBody {
                         );
                         this.input_offset += count;
                         if this.input_offset == this.item.len() {
-                            this.item = Bytes::new();
-                            this.input_offset = 0;
-                            this.set_pending_item_bytes(0);
-                            this.phase = SsePhase::PollSource;
+                            identity_complete = true;
                         } else {
                             this.set_pending_item_bytes(this.item.len() - this.input_offset);
                         }
@@ -578,14 +600,19 @@ impl Body for SseBody {
                     };
                     if output_bytes == 0 {
                         drop(reservation);
+                        if identity_complete {
+                            this.acknowledge_item();
+                        }
                         continue;
                     }
                     if this.encoder.is_some() {
                         this.set_pending_item_bytes(this.item.len() - this.input_offset);
                     }
-                    return Poll::Ready(Some(Ok(Frame::data(ServerData::from(
-                        reservation.commit(output_bytes),
-                    )))));
+                    let frame = reservation.commit(output_bytes);
+                    if identity_complete {
+                        this.acknowledge_item();
+                    }
+                    return Poll::Ready(Some(Ok(Frame::data(ServerData::from(frame)))));
                 }
                 SsePhase::Flush => {
                     let mut reservation = match this.reservation(context) {
@@ -605,19 +632,18 @@ impl Body for SseBody {
                             return Poll::Ready(Some(Err(error)));
                         }
                     };
-                    if step.complete {
-                        this.item = Bytes::new();
-                        this.input_offset = 0;
-                        this.set_pending_item_bytes(0);
-                        this.phase = SsePhase::PollSource;
-                    }
                     if step.output_written == 0 {
                         drop(reservation);
+                        if step.complete {
+                            this.acknowledge_item();
+                        }
                         continue;
                     }
-                    return Poll::Ready(Some(Ok(Frame::data(ServerData::from(
-                        reservation.commit(step.output_written),
-                    )))));
+                    let frame = reservation.commit(step.output_written);
+                    if step.complete {
+                        this.acknowledge_item();
+                    }
+                    return Poll::Ready(Some(Ok(Frame::data(ServerData::from(frame)))));
                 }
                 SsePhase::Finish => {
                     let mut reservation = if let Some(reservation) = this.reservation.take() {
@@ -702,6 +728,8 @@ mod tests {
     struct ScriptedSource {
         items: VecDeque<Bytes>,
         cancellations: Arc<AtomicUsize>,
+        drained: Arc<AtomicUsize>,
+        polls: Arc<AtomicUsize>,
     }
 
     impl SseItemSource for ScriptedSource {
@@ -709,21 +737,43 @@ mod tests {
             mut self: Pin<&mut Self>,
             _context: &mut Context<'_>,
         ) -> Poll<io::Result<Option<Bytes>>> {
+            self.polls.fetch_add(1, Ordering::Relaxed);
             Poll::Ready(Ok(self.items.pop_front()))
         }
 
         fn cancel(self: Pin<&mut Self>) {
             self.cancellations.fetch_add(1, Ordering::Relaxed);
         }
+
+        fn item_drained(self: Pin<&mut Self>) {
+            assert_eq!(
+                self.polls.load(Ordering::Relaxed),
+                self.drained.load(Ordering::Relaxed) + 1
+            );
+            self.drained.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
-    fn scripted_source(items: Vec<Bytes>) -> (Arc<AtomicUsize>, ScriptedSource) {
+    fn scripted_source(
+        items: Vec<Bytes>,
+    ) -> (
+        Arc<AtomicUsize>,
+        Arc<AtomicUsize>,
+        Arc<AtomicUsize>,
+        ScriptedSource,
+    ) {
         let cancellations = Arc::new(AtomicUsize::new(0));
+        let drained = Arc::new(AtomicUsize::new(0));
+        let polls = Arc::new(AtomicUsize::new(0));
         (
             Arc::clone(&cancellations),
+            Arc::clone(&drained),
+            Arc::clone(&polls),
             ScriptedSource {
                 items: items.into(),
                 cancellations,
+                drained,
+                polls,
             },
         )
     }
@@ -804,7 +854,7 @@ mod tests {
                 window_bits: 12,
             },
         ] {
-            let (cancellations, source) = scripted_source(vec![event.clone()]);
+            let (cancellations, drained, polls, source) = scripted_source(vec![event.clone()]);
             let (handle, mut body) = SseBody::new(source, 128 * 1024, 1, 7, compression);
             let waker = futures::task::noop_waker();
             let mut context = Context::from_waker(&waker);
@@ -815,6 +865,9 @@ mod tests {
                     Poll::Ready(Some(Ok(frame))) => {
                         let data = frame.into_data().expect("SSE body emits data");
                         assert!(data.remaining() <= 7);
+                        if handle.stats().pending_item_bytes > 0 {
+                            assert_eq!(drained.load(Ordering::Relaxed), 0);
+                        }
                         output.extend_from_slice(data.chunk());
                         frames += 1;
                         drop(data);
@@ -834,6 +887,8 @@ mod tests {
             };
             assert_eq!(decoded, event);
             assert_eq!(cancellations.load(Ordering::Relaxed), 0);
+            assert_eq!(drained.load(Ordering::Relaxed), 1);
+            assert_eq!(polls.load(Ordering::Relaxed), 2);
             assert_eq!(
                 handle.stats(),
                 SseBodyStats {
@@ -860,7 +915,7 @@ mod tests {
     #[test]
     fn dropping_backpressured_sse_body_aborts_encoder_and_releases_state() {
         let event = Bytes::from(vec![b'x'; 64 * 1024]);
-        let (cancellations, source) = scripted_source(vec![event]);
+        let (cancellations, drained, _polls, source) = scripted_source(vec![event]);
         let (handle, mut body) = SseBody::new(
             source,
             128 * 1024,
@@ -883,6 +938,7 @@ mod tests {
         assert_eq!(handle.stats().frames.reserved_slots, 0);
         assert_eq!(handle.stats().frames.transport_owned_slots, 1);
         assert!(handle.stats().pending_item_bytes > 0);
+        assert_eq!(drained.load(Ordering::Relaxed), 0);
 
         drop(body);
         assert_eq!(cancellations.load(Ordering::Relaxed), 1);
@@ -897,8 +953,39 @@ mod tests {
     }
 
     #[test]
+    fn sse_body_acknowledges_each_item_before_polling_the_next() {
+        let first = Bytes::from_static(b"data: first\n\n");
+        let second = Bytes::from_static(b"data: second\n\n");
+        let (cancellations, drained, polls, source) =
+            scripted_source(vec![first.clone(), second.clone()]);
+        let (_handle, mut body) = SseBody::new(source, 1024, 1, 5, SseCompression::Identity);
+        let waker = futures::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
+        let mut output = Vec::new();
+
+        loop {
+            match Pin::new(&mut body).poll_frame(&mut context) {
+                Poll::Ready(Some(Ok(frame))) => {
+                    let data = frame.into_data().expect("SSE body emits data");
+                    output.extend_from_slice(data.chunk());
+                    drop(data);
+                }
+                Poll::Ready(Some(Err(error))) => panic!("SSE body failed: {error}"),
+                Poll::Ready(None) => break,
+                Poll::Pending => panic!("ready source and released frame must progress"),
+            }
+        }
+
+        assert_eq!(output, [first.as_ref(), second.as_ref()].concat());
+        assert_eq!(drained.load(Ordering::Relaxed), 2);
+        assert_eq!(polls.load(Ordering::Relaxed), 3);
+        assert_eq!(cancellations.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
     fn oversized_sse_item_fails_before_encoding_and_releases_reservation() {
-        let (cancellations, source) = scripted_source(vec![Bytes::from_static(b"too large")]);
+        let (cancellations, drained, _polls, source) =
+            scripted_source(vec![Bytes::from_static(b"too large")]);
         let (handle, mut body) = SseBody::new(source, 4, 1, 7, SseCompression::Identity);
         let waker = futures::task::noop_waker();
         let mut context = Context::from_waker(&waker);
@@ -907,6 +994,7 @@ mod tests {
             .expect_err("oversized item must be rejected");
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert_eq!(cancellations.load(Ordering::Relaxed), 1);
+        assert_eq!(drained.load(Ordering::Relaxed), 0);
         let stats = handle.stats();
         assert!(stats.failed);
         assert!(!stats.cancelled);

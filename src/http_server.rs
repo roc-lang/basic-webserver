@@ -2023,6 +2023,8 @@ mod tests {
             Poll::Ready(Ok(self.item.take()))
         }
 
+        fn item_drained(self: Pin<&mut Self>) {}
+
         fn cancel(self: Pin<&mut Self>) {
             self.cancellations.fetch_add(1, Ordering::Relaxed);
         }

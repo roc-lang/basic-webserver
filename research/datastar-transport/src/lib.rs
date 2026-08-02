@@ -1361,6 +1361,8 @@ impl response_body::SseItemSource for ControlledSseSource {
         Poll::Pending
     }
 
+    fn item_drained(self: Pin<&mut Self>) {}
+
     fn cancel(self: Pin<&mut Self>) {
         self.state
             .lock()
