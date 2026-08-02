@@ -1,12 +1,30 @@
 # Retained Roc SSE source contract
 
-Status: composite-return compiler feasibility and Rust consuming projection
-are proven by Roc candidates `d4921d8658` and `be78e95c42`; research has
-resumed at the production scheduler adapter and retained-resource bound.
+Status: composite-callable compiler feasibility and Rust consuming projection
+are proven by Roc candidates `d4921d8658` and `be78e95c42`; arbitrary retained
+callable capture is no longer the preferred product state model because its
+transitive resources cannot be admitted with the current ABI.
 
 Date: 2026-08-02
 
 This work does not change `design.md` and does not select the public API.
+
+## Product-state conclusion
+
+This document remains the exact ownership record for the callable experiment.
+Adversarial resource review subsequently found that its safety and allocation
+results do not provide a persistent byte bound. The allocator cannot attribute
+a transitive graph to one machine, and the erased ABI provides no alias-aware
+size visitor. Outer allocation size, allocation deltas, and application
+estimates are not enforceable substitutes.
+
+The preferred next product slice therefore uses one fixed `advance_sse!`
+entrypoint over a host-owned bounded byte cursor, with fresh `Context` supplied
+to every invocation. The composite callable work remains valid compiler
+evidence and the generated consuming projection remains directly useful for
+moving the callback's Step result. Arbitrary typed unfold remains blocked on a
+future allocation-domain/graph-visitation design. See the
+[bounded-cursor next slice](datastar-next-slice.md).
 
 ## Why the next gate changed
 
@@ -70,7 +88,7 @@ candidates; the production transaction remains open:
 2. implement a bounded asynchronous adapter whose state, retained capture
    admission, and acknowledgements match the body transaction exactly.
 
-## Preferred internal ABI
+## Callable ABI proven by this experiment
 
 The semantic reference remains a composite result:
 
@@ -138,6 +156,11 @@ not select the alternative. See
 [`private-sink-spike`](private-sink-spike/README.md).
 
 ## Production adapter state
+
+The lifecycle below was derived with a callable owner. The selected cursor
+slice preserves the states and acknowledgements but replaces each parked/next
+machine with a fixed source ID plus an admitted host cursor. It does not retain
+an arbitrary Roc graph.
 
 One admitted source owns exactly one of these states:
 
