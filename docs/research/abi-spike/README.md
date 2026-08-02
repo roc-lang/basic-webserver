@@ -70,6 +70,18 @@ The ownership propagation, backend fixes, zero-allocation result, and matched
 Go comparison are in
 [`results/2026-08-01-zero-allocation-reuse.md`](results/2026-08-01-zero-allocation-reuse.md).
 
+The direct result is not the production source ABI. A 2026-08-02 follow-up
+returns an owned static item, next callable, and wake inside an `Emit | End`
+result while capturing an opaque host resource. Its lifecycle paths balance,
+but optimized `debug-e1d283cb` allocates and frees one 80-byte next-callable
+envelope per emitted item. A private one-shot host result cell preserves the
+direct callable's zero-allocation optimized path in the fixture, but remains an
+alternative rather than the selected design. Two attempted aggregate reuse
+transformations were rejected after one corrupted a sibling result field and
+one produced a capture use-after-free/segfault. Exact measurements, ownership
+limits, and the required compiler proof are in
+[`results/2026-08-02-composite-source.md`](results/2026-08-02-composite-source.md).
+
 The benchmark is not an end-to-end SSE or Go comparison. Its allocation
 counters use atomics in the allocator and therefore perturb allocation-heavy
 timings. It exists to choose the next design spike and to detect large ABI or

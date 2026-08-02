@@ -206,5 +206,13 @@ scripted pull source. Identity, recycled q1, and standard q3 make zero measured
 steady allocator calls; normal H1/H2 and stalled-H2 cancellation pass with one
 slot. Standard q1 attributes four scratch allocations and 14,096 requested
 bytes per event, all removed by the production recycler. The next P0 question
-is the retained Roc source adapter plus global admission, request, and shutdown
-accounting.
+is no longer only the retained Roc source adapter. The direct
+`machine -> machine` fixture is allocation-free in optimized builds, but the
+production-shaped tagged result containing item, next machine, and wake
+allocates one 80-byte continuation envelope per emitted static item on
+`debug-e1d283cb`. The P0 gate is now two parts: first prove safe zero-allocation
+ownership transfer for that composite result (or a strictly bounded private
+one-shot result slot), then integrate the retained adapter with global
+admission, request, drain acknowledgement, and shutdown accounting. The exact
+contract and acceptance matrix are in
+[`datastar-retained-source-contract.md`](datastar-retained-source-contract.md).

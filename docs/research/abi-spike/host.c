@@ -12,6 +12,7 @@
 #include <time.h>
 
 static _Atomic uint64_t allocation_calls;
+static _Atomic uint64_t allocation_bytes;
 static _Atomic uint64_t deallocation_calls;
 static _Atomic uint64_t reallocation_calls;
 static _Atomic int64_t live_allocations;
@@ -47,6 +48,19 @@ struct ResourceEntry {
 static pthread_mutex_t resource_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct ResourceEntry resources[MAX_TRACKED_RESOURCES];
 
+#define STEP_SINK_MAGIC UINT64_C(0x5353455354455031)
+struct PublishedStep {
+    bool occupied;
+    uint8_t kind;
+    RocList item;
+    uint64_t wait_millis;
+};
+
+struct StepSink {
+    uint64_t magic;
+    struct PublishedStep step;
+};
+
 static void fail(const char *message) {
     fprintf(stderr, "ABI SPIKE FAILED: %s\n", message);
     abort();
@@ -74,6 +88,7 @@ void *roc_alloc(size_t length, size_t alignment) {
         fail("roc_alloc failed");
     }
     atomic_fetch_add_explicit(&allocation_calls, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&allocation_bytes, (uint64_t)actual_length, memory_order_relaxed);
     atomic_fetch_add_explicit(&live_allocations, 1, memory_order_relaxed);
     return pointer;
 }
@@ -177,6 +192,38 @@ uint64_t hosted_abi_touch_resource(uint64_t *payload) {
     check(payload != NULL, "hosted touch received null resource");
     const uint64_t result = *payload;
     resource_decref(payload);
+    return result;
+}
+
+void hosted_abi_publish_step(
+    uint64_t sink,
+    uint8_t kind,
+    RocList item,
+    uint64_t wait_millis) {
+    check(sink != 0, "published to a null step sink");
+    check(kind <= 1, "published an invalid step kind");
+    struct StepSink *slot = (struct StepSink *)(uintptr_t)sink;
+    check(slot->magic == STEP_SINK_MAGIC, "published to an invalid step sink");
+    check(!slot->step.occupied, "published more than one result to a one-shot step sink");
+    slot->step = (struct PublishedStep){
+        .occupied = true,
+        .kind = kind,
+        .item = item,
+        .wait_millis = wait_millis,
+    };
+}
+
+static uint64_t step_sink_token(struct StepSink *sink) {
+    *sink = (struct StepSink){.magic = STEP_SINK_MAGIC};
+    return (uint64_t)(uintptr_t)sink;
+}
+
+static struct PublishedStep take_published_step(struct StepSink *sink) {
+    check(sink->magic == STEP_SINK_MAGIC, "read from an invalid step sink");
+    check(sink->step.occupied, "step advance returned without publishing a result");
+    const struct PublishedStep result = sink->step;
+    sink->magic = 0;
+    memset(&sink->step, 0, sizeof(sink->step));
     return result;
 }
 
@@ -490,6 +537,209 @@ static void test_cancel_during_advance(void) {
     assert_no_live_allocations("in-flight cancellation");
 }
 
+static AnonStruct2836b5b23312f8c7 source_emit_payload(
+    AbiSourceStep step,
+    uint64_t expected_wait_millis) {
+    check(step.tag == AbiSourceStepTag_Emit, "source machine did not emit");
+    AnonStruct2836b5b23312f8c7 payload = AbiSourceStep_payload_emit(&step);
+    check(payload.machine != NULL, "emitting source step returned a null machine");
+    check(payload.item.elements != NULL, "emitting source step returned a null item");
+    check(payload.item.length >= 2, "emitting source step returned a short item");
+    const uint8_t *item_bytes = payload.item.elements;
+    check(item_bytes[payload.item.length - 2] == '\n' &&
+              item_bytes[payload.item.length - 1] == '\n',
+          "source item was not canonically terminated");
+    if (payload.wait_millis != expected_wait_millis) {
+        fprintf(stderr,
+                "source step wait mismatch: expected=%llu actual=%llu\n",
+                (unsigned long long)expected_wait_millis,
+                (unsigned long long)payload.wait_millis);
+        fail("source step returned the wrong wait description");
+    }
+    return payload;
+}
+
+static void test_source_step_lifecycle(void) {
+    roc_abi_drop_source_machine(roc_abi_make_source_machine(2));
+    assert_no_live_allocations("parked source machine");
+
+    AbiSourceStep cancelled =
+        roc_abi_advance_source_machine(roc_abi_make_source_machine(2), 3);
+    (void)source_emit_payload(cancelled, 0);
+    roc_abi_drop_source_step(cancelled);
+    assert_no_live_allocations("cancelled returned source step");
+
+    RocErasedCallable machine = roc_abi_make_source_machine(4);
+    uint64_t sequence = 0;
+    for (uint64_t index = 0; index < 4; index += 1) {
+        const uint64_t wake = index + 1;
+        AbiSourceStep step = roc_abi_advance_source_machine(machine, wake);
+        AnonStruct2836b5b23312f8c7 payload =
+            source_emit_payload(step, sequence % 17);
+        sequence += wake + 1;
+        roc_abi_drop_source_item(payload.item);
+        machine = payload.machine;
+    }
+    AbiSourceStep end = roc_abi_advance_source_machine(machine, 0);
+    check(end.tag == AbiSourceStepTag_End, "exhausted source machine did not end");
+    roc_abi_drop_source_step(end);
+    assert_no_live_allocations("normally ended source machine");
+}
+
+struct SourceSlot {
+    _Atomic bool busy;
+    _Atomic bool cancelled;
+    RocErasedCallable machine;
+};
+
+struct SourceSlotWorker {
+    struct SourceSlot *slot;
+    bool advanced;
+};
+
+static bool advance_source_slot(struct SourceSlot *slot, uint64_t wake) {
+    bool expected = false;
+    if (!atomic_compare_exchange_strong_explicit(
+            &slot->busy,
+            &expected,
+            true,
+            memory_order_acquire,
+            memory_order_relaxed)) {
+        return false;
+    }
+    RocErasedCallable input = slot->machine;
+    slot->machine = NULL;
+    check(input != NULL, "source slot acquired without a machine");
+    AbiSourceStep step = roc_abi_advance_source_machine(input, wake);
+    if (atomic_load_explicit(&slot->cancelled, memory_order_acquire)) {
+        roc_abi_drop_source_step(step);
+    } else if (step.tag == AbiSourceStepTag_Emit) {
+        AnonStruct2836b5b23312f8c7 payload = AbiSourceStep_payload_emit(&step);
+        roc_abi_drop_source_item(payload.item);
+        slot->machine = payload.machine;
+    }
+    atomic_store_explicit(&slot->busy, false, memory_order_release);
+    return true;
+}
+
+static void *run_source_slot_worker(void *raw_worker) {
+    struct SourceSlotWorker *worker = raw_worker;
+    worker->advanced = advance_source_slot(worker->slot, 99);
+    return NULL;
+}
+
+static void test_cancel_source_during_advance(void) {
+    configure_observe_block(true);
+    struct SourceSlot slot = {
+        .busy = false,
+        .cancelled = false,
+        .machine = roc_abi_make_source_machine(2),
+    };
+    struct SourceSlotWorker worker = {.slot = &slot, .advanced = false};
+    pthread_t thread;
+    check(pthread_create(&thread, NULL, run_source_slot_worker, &worker) == 0,
+          "failed to create source cancellation worker");
+    wait_for_observe_entries(1);
+    atomic_store_explicit(&slot.cancelled, true, memory_order_release);
+    release_observers();
+    check(pthread_join(thread, NULL) == 0, "failed to join source cancellation worker");
+    check(worker.advanced, "in-flight source cancellation did not advance");
+    check(slot.machine == NULL, "cancelled returned source step remained parked");
+    configure_observe_block(false);
+    assert_no_live_allocations("in-flight returned source-step cancellation");
+}
+
+static RocErasedCallable advance_sink_and_consume(
+    RocErasedCallable machine,
+    uint64_t wake,
+    uint64_t expected_wait_millis) {
+    struct StepSink sink;
+    RocErasedCallable next =
+        roc_abi_advance_sink_machine(machine, wake, step_sink_token(&sink));
+    check(next != NULL, "step-sink machine returned a null continuation");
+    struct PublishedStep step = take_published_step(&sink);
+    check(step.kind == 0, "step-sink machine did not emit");
+    check(step.wait_millis == expected_wait_millis,
+          "step-sink machine returned the wrong wait description");
+    check(step.item.length >= 2, "step-sink machine emitted a short item");
+    const uint8_t *item_bytes = step.item.elements;
+    check(item_bytes[step.item.length - 2] == '\n' &&
+              item_bytes[step.item.length - 1] == '\n',
+          "step-sink item was not canonically terminated");
+    roc_abi_drop_source_item(step.item);
+    return next;
+}
+
+static void test_step_sink_lifecycle(void) {
+    roc_abi_drop_sink_machine(roc_abi_make_sink_machine(2));
+    assert_no_live_allocations("parked step-sink machine");
+
+    RocErasedCallable cancelled = roc_abi_make_sink_machine(2);
+    struct StepSink cancelled_sink;
+    RocErasedCallable cancelled_next = roc_abi_advance_sink_machine(
+        cancelled,
+        1,
+        step_sink_token(&cancelled_sink));
+    struct PublishedStep cancelled_step = take_published_step(&cancelled_sink);
+    roc_abi_drop_sink_machine(cancelled_next);
+    roc_abi_drop_source_item(cancelled_step.item);
+    assert_no_live_allocations("cancelled returned step-sink result");
+
+    RocErasedCallable machine = roc_abi_make_sink_machine(2);
+    machine = advance_sink_and_consume(machine, 1, 0);
+    machine = advance_sink_and_consume(machine, 2, 2);
+    struct StepSink end_sink;
+    RocErasedCallable terminal =
+        roc_abi_advance_sink_machine(machine, 0, step_sink_token(&end_sink));
+    struct PublishedStep end = take_published_step(&end_sink);
+    check(end.kind == 1, "exhausted step-sink machine did not end");
+    check(end.item.length == 0, "ended step-sink machine returned bytes");
+    roc_abi_drop_source_item(end.item);
+    roc_abi_drop_sink_machine(terminal);
+    assert_no_live_allocations("normally ended step-sink machine");
+}
+
+struct SinkMachineSlot {
+    _Atomic bool cancelled;
+    RocErasedCallable machine;
+};
+
+static void *run_sink_machine_worker(void *raw_slot) {
+    struct SinkMachineSlot *slot = raw_slot;
+    RocErasedCallable input = slot->machine;
+    slot->machine = NULL;
+    struct StepSink sink;
+    RocErasedCallable next =
+        roc_abi_advance_sink_machine(input, 99, step_sink_token(&sink));
+    struct PublishedStep step = take_published_step(&sink);
+    if (atomic_load_explicit(&slot->cancelled, memory_order_acquire)) {
+        roc_abi_drop_sink_machine(next);
+        roc_abi_drop_source_item(step.item);
+    } else {
+        roc_abi_drop_source_item(step.item);
+        slot->machine = next;
+    }
+    return NULL;
+}
+
+static void test_cancel_step_sink_during_advance(void) {
+    configure_observe_block(true);
+    struct SinkMachineSlot slot = {
+        .cancelled = false,
+        .machine = roc_abi_make_sink_machine(2),
+    };
+    pthread_t thread;
+    check(pthread_create(&thread, NULL, run_sink_machine_worker, &slot) == 0,
+          "failed to create step-sink cancellation worker");
+    wait_for_observe_entries(1);
+    atomic_store_explicit(&slot.cancelled, true, memory_order_release);
+    release_observers();
+    check(pthread_join(thread, NULL) == 0, "failed to join step-sink cancellation worker");
+    check(slot.machine == NULL, "cancelled step-sink continuation remained parked");
+    configure_observe_block(false);
+    assert_no_live_allocations("in-flight step-sink cancellation");
+}
+
 static uint64_t monotonic_nanoseconds(void) {
     struct timespec value;
     check(clock_gettime(CLOCK_MONOTONIC, &value) == 0, "clock_gettime failed");
@@ -555,6 +805,83 @@ static void benchmark_state(size_t iterations, size_t repetition) {
            (double)deallocations / (double)iterations);
 }
 
+static void benchmark_source(size_t iterations, size_t repetition) {
+    RocErasedCallable machine = roc_abi_make_source_machine((uint64_t)iterations + 1);
+    uint64_t sequence = 0;
+    const uint64_t allocations_before =
+        atomic_load_explicit(&allocation_calls, memory_order_relaxed);
+    const uint64_t deallocations_before =
+        atomic_load_explicit(&deallocation_calls, memory_order_relaxed);
+    const uint64_t allocation_bytes_before =
+        atomic_load_explicit(&allocation_bytes, memory_order_relaxed);
+    const uint64_t started = monotonic_nanoseconds();
+    for (size_t index = 0; index < iterations; index += 1) {
+        const uint64_t wake = (uint64_t)(index & 7);
+        AbiSourceStep step = roc_abi_advance_source_machine(machine, wake);
+        AnonStruct2836b5b23312f8c7 payload =
+            source_emit_payload(step, sequence % 17);
+        sequence += wake + 1;
+        roc_abi_drop_source_item(payload.item);
+        machine = payload.machine;
+    }
+    const uint64_t elapsed = monotonic_nanoseconds() - started;
+    const uint64_t allocations =
+        atomic_load_explicit(&allocation_calls, memory_order_relaxed) - allocations_before;
+    const uint64_t deallocations =
+        atomic_load_explicit(&deallocation_calls, memory_order_relaxed) - deallocations_before;
+    const uint64_t allocated_bytes =
+        atomic_load_explicit(&allocation_bytes, memory_order_relaxed) - allocation_bytes_before;
+    roc_abi_drop_source_machine(machine);
+    printf("BENCH source rep=%zu iterations=%zu ns_per_op=%.3f allocs_per_op=%.6f frees_per_op=%.6f bytes_per_op=%.3f\n",
+           repetition,
+           iterations,
+           (double)elapsed / (double)iterations,
+           (double)allocations / (double)iterations,
+           (double)deallocations / (double)iterations,
+           (double)allocated_bytes / (double)iterations);
+}
+
+static void benchmark_sink(size_t iterations, size_t repetition) {
+    RocErasedCallable machine = roc_abi_make_sink_machine((uint64_t)iterations + 1);
+    uint64_t sequence = 0;
+    const uint64_t allocations_before =
+        atomic_load_explicit(&allocation_calls, memory_order_relaxed);
+    const uint64_t deallocations_before =
+        atomic_load_explicit(&deallocation_calls, memory_order_relaxed);
+    const uint64_t allocation_bytes_before =
+        atomic_load_explicit(&allocation_bytes, memory_order_relaxed);
+    const uint64_t started = monotonic_nanoseconds();
+    for (size_t index = 0; index < iterations; index += 1) {
+        const uint64_t wake = (uint64_t)(index & 7);
+        struct StepSink sink;
+        machine = roc_abi_advance_sink_machine(
+            machine,
+            wake,
+            step_sink_token(&sink));
+        struct PublishedStep step = take_published_step(&sink);
+        check(step.kind == 0, "benchmarked step-sink machine did not emit");
+        check(step.wait_millis == sequence % 17,
+              "benchmarked step-sink machine returned the wrong wait");
+        sequence += wake + 1;
+        roc_abi_drop_source_item(step.item);
+    }
+    const uint64_t elapsed = monotonic_nanoseconds() - started;
+    const uint64_t allocations =
+        atomic_load_explicit(&allocation_calls, memory_order_relaxed) - allocations_before;
+    const uint64_t deallocations =
+        atomic_load_explicit(&deallocation_calls, memory_order_relaxed) - deallocations_before;
+    const uint64_t allocated_bytes =
+        atomic_load_explicit(&allocation_bytes, memory_order_relaxed) - allocation_bytes_before;
+    roc_abi_drop_sink_machine(machine);
+    printf("BENCH sink rep=%zu iterations=%zu ns_per_op=%.3f allocs_per_op=%.6f frees_per_op=%.6f bytes_per_op=%.3f\n",
+           repetition,
+           iterations,
+           (double)elapsed / (double)iterations,
+           (double)allocations / (double)iterations,
+           (double)deallocations / (double)iterations,
+           (double)allocated_bytes / (double)iterations);
+}
+
 int main(void) {
     const char *mode = getenv("ABI_SPIKE_MODE");
     use_generated_wrappers = mode != NULL && strcmp(mode, "wrapper") == 0;
@@ -603,6 +930,20 @@ int main(void) {
     puts("RUN cancel_during_advance");
     fflush(stdout);
     test_cancel_during_advance();
+    if (use_generated_wrappers) {
+        puts("RUN source_step_lifecycle");
+        fflush(stdout);
+        test_source_step_lifecycle();
+        puts("RUN cancel_source_during_advance");
+        fflush(stdout);
+        test_cancel_source_during_advance();
+        puts("RUN step_sink_lifecycle");
+        fflush(stdout);
+        test_step_sink_lifecycle();
+        puts("RUN cancel_step_sink_during_advance");
+        fflush(stdout);
+        test_cancel_step_sink_during_advance();
+    }
 
     check(atomic_load_explicit(&resource_allocations, memory_order_relaxed) ==
               atomic_load_explicit(&resource_deallocations, memory_order_relaxed),
@@ -622,6 +963,12 @@ int main(void) {
         assert_no_live_allocations("machine benchmark");
         benchmark_state(iterations, repetition);
         assert_no_live_allocations("state benchmark");
+        if (use_generated_wrappers) {
+            benchmark_source(iterations, repetition);
+            assert_no_live_allocations("source benchmark");
+            benchmark_sink(iterations, repetition);
+            assert_no_live_allocations("step-sink benchmark");
+        }
     }
 
     printf("ACCOUNTING allocations=%llu deallocations=%llu reallocations=%llu live=%lld\n",

@@ -62,21 +62,25 @@ native worker remains occupied while the stream is waiting.
 The original primary feasibility risk was whether the new Zig-based Roc
 compiler could safely and efficiently retain, invoke, transfer, and destroy
 stream state across provided entrypoints and host worker threads. The local
-callable prototype now passes that allocation/lifecycle gate. Upstream review
-and supported-target coverage remain release dependencies, while the active
-critical path has moved to bounded production body ownership and backpressure.
+direct-callable prototype passes its allocation/lifecycle gate, but the actual
+composite step result does not yet. Upstream review and supported-target
+coverage remain release dependencies, while the active critical path is now
+the production-shaped result ownership followed by its bounded scheduler/body
+transaction.
 
 The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
 main `1c1ceccf`, containing merged fix `206f4c30`, passes the complete local
 generated-wrapper lifecycle. A follow-up compiler prototype, rebased onto Roc
 main `9b601b5dac`, transfers the old callable allocation through the erased
-invocation and recursive constructor, then reuses it through an inline
-runtime-unique fast path. The unique compatible optimized path makes no calls
-to the instrumented Roc allocator/deallocator and has a representative 1.46 ns
-median. This unblocks callable-shaped transport integration research;
-controlled performance, upstream design, cross-target, and end-to-end gates
-remain.
+invocation and a direct recursive callable result, then reuses it through an
+inline runtime-unique fast path. The unique compatible optimized path makes no
+calls to the instrumented Roc allocator/deallocator and has a representative
+1.46 ns median. A more realistic `Emit { item, machine, wake } | End` result
+reopens that gate: on `debug-e1d283cb` it allocates and frees one 80-byte
+continuation envelope per emitted static item. This distinguishes the direct
+lower bound from the production ABI that must pass controlled performance,
+upstream design, cross-target, and end-to-end gates.
 
 The explicit-state follow-up passes the local ownership/lifecycle matrix and
 proves that route packages can keep nominal state private, but its current
@@ -1975,10 +1979,37 @@ standard q3/LGWin12. Standard q1 makes four Brotli scratch allocations per
 event—40,000 calls and 140,960,000 requested bytes in the same run. The bounded
 256 KiB recycler removes them without changing frame or wire counts.
 
-This advances the critical path to the retained Roc `SseItemSource` adapter,
-finite stream/encoder admission, request and shutdown accounting, mixed-stream
-isolation, and full Hyper/socket measurements. Detailed evidence is in
+This advances the critical path to the production-shaped retained Roc step ABI
+and then its `SseItemSource` adapter, finite stream/encoder admission, request
+and shutdown accounting, mixed-stream isolation, and full Hyper/socket
+measurements. Detailed evidence is in
 [`docs/research/datastar-production-body-findings.md`](research/datastar-production-body-findings.md).
+
+### 2026-08-02: The composite source result reopens the allocation gate
+
+The earlier zero-allocation result covered a direct recursive
+`machine -> machine` transition. A real source step returns an item, the next
+machine, and its wake decision inside a tagged result. The new effectful fixture
+captures an opaque host resource and exercises parked drop, whole-step drop,
+normal end, and cancellation while the callback is in flight. Those lifecycle
+paths balance, but optimized `debug-e1d283cb` allocates and frees one 80-byte
+next-callable envelope per emitted static item.
+
+An attempted broad reuse transformation demonstrated why the fix needs a
+compiler ownership proof rather than a local allocation shortcut. Repacking
+the callable before reading sibling fields first corrupted the returned wake;
+a later ordering candidate let ARC free capture storage still borrowed by
+result construction and segfaulted. The safe baseline therefore remains
+allocating while the compiler work models read-before-overwrite explicitly.
+
+The semantic reference remains one composite functional result. A private,
+preallocated, one-shot completion cell is retained only as a measured ABI
+alternative; it may deposit exactly one closed result but cannot expose a
+writer, socket, flush, or repeatable callback API. The body now also exposes an
+`item_drained` acknowledgement so the adapter cannot park or arm the next wake
+until the final identity frame is committed or Brotli FLUSH completes. The
+complete state machine, ordering, and acceptance matrix are in
+[`docs/research/datastar-retained-source-contract.md`](research/datastar-retained-source-contract.md).
 
 ### 2026-08-01: Research converges conditionally on the state ABI
 

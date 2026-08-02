@@ -496,3 +496,39 @@ one allocation and free per step.
 
 The detailed mechanism, ABI consequences, tests, and remaining gates are in
 [`abi-spike/results/2026-08-01-zero-allocation-reuse.md`](abi-spike/results/2026-08-01-zero-allocation-reuse.md).
+
+## Production-shaped composite result
+
+The direct callable result above is now classified as a lower bound rather than
+the complete SSE allocation result. A follow-up effectful source machine returns
+`Emit { item, machine, wait_millis } | End` and captures an opaque host
+resource. Parked drop, whole-step drop, normal end, and cancellation while the
+callback is in flight balance in development and speed builds.
+
+On safe compiler `debug-e1d283cb`, the speed path allocates and frees one
+80-byte next-callable envelope per emitted static item. The item itself does
+not allocate in this fixture. The existing ownership destination is recognized
+only when the whole return representation is an erased callable; it does not
+select a callable slot nested inside a tagged aggregate.
+
+Two broadening experiments were rejected. The first repacked the old callable
+before sibling result fields finished reading its capture and returned the new
+sequence as the current wait. The second staged the continuation field later,
+but ARC consumed and freed the outer callable while an `erased_capture_load`
+still borrowed it, causing an optimized use-after-free/segfault. All
+experimental compiler edits were removed and the compiler was rebuilt from the
+clean branch.
+
+A principled implementation needs an explicit aggregate destination demand,
+materialization of every old-capture-derived sibling before overwrite, and an
+ARC borrow edge keeping the old outer alive through that staging. The private
+one-shot result-cell alternative is allocation-free in the optimized fixture,
+but splits the logical result across a hosted deposit and direct continuation
+return. It remains unselected until its platform-only visibility,
+exactly-once/post-return join, cancellation behavior, and undistorted cost are
+proven.
+
+Full evidence is in
+[`abi-spike/results/2026-08-02-composite-source.md`](abi-spike/results/2026-08-02-composite-source.md),
+and the production state/acknowledgement contract is in
+[`datastar-retained-source-contract.md`](datastar-retained-source-contract.md).

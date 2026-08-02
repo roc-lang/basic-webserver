@@ -6,9 +6,17 @@ Abi :: [].{
 
     BenchMachine := [BenchMachine(Box(U64 -> BenchMachine))]
 
+    SourceMachine := [SourceMachine(Box(U64 => SourceStep))]
+
+    SourceStep := [Emit({ item : List(U8), machine : SourceMachine, wait_millis : U64 }), End]
+
+    SinkMachine := [SinkMachine(Box({ sink : U64, wake : U64 } => SinkMachine))]
+
     make_resource! : U64 => Resource
 
     observe! : U64 => {}
 
     touch_resource! : Resource => U64
+
+    publish_step! : U64, U8, List(U8), U64 => {}
 }

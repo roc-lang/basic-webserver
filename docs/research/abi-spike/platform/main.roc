@@ -3,6 +3,8 @@ platform "abi-spike"
         [State : state] for program : {
             make_machine! : U64 => Abi.Machine,
             make_bench_machine : U64 -> Abi.BenchMachine,
+            make_source_machine! : U64 => Abi.SourceMachine,
+            make_sink_machine! : U64 => Abi.SinkMachine,
             make_callable : U64 -> Box(U64 -> U64),
             init_state! : U64 => state,
             step_state! : U64, state => state,
@@ -18,6 +20,14 @@ platform "abi-spike"
         "roc_abi_make_bench_machine": make_bench_machine_for_host,
         "roc_abi_advance_bench_machine": advance_bench_machine_for_host,
         "roc_abi_drop_bench_machine": drop_bench_machine_for_host,
+        "roc_abi_make_source_machine": make_source_machine_for_host!,
+        "roc_abi_advance_source_machine": advance_source_machine_for_host!,
+        "roc_abi_drop_source_machine": drop_source_machine_for_host!,
+        "roc_abi_drop_source_step": drop_source_step_for_host!,
+        "roc_abi_drop_source_item": drop_source_item_for_host!,
+        "roc_abi_make_sink_machine": make_sink_machine_for_host!,
+        "roc_abi_advance_sink_machine": advance_sink_machine_for_host!,
+        "roc_abi_drop_sink_machine": drop_sink_machine_for_host!,
         "roc_abi_init_state": init_state_for_host!,
         "roc_abi_step_state": step_state_for_host!,
         "roc_abi_bench_step_state": bench_step_state_for_host,
@@ -32,6 +42,7 @@ platform "abi-spike"
         "hosted_abi_make_resource": Abi.make_resource!,
         "hosted_abi_observe": Abi.observe!,
         "hosted_abi_touch_resource": Abi.touch_resource!,
+        "hosted_abi_publish_step": Abi.publish_step!,
     }
     targets: {
         inputs_dir: "targets/",
@@ -63,6 +74,36 @@ advance_bench_machine_for_host = |machine, wake|
 
 drop_bench_machine_for_host : Abi.BenchMachine -> {}
 drop_bench_machine_for_host = |_machine| {}
+
+make_source_machine_for_host! : U64 => Abi.SourceMachine
+make_source_machine_for_host! = program.make_source_machine!
+
+advance_source_machine_for_host! : Abi.SourceMachine, U64 => Abi.SourceStep
+advance_source_machine_for_host! = |machine, wake|
+    match machine {
+        Abi.SourceMachine.SourceMachine(boxed_step) => (Box.unbox(boxed_step))(wake)
+    }
+
+drop_source_machine_for_host! : Abi.SourceMachine => {}
+drop_source_machine_for_host! = |_machine| {}
+
+drop_source_step_for_host! : Abi.SourceStep => {}
+drop_source_step_for_host! = |_step| {}
+
+drop_source_item_for_host! : List(U8) => {}
+drop_source_item_for_host! = |_item| {}
+
+make_sink_machine_for_host! : U64 => Abi.SinkMachine
+make_sink_machine_for_host! = program.make_sink_machine!
+
+advance_sink_machine_for_host! : Abi.SinkMachine, U64, U64 => Abi.SinkMachine
+advance_sink_machine_for_host! = |machine, wake, sink|
+    match machine {
+        Abi.SinkMachine.SinkMachine(boxed_step) => (Box.unbox(boxed_step))({ sink, wake })
+    }
+
+drop_sink_machine_for_host! : Abi.SinkMachine => {}
+drop_sink_machine_for_host! = |_machine| {}
 
 init_state_for_host! : U64 => Box(State)
 init_state_for_host! = |seed| Box.box((program.init_state!)(seed))

@@ -19,7 +19,7 @@ MachineState : {
     steps : U64,
 }
 
-program = { make_machine!, make_bench_machine, make_callable, init_state!, step_state!, bench_step_state }
+program = { make_machine!, make_bench_machine, make_source_machine!, make_sink_machine!, make_callable, init_state!, step_state!, bench_step_state }
 
 make_state! : U64 => State
 make_state! = |seed| {
@@ -81,6 +81,86 @@ bench_machine_from_value = |value|
 
 make_bench_machine : U64 -> Abi.BenchMachine
 make_bench_machine = bench_machine_from_value
+
+source_machine_from_state : { item : List(U8), remaining : U64, resource : Abi.Resource, sequence : U64 } -> Abi.SourceMachine
+source_machine_from_state = |state|
+    Abi.SourceMachine.SourceMachine(Box.box(|wake| {
+        resource_value = Abi.touch_resource!(state.resource)
+        if wake == 99 {
+            Abi.observe!(resource_value)
+        } else {}
+        if state.remaining == 0 {
+            Abi.SourceStep.End
+        } else {
+            next = source_machine_from_state({
+                item: state.item,
+                remaining: state.remaining - 1,
+                resource: state.resource,
+                sequence: state.sequence + wake + 1,
+            })
+            Abi.SourceStep.Emit({
+                item: state.item,
+                machine: next,
+                wait_millis: state.sequence % 17,
+            })
+        }
+    }))
+
+make_source_machine! : U64 => Abi.SourceMachine
+make_source_machine! = |events| {
+    resource = Abi.make_resource!(events + 2000)
+    source_machine_from_state({
+        item: [
+            101, 118, 101, 110, 116, 58, 32, 100, 97, 116, 97, 115, 116, 97, 114,
+            45, 112, 97, 116, 99, 104, 45, 101, 108, 101, 109, 101, 110, 116, 115,
+            10, 100, 97, 116, 97, 58, 32, 101, 108, 101, 109, 101, 110, 116, 115,
+            32, 60, 100, 105, 118, 62, 111, 107, 60, 47, 100, 105, 118, 62, 10, 10,
+        ],
+        remaining: events,
+        resource,
+        sequence: 0,
+    })
+}
+
+sink_machine_from_state : { item : List(U8), marker : U64, remaining : U64, resource : Abi.Resource, sequence : U64 } -> Abi.SinkMachine
+sink_machine_from_state = |state|
+    Abi.SinkMachine.SinkMachine(Box.box(|args| {
+        resource_value = Abi.touch_resource!(state.resource)
+        if state.remaining == 0 {
+            Abi.publish_step!(args.sink, 1, [], 0)
+            sink_machine_from_state(state)
+        } else {
+            next_state = {
+                item: state.item,
+                marker: state.marker,
+                remaining: state.remaining - 1,
+                resource: state.resource,
+                sequence: state.sequence + args.wake + 1,
+            }
+            Abi.publish_step!(args.sink, 0, state.item, (state.sequence + state.marker) % 17)
+            if args.wake == 99 {
+                Abi.observe!(resource_value)
+            } else {}
+            sink_machine_from_state(next_state)
+        }
+    }))
+
+make_sink_machine! : U64 => Abi.SinkMachine
+make_sink_machine! = |events| {
+    resource = Abi.make_resource!(events + 3000)
+    sink_machine_from_state({
+        item: [
+            101, 118, 101, 110, 116, 58, 32, 100, 97, 116, 97, 115, 116, 97, 114,
+            45, 112, 97, 116, 99, 104, 45, 101, 108, 101, 109, 101, 110, 116, 115,
+            10, 100, 97, 116, 97, 58, 32, 101, 108, 101, 109, 101, 110, 116, 115,
+            32, 60, 100, 105, 118, 62, 111, 107, 60, 47, 100, 105, 118, 62, 10, 10,
+        ],
+        marker: 17,
+        remaining: events,
+        resource,
+        sequence: 0,
+    })
+}
 
 make_callable : U64 -> Box(U64 -> U64)
 make_callable = |offset| Box.box(|value| value + offset)
