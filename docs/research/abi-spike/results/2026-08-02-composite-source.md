@@ -2,8 +2,9 @@
 
 Date: 2026-08-02
 
-Status: composite lifecycle passes; optimized continuation allocation remains
-open; private one-shot alternative is allocation-free but not selected.
+Status: composite lifecycle passes; Roc compiler candidate `d4921d8658`
+eliminates the optimized continuation allocation; production adapter research
+remains paused and the private one-shot alternative is not selected.
 
 ## Question
 
@@ -15,8 +16,9 @@ and whether a private one-shot result cell is a viable internal alternative.
 
 ## Reproduction
 
-The compiler was rebuilt from clean Roc branch
-`datastar-erased-repack-arc` at `e1d283cbff4230e8354f72959a0367a8200771ad`:
+The allocation baseline used clean Roc branch `datastar-erased-repack-arc` at
+`e1d283cbff4230e8354f72959a0367a8200771ad`. The successful compiler candidate
+is the same branch at `d4921d86584bb2b7b4e1b62d9dfc0e9bf6d43abc`:
 
 ```sh
 cd /path/to/roc
@@ -29,9 +31,10 @@ python3 scripts/spike_retained_callable.py \
   --opt all --iterations 100000 --mode wrapper
 ```
 
-The resulting compiler reports `debug-e1d283cb`. The run was not CPU-pinned,
-so timing is diagnostic; allocation counts and lifecycle assertions are the
-strong evidence.
+The compiler version string remains `debug-e1d283cb` because it describes the
+last commit in the build metadata, so the source commit above is authoritative.
+The run was not CPU-pinned, so timing is diagnostic; allocation counts and
+lifecycle assertions are the strong evidence.
 
 ## Fixture shapes
 
@@ -79,16 +82,22 @@ CORRECTNESS ok observed_calls=57 resource_allocations=16
 resource_deallocations=16 max_independent=2
 ```
 
-Representative seven-run medians from the 100,000-step diagnostic are:
+Representative seven-run medians from the original 100,000-step diagnostic
+and the final compiler candidate are:
 
 | Build and shape | Median ns/step | Allocations/step | Frees/step | Requested bytes/step |
 | --- | ---: | ---: | ---: | ---: |
 | speed, direct callable | 1.982 | 0 | 0 | not recorded |
 | speed, composite source | 264.659 | 1 | 1 | 80 |
+| speed, composite source, `d4921d8658` | 61.506 | 0 | 0 | 0 |
 | speed, private one-shot cell | 211.533 | 0 | 0 | 0 |
 | dev, direct callable | 175.810 | 1 | 1 | not recorded |
 | dev, composite source | 1103.486 | 1 | 1 | 80 |
 | dev, private one-shot cell | 1251.488 | 1 | 1 | 88 |
+
+The final source samples ranged from 61.450 to 61.577 ns/step. Process-wide
+instrumentation remained balanced at 174 allocations and 174 deallocations,
+with zero reallocations and zero live allocations after the run.
 
 The source and one-shot timings include the opaque-resource hosted call,
 atomic allocation instrumentation, and validation checks. The one-shot result
@@ -105,9 +114,9 @@ is adequate for this diagnostic but is not a production ownership API. A real
 adapter needs a generated consuming `take_emit` projection or an equivalent
 opaque move wrapper.
 
-## Compiler diagnosis and rejected optimization
+## Compiler diagnosis, rejected optimization, and resolution
 
-The current reuse demand reaches an erased callee only when the whole result
+The baseline reuse demand reached an erased callee only when the whole result
 representation is one erased callable. It does not identify the sole owned
 callable slot nested in this tagged record, so the constructor allocates a new
 continuation.
@@ -119,30 +128,50 @@ sequence to the new sequence. Staging the continuation field last still left
 an `erased_capture_load` borrowing the old capture after ARC had consumed and
 freed the outer allocation, and the speed fixture segfaulted.
 
-The experimental compiler edits were removed. The Roc checkout and rebuilt
-compiler are back at the safe `e1d283cb` source. No unsafe compiler change is
-part of either draft PR.
+Those experimental edits were removed before the final implementation. The
+successful compiler change instead:
+
+1. derives a whole-result demand for exactly one erased-callable ownership
+   slot, treating aggregate fields as simultaneous and tag variants as
+   alternatives;
+2. snapshots the old capture record before any selected result slot can
+   consume the outer callable, with the outer owner carried as an explicit
+   sequencing/liveness operand;
+3. gives the snapshot independent ownership of refcounted children before
+   repacking;
+4. propagates the selected destination through records, tuples, tags, boxes,
+   nominal wrappers, and return-position finite helpers; and
+5. records transparent ownership provenance while lowering, resolving it over
+   a finite local graph rather than scanning completed LIR or using a fixed
+   hop limit.
+
+Ambiguous, cyclic, multi-slot, list, shared, and incompatible paths decline
+reuse or take the runtime copy fallback. Adversarial review also found and
+fixed whole-result/per-variant demand mismatch, callable-dispatch ambiguity,
+and a guarded procedure-argument span that became stale after body lowering.
+
+The compiler fix is committed and pushed to draft Roc PR
+[`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
 
 ## Design consequence
 
-The composite result remains the semantic reference. A principled compiler
-implementation needs:
+The composite result remains the semantic reference. Compiler feasibility now
+has evidence for the required properties:
 
 1. an explicit destination demand for one selected erased-callable slot inside
    an aggregate result;
 2. materialization of every sibling value borrowed from the old capture before
    repacking;
-3. an ARC borrow edge keeping the old outer alive through that staging; and
+3. explicit owner sequencing that keeps the old outer alive through capture
+   snapshotting, with independent ownership for the snapshot; and
 4. reuse only for the callee/result path proven to satisfy those conditions.
 
-Until that feature exists, the safe composite result costs one allocation and
-free per emitted item. The private one-shot cell is the only measured
-allocation-free speed-path alternative, but it splits the logical result over a
-hosted deposit and direct return. It may be selected only after removing the
-low-level fixture's application-visible capability and proving exactly-once
-deposit, post-return join, cancellation, and the corrected platform wrapper's
-allocation cost in the production adapter. The source-only private fixture now
-proves the intended visibility boundary, not those runtime properties.
+The compiler candidate satisfies these properties in the lifecycle fixture and
+removes the continuation-envelope allocation. This does not select a public
+API or resume production server implementation: generated consuming result
+projection, the bounded scheduler/body adapter, Brotli drain acknowledgement,
+and end-to-end allocation/latency gates remain open. The private one-shot cell
+is retained only as historical fallback evidence and is not the selected ABI.
 
 The complete scheduler and body contract is in
 [`../../datastar-retained-source-contract.md`](../../datastar-retained-source-contract.md).

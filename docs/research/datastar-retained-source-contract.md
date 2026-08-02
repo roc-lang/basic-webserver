@@ -1,7 +1,8 @@
 # Retained Roc SSE source contract
 
-Status: ownership contract refocused; composite-return compiler feasibility and
-the production scheduler adapter remain open.
+Status: ownership contract refocused; composite-return compiler feasibility is
+proven by Roc candidate `d4921d8658`; the production scheduler adapter remains
+open and implementation research is paused.
 
 Date: 2026-08-02
 
@@ -20,13 +21,12 @@ captures an opaque host resource and an immutable item, returns
 drop, whole returned-step drop, normal end, and cancellation while the Roc call
 is blocked all balance the machine, item, and nested resource exactly once.
 
-On compiler `debug-e1d283cb`, the direct `machine -> machine` release-speed
-transition remains allocation-free, but the production-shaped composite
-transition allocates and frees one 80-byte continuation per emitted step. A
-less representative version without the captured opaque resource allocated 72
-bytes. The allocation is the next callable envelope, not the returned item.
-The current compiler optimization recognizes a direct callable result but not
-the callable ownership slot nested in a tagged record result.
+On the original compiler checkpoint `e1d283cbff`, the direct `machine ->
+machine` release-speed transition was allocation-free, but the
+production-shaped composite transition allocated and freed one 80-byte
+continuation per emitted step. A less representative version without the
+captured opaque resource allocated 72 bytes. The allocation was the next
+callable envelope, not the returned item.
 
 The first broad attempt to pass reuse through the composite result was
 incorrect: it repacked the old callable before sibling result fields had
@@ -39,15 +39,27 @@ Staging the continuation record field last was necessary but not sufficient.
 The next candidate still had an `erased_capture_load` borrowing the old capture
 on the flow from the newly packed callable to the returned aggregate. ARC had
 already treated the old outer callable as consumed, freed that hidden owner,
-and the optimized fixture segfaulted. The safe compiler transformation must
-model the remaining borrow explicitly and prove all old-capture reads complete
-before repacking; merely reordering result fields is not a sufficient proof.
+and the optimized fixture segfaulted. This established that the safe compiler
+transformation must model the remaining borrow explicitly and prove all
+old-capture reads complete before repacking; merely reordering result fields is
+not a sufficient proof.
+
+Roc candidate `d4921d8658` now implements that proof with whole-result
+single-slot demand, an entry-time owned capture snapshot, destination
+propagation through aggregate constructors and return-position helpers, and
+explicit lowering-time ownership provenance. The final seven 100,000-step
+source samples report zero allocations, zero frees, and zero requested bytes
+per step at approximately 61.45–61.58 ns/step. Full lifecycle accounting ends
+with 174 allocations, 174 deallocations, and zero live allocations. The Roc
+draft is [`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
 
 The research objective is therefore no longer simply “implement
-`SseItemSource`.” It has two prerequisite proofs:
+`SseItemSource`.” The first of its two prerequisite proofs now has a compiler
+candidate; the second remains open:
 
-1. choose and validate an internal step ABI that preserves one atomic
-   functional transition without per-step continuation allocation; and
+1. validate and land the composite internal step ABI/compiler support that
+   preserves one atomic functional transition without per-step continuation
+   allocation; and
 2. implement a bounded asynchronous adapter whose state and acknowledgements
    match the body transaction exactly.
 
