@@ -12,6 +12,14 @@ python3 scripts/spike_retained_callable.py --opt all --iterations 1000 \
   --mode wrapper
 ```
 
+Run the generated Rust ownership adapter and its compile-fail affine-owner
+check:
+
+```sh
+python3 scripts/spike_retained_callable.py --opt all --iterations 1000 \
+  --mode wrapper --host rust
+```
+
 Run the development-only direct erased-callable diagnostic:
 
 ```sh
@@ -81,6 +89,13 @@ transformations were rejected after one corrupted a sibling result field and
 one produced a capture use-after-free/segfault. Exact measurements, ownership
 limits, and the required compiler proof are in
 [`results/2026-08-02-composite-source.md`](results/2026-08-02-composite-source.md).
+
+A generated Rust consuming payload projection now moves that composite result
+through non-`Copy` RAII owners. Dynamic aliased and unique items balance under
+both destruction orders; the move preserves payload identity and refcount and
+performs no allocation. The exact evidence and remaining scheduler boundary
+are recorded in
+[`results/2026-08-02-consuming-rust-projection.md`](results/2026-08-02-consuming-rust-projection.md).
 
 The benchmark is not an end-to-end SSE or Go comparison. Its allocation
 counters use atomics in the allocator and therefore perturb allocation-heavy

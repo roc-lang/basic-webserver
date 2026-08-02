@@ -39,6 +39,15 @@ static bool delay_observe;
 static bool use_generated_wrappers;
 static uint64_t entered_observe;
 
+#define MAX_TRACKED_ALLOCATIONS 4096
+struct AllocationEntry {
+    void *base;
+    bool live;
+};
+
+static pthread_mutex_t allocation_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct AllocationEntry allocations[MAX_TRACKED_ALLOCATIONS];
+
 #define MAX_TRACKED_RESOURCES 256
 struct ResourceEntry {
     void *base;
@@ -80,6 +89,52 @@ static size_t normalized_alignment(size_t alignment) {
     return result;
 }
 
+static void register_allocation(void *base) {
+    pthread_mutex_lock(&allocation_mutex);
+    for (size_t index = 0; index < MAX_TRACKED_ALLOCATIONS; index += 1) {
+        if (!allocations[index].live) {
+            allocations[index] = (struct AllocationEntry){.base = base, .live = true};
+            pthread_mutex_unlock(&allocation_mutex);
+            return;
+        }
+    }
+    pthread_mutex_unlock(&allocation_mutex);
+    fail("allocation identity tracker capacity exhausted");
+}
+
+static bool mark_allocation_deallocated(void *base) {
+    bool found = false;
+    pthread_mutex_lock(&allocation_mutex);
+    for (size_t index = 0; index < MAX_TRACKED_ALLOCATIONS; index += 1) {
+        if (allocations[index].live && allocations[index].base == base) {
+            allocations[index].live = false;
+            found = true;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&allocation_mutex);
+    return found;
+}
+
+static void *reallocate_tracked(void *base, size_t length) {
+    pthread_mutex_lock(&allocation_mutex);
+    for (size_t index = 0; index < MAX_TRACKED_ALLOCATIONS; index += 1) {
+        if (allocations[index].live && allocations[index].base == base) {
+            void *result = realloc(base, length);
+            if (result == NULL) {
+                pthread_mutex_unlock(&allocation_mutex);
+                fail("roc_realloc failed");
+            }
+            allocations[index].base = result;
+            pthread_mutex_unlock(&allocation_mutex);
+            return result;
+        }
+    }
+    pthread_mutex_unlock(&allocation_mutex);
+    fail("roc_realloc received an unknown or already freed allocation");
+    return NULL;
+}
+
 void *roc_alloc(size_t length, size_t alignment) {
     void *pointer = NULL;
     const size_t actual_alignment = normalized_alignment(alignment);
@@ -87,6 +142,7 @@ void *roc_alloc(size_t length, size_t alignment) {
     if (posix_memalign(&pointer, actual_alignment, actual_length) != 0 || pointer == NULL) {
         fail("roc_alloc failed");
     }
+    register_allocation(pointer);
     atomic_fetch_add_explicit(&allocation_calls, 1, memory_order_relaxed);
     atomic_fetch_add_explicit(&allocation_bytes, (uint64_t)actual_length, memory_order_relaxed);
     atomic_fetch_add_explicit(&live_allocations, 1, memory_order_relaxed);
@@ -114,6 +170,9 @@ void roc_dealloc(void *pointer, size_t alignment) {
     if (pointer == NULL) {
         return;
     }
+    check(
+        mark_allocation_deallocated(pointer),
+        "roc_dealloc received an unknown or already freed allocation");
     if (mark_resource_deallocated(pointer)) {
         atomic_fetch_add_explicit(&resource_deallocations, 1, memory_order_relaxed);
     }
@@ -123,13 +182,13 @@ void roc_dealloc(void *pointer, size_t alignment) {
 }
 
 void *roc_realloc(void *pointer, size_t new_length, size_t alignment) {
+    if (pointer == NULL) {
+        return roc_alloc(new_length, alignment);
+    }
     if (alignment > _Alignof(max_align_t)) {
         fail("spike host cannot preserve an over-aligned realloc");
     }
-    void *result = realloc(pointer, new_length == 0 ? 1 : new_length);
-    if (result == NULL) {
-        fail("roc_realloc failed");
-    }
+    void *result = reallocate_tracked(pointer, new_length == 0 ? 1 : new_length);
     atomic_fetch_add_explicit(&reallocation_calls, 1, memory_order_relaxed);
     return result;
 }
@@ -429,6 +488,27 @@ static void assert_no_live_allocations(const char *scenario) {
         fprintf(stderr, "%s left %lld live allocations\n", scenario, (long long)live);
         abort();
     }
+}
+
+uint64_t abi_spike_allocation_calls(void) {
+    return atomic_load_explicit(&allocation_calls, memory_order_relaxed);
+}
+
+uint64_t abi_spike_allocation_bytes(void) {
+    return atomic_load_explicit(&allocation_bytes, memory_order_relaxed);
+}
+
+uint64_t abi_spike_deallocation_calls(void) {
+    return atomic_load_explicit(&deallocation_calls, memory_order_relaxed);
+}
+
+int64_t abi_spike_live_allocations(void) {
+    return atomic_load_explicit(&live_allocations, memory_order_relaxed);
+}
+
+bool abi_spike_expect_reuse(void) {
+    const char *value = getenv("ABI_SPIKE_EXPECT_REUSE");
+    return value != NULL && strcmp(value, "1") == 0;
 }
 
 static void test_sequential_thread_migration(void) {
@@ -882,6 +962,7 @@ static void benchmark_sink(size_t iterations, size_t repetition) {
            (double)allocated_bytes / (double)iterations);
 }
 
+#ifndef ABI_SPIKE_RUST_HOST
 int main(void) {
     const char *mode = getenv("ABI_SPIKE_MODE");
     use_generated_wrappers = mode != NULL && strcmp(mode, "wrapper") == 0;
@@ -978,3 +1059,4 @@ int main(void) {
            (long long)atomic_load_explicit(&live_allocations, memory_order_relaxed));
     return 0;
 }
+#endif

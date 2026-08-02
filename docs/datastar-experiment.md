@@ -64,8 +64,9 @@ compiler could safely and efficiently retain, invoke, transfer, and destroy
 stream state across provided entrypoints and host worker threads. The local
 direct-callable and production-shaped composite prototypes now pass their
 allocation/lifecycle gates. Upstream review and supported-target coverage
-remain release dependencies, while the active critical path is now consuming
-composite-result ownership followed by its bounded scheduler/body transaction.
+remain release dependencies. Generated Rust consuming projection now passes
+its local ownership gate; the active critical path is the bounded
+scheduler/body transaction and an enforceable retained-capture resource bound.
 
 The first ABI spike found that erased callables are an intentional compiler and
 glue surface, and initially reproduced a generated-wrapper teardown bug. Roc
@@ -82,6 +83,13 @@ now eliminates that allocation with explicit aggregate ownership provenance
 and capture snapshotting. This selects the composite semantic ABI for the next
 spike while controlled performance, upstream design, cross-target, and
 end-to-end gates remain.
+
+Candidate `be78e95c42` adds generated Rust borrowed-reference and consuming-move
+payload primitives. A non-`Copy` host wrapper passes whole-result, wrong-tag,
+dynamic aliased/unique item, both drop-order, pointer/refcount identity, and
+zero-allocation projection checks in development and optimized builds. The
+complete glue suite passes native and Wasm. This removes borrowed owning-field
+copies from the Rust feasibility path; exact scheduler integration remains.
 
 The explicit-state follow-up passes the local ownership/lifecycle matrix and
 proves that route packages can keep nominal state private, but its current
@@ -577,6 +585,8 @@ Each open stream owns one bounded host record containing approximately:
 - A generation-checked stream slot.
 - An explicit lifecycle state.
 - One current boxed Roc machine or one in-flight advance.
+- One retained-capture admission token covering the machine's Roc heap and
+  weighted opaque host resources.
 - A response-body sender and cancellation signal.
 - At most a small fixed number of framed or content-coded output chunks.
 - One host-owned streaming Brotli encoder with a fixed window and bounded
@@ -1138,6 +1148,7 @@ finite controls for all of these resources:
 | --- | --- | --- |
 | Open SSE streams | Stream slots | Reject before commit, normally 503 |
 | SSE streams per HTTP/2 connection | Stream slots | Refuse excess without consuming global capacity |
+| Retained Roc capture and opaque resources | Admitted weighted bytes/units | Reject before commit or reject an over-budget transition before parking it |
 | Active Roc stream advances | Invocations | Wait in explicit fair scheduler or reject start |
 | Ready stream advances | Stream IDs | At most one per stream, globally bounded |
 | Events per step | Events | Reject step and close stream |
@@ -1642,7 +1653,8 @@ The experiment is ready to propose an enduring design change only when:
 2. Progressive delivery, cancellation, backpressure, and shutdown work through
    the real listener under HTTP/1.1 and HTTP/2.
 3. Resource units, bounds, saturation, ownership, and release points are known.
-4. Idle-stream retained memory and callback scheduling have been measured.
+4. Retained Roc capture/opaque-resource weight is admitted enforceably, and
+   idle-stream retained memory and callback scheduling have been measured.
 5. The first-party Datastar API has been exercised by realistic examples and
    compared with the pinned official SDK.
 6. Streaming Brotli's full-compression and scale profiles pass progressive
@@ -1669,15 +1681,15 @@ into the design contract.
 
 ## Open research questions
 
-1. Can a recursive boxed stream machine be represented without exposing erased
-   callable layout directly to Rust?
-2. Does a fixed Roc advance/drop wrapper provide all required recursive ARC
-   teardown, or should glue generate an explicit payload destructor callback?
-3. Can returned event buffers be retained zero-copy as independent Hyper frames
+1. What enforceable admission unit can bound Roc heap and weighted opaque
+   resources retained by a parked machine without exposing application state?
+2. Can returned event buffers be retained zero-copy as independent Hyper frames
    without holding unrelated captures longer than necessary?
-4. Should the first step run before response commitment?
-5. Is a dedicated callback pool simpler and safer than a fair shared Roc
+3. Should the first step run before response commitment?
+4. Is a dedicated callback pool simpler and safer than a fair shared Roc
    scheduler with reservations?
+5. Does Brotli encoding share the finite Roc callback CPU admission or use a
+   separate bounded executor while preserving drain ordering and cancellation?
 6. What is the right semantic result of a step whose events are accepted by the
    body channel but never reach the peer?
 7. After first-class Brotli, is there measured value in adding streaming
@@ -1697,30 +1709,29 @@ into the design contract.
     retry modes we intend to document?
 14. What reference deployment and proxy configuration should define the
     end-to-end progressive-delivery smoke test?
-15. Can generated explicit-state adapters consume an owned box without an
-    outer retain/decref pair and reuse its storage when unique, or is a separate
-    opaque size/alignment/move/step/drop ABI required?
-16. Should named `Scale` compression intent live in `Sse.Options`, server route
+15. Should named `Scale` compression intent live in `Sse.Options`, server route
     configuration, or a higher-level constructor while keeping raw Brotli
     parameters out of application code?
-17. Can a finite persistent PROCESS+FLUSH output bound be proven for every
-    selected profile and maximum event, or must the encoder/body handshake be
-    resumable under a fixed reservation?
 
 ## Candidate implementation sequence after the gates
 
 This is not an implementation plan yet, but it records dependency order:
 
 1. Pin Datastar protocol fixtures.
-2. Prove the boxed-machine ABI and fallback decision.
-3. Build the bounded Hyper SSE body and lifecycle state machine.
-4. Add explicit callback admission and fairness.
-5. Add the generic typed `Sse` Roc API and internal ABI conversions.
-6. Add finite `Datastar.respond` and typed patch/signal helpers.
-7. Add and gate the backpressured streaming Brotli body.
-8. Add host-scheduled dynamic streams and timers.
+2. Prove the boxed-machine reuse and generated Rust consuming projection.
+3. Build the bounded Hyper SSE body, resumable Brotli path, and lifecycle state
+   machine.
+4. Compose a timer-only retained Roc source through pre-admission,
+   generation-checked wakes, drain acknowledgement, and cancellation.
+5. Establish the retained-capture/opaque-resource admission contract and
+   explicit compression CPU domain.
+6. Integrate request accounting, graceful shutdown, HTTP/1.1, HTTP/2, and
+   ordinary-request isolation.
+7. Select the generic typed `Sse` Roc API and internal ABI conversions from
+   realistic examples.
+8. Add finite `Datastar.respond` and typed patch/signal helpers.
 9. Add optional `Pulse` only after its independent gate passes.
-10. Add proxy, reconnect, observability, and scale validation.
+10. Add proxy, reconnect, observability, browser, and scale validation.
 11. Propose the enduring `design.md` scope change with measured evidence.
 
 ## Source material
@@ -2033,27 +2044,47 @@ LLVM, eval, and build-ci validation pass. The compiler work is under review in
 
 This supersedes the allocating status above. The composite functional result
 is the selected semantic ABI; the private result cell and explicit-state paths
-remain fallbacks only if upstream evidence invalidates it. The next ownership
-gate is generated consuming projection: current glue payload accessors can
-bit-copy an owning list and callable from a borrowed step shell, which cannot
-be the production move contract.
+remain fallbacks only if upstream evidence invalidates it.
+
+### 2026-08-02: Generated Rust consuming projection closes the next ABI gate
+
+Roc candidate `be78e95c42` replaces borrowed owning-value payload accessors
+with unsafe borrowed-reference and consuming-move primitives. The research host
+puts the move behind non-`Copy` RAII owners. It proves unchanged item pointer
+and refcount with no allocator activity, dynamic aliased and unique item
+lifecycle under both destruction orders, whole-step cleanup, wrong-tag owner
+preservation, and exact final allocation/resource balance in development and
+optimized builds. Rust's compile-fail check rejects reuse of the moved result
+owner. The compiler's complete 48-case glue suite and glue ABI compile gate
+pass across the native/Wasm matrix. See the
+[result note](research/abi-spike/results/2026-08-02-consuming-rust-projection.md).
+
+This clears result extraction for the Rust platform host. It does not clear
+the production runtime: `Wait`/`Error`, generation-gated timers, admission,
+drain acknowledgement, cancellation, and shutdown still need one composed
+adapter. Adversarial review also found that a stream-count limit does not bound
+the Roc heap or opaque resources captured by each parked machine. An
+enforceable retained-capture resource contract is now merge-blocking. The
+current body also performs Brotli PROCESS/FLUSH/FINISH synchronously inside
+Hyper polling, so the scheduler spike must establish an explicitly bounded CPU
+domain for meaningful compression work.
 
 ### 2026-08-02: Research resumes with a product-scope falsification gate
 
 The experiment is intentionally not treating compiler success as permission
-to add a public SSE API. The accepted `design.md` excludes Roc-produced
-incremental responses and application-defined SSE runtimes because they could
-turn the platform into a general asynchronous runtime. The remaining work must
-prove a narrower exception: one closed native response plan, finite synchronous
-Roc transitions, parked request-local state, and host-owned bounded admission,
-timers, heartbeats, backpressure, compression, cancellation, and shutdown.
+to add a public SSE API. Finite precomputed SSE fits the ordinary bounded
+response path. Dynamic unfold does not: the accepted `design.md` excludes
+Roc-produced incremental responses and application-defined SSE runtimes. The
+remaining work must justify a deliberate narrow exception: one closed native
+response plan, finite synchronous Roc transitions, parked request-local state,
+and host-owned bounded admission, timers, heartbeats, backpressure,
+compression, cancellation, and shutdown.
 
 The immediate sequence is:
 
-1. generate and test a consuming tag-payload projection for the composite
-   source step;
-2. compose the retained Roc machine with `SseBody` through explicit
+1. compose the retained Roc machine with `SseBody` through explicit
    pre-admission and `item_drained` acknowledgement;
+2. enforce a retained Roc capture/opaque-resource bound;
 3. prove timer/immediate fairness, stale-wake rejection, cancellation races,
    and zero terminal accounting;
 4. integrate stream and compression admission with the real listener,
