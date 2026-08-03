@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
+import math
 import os
 import platform
 import signal
@@ -38,7 +40,7 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
-def build(roc: Path, go: Path) -> None:
+def build(roc: Path, go: Path, *, instrumented: bool) -> None:
     BUILD.mkdir(parents=True, exist_ok=True)
     run([sys.executable, "scripts/build.py"])
     run(
@@ -59,7 +61,8 @@ def build(roc: Path, go: Path) -> None:
         cwd=GO_MODULE,
         env=environment,
     )
-    build_instrumented_roc_server(roc)
+    if instrumented:
+        build_instrumented_roc_server(roc)
 
 
 def build_instrumented_roc_server(roc: Path) -> None:
@@ -325,10 +328,14 @@ def progressive_sample(server: Server, sample: int) -> dict[str, object]:
 
 
 def open_idle_stream(server: Server) -> socket.socket:
+    return open_parked_stream(server, "/idle")
+
+
+def open_parked_stream(server: Server, path: str) -> socket.socket:
     connection = socket.create_connection(("127.0.0.1", server.port), timeout=5)
     coding_header = "Accept-Encoding: br\r\n" if server.coding == "scale" else ""
     request = (
-        "GET /idle HTTP/1.1\r\n"
+        f"GET {path} HTTP/1.1\r\n"
         f"Host: 127.0.0.1:{server.port}\r\n"
         f"{coding_header}"
         "Connection: close\r\n\r\n"
@@ -342,6 +349,163 @@ def open_idle_stream(server: Server) -> socket.socket:
             raise RuntimeError("idle stream ended before its first encoded body bytes")
         received.extend(chunk)
     return connection
+
+
+def percentile(values: list[float], quantile: float) -> float:
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(len(ordered) * quantile) - 1)]
+
+
+def request_once(server: Server, path: str) -> tuple[int, float]:
+    request = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:{server.port}\r\n"
+        "Accept-Encoding: identity\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode()
+    started = time.perf_counter()
+    received = bytearray()
+    with socket.create_connection(("127.0.0.1", server.port), timeout=5) as connection:
+        connection.sendall(request)
+        connection.settimeout(10)
+        while chunk := connection.recv(65536):
+            received.extend(chunk)
+    elapsed = time.perf_counter() - started
+    first_line = bytes(received).split(b"\r\n", 1)[0]
+    try:
+        status = int(first_line.split()[1])
+    except (IndexError, ValueError) as error:
+        raise RuntimeError(f"invalid HTTP response: {first_line!r}") from error
+    return status, elapsed
+
+
+def load_sample(
+    server: Server,
+    *,
+    parked_streams: int,
+    requests: int,
+    concurrency: int,
+    sample: int,
+) -> dict[str, object]:
+    parked: list[socket.socket] = []
+    try:
+        for _ in range(parked_streams):
+            parked.append(open_idle_stream(server))
+        started = time.perf_counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+            results = list(pool.map(lambda _: request_once(server, "/ordinary"), range(requests)))
+        elapsed = time.perf_counter() - started
+    finally:
+        for connection in parked:
+            connection.close()
+    statuses = [status for status, _ in results]
+    latencies_ms = [duration * 1000 for _, duration in results]
+    if any(status != 200 for status in statuses):
+        raise RuntimeError(f"ordinary mixed-load statuses were {sorted(set(statuses))}")
+    return {
+        "kind": "mixed-load",
+        "implementation": server.name,
+        "coding": server.coding,
+        "parked_streams": parked_streams,
+        "requests": requests,
+        "concurrency": concurrency,
+        "sample": sample,
+        "elapsed_seconds": elapsed,
+        "requests_per_second": requests / elapsed,
+        "p50_ms": percentile(latencies_ms, 0.50),
+        "p95_ms": percentile(latencies_ms, 0.95),
+        "p99_ms": percentile(latencies_ms, 0.99),
+        "max_ms": max(latencies_ms),
+    }
+
+
+def simultaneous_wake_sample(server: Server, streams: int, sample: int) -> dict[str, object]:
+    def observe(_: int) -> float:
+        request = (
+            "GET /wake-100 HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{server.port}\r\n"
+            "Accept-Encoding: identity\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode()
+        received = bytearray()
+        with socket.create_connection(("127.0.0.1", server.port), timeout=5) as connection:
+            connection.sendall(request)
+            connection.settimeout(5)
+            while received.count(b"event: datastar-patch-elements") < 2:
+                chunk = connection.recv(65536)
+                if not chunk:
+                    raise RuntimeError("wake stream ended before its second event")
+                received.extend(chunk)
+        return time.perf_counter()
+
+    started = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=streams) as pool:
+        completed = list(pool.map(observe, range(streams)))
+    wake_ms = [(finished - started) * 1000 for finished in completed]
+    return {
+        "kind": "simultaneous-wake",
+        "implementation": server.name,
+        "coding": "identity",
+        "streams": streams,
+        "sample": sample,
+        "p50_ms": percentile(wake_ms, 0.50),
+        "p95_ms": percentile(wake_ms, 0.95),
+        "p99_ms": percentile(wake_ms, 0.99),
+        "spread_ms": max(wake_ms) - min(wake_ms),
+    }
+
+
+def saturation_sample(server: Server, capacity: int, sample: int) -> dict[str, object]:
+    parked: list[socket.socket] = []
+    try:
+        for _ in range(capacity):
+            parked.append(open_idle_stream(server))
+        saturated_status, saturated_seconds = request_once(server, "/idle")
+        parked.pop().close()
+        deadline = time.monotonic() + 5
+        while True:
+            recovered_status, recovered_seconds = request_once(server, "/finite")
+            if recovered_status == 200 or time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+    finally:
+        for connection in parked:
+            connection.close()
+    if saturated_status != 503 or recovered_status != 200:
+        raise RuntimeError(
+            f"stream saturation/recovery statuses = {saturated_status}/{recovered_status}"
+        )
+    return {
+        "kind": "saturation",
+        "implementation": server.name,
+        "coding": server.coding,
+        "capacity": capacity,
+        "sample": sample,
+        "saturated_status": saturated_status,
+        "saturated_response_ms": saturated_seconds * 1000,
+        "recovered_status": recovered_status,
+        "recovery_response_ms": recovered_seconds * 1000,
+    }
+
+
+def disconnect_storm_sample(server: Server, disconnects: int, sample: int) -> dict[str, object]:
+    started = time.perf_counter()
+    for _ in range(disconnects):
+        connection = open_idle_stream(server)
+        connection.close()
+    storm_seconds = time.perf_counter() - started
+    status, recovery_seconds = request_once(server, "/finite")
+    if status != 200:
+        raise RuntimeError(f"server did not recover after disconnect storm: {status}")
+    return {
+        "kind": "disconnect-storm",
+        "implementation": server.name,
+        "coding": server.coding,
+        "disconnects": disconnects,
+        "sample": sample,
+        "storm_seconds": storm_seconds,
+        "recovery_ms": recovery_seconds * 1000,
+    }
 
 
 def idle_sample(server: Server, streams: int, sample: int) -> dict[str, object]:
@@ -493,13 +657,25 @@ def allocation_slopes(records: list[dict[str, object]]) -> list[dict[str, object
 def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
     grouped: dict[tuple[object, ...], list[dict[str, object]]] = {}
     for record in records:
-        if record["kind"] not in {"hot", "idle", "progressive"}:
+        if record["kind"] not in {
+            "hot",
+            "idle",
+            "progressive",
+            "mixed-load",
+            "simultaneous-wake",
+            "saturation",
+            "disconnect-storm",
+        }:
             continue
         key = (
             record["kind"],
             record["implementation"],
             record["coding"],
             record.get("path", ""),
+            record.get("parked_streams", ""),
+            record.get("streams", ""),
+            record.get("capacity", ""),
+            record.get("disconnects", ""),
         )
         grouped.setdefault(key, []).append(record)
     summaries: list[dict[str, object]] = []
@@ -515,6 +691,10 @@ def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
             "implementation": key[1],
             "coding": key[2],
             "path": key[3],
+            "parked_streams": key[4],
+            "streams": key[5],
+            "capacity": key[6],
+            "disconnects": key[7],
             "samples": len(samples),
         }
         for field in sorted(numeric):
@@ -551,8 +731,19 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--warmup", type=int, default=2)
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--skip-allocations", action="store_true")
+    parser.add_argument("--skip-hot", action="store_true")
     parser.add_argument("--skip-idle", action="store_true")
     parser.add_argument("--skip-progressive", action="store_true")
+    parser.add_argument("--skip-load", action="store_true")
+    parser.add_argument("--skip-wakes", action="store_true")
+    parser.add_argument("--skip-saturation", action="store_true")
+    parser.add_argument("--skip-disconnect-storm", action="store_true")
+    parser.add_argument("--load-requests", type=int, default=128)
+    parser.add_argument("--load-concurrency", type=int, default=16)
+    parser.add_argument("--wake-streams", type=int, default=32)
+    parser.add_argument("--stream-capacity", type=int, default=128)
+    parser.add_argument("--disconnects", type=int, default=100)
+    parser.add_argument("--idle-streams", default="10,50,100")
     parser.add_argument("--allocation-samples", type=int, default=3)
     parser.add_argument("--roc", type=Path, default=ROC_DEFAULT)
     parser.add_argument("--go", type=Path, default=GO_DEFAULT)
@@ -566,10 +757,20 @@ def main() -> None:
         raise SystemExit(
             "--samples must be at least 3; --warmup and --allocation-samples must be positive"
         )
+    idle_stream_counts = [int(value) for value in args.idle_streams.split(",")]
+    if (
+        any(value <= 0 for value in idle_stream_counts)
+        or args.load_requests <= 0
+        or args.load_concurrency <= 0
+        or args.wake_streams <= 0
+        or args.stream_capacity <= 0
+        or args.disconnects <= 0
+    ):
+        raise SystemExit("load, stream, disconnect, and idle counts must be positive")
     if not sys.platform.startswith("linux"):
         raise SystemExit("this controlled /proc benchmark currently requires Linux")
     if not args.skip_build:
-        build(args.roc, args.go)
+        build(args.roc, args.go, instrumented=not args.skip_allocations)
     if not ROC_SERVER.is_file() or not GO_SERVER.is_file():
         raise SystemExit("benchmark servers are missing; rerun without --skip-build")
 
@@ -581,24 +782,25 @@ def main() -> None:
             server = Server.start(implementation, coding)
             try:
                 records.extend(verify(server))
-                for path, events in (
-                    ("/transport-256", 10000),
-                    ("/transport-4096", 2000),
-                    ("/transport-65536", 200),
-                    ("/repeat-256", 10000),
-                    ("/repeat-4096", 2000),
-                    ("/repeat-65536", 200),
-                    ("/assemble-256", 10000),
-                    ("/assemble-4096", 2000),
-                    ("/assemble-65536", 200),
-                    ("/hot-10000", 10000),
-                    ("/hot-4096", 2000),
-                    ("/hot-65536", 200),
-                ):
-                    for _ in range(args.warmup):
-                        hot_sample(server, path, events, -1)
-                    for sample in range(args.samples):
-                        records.append(hot_sample(server, path, events, sample))
+                if not args.skip_hot:
+                    for path, events in (
+                        ("/transport-256", 10000),
+                        ("/transport-4096", 2000),
+                        ("/transport-65536", 200),
+                        ("/repeat-256", 10000),
+                        ("/repeat-4096", 2000),
+                        ("/repeat-65536", 200),
+                        ("/assemble-256", 10000),
+                        ("/assemble-4096", 2000),
+                        ("/assemble-65536", 200),
+                        ("/hot-10000", 10000),
+                        ("/hot-4096", 2000),
+                        ("/hot-65536", 200),
+                    ):
+                        for _ in range(args.warmup):
+                            hot_sample(server, path, events, -1)
+                        for sample in range(args.samples):
+                            records.append(hot_sample(server, path, events, sample))
                 if coding == "identity" and not args.skip_progressive:
                     for _ in range(args.warmup):
                         progressive_sample(server, -1)
@@ -611,10 +813,68 @@ def main() -> None:
     if not args.skip_idle:
         for coding in ("identity", "scale"):
             for implementation in ("roc", "go"):
+                for streams in idle_stream_counts:
+                    for sample in range(args.samples):
+                        server = Server.start(implementation, coding)
+                        try:
+                            records.append(idle_sample(server, streams, sample))
+                        finally:
+                            server.stop()
+                            server.close_logs()
+
+    if not args.skip_load:
+        for implementation in ("roc", "go"):
+            server = Server.start(implementation, "identity")
+            try:
+                for parked_streams in (0, min(50, args.stream_capacity - 1)):
+                    for sample in range(args.samples):
+                        records.append(
+                            load_sample(
+                                server,
+                                parked_streams=parked_streams,
+                                requests=args.load_requests,
+                                concurrency=args.load_concurrency,
+                                sample=sample,
+                            )
+                        )
+            finally:
+                server.stop()
+                server.close_logs()
+
+    if not args.skip_wakes:
+        for implementation in ("roc", "go"):
+            server = Server.start(implementation, "identity")
+            try:
+                for sample in range(args.samples):
+                    records.append(
+                        simultaneous_wake_sample(server, args.wake_streams, sample)
+                    )
+            finally:
+                server.stop()
+                server.close_logs()
+
+    if not args.skip_saturation:
+        for coding in ("identity", "scale"):
+            for implementation in ("roc", "go"):
                 for sample in range(args.samples):
                     server = Server.start(implementation, coding)
                     try:
-                        records.append(idle_sample(server, 50, sample))
+                        records.append(
+                            saturation_sample(server, args.stream_capacity, sample)
+                        )
+                    finally:
+                        server.stop()
+                        server.close_logs()
+
+    if not args.skip_disconnect_storm:
+        for coding in ("identity", "scale"):
+            for implementation in ("roc", "go"):
+                for sample in range(args.samples):
+                    server = Server.start(implementation, coding)
+                    try:
+                        records.append(
+                            disconnect_storm_sample(server, args.disconnects, sample)
+                        )
                     finally:
                         server.stop()
                         server.close_logs()

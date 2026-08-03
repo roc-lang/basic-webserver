@@ -1,10 +1,12 @@
 app [Context, program] {
 	pf: platform "../../platform/main.roc",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
 import pf.Datastar
 import pf.Server
 import pf.Sse
+import http.Response
 
 # This application is intentionally fixed-shape. The Go reference server uses
 # the same route matrix, payload generator, event counts, and timer schedule so
@@ -27,12 +29,18 @@ program = { init!, respond!, shutdown! }
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = ||
 	Ok({
-		config: Server.with_limits(
-			Server.default_config,
+		config: Server.with_sse_limits(
+			Server.with_limits(
+				Server.default_config,
+				{
+					max_connections: 512,
+					max_handlers: 64,
+					max_queued_handlers: 64,
+				},
+			),
 			{
-				max_connections: 512,
-				max_handlers: 64,
-				max_queued_handlers: 64,
+				max_streams: 128,
+				max_event_bytes: 1024 * 1024,
 			},
 		),
 		context: {},
@@ -45,6 +53,9 @@ respond! = |request, _context| {
 			Resource({ raw_path: path, .. }) => path
 			_ => ""
 		}
+	if raw_path == "/ordinary" {
+		return Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("ok"))))
+	}
 
 	state =
 		match raw_path {
@@ -71,14 +82,15 @@ respond! = |request, _context| {
 			"/transport-4096" => prepared_state(2000, 4096)
 			"/transport-65536" => prepared_state(200, 65536)
 			"/idle" => dynamic_state(1000000, 256, 60000)
+			"/wake-100" => dynamic_state(2, 256, 100)
 			_ => dynamic_state(1, 256, 0)
 		}
 
 	Ok(Server.stream(Sse.unfold!(state, transition!)))
 }
 
-transition! : StreamState, U64 => Try(Sse.Step(StreamState), [StreamFailed(Str)])
-transition! = |state, _wake_generation|
+transition! : StreamState => Try(Sse.Step(StreamState), [StreamFailed(Str)])
+transition! = |state|
 	if state.remaining == 0 {
 		Ok(End)
 	} else {

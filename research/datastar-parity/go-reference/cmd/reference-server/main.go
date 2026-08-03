@@ -17,6 +17,7 @@ var (
 	address            = flag.String("address", "127.0.0.1:8099", "listen address")
 	coding             = flag.String("coding", "identity", "identity, scale, idiomatic, or equivalent")
 	measureAllocations = flag.Bool("measure-allocations", false, "log Go runtime allocation deltas per response")
+	streamSlots        = make(chan struct{}, 128)
 )
 
 func main() {
@@ -24,16 +25,33 @@ func main() {
 	http.HandleFunc("/finite", finite)
 	http.HandleFunc("/progressive", progressive)
 	http.HandleFunc("/persistent", persistent)
+	http.HandleFunc("/ordinary", ordinary)
 	for _, route := range []string{
 		"/hot-100", "/hot-1000", "/hot-10000", "/hot-4096", "/hot-65536",
 		"/repeat-100", "/repeat-1000", "/repeat-256", "/repeat-4096", "/repeat-65536",
 		"/assemble-100", "/assemble-1000", "/assemble-256", "/assemble-4096", "/assemble-65536",
-		"/transport-100", "/transport-1000", "/transport-256", "/transport-4096", "/transport-65536", "/idle",
+		"/transport-100", "/transport-1000", "/transport-256", "/transport-4096", "/transport-65536", "/idle", "/wake-100",
 	} {
 		http.HandleFunc(route, fixedWorkload)
 	}
 	log.Printf("Go Datastar reference listening on http://%s (%s)", *address, *coding)
 	log.Fatal(http.ListenAndServe(*address, nil))
+}
+
+func admitStream(w http.ResponseWriter) bool {
+	select {
+	case streamSlots <- struct{}{}:
+		return true
+	default:
+		http.Error(w, "Server is overloaded", http.StatusServiceUnavailable)
+		return false
+	}
+}
+
+func releaseStream() { <-streamSlots }
+
+func ordinary(w http.ResponseWriter, _ *http.Request) {
+	_, _ = w.Write([]byte("ok"))
 }
 
 func stream(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGenerator {
@@ -58,10 +76,18 @@ func stream(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGen
 }
 
 func finite(w http.ResponseWriter, r *http.Request) {
+	if !admitStream(w) {
+		return
+	}
+	defer releaseStream()
 	_ = stream(w, r).PatchElements(htmlPayload(256, 1))
 }
 
 func progressive(w http.ResponseWriter, r *http.Request) {
+	if !admitStream(w) {
+		return
+	}
+	defer releaseStream()
 	sse := stream(w, r)
 	for stage := 1; stage <= 3; stage++ {
 		if err := sse.PatchElements(htmlPayload(256, stage)); err != nil {
@@ -74,6 +100,10 @@ func progressive(w http.ResponseWriter, r *http.Request) {
 }
 
 func fixedWorkload(w http.ResponseWriter, r *http.Request) {
+	if !admitStream(w) {
+		return
+	}
+	defer releaseStream()
 	events, payloadBytes, delay := workload(r.URL.Path)
 	var before runtime.MemStats
 	if *measureAllocations {
@@ -147,6 +177,8 @@ func workload(path string) (events int, payloadBytes int, delay time.Duration) {
 		return 10000, 256, 0
 	case "/idle":
 		return 1_000_000, 256, 60 * time.Second
+	case "/wake-100":
+		return 2, 256, 100 * time.Millisecond
 	default:
 		return 1, 256, 0
 	}
@@ -173,6 +205,10 @@ func htmlPayloadWithPadding(padding string, sequence int) string {
 }
 
 func persistent(w http.ResponseWriter, r *http.Request) {
+	if !admitStream(w) {
+		return
+	}
+	defer releaseStream()
 	sse := stream(w, r)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
