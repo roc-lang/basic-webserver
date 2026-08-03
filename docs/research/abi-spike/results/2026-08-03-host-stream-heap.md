@@ -103,7 +103,8 @@ model and would require allocator-domain/compiler work.
   an actually bound listener rather than the reduced ABI sum.
 - Add exact `Wait` and application-error payloads.
 - Prove timer and immediate wake scheduling under real concurrency and herds.
-- Establish how the application-specific `Context` reaches each transition.
+- Compose the proven host-owned `Box(Context)` source construction with the
+  real `respond!` wrapper and listener.
 - Retain native/Wasm and supported-target compiler/glue gates after upstream
   review.
 - Measure the full listener path and integrate bounded Brotli CPU execution.

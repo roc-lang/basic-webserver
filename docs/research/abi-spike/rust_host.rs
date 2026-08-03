@@ -83,6 +83,15 @@ impl OwnedSourceOutcome {
         }
     }
 
+    fn with_context(events: u64, context: &OwnedContext) -> Self {
+        Self {
+            raw: MaybeUninit::new(unsafe {
+                abi::roc_abi_make_context_source_outcome(events, context.share())
+            }),
+            live: true,
+        }
+    }
+
     fn tag(&self) -> abi::AbiSourceOutcomeTag {
         unsafe { self.raw.assume_init_ref().tag }
     }
@@ -96,6 +105,28 @@ impl OwnedSourceOutcome {
         let machine = unsafe { raw.take_payload_stream_unchecked() };
         self.live = false;
         Ok(OwnedSourceMachine(Some(machine)))
+    }
+}
+
+struct OwnedContext(Option<abi::RocBox>);
+
+impl OwnedContext {
+    fn new(seed: u64) -> Self {
+        Self(Some(unsafe { abi::roc_abi_init_state(seed) }))
+    }
+
+    fn share(&self) -> abi::RocBox {
+        let context = *some_ref_or_abort(&self.0);
+        unsafe { abi::incref_box(context, 1) };
+        context
+    }
+}
+
+impl Drop for OwnedContext {
+    fn drop(&mut self) {
+        if let Some(context) = self.0.take() {
+            unsafe { abi::roc_abi_drop_state(context) }
+        }
     }
 }
 
@@ -518,6 +549,42 @@ fn outcome_transfer_is_consuming() {
     drop(machine);
 }
 
+fn sources_can_share_application_context() -> i32 {
+    let context = OwnedContext::new(7);
+    let first = OwnedSourceOutcome::with_context(1, &context);
+    let second = OwnedSourceOutcome::with_context(1, &context);
+    let first = match first.try_take_stream() {
+        Ok(machine) => machine,
+        Err(_) => return 11,
+    };
+    let second = match second.try_take_stream() {
+        Ok(machine) => machine,
+        Err(_) => return 12,
+    };
+
+    // The streams independently own the Context fields captured by their Roc
+    // source functions, so the server's original Context owner may end first.
+    drop(context);
+    let step = first.advance(3);
+    if step.tag() != abi::AbiSourceStepTag::Emit {
+        return 13;
+    }
+    let emit = match step.try_take_emit() {
+        Ok(emit) => emit,
+        Err(_) => return 14,
+    };
+    if emit.wait_millis != 7 {
+        return 15;
+    }
+    drop(emit.item);
+    drop(emit.machine);
+    drop(second);
+    if unsafe { abi_spike_live_allocations() } != 0 {
+        return 16;
+    }
+    0
+}
+
 fn complete_one(
     heap: &mut StreamHeap,
     token: WakeToken,
@@ -622,6 +689,10 @@ pub extern "C" fn main() -> i32 {
     dynamic_item_drop_orders_balance();
     whole_step_and_wrong_tag_balance();
     outcome_transfer_is_consuming();
+    let context_result = sources_can_share_application_context();
+    if context_result != 0 {
+        return context_result;
+    }
     bounded_stream_heap_lifecycle();
     stream_heap_cancellation_paths();
     check(unsafe { abi_spike_live_allocations() } == 0);

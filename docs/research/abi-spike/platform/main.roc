@@ -5,6 +5,7 @@ platform "abi-spike"
 			make_bench_machine : U64 -> Abi.BenchMachine,
 			make_source_machine! : U64 => Abi.SourceMachine,
 			make_source_outcome! : U64 => Abi.SourceOutcome,
+			make_context_source_outcome! : U64, state => Abi.SourceOutcome,
 			make_aliased_source_machine! : U64 => Abi.SourceMachine,
 			make_unique_source_machine! : U64 => Abi.SourceMachine,
 			make_sink_machine! : U64 => Abi.SinkMachine,
@@ -25,6 +26,7 @@ platform "abi-spike"
 		"roc_abi_drop_bench_machine": drop_bench_machine_for_host,
 		"roc_abi_make_source_machine": make_source_machine_for_host!,
 		"roc_abi_make_source_outcome": make_source_outcome_for_host!,
+		"roc_abi_make_context_source_outcome": make_context_source_outcome_for_host!,
 		"roc_abi_drop_source_outcome": drop_source_outcome_for_host!,
 		"roc_abi_make_aliased_source_machine": make_aliased_source_machine_for_host!,
 		"roc_abi_make_unique_source_machine": make_unique_source_machine_for_host!,
@@ -87,6 +89,10 @@ make_source_machine_for_host! = program.make_source_machine!
 
 make_source_outcome_for_host! : U64 => Abi.SourceOutcome
 make_source_outcome_for_host! = program.make_source_outcome!
+
+make_context_source_outcome_for_host! : U64, Box(State) => Abi.SourceOutcome
+make_context_source_outcome_for_host! = |events, boxed_context|
+	(program.make_context_source_outcome!)(events, Box.unbox(boxed_context))
 
 drop_source_outcome_for_host! : Abi.SourceOutcome => {}
 drop_source_outcome_for_host! = |_outcome| {}

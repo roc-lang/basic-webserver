@@ -106,6 +106,15 @@ zero live allocations. This restores the retained source as the preferred
 product hypothesis under the platform's trusted-application memory model. See
 [`results/2026-08-03-host-stream-heap.md`](results/2026-08-03-host-stream-heap.md).
 
+A production-shaped `Box(Context)` follow-up now gives the Rust host one opaque
+owner of the application context and passes an incremented owner into each Roc
+source-construction call. Two returned sources retain the context fields they
+need, remain valid after the host drops its root owner, and independently
+cancel or advance back to zero live allocations. After restoring explicit
+return-destination provenance in the compiler, the optimized composite source
+path again performs zero allocator or deallocator calls per transition. See
+[`results/2026-08-03-context-owned-source.md`](results/2026-08-03-context-owned-source.md).
+
 The benchmark is not an end-to-end SSE or Go comparison. Its allocation
 counters use atomics in the allocator and therefore perturb allocation-heavy
 timings. It exists to choose the next design spike and to detect large ABI or
