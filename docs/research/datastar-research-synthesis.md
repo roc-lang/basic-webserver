@@ -2,7 +2,8 @@
 
 Status: production body, composite-callable reuse, Rust consuming projection,
 outcome transfer, and a bounded host stream heap passed; retained typed sources
-are the preferred scheduler hypothesis for the next product slice
+with host-owned application context are the preferred scheduler hypothesis for
+the next product slice
 
 Date: 2026-08-03
 
@@ -76,6 +77,14 @@ the compiler's interpreter, development, Wasm, LLVM, eval, and build-ci suites
 pass. The candidate is under review in
 [`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
 
+A later draft revision intentionally removed heuristic completed-body scans but
+also stopped the reuse destination at `Box` and lexical `let` boundaries. Roc
+commit `6d65420689` restores the zero-allocation path with explicit backward
+lexical provenance. Exact-layout aliases and `Box.box` may forward the one
+affine owner; eager competitors and repeatable loop/join regions conservatively
+decline it. The focused tests run through ARC insertion/certification and the
+production-shaped native fixture retains balanced lifecycle accounting.
+
 Roc candidate `be78e95c42` and the matched Rust fixture now close the consuming
 projection feasibility gate. Generated Rust exposes unsafe borrowed-reference
 and consuming-move primitives; non-`Copy` framework owners validate the tag,
@@ -145,7 +154,7 @@ advance so the body retains its pre-reserved frame only for the latter.
 | Gate | Current evidence | Status | Next falsifying test |
 | --- | --- | --- | --- |
 | Product scope | Finite precomputed SSE fits the ordinary response path; dynamic retained-source stepping is a real, deliberate exception to the accepted design | Open | Prove the exception stays one private typed source and a closed native plan with no writer, callback registry, detached work, or application scheduler |
-| Composite Roc transition | Candidate `d4921d8658` is allocation-free and lifecycle-balanced in the production-shaped fixture | Passed for feasibility; upstream review open | Cross-target generated-wrapper lifecycle and controlled batch-one comparison |
+| Composite Roc transition | Candidate through `6d65420689` is allocation-free and lifecycle-balanced in the production-shaped fixture | Passed for feasibility; upstream review open | Cross-target generated-wrapper lifecycle and controlled batch-one comparison |
 | Consuming result ownership | RustGlue candidate `be78e95c42` plus affine wrappers pass move, whole-drop, wrong-tag, dynamic alias/unique, both drop-order, no-allocation, native, and Wasm checks | Passed for Rust-host feasibility; upstream/C/Zig completeness open | Add exact Wait/Error terminal paths to the retained source result |
 | Body/frame ownership | One-slot identity and Brotli body reaches zero steady allocations and balanced cancellation | Passed for host-only fixture | Compose one retained Roc transition across repeated body `Pending` states |
 | Admission and scheduler | A two-slot host heap proves saturation, slot/wake generations, overlap rejection, drain acknowledgement, normal end, and parked/draining/in-flight cancellation | Partial | Real timer/immediate scheduler through the listener with stale-wake, cancellation, and herd tests |
@@ -195,8 +204,11 @@ The preferred program remains `{ init!, respond!, shutdown! }`. Initial
 `respond!` authorizes a stream and returns a typed retained source plus options.
 The host consumes its sole owner into a bounded stream slot. Route packages can
 define typed state and transitions without a root source-ID dispatcher or
-cursor codec. Realistic examples must establish whether this is sufficiently
-ergonomic compared with Go before names or exact shape become contract.
+cursor codec. The host retains one opaque `Box(Context)` root and supplies an
+incremented owner to the source-construction wrapper; the private source then
+retains the immutable context or selected fields using ordinary Roc ARC.
+Realistic examples must establish whether this is sufficiently ergonomic
+compared with Go before names or exact shape become contract.
 
 Do not add a dynamic state bag, general callback registry, arbitrary byte
 writer, application pub/sub bus, or one-thread-per-stream API to hide an ABI
@@ -421,7 +433,9 @@ lifecycle portion of this gate. Its generated Rust consuming projection also
 passes local native and Wasm glue coverage. The reduced outcome/stream-heap
 fixture now additionally proves that the source owner can cross the
 `respond!`-shaped boundary into finite host capacity without copying or adding
-a fixed application entrypoint.
+a fixed application entrypoint. A production-shaped follow-up proves that two
+sources can retain fields from one host-owned `Box(Context)`, outlive the
+host's root owner, and independently advance or cancel with balanced ownership.
 
 This does not create a transitive heap quota. The selected contract instead
 matches `design.md`: host-introduced stream, callback, buffer, timer,
@@ -522,9 +536,8 @@ is not acceptable for release.
 
 ## Explicitly unresolved product choices
 
-- Whether `Context` can be supplied to a retained typed transition without
-  making `Server.Outcome` awkwardly generic or retaining an unnecessary copy
-  of the application root.
+- Whether the proven host-owned `Box(Context)` construction composes cleanly
+  with the real generic `Server.Outcome` and public `Sse.unfold!` types.
 - Whether realistic progressive, live-query, and replay examples match or
   improve on Go source complexity while keeping the source private and typed.
 - Whether encoding retains the Roc execution permit while a step drains or

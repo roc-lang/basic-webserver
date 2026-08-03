@@ -51,9 +51,9 @@ respond! = |request, context| {
         Datastar.stream(
             Sse.unfold!(
                 { user_id: user.id, version: 0 },
-                |state, wake, fresh_context| {
+                |state, wake, context| {
                     changes = load_changes_after!(
-                        fresh_context.db,
+                        context.db,
                         state.user_id,
                         state.version,
                     )?
@@ -73,11 +73,13 @@ respond! = |request, context| {
 }
 ```
 
-The exact way an application-specific `Context` reaches the erased recursive
-source remains an API feasibility question. Preferred semantics supply a valid
-owned reference for each finite transition. Capturing the immutable context in
-the platform wrapper is also viable: it is one existing server-lifetime root,
-not one newly constructed resource graph per stream.
+The host keeps the application-specific `Context` as one opaque `Box(Context)`
+owner. A generated source-construction wrapper receives an incremented owner,
+unboxes it in Roc, and lets the private source retain the immutable context or
+the fields its transition actually uses. The server root may then be dropped
+before either source without invalidating them. This gives each finite
+transition ordinary typed `Context` ergonomics without reconstructing context,
+adding a source-ID dispatcher, or exposing its layout to Rust.
 
 `Sse.unfold!` is the ergonomic constructor, not a callback registry. It turns a
 typed state transition into one recursively typed private source. Application
@@ -185,6 +187,9 @@ and a two-slot host stream heap. Against Roc candidates `d4921d8658` and
 - normal `Emit`/`End`, parked cancellation, draining cancellation, and
   cancellation during an advance return all Roc allocations and opaque
   resources to zero; and
+- two sources can retain fields from one host-owned `Box(Context)`, outlive the
+  host's root owner, and independently advance or cancel to zero live
+  allocations; and
 - optimized unique transitions can reuse the same callable allocation.
 
 This is still a disposable ownership model, not the production scheduler. Its
@@ -263,9 +268,10 @@ auditable per-stream state-size limit. It is no longer the default mechanism
 or a reason to add `advance_sse!` to every application's platform record.
 
 The retained-source hypothesis is falsified if the real boundary cannot move
-one outcome-owned source into a slot without leaks/copies, cannot provide
-`Context` ergonomically, cannot preserve scheduler bounds under cancellation,
-or materially loses to the bounded cursor in realistic Roc-versus-Go examples.
+one outcome-owned source into a slot without leaks/copies, cannot compose the
+proven `Box(Context)` ownership with `respond!`, cannot preserve scheduler
+bounds under cancellation, or materially loses to the bounded cursor in
+realistic Roc-versus-Go examples.
 
 ## Non-claims
 

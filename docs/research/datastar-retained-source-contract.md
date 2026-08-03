@@ -2,8 +2,8 @@
 
 Status: composite-callable compiler feasibility, Rust consuming projection,
 outcome transfer, and a bounded host stream heap are proven by Roc candidates
-`d4921d8658` and `be78e95c42`; retained typed sources are again the preferred
-product hypothesis under the platform's trusted-application memory model.
+through `6d65420689`; retained typed sources are again the preferred product
+hypothesis under the platform's trusted-application memory model.
 
 Date: 2026-08-03
 
@@ -29,9 +29,12 @@ transitive allocation inside the resource.
 The preferred next product slice retains a typed `Sse.unfold!` source consumed
 from `Server.Outcome` into that host heap. Generated consuming projections move
 the outcome and Step payloads without copying owners; the composite callable
-candidate reuses unique continuation storage. Fresh `Context` should be
-supplied to each finite transition where the Roc type boundary permits it. See
-the [host-owned retained-source next slice](datastar-next-slice.md).
+candidate reuses unique continuation storage. The host keeps the application
+root as one opaque `Box(Context)` owner and passes an incremented owner into the
+Roc call that constructs a source. The private `Sse.unfold!` wrapper can retain
+the immutable context, or only the fields its transition uses, without a root
+dispatcher or fresh context construction on every step. See the
+[host-owned retained-source next slice](datastar-next-slice.md).
 
 A bounded byte cursor remains a stricter opt-in/fallback. Hard per-stream Roc
 heap containment would still require allocation domains, cross-domain
@@ -82,6 +85,12 @@ source samples report zero allocations, zero frees, and zero requested bytes
 per step at approximately 61.45–61.58 ns/step. Full lifecycle accounting ends
 with 174 allocations, 174 deallocations, and zero live allocations. The Roc
 draft is [`roc-lang/roc#10530`](https://github.com/roc-lang/roc/pull/10530).
+
+After later commits on that draft removed heuristic return-flow scans, the
+idiomatic `next = recur(...)` plus `Box` path temporarily lost its destination
+and allocated again. Commit `6d65420689` restores the optimization with
+explicit lexical provenance, exact-layout alias edges, and conservative
+suppression for eager competitors and repeatable loop/join regions.
 
 Roc candidate `be78e95c42` and the matched generated-Rust fixture also close
 the projection part of the first proof. Unsafe generated borrow/take
@@ -219,14 +228,14 @@ admission bound.
 
 The parked machine is itself a resource-bearing value. A stream slot bounds
 the number of machines but does not bound application-selected Roc strings,
-lists, boxes, or opaque host resources captured by each machine. Before the
-scope change can be accepted, the platform needs either an enforceable
-per-stream capture/resource admission unit or a narrower public construction
-contract whose maximum retained weight is known. Observing allocation counts
-after creation is not sufficient admission, and an opaque resource must expose
-its configured weight without revealing its representation. The selected
-token follows the machine through `Precommit`, `Parked`, `Advancing`, and
-`Draining` and is returned exactly once on every terminal path.
+lists, or boxes captured by each machine; those remain trusted application
+memory, consistently with ordinary handler allocation. Host-originated bytes
+keep their existing bounds even when retained, and opaque native resources
+remain admitted by their bounded type-specific heaps. The stream slot and all
+host reservation tokens follow the machine through `Precommit`, `Parked`,
+`Advancing`, and `Draining` and are returned exactly once on every terminal
+path. A hard transitive quota for arbitrary Roc captures would be a separate
+allocation-domain feature, not an SSE prerequisite.
 
 ## Ordering contract
 
@@ -272,8 +281,8 @@ The retained-source gate is not closed until one production adapter proves:
 - lost/replaced waker races and repeated cancel/drop idempotence;
 - callback, byte-budget, item, machine, frame, encoder, request, and waiter
   accounting all returning to zero;
-- retained Roc capture/opaque-resource admission with a fixed high-water mark
-  and exact terminal release; and
+- stream-slot and opaque-resource high-water marks, retained host-input bounds,
+  allocation observability, and exact terminal release; and
 - a real one-slot `SseBody` composition where one Roc advance spans multiple
   identity frames and multiple Brotli PROCESS/FLUSH frames without blocking a
   Hyper/Tokio worker.
