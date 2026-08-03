@@ -16,6 +16,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -357,10 +358,13 @@ def percentile(values: list[float], quantile: float) -> float:
 
 
 def request_once(server: Server, path: str) -> tuple[int, float]:
+    coding_header = (
+        "Accept-Encoding: br\r\n" if server.coding == "scale" else "Accept-Encoding: identity\r\n"
+    )
     request = (
         f"GET {path} HTTP/1.1\r\n"
         f"Host: 127.0.0.1:{server.port}\r\n"
-        "Accept-Encoding: identity\r\n"
+        f"{coding_header}"
         "Connection: close\r\n\r\n"
     ).encode()
     started = time.perf_counter()
@@ -376,6 +380,10 @@ def request_once(server: Server, path: str) -> tuple[int, float]:
         status = int(first_line.split()[1])
     except (IndexError, ValueError) as error:
         raise RuntimeError(f"invalid HTTP response: {first_line!r}") from error
+    if status == 200 and server.coding == "scale":
+        headers = bytes(received).split(b"\r\n\r\n", 1)[0].lower()
+        if b"content-encoding: br" not in headers:
+            raise RuntimeError("scale request recovered without a Brotli response")
     return status, elapsed
 
 
@@ -383,6 +391,7 @@ def load_sample(
     server: Server,
     *,
     parked_streams: int,
+    ready_sse_streams: int,
     requests: int,
     concurrency: int,
     sample: int,
@@ -391,9 +400,27 @@ def load_sample(
     try:
         for _ in range(parked_streams):
             parked.append(open_idle_stream(server))
+        workers = min(concurrency, requests)
+        barrier = threading.Barrier(workers + ready_sse_streams + 1)
+
+        def ordinary_worker(worker: int) -> list[tuple[int, float]]:
+            count = requests // workers + (1 if worker < requests % workers else 0)
+            barrier.wait()
+            return [request_once(server, "/ordinary") for _ in range(count)]
+
+        def ready_worker() -> tuple[int, float]:
+            barrier.wait()
+            return request_once(server, "/hot-1000")
+
         started = time.perf_counter()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
-            results = list(pool.map(lambda _: request_once(server, "/ordinary"), range(requests)))
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=workers + ready_sse_streams
+        ) as pool:
+            ready = [pool.submit(ready_worker) for _ in range(ready_sse_streams)]
+            ordinary = [pool.submit(ordinary_worker, worker) for worker in range(workers)]
+            barrier.wait()
+            results = [result for future in ordinary for result in future.result()]
+            ready_results = [future.result() for future in ready]
         elapsed = time.perf_counter() - started
     finally:
         for connection in parked:
@@ -402,11 +429,14 @@ def load_sample(
     latencies_ms = [duration * 1000 for _, duration in results]
     if any(status != 200 for status in statuses):
         raise RuntimeError(f"ordinary mixed-load statuses were {sorted(set(statuses))}")
+    if any(status != 200 for status, _ in ready_results):
+        raise RuntimeError("ready SSE contention request failed")
     return {
         "kind": "mixed-load",
         "implementation": server.name,
         "coding": server.coding,
         "parked_streams": parked_streams,
+        "ready_sse_streams": ready_sse_streams,
         "requests": requests,
         "concurrency": concurrency,
         "sample": sample,
@@ -416,11 +446,14 @@ def load_sample(
         "p95_ms": percentile(latencies_ms, 0.95),
         "p99_ms": percentile(latencies_ms, 0.99),
         "max_ms": max(latencies_ms),
+        "ready_sse_max_ms": max(
+            (duration * 1000 for _, duration in ready_results), default=0.0
+        ),
     }
 
 
-def simultaneous_wake_sample(server: Server, streams: int, sample: int) -> dict[str, object]:
-    def observe(_: int) -> float:
+def concurrent_wake_sample(server: Server, streams: int, sample: int) -> dict[str, object]:
+    def observe(_: int) -> tuple[float, float]:
         request = (
             "GET /wake-100 HTTP/1.1\r\n"
             f"Host: 127.0.0.1:{server.port}\r\n"
@@ -428,6 +461,8 @@ def simultaneous_wake_sample(server: Server, streams: int, sample: int) -> dict[
             "Connection: close\r\n\r\n"
         ).encode()
         received = bytearray()
+        first_at: float | None = None
+        second_at: float | None = None
         with socket.create_connection(("127.0.0.1", server.port), timeout=5) as connection:
             connection.sendall(request)
             connection.settimeout(5)
@@ -436,22 +471,32 @@ def simultaneous_wake_sample(server: Server, streams: int, sample: int) -> dict[
                 if not chunk:
                     raise RuntimeError("wake stream ended before its second event")
                 received.extend(chunk)
-        return time.perf_counter()
+                now = time.perf_counter()
+                count = received.count(b"event: datastar-patch-elements")
+                if count >= 1 and first_at is None:
+                    first_at = now
+                if count >= 2:
+                    second_at = now
+        if first_at is None or second_at is None:
+            raise RuntimeError("wake stream did not expose two event timestamps")
+        return first_at, second_at
 
     started = time.perf_counter()
     with concurrent.futures.ThreadPoolExecutor(max_workers=streams) as pool:
-        completed = list(pool.map(observe, range(streams)))
-    wake_ms = [(finished - started) * 1000 for finished in completed]
+        observed = list(pool.map(observe, range(streams)))
+    gaps_ms = [(second - first) * 1000 for first, second in observed]
+    completion_ms = [(second - started) * 1000 for _, second in observed]
     return {
-        "kind": "simultaneous-wake",
+        "kind": "concurrent-wake",
         "implementation": server.name,
         "coding": "identity",
         "streams": streams,
         "sample": sample,
-        "p50_ms": percentile(wake_ms, 0.50),
-        "p95_ms": percentile(wake_ms, 0.95),
-        "p99_ms": percentile(wake_ms, 0.99),
-        "spread_ms": max(wake_ms) - min(wake_ms),
+        "gap_p50_ms": percentile(gaps_ms, 0.50),
+        "gap_p95_ms": percentile(gaps_ms, 0.95),
+        "gap_p99_ms": percentile(gaps_ms, 0.99),
+        "gap_spread_ms": max(gaps_ms) - min(gaps_ms),
+        "completion_p99_ms": percentile(completion_ms, 0.99),
     }
 
 
@@ -489,10 +534,13 @@ def saturation_sample(server: Server, capacity: int, sample: int) -> dict[str, o
 
 
 def disconnect_storm_sample(server: Server, disconnects: int, sample: int) -> dict[str, object]:
-    started = time.perf_counter()
-    for _ in range(disconnects):
+    def connect_and_cancel(_: int) -> None:
         connection = open_idle_stream(server)
         connection.close()
+
+    started = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(disconnects, 64)) as pool:
+        list(pool.map(connect_and_cancel, range(disconnects)))
     storm_seconds = time.perf_counter() - started
     status, recovery_seconds = request_once(server, "/finite")
     if status != 200:
@@ -662,7 +710,7 @@ def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
             "idle",
             "progressive",
             "mixed-load",
-            "simultaneous-wake",
+            "concurrent-wake",
             "saturation",
             "disconnect-storm",
         }:
@@ -673,6 +721,7 @@ def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
             record["coding"],
             record.get("path", ""),
             record.get("parked_streams", ""),
+            record.get("ready_sse_streams", ""),
             record.get("streams", ""),
             record.get("capacity", ""),
             record.get("disconnects", ""),
@@ -692,9 +741,10 @@ def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
             "coding": key[2],
             "path": key[3],
             "parked_streams": key[4],
-            "streams": key[5],
-            "capacity": key[6],
-            "disconnects": key[7],
+            "ready_sse_streams": key[5],
+            "streams": key[6],
+            "capacity": key[7],
+            "disconnects": key[8],
             "samples": len(samples),
         }
         for field in sorted(numeric):
@@ -740,7 +790,8 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--skip-disconnect-storm", action="store_true")
     parser.add_argument("--load-requests", type=int, default=128)
     parser.add_argument("--load-concurrency", type=int, default=16)
-    parser.add_argument("--wake-streams", type=int, default=32)
+    parser.add_argument("--ready-streams", type=int, default=64)
+    parser.add_argument("--wake-streams", type=int, default=96)
     parser.add_argument("--stream-capacity", type=int, default=128)
     parser.add_argument("--disconnects", type=int, default=100)
     parser.add_argument("--idle-streams", default="10,50,100")
@@ -762,6 +813,7 @@ def main() -> None:
         any(value <= 0 for value in idle_stream_counts)
         or args.load_requests <= 0
         or args.load_concurrency <= 0
+        or args.ready_streams <= 0
         or args.wake_streams <= 0
         or args.stream_capacity <= 0
         or args.disconnects <= 0
@@ -773,6 +825,7 @@ def main() -> None:
         build(args.roc, args.go, instrumented=not args.skip_allocations)
     if not ROC_SERVER.is_file() or not GO_SERVER.is_file():
         raise SystemExit("benchmark servers are missing; rerun without --skip-build")
+    os.sched_setaffinity(0, {int(CLIENT_CPU)})
 
     records: list[dict[str, object]] = [
         environment_record(args.roc, args.go, args.samples)
@@ -826,12 +879,26 @@ def main() -> None:
         for implementation in ("roc", "go"):
             server = Server.start(implementation, "identity")
             try:
-                for parked_streams in (0, min(50, args.stream_capacity - 1)):
+                for parked_streams, ready_sse_streams in (
+                    (0, 0),
+                    (min(50, args.stream_capacity - 1), 0),
+                    (0, args.ready_streams),
+                ):
+                    for _ in range(args.warmup):
+                        load_sample(
+                            server,
+                            parked_streams=parked_streams,
+                            ready_sse_streams=ready_sse_streams,
+                            requests=args.load_requests,
+                            concurrency=args.load_concurrency,
+                            sample=-1,
+                        )
                     for sample in range(args.samples):
                         records.append(
                             load_sample(
                                 server,
                                 parked_streams=parked_streams,
+                                ready_sse_streams=ready_sse_streams,
                                 requests=args.load_requests,
                                 concurrency=args.load_concurrency,
                                 sample=sample,
@@ -845,9 +912,11 @@ def main() -> None:
         for implementation in ("roc", "go"):
             server = Server.start(implementation, "identity")
             try:
+                for _ in range(args.warmup):
+                    concurrent_wake_sample(server, args.wake_streams, -1)
                 for sample in range(args.samples):
                     records.append(
-                        simultaneous_wake_sample(server, args.wake_streams, sample)
+                        concurrent_wake_sample(server, args.wake_streams, sample)
                     )
             finally:
                 server.stop()
@@ -859,6 +928,8 @@ def main() -> None:
                 for sample in range(args.samples):
                     server = Server.start(implementation, coding)
                     try:
+                        for _ in range(args.warmup):
+                            saturation_sample(server, args.stream_capacity, -1)
                         records.append(
                             saturation_sample(server, args.stream_capacity, sample)
                         )
@@ -872,6 +943,8 @@ def main() -> None:
                 for sample in range(args.samples):
                     server = Server.start(implementation, coding)
                     try:
+                        for _ in range(args.warmup):
+                            disconnect_storm_sample(server, args.disconnects, -1)
                         records.append(
                             disconnect_storm_sample(server, args.disconnects, sample)
                         )
