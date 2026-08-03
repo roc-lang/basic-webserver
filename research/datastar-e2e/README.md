@@ -27,6 +27,11 @@ The measured result and prioritized follow-up hypotheses are in
 [`results/2026-08-03-analysis.md`](results/2026-08-03-analysis.md). The complete
 machine-readable observations are retained beside it in
 [`results/2026-08-03-raw.jsonl`](results/2026-08-03-raw.jsonl).
+The follow-up `Str.repeat` isolation and fix are captured in the paired
+[`results/2026-08-03-repeat-before.jsonl`](results/2026-08-03-repeat-before.jsonl)
+and
+[`results/2026-08-03-repeat-after.jsonl`](results/2026-08-03-repeat-after.jsonl)
+files.
 
 Run the controlled Linux comparison with:
 
