@@ -1,126 +1,195 @@
-# Bounded-cursor Datastar feasibility slice
+# Host-owned retained-source Datastar feasibility slice
 
-Status: preferred product hypothesis after retained-state adversarial review
+Status: preferred product hypothesis after reconciling retained-state review
+with the platform trust boundary
 
-Date: 2026-08-02
+Date: 2026-08-03
 
 This is implementation-specific research guidance, not an accepted platform
 contract. It does not change [`design.md`](../../design.md) or select final
-public names.
+public names. Dynamic Roc-produced SSE remains a deliberate experiment against
+an explicit current non-goal.
 
-## Why the state model changed
+## Why the state model changed again
 
-The callable work proves that Roc can safely and efficiently retain, advance,
-move, and destroy an arbitrary captured machine. It does not prove that
-`basic-webserver` can admit the retained resources of that machine.
+The retained-callable work proves that Roc can safely and efficiently retain,
+advance, move, and destroy an arbitrary captured source machine. The subsequent
+resource review correctly observed that a stream slot does not byte-bound every
+transitive string, list, box, seamless backing, or opaque resource reachable
+through that machine. The allocator has no per-stream domain and the erased
+callable ABI has no alias-aware graph visitor.
 
-A stream slot bounds one callable descriptor, timer, body, and encoder. It does
-not bound the transitive strings, lists, boxes, seamless backings, or opaque
-resources reachable through the capture. The host allocator records the size
-of each allocation but not which stream owns or reaches it. The callable ABI
-exposes invoke and drop operations, not an alias-aware graph visitor.
+That observation does not by itself require a byte cursor. `basic-webserver`
+does not promise to contain arbitrary allocation by trusted application code.
+It bounds hostile input, concurrent execution, and every resource introduced
+by the platform. This is comparable to Go: a server can bound goroutines,
+queues, buffers, compressors, and native resources without imposing a
+transitive heap quota on each closure.
 
-The tempting substitutes are unsound:
-
-- outer callable size measures only its inline capture descriptors;
-- allocation deltas miss pre-existing captured values, aliases, and concurrent
-  allocations and cannot separate returned items from next state;
-- an application-declared estimate is not enforcement; and
-- `Context` is not a precedent for arbitrary per-stream state: it is one
-  startup root, while streams are request-created, attacker-multiplicative, and
-  can grow on every step.
-
-The preferred product hypothesis therefore does not retain an arbitrary Roc
-graph. It retains one host-owned bounded cursor and invokes one fixed provided
-application callback with fresh `Context` on every step.
+The bounded-cursor proposal applied a stronger isolation boundary than
+[`design.md`](../../design.md) currently claims and imposed a real encoding and
+dispatch cost on every dynamic source. The preferred hypothesis is therefore
+again a typed retained source, but stored under one host-owned, fixed-capacity,
+generation-checked stream heap. Arbitrary captured Roc heap is explicitly
+trusted application memory; it is not described as admitted or byte-bounded.
 
 ## Candidate application shape
 
-Conceptually:
+Keep the existing application contract:
 
 ```roc
-program = { init!, respond!, advance_sse!, shutdown! }
-
-advance_sse! : Sse.Wake, Sse.SourceId, Sse.Cursor, Context
-    => Try(Sse.Step, [ServerErr(Str), ..])
-
-Sse.Step =
-    [ Emit { events : List(Sse.Event), next : Sse.Cursor, wake : Sse.NextWake }
-    , Wait { next : Sse.Cursor, wake : Sse.NextWake }
-    , End
-    ]
+program = { init!, respond!, shutdown! }
 ```
 
-`SourceId` is a closed scalar or other fixed host representation. `Cursor` is
-bounded owned bytes selected from named size classes, not an arbitrary Roc
-type, callable, box, seamless slice, or opaque resource handle. The host owns
-and validates it between calls. First-party helpers should make encoding and
-decoding small typed route cursors routine; realistic Datastar cursors are
-usually row/version/user IDs, retry position, and `Last-Event-ID`, while fresh
-domain state comes from SQLite through `Context` on each callback.
+Conceptually, a handler can return a retained typed source:
 
-The source entrypoint is fixed generated ABI, not a callback registry. The
-initial `respond!` invocation authorizes the stream and returns source ID,
-cursor, and typed options. Later invocations receive no request body or
-borrowed request views.
+```roc
+respond! = |request, context| {
+    user = authorize!(request, context)?
 
-This deliberately revisits the earlier preference to keep the program shape at
-three entrypoints. The extra fixed callback is justified if it is the narrowest
-way to satisfy the platform's resource invariant. API ergonomics must be tested
-against realistic Roc and Go applications before acceptance.
+    Ok(
+        Datastar.stream(
+            Sse.unfold!(
+                { user_id: user.id, version: 0 },
+                |state, wake, fresh_context| {
+                    changes = load_changes_after!(
+                        fresh_context.db,
+                        state.user_id,
+                        state.version,
+                    )?
 
-## Admission and ownership
+                    Sse.emit({
+                        events: render_changes(changes),
+                        state: {
+                            user_id: state.user_id,
+                            version: changes.version,
+                        },
+                        wake: Sse.after(500),
+                    })
+                },
+            ),
+        ),
+    )
+}
+```
 
-Before the initial response commits, reserve:
+The exact way an application-specific `Context` reaches the erased recursive
+source remains an API feasibility question. Preferred semantics supply a valid
+owned reference for each finite transition. Capturing the immutable context in
+the platform wrapper is also viable: it is one existing server-lifetime root,
+not one newly constructed resource graph per stream.
 
-- one stream slot and per-connection stream slot;
-- the selected cursor class's full byte capacity;
-- callback and ready/waiter capacity;
-- maximum uncompressed step bytes;
-- body frames;
-- selected compression lane/profile state; and
-- active request/shutdown accounting.
+`Sse.unfold!` is the ergonomic constructor, not a callback registry. It turns a
+typed state transition into one recursively typed private source. Application
+code returns typed events and waits, never a response writer, compressor,
+socket, task, or arbitrary byte stream.
 
-The initial cursor is copied or moved into independently owned host storage and
-must fit the reserved class. On `Emit` or `Wait`, validate `next.len` before
-parking it. Initial overflow is an ordinary precommit error. Postcommit overflow
-logs and closes the stream after dropping the returned item and cursor exactly
-once. Replacing a cursor never holds two reserved cursor capacities after the
-atomic step result has been validated and moved.
+Finite Datastar actions remain ordinary complete responses and consume no
+stream slot. Declarative finite progressive sequences may use the same native
+body without requiring applications to write a state machine.
 
-Opaque resources cannot appear in the cursor. Stable capabilities arrive only
-through freshly retained `Context`; transient handles created during one step
-must be released before return. Each host subsystem keeps its own global finite
-heap and saturation policy rather than pretending handles are byte-equivalent.
+## Host-owned stream heap
 
-The scheduler owns exactly one state:
+Before committing the initial response, the host reserves one stable slot from
+a finite heap. Conceptually:
 
 ```text
-Precommit { source, cursor, reservations }
-Parked    { source, cursor, generation, timer }
-Admitting { source, cursor, generation }
-Advancing { generation, non-cancellable completion owner }
-Draining  { source, next cursor, wake, item, byte token }
+StreamSlot {
+    generation,
+    phase,
+    one OwnedRocSource or one in-flight completion,
+    wake generation and timer,
+    body/frame and byte reservations,
+    optional Brotli lane,
+    cancellation and shutdown accounting,
+}
+```
+
+The source returned through `Server.Outcome` is consumed into the slot. The
+host owns exactly one reference; it is not copied into a second registry or
+left owned by the returned outcome shell. Generated consuming projections move
+the value into a non-`Copy` Rust owner.
+
+Advancement is one affine transaction:
+
+```text
+Precommit { source, reservations }
+Parked    { source, wake generation }
+Advancing { non-cancellable completion owner }
+Draining  { next source, wake, item, byte token }
 Ended
 Closed
 ```
 
-The first slice can reuse the existing bounded handler admission and its exact
-Tokio blocking-thread ceiling. An in-flight operation retains its active permit
-and active-request reference until the synchronous Roc callback actually
-returns. Dropping a join handle must not release either early. The final design
-may need class reservations or a distinct callback domain so hot streams cannot
-occupy every ordinary handler slot.
+Only `Parked` may consume its source and enter `Advancing`. A successful
+`Emit` or `Wait` moves the returned next source into `Draining`; it cannot be
+advanced until `item_drained` releases the current item and installs the next
+wake generation. `End` releases the slot. A stale slot generation or wake
+generation cannot act on a reused source.
 
-`item_drained` alone releases the item/byte token, installs the next cursor,
-increments the generation, and arms the typed wake. It is infallible,
-nonblocking, and never calls Roc. Timer-only behavior is sufficient for this
-slice; `Immediate` yields through the scheduler, and `Pulse` remains deferred.
+Cancellation of `Parked` or `Draining` drops every host and Roc owner
+immediately. Cancellation during `Advancing` marks the slot and returns; the
+synchronous Roc call remains accounted and its completion whole-drops the
+returned result instead of parking or publishing it. Dropping a join handle
+must not release callback admission or active-request accounting before the
+call actually returns.
 
-Cancellation of parked/draining state drops host owners immediately.
-Cancellation during a callback marks the operation and returns; completion
-then whole-drops its result and releases callback/request accounting. Repeated
-cancel/drop and stale timer wakeups are idempotent.
+## What is and is not bounded
+
+Admission reserves finite capacity for:
+
+- global and per-connection stream slots;
+- active callbacks and queued ready work;
+- timers or other typed wake registrations;
+- maximum uncompressed event batches and transport frames;
+- encoded-byte high-water and backpressure state;
+- Brotli lane and scratch storage when selected; and
+- active request, shutdown, and lifecycle accounting.
+
+Opaque SQLite, TCP, file, and readiness resources remain bounded by their
+existing type-specific host heaps. Host-originated request and effect bytes
+retain their configured input bounds even if ARC extends their lifetime.
+
+The platform does not claim a per-stream byte bound for arbitrary Roc values
+created and captured by trusted application code. A program can retain a large
+list in a source just as it can deliberately allocate one in `respond!`. The
+API should make the efficient pattern natural by supplying `Context` to every
+transition and showing IDs, versions, and `Last-Event-ID` as state, while
+documentation and allocation instrumentation make accidental retention
+observable.
+
+If hard application-heap isolation becomes a product requirement, the host
+box is not sufficient. That would require allocation domains, cross-domain
+ownership rules, safe quota exhaustion, and likely compiler-generated graph or
+region support. It is a separate Roc runtime project, not a prerequisite for a
+Go-comparable trusted-application API.
+
+## Current disposable proof
+
+The generated-Rust ABI fixture now includes the reduced outcome:
+
+```text
+SourceOutcome = Response(status) | Stream(owned SourceMachine)
+```
+
+and a two-slot host stream heap. Against Roc candidates `d4921d8658` and
+`be78e95c42`, the fixture proves:
+
+- ordinary outcomes whole-drop and stream outcomes consuming-move their source;
+- outcome projection performs no allocation, deallocation, or payload copy;
+- capacity two admits exactly two sources and preserves the rejected owner;
+- slot generations reject handles after cancellation and reuse;
+- wake generations reject duplicate and stale advances;
+- only one advance owns the machine at a time;
+- drain acknowledgement is the only transition back to `Parked`;
+- normal `Emit`/`End`, parked cancellation, draining cancellation, and
+  cancellation during an advance return all Roc allocations and opaque
+  resources to zero; and
+- optimized unique transitions can reuse the same callable allocation.
+
+This is still a disposable ownership model, not the production scheduler. Its
+purpose is to falsify the claim that a fixed `advance_sse!` entrypoint is
+required merely to give the host stable ownership and bounded stream capacity.
 
 ## Source/body poll correction
 
@@ -132,18 +201,17 @@ cannot distinguish:
 - an advancing callback, where the reservation must remain held so completion
   cannot advance application state without bounded output capacity.
 
-The adapter needs a small private poll vocabulary such as
+The adapter needs a private vocabulary such as
 `Parked | Advancing | Item | End | Error`. `SseBody` returns the reservation on
-`Parked`, retains it on `Advancing`, and does not poll the source again until
-completion wakes it. Source cancellation must be required rather than a
-default no-op.
+`Parked`, retains it on `Advancing`, and does not poll again until completion
+wakes it. Source cancellation is required rather than a default no-op.
 
 ## First real-listener slice
 
-Use identity coding and a fixed-size cursor through the actual bound HTTP/1.1
-listener. The research application produces:
+Compose the retained outcome and stream heap through the actual bound HTTP/1.1
+listener using identity coding first. The research application produces:
 
-1. initial event A;
+1. initial event A before commitment;
 2. a visible timer wait;
 3. event B only after that timer;
 4. a `Wait` transition with no item;
@@ -151,82 +219,58 @@ listener. The research application produces:
 6. `End`.
 
 A raw client must prove that headers/A arrive before the timer, no B bytes
-arrive early, later events remain ordered, no next callback runs before
-`item_drained`, and clean EOF balances every cursor, item, callback, frame,
+arrive early, events remain ordered, no source advances before
+`item_drained`, and clean EOF balances every source, item, callback, frame,
 request, timer, and resource owner.
 
-Focused tests cover maximum+1 initial and next cursors, length overflow before
-allocation, `Emit`/`Wait`/`End`/error, oversize item, stale wake, repeated
-cancel, cancellation while parked/admitting/advancing/draining, completion
-after body drop, and 10,000 maximum-class idle cursors reaching exactly the
-configured high-water before the next precommit rejection.
+Focused tests cover slot saturation before commitment, `Emit`/`Wait`/`End` and
+application error, oversize event batches, stale wakes, repeated cancellation,
+cancellation while parked/admitting/advancing/draining, completion after body
+drop, and configured maximum idle streams reaching exactly the expected
+high-water before the next rejection.
 
-The first slice may make one explicit bounded copy from the Roc event list into
-host `Bytes` after holding the maximum-item token. Report it as temporary. A
-later performance slice can transfer the Roc item as a transport-owned `Buf`
-without complicating the scheduler proof.
+The first listener slice may make one explicit bounded copy from Roc event
+bytes into a host frame after holding the maximum-item token. Report it as
+temporary. A later performance slice can transfer the Roc item as a
+transport-owned `Buf` without complicating the scheduler proof.
 
 ## Brotli CPU follow-up
 
-Do not add Brotli to the timer slice. The current body executes PROCESS, FLUSH,
-and FINISH synchronously inside `Body::poll_frame`. A frame bound is not a CPU
-bound: one call can consume substantial input, and the body loop can traverse
-multiple zero-output phases without yielding. Selected q1/LGWin11 measurements
-reach about 210 us median and 252 us p99 for a 64 KiB event; a rejected profile
-showed roughly 3 ms stalls. Enough hot streams can occupy every Tokio worker.
+Do not add Brotli to the first timer slice. The current body executes PROCESS,
+FLUSH, and FINISH synchronously inside `Body::poll_frame`; bounded memory alone
+does not bound CPU time on an async transport worker.
 
-The preferred follow-up is a fixed preallocated compression executor:
+The preferred follow-up remains a fixed preallocated compression executor:
 
 - start `K` named compression threads;
 - preallocate `M` lanes and a bounded queue of lane IDs, with `M` equal to
   compressed-stream admission;
-- one stream owns one reusable lane containing encoder, item/offset,
+- let one stream own one reusable lane containing encoder, item/offset,
   cancellation, waker, and one operation/result cell;
-- after reserving one output frame, `poll_frame` submits one lane operation and
-  returns `Pending`;
-- PROCESS consumes at most a configured input quantum; FLUSH and FINISH use one
-  reserved frame; and
-- the next poll commits output or submits the next operation, never continuing
-  an unbounded encoder loop inline.
+- submit at most one finite PROCESS/FLUSH/FINISH operation at a time; and
+- never retain a Roc callback permit while compressed output drains.
 
 Queued cancellation skips work. Running cancellation returns promptly from the
 body; the worker destroys the encoder without FINISH and releases the lane when
-the finite operation returns. Compression uses separate CPU admission and never
-retains a Roc callback permit while output drains.
+the finite operation returns. Only measured named compression profiles enter
+this executor.
 
-Per-frame `spawn_blocking` is only a comparison: it allocates task state,
-competes with the blocking pool capped for Roc handlers, and cannot preserve
-the zero-steady-allocation target. A worker per stream becomes one thread per
-connection.
+## Bounded-cursor fallback
 
-The fixed-executor gate covers blocked-operation isolation, thread affinity,
-queued/running/completed cancellation, one job per lane, exact queue/lane/frame
-high-water, 10,000 warmed zero-allocation items, input-quantum timing, decoded
-FLUSH/FINISH output, and mixed hot Brotli/ordinary/H2 load. Fix the p99 gate
-before measuring; the current candidate is no worse than
-`max(identity * 1.10, identity + 1 ms)` for ordinary requests with no starvation.
+A host-owned byte cursor remains a valid opt-in stricter state model when an
+application wants serializable continuation state, durable replay, or an
+auditable per-stream state-size limit. It is no longer the default mechanism
+or a reason to add `advance_sse!` to every application's platform record.
 
-Only the measured named `Scale` q1/LGWin11 and `Full` q3/LGWin12 profiles enter
-this executor. Raw quality/window parameters would silently admit untested CPU
-and memory costs.
-
-## Alternative required for arbitrary typed unfold
-
-If arbitrary typed `Sse.unfold!` state is non-negotiable, keep it blocked on a
-compiler/runtime feature: allocation-domain IDs for Roc allocations,
-pre-reserved per-stream domains, generated alias-aware retained-graph visitation,
-explicit seamless-backing treatment, Context-root exemptions, and a policy for
-whether each opaque handle can be retained and at what weight. Validate every
-returned machine before parking it.
-
-Even that feature would bound retained state only. Transient callback allocation
-would remain under the existing trusted-application computation model. A
-host-only post-hoc counter or application estimate is not an acceptable
-substitute.
+The retained-source hypothesis is falsified if the real boundary cannot move
+one outcome-owned source into a slot without leaks/copies, cannot provide
+`Context` ergonomically, cannot preserve scheduler bounds under cancellation,
+or materially loses to the bounded cursor in realistic Roc-versus-Go examples.
 
 ## Non-claims
 
-Passing the cursor slice would not yet establish Brotli CPU isolation, HTTP/2
-fairness, public API ergonomics, `Pulse`, cross-target behavior, or the
-deliberate `design.md` scope change. It would establish the bounded dynamic
-state and production scheduler/body seam needed to investigate those questions.
+Passing this slice would not yet establish Brotli CPU isolation, HTTP/2
+fairness, browser/proxy coverage, `Pulse`, cross-target behavior, public API
+names, or acceptance of the deliberate `design.md` scope change. It would
+establish the retained source and production scheduler/body seam needed to
+investigate those questions.

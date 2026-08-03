@@ -1,30 +1,42 @@
 # Retained Roc SSE source contract
 
-Status: composite-callable compiler feasibility and Rust consuming projection
-are proven by Roc candidates `d4921d8658` and `be78e95c42`; arbitrary retained
-callable capture is no longer the preferred product state model because its
-transitive resources cannot be admitted with the current ABI.
+Status: composite-callable compiler feasibility, Rust consuming projection,
+outcome transfer, and a bounded host stream heap are proven by Roc candidates
+`d4921d8658` and `be78e95c42`; retained typed sources are again the preferred
+product hypothesis under the platform's trusted-application memory model.
 
-Date: 2026-08-02
+Date: 2026-08-03
 
 This work does not change `design.md` and does not select the public API.
 
 ## Product-state conclusion
 
 This document remains the exact ownership record for the callable experiment.
-Adversarial resource review subsequently found that its safety and allocation
+Adversarial resource review correctly found that its safety and allocation
 results do not provide a persistent byte bound. The allocator cannot attribute
 a transitive graph to one machine, and the erased ABI provides no alias-aware
 size visitor. Outer allocation size, allocation deltas, and application
 estimates are not enforceable substitutes.
 
-The preferred next product slice therefore uses one fixed `advance_sse!`
-entrypoint over a host-owned bounded byte cursor, with fresh `Context` supplied
-to every invocation. The composite callable work remains valid compiler
-evidence and the generated consuming projection remains directly useful for
-moving the callback's Step result. Arbitrary typed unfold remains blocked on a
-future allocation-domain/graph-visitation design. See the
-[bounded-cursor next slice](datastar-next-slice.md).
+The original conclusion incorrectly treated that missing byte quota as a
+platform requirement. `design.md` bounds hostile input, concurrent execution,
+and host-introduced resources, while explicitly treating arbitrary allocation
+by application code as trusted rather than isolated. A fixed-capacity host
+stream heap can therefore own one arbitrary Roc source per admitted stream,
+just as typed host heaps bound resource slots without claiming to trace every
+transitive allocation inside the resource.
+
+The preferred next product slice retains a typed `Sse.unfold!` source consumed
+from `Server.Outcome` into that host heap. Generated consuming projections move
+the outcome and Step payloads without copying owners; the composite callable
+candidate reuses unique continuation storage. Fresh `Context` should be
+supplied to each finite transition where the Roc type boundary permits it. See
+the [host-owned retained-source next slice](datastar-next-slice.md).
+
+A bounded byte cursor remains a stricter opt-in/fallback. Hard per-stream Roc
+heap containment would still require allocation domains, cross-domain
+ownership rules, and safe quota exhaustion; the host-owned source box alone
+does not provide that stronger guarantee.
 
 ## Why the next gate changed
 
@@ -157,10 +169,10 @@ not select the alternative. See
 
 ## Production adapter state
 
-The lifecycle below was derived with a callable owner. The selected cursor
-slice preserves the states and acknowledgements but replaces each parked/next
-machine with a fixed source ID plus an admitted host cursor. It does not retain
-an arbitrary Roc graph.
+The lifecycle below was derived with a callable owner and is now the selected
+state model again. A fixed-capacity, generation-checked host heap owns each
+parked/next machine. This bounds stream capacity and every associated host
+resource without claiming a transitive byte quota for trusted Roc captures.
 
 One admitted source owns exactly one of these states:
 
