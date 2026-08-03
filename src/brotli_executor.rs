@@ -7,8 +7,7 @@
 //! lane becomes available again.
 
 use crate::compression::{BrotliEncoderStep, ResumableBrotli};
-use crate::response_body::ResponseFrameReservation;
-use bytes::Bytes;
+use crate::response_body::{ResponseFrameReservation, SseItem};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -356,7 +355,7 @@ impl BrotliLane {
     pub(crate) fn submit(
         mut self,
         operation: BrotliOperation,
-        input: Bytes,
+        input: SseItem,
         input_offset: usize,
         mut output: ResponseFrameReservation,
     ) -> Result<BrotliJob, (Self, BrotliSubmitError)> {
@@ -413,7 +412,7 @@ struct Work {
     core: Arc<ExecutorCore>,
     slot: Arc<LaneSlot>,
     operation: BrotliOperation,
-    input: Bytes,
+    input: SseItem,
     input_offset: usize,
     output: ResponseFrameReservation,
 }
@@ -421,7 +420,7 @@ struct Work {
 struct CompletedWork {
     core: Arc<ExecutorCore>,
     slot: Arc<LaneSlot>,
-    input: Bytes,
+    input: SseItem,
     input_offset: usize,
     output: Option<ResponseFrameReservation>,
     step: Option<io::Result<BrotliEncoderStep>>,
@@ -445,7 +444,7 @@ enum JobResult {
 
 pub(crate) struct BrotliCompletion {
     pub(crate) lane: BrotliLane,
-    pub(crate) input: Bytes,
+    pub(crate) input: SseItem,
     pub(crate) input_offset: usize,
     pub(crate) output: ResponseFrameReservation,
     pub(crate) step: io::Result<BrotliEncoderStep>,
@@ -480,7 +479,7 @@ impl Future for BrotliJob {
                 self.live = false;
                 Poll::Ready(Ok(BrotliCompletion {
                     lane,
-                    input: std::mem::take(&mut work.input),
+                    input: std::mem::replace(&mut work.input, SseItem::empty()),
                     input_offset: work.input_offset,
                     output: work
                         .output
@@ -574,7 +573,7 @@ fn worker_loop(receiver: Arc<Mutex<Receiver<Message>>>, worker_index: usize) {
                 .expect("admitted Brotli lane owns a stable encoder");
             match work.operation {
                 BrotliOperation::Process => encoder.process(
-                    &work.input,
+                    work.input.as_ref(),
                     &mut work.input_offset,
                     work.output.output_mut(),
                 ),
@@ -658,7 +657,8 @@ mod tests {
     fn incremental_jobs_roundtrip_and_run_only_on_named_workers() {
         let executor = BrotliExecutor::new(2, 1).unwrap();
         let mut lane = executor.try_admit(BrotliProfile::Compression).unwrap();
-        let input = Bytes::from("data: <div>bounded Roc SSE</div>\n\n".repeat(512));
+        let expected = bytes::Bytes::from("data: <div>bounded Roc SSE</div>\n\n".repeat(512));
+        let mut input = SseItem::new(expected.clone());
         let mut input_offset = 0;
         let mut encoded = Vec::new();
         let pool = crate::response_body::ResponseFramePool::new(1, 7);
@@ -667,23 +667,23 @@ mod tests {
             let mut completion = complete(
                 lane.submit(
                     BrotliOperation::Process,
-                    input.clone(),
+                    input,
                     input_offset,
                     reserve(&pool),
                 )
                 .expect("admitted lane always has queue capacity"),
             );
             assert!(completion.worker_index < 2);
-            assert_eq!(completion.input.as_ptr(), input.as_ptr());
             let step = completion.step.unwrap();
             input_offset = completion.input_offset;
             encoded.extend_from_slice(&completion.output.output_mut()[..step.output_written]);
             drop(completion.output);
             lane = completion.lane;
+            input = completion.input;
         }
         loop {
             let mut completion = complete(
-                lane.submit(BrotliOperation::Flush, Bytes::new(), 0, reserve(&pool))
+                lane.submit(BrotliOperation::Flush, SseItem::empty(), 0, reserve(&pool))
                     .expect("admitted lane always has queue capacity"),
             );
             let step = completion.step.unwrap();
@@ -696,7 +696,7 @@ mod tests {
         }
         loop {
             let mut completion = complete(
-                lane.submit(BrotliOperation::Finish, Bytes::new(), 0, reserve(&pool))
+                lane.submit(BrotliOperation::Finish, SseItem::empty(), 0, reserve(&pool))
                     .expect("admitted lane always has queue capacity"),
             );
             let step = completion.step.unwrap();
@@ -713,7 +713,7 @@ mod tests {
         brotli::Decompressor::new(encoded.as_slice(), 4096)
             .read_to_end(&mut decoded)
             .unwrap();
-        assert_eq!(decoded, input);
+        assert_eq!(decoded, expected);
         assert_eq!(executor.stats().running_high_water, 1);
         assert_eq!(executor.stats().active_lanes, 0);
     }
@@ -726,7 +726,7 @@ mod tests {
         let job = lane
             .submit(
                 BrotliOperation::Process,
-                Bytes::from(vec![b'x'; 4 * 1024 * 1024]),
+                SseItem::new(bytes::Bytes::from(vec![b'x'; 4 * 1024 * 1024])),
                 0,
                 reserve(&pool),
             )
@@ -749,7 +749,7 @@ mod tests {
         let job = lane
             .submit(
                 BrotliOperation::Process,
-                Bytes::from_static(b"data: cancellation race\n\n"),
+                SseItem::new(bytes::Bytes::from_static(b"data: cancellation race\n\n")),
                 0,
                 reserve(&pool),
             )
@@ -775,7 +775,7 @@ mod tests {
         let first = first_lane
             .submit(
                 BrotliOperation::Process,
-                Bytes::from_static(b"data: running\n\n"),
+                SseItem::new(bytes::Bytes::from_static(b"data: running\n\n")),
                 0,
                 reserve(&first_pool),
             )
@@ -784,7 +784,7 @@ mod tests {
         let queued = second_lane
             .submit(
                 BrotliOperation::Process,
-                Bytes::from_static(b"data: queued\n\n"),
+                SseItem::new(bytes::Bytes::from_static(b"data: queued\n\n")),
                 0,
                 reserve(&second_pool),
             )
@@ -808,7 +808,7 @@ mod tests {
         let job = lane
             .submit(
                 BrotliOperation::Process,
-                Bytes::from_static(b"data: shutdown ordering\n\n"),
+                SseItem::new(bytes::Bytes::from_static(b"data: shutdown ordering\n\n")),
                 0,
                 reserve(&pool),
             )

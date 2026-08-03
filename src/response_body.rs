@@ -13,9 +13,74 @@ use bytes::{Buf, Bytes};
 use hyper::body::{Body, Frame, SizeHint};
 use std::future::Future;
 use std::io;
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
+
+const SSE_ITEM_INLINE_WORDS: usize = 4;
+
+/// Small affine owner for one already-framed SSE item.
+///
+/// Unlike `Bytes::from_owner`, this keeps small owners inline. Roc lists are
+/// three words, so transferring their ownership into the response body does
+/// not allocate an adapter on every transition.
+pub(crate) struct SseItem {
+    storage: [MaybeUninit<usize>; SSE_ITEM_INLINE_WORDS],
+    slice: unsafe fn(*const usize) -> (*const u8, usize),
+    drop: unsafe fn(*mut usize),
+}
+
+impl SseItem {
+    pub(crate) fn new<T>(owner: T) -> Self
+    where
+        T: AsRef<[u8]> + Send + Unpin + 'static,
+    {
+        assert!(std::mem::size_of::<T>() <= std::mem::size_of::<[usize; SSE_ITEM_INLINE_WORDS]>());
+        assert!(std::mem::align_of::<T>() <= std::mem::align_of::<usize>());
+        let mut item = Self {
+            storage: [MaybeUninit::uninit(); SSE_ITEM_INLINE_WORDS],
+            slice: inline_sse_item_slice::<T>,
+            drop: inline_sse_item_drop::<T>,
+        };
+        unsafe { item.storage.as_mut_ptr().cast::<T>().write(owner) };
+        item
+    }
+
+    pub(crate) fn empty() -> Self {
+        Self::new(Bytes::new())
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.as_ref().len()
+    }
+}
+
+impl AsRef<[u8]> for SseItem {
+    fn as_ref(&self) -> &[u8] {
+        let (pointer, length) = unsafe { (self.slice)(self.storage.as_ptr().cast()) };
+        unsafe { std::slice::from_raw_parts(pointer, length) }
+    }
+}
+
+impl Drop for SseItem {
+    fn drop(&mut self) {
+        unsafe { (self.drop)(self.storage.as_mut_ptr().cast()) };
+    }
+}
+
+// SAFETY: construction requires the inline owner to be `Send`; the vtable
+// functions only access that owner while this affine wrapper owns it.
+unsafe impl Send for SseItem {}
+
+unsafe fn inline_sse_item_slice<T: AsRef<[u8]>>(storage: *const usize) -> (*const u8, usize) {
+    let slice = unsafe { &*storage.cast::<T>() }.as_ref();
+    (slice.as_ptr(), slice.len())
+}
+
+unsafe fn inline_sse_item_drop<T>(storage: *mut usize) {
+    unsafe { storage.cast::<T>().drop_in_place() };
+}
 
 #[derive(Debug)]
 pub(crate) enum ServerData {
@@ -313,7 +378,7 @@ pub(crate) trait SseItemSource: Send {
 pub(crate) enum SseSourcePoll {
     Parked,
     Advancing,
-    Item(Bytes),
+    Item(SseItem),
     End,
     Error(io::Error),
 }
@@ -381,7 +446,7 @@ pub(crate) struct SseBody {
     encoder: Option<ResumableBrotli>,
     bounded_encoder: Option<BoundedBrotliState>,
     reservation: Option<ResponseFrameReservation>,
-    item: Bytes,
+    item: Option<SseItem>,
     input_offset: usize,
     phase: SsePhase,
     lifecycle: Arc<Mutex<SseLifecycle>>,
@@ -438,7 +503,7 @@ impl SseBody {
                 encoder,
                 bounded_encoder: None,
                 reservation: None,
-                item: Bytes::new(),
+                item: None,
                 input_offset: 0,
                 phase: SsePhase::PollSource,
                 lifecycle,
@@ -478,7 +543,7 @@ impl SseBody {
                     job: None,
                 }),
                 reservation: None,
-                item: Bytes::new(),
+                item: None,
                 input_offset: 0,
                 phase: SsePhase::PollSource,
                 lifecycle,
@@ -498,7 +563,7 @@ impl SseBody {
         self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
-        self.item = Bytes::new();
+        self.item = None;
         self.input_offset = 0;
         self.phase = SsePhase::Done;
         let mut lifecycle = self.lifecycle.lock().expect("SSE lifecycle poisoned");
@@ -515,7 +580,7 @@ impl SseBody {
         self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
-        self.item = Bytes::new();
+        self.item = None;
         self.input_offset = 0;
         self.phase = SsePhase::Done;
         let mut lifecycle = self.lifecycle.lock().expect("SSE lifecycle poisoned");
@@ -535,7 +600,7 @@ impl SseBody {
         self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
-        self.item = Bytes::new();
+        self.item = None;
         self.input_offset = 0;
         self.phase = SsePhase::Done;
         let mut lifecycle = self.lifecycle.lock().expect("SSE lifecycle poisoned");
@@ -549,7 +614,7 @@ impl SseBody {
     }
 
     fn acknowledge_item(&mut self) {
-        self.item = Bytes::new();
+        self.item = None;
         self.input_offset = 0;
         self.set_pending_item_bytes(0);
         self.phase = SsePhase::PollSource;
@@ -560,11 +625,15 @@ impl SseBody {
             .item_drained();
     }
 
+    fn item(&self) -> &SseItem {
+        self.item.as_ref().expect("SSE process phase owns an item")
+    }
+
     fn poll_bounded_operation(
         &mut self,
         context: &mut Context<'_>,
         operation: BrotliOperation,
-        input: Bytes,
+        input: Option<SseItem>,
         input_offset: usize,
     ) -> Poll<io::Result<BrotliCompletion>> {
         let state = self
@@ -572,6 +641,7 @@ impl SseBody {
             .as_mut()
             .expect("bounded Brotli operation has an executor lane");
         if state.job.is_none() {
+            let input = input.expect("new bounded Brotli operation owns its input");
             let lane = state.lane.take().expect("idle bounded Brotli owns lane");
             let reservation = self
                 .reservation
@@ -592,6 +662,8 @@ impl SseBody {
                     ))));
                 }
             }
+        } else {
+            debug_assert!(input.is_none());
         }
         let job = state.job.as_mut().expect("submitted Brotli job exists");
         match Pin::new(job).poll(context) {
@@ -640,9 +712,9 @@ impl Body for SseBody {
                                 return Poll::Ready(Some(Err(error)));
                             }
                             this.reservation = Some(reservation);
-                            this.item = item;
+                            this.item = Some(item);
                             this.input_offset = 0;
-                            this.set_pending_item_bytes(this.item.len());
+                            this.set_pending_item_bytes(this.item().len());
                             this.phase = SsePhase::Process;
                         }
                         SseSourcePoll::End => {
@@ -684,7 +756,7 @@ impl Body for SseBody {
                                 Poll::Pending => return Poll::Pending,
                             });
                         }
-                        let input = this.item.clone();
+                        let input = if job_pending { None } else { this.item.take() };
                         let input_offset = this.input_offset;
                         let completion = match this.poll_bounded_operation(
                             context,
@@ -711,7 +783,7 @@ impl Body for SseBody {
                             .as_mut()
                             .expect("bounded Brotli state remains live")
                             .lane = Some(lane);
-                        this.item = input;
+                        this.item = Some(input);
                         this.input_offset = input_offset;
                         let step = match step {
                             Ok(step) => step,
@@ -724,7 +796,7 @@ impl Body for SseBody {
                         if step.complete {
                             this.phase = SsePhase::Flush;
                         }
-                        this.set_pending_item_bytes(this.item.len() - this.input_offset);
+                        this.set_pending_item_bytes(this.item().len() - this.input_offset);
                         if step.output_written == 0 {
                             drop(reservation);
                             continue;
@@ -742,9 +814,14 @@ impl Body for SseBody {
                         }
                     };
                     let mut identity_complete = false;
+                    let item = this
+                        .item
+                        .as_ref()
+                        .expect("SSE process phase owns an item")
+                        .as_ref();
                     let output_bytes = if let Some(encoder) = &mut this.encoder {
                         match encoder.process(
-                            &this.item,
+                            item,
                             &mut this.input_offset,
                             reservation.output_mut(),
                         ) {
@@ -761,16 +838,15 @@ impl Body for SseBody {
                             }
                         }
                     } else {
-                        let remaining = this.item.len() - this.input_offset;
+                        let remaining = item.len() - this.input_offset;
                         let count = remaining.min(reservation.output_mut().len());
-                        reservation.output_mut()[..count].copy_from_slice(
-                            &this.item[this.input_offset..this.input_offset + count],
-                        );
+                        reservation.output_mut()[..count]
+                            .copy_from_slice(&item[this.input_offset..this.input_offset + count]);
                         this.input_offset += count;
-                        if this.input_offset == this.item.len() {
+                        if this.input_offset == item.len() {
                             identity_complete = true;
                         } else {
-                            this.set_pending_item_bytes(this.item.len() - this.input_offset);
+                            this.set_pending_item_bytes(item.len() - this.input_offset);
                         }
                         count
                     };
@@ -782,7 +858,7 @@ impl Body for SseBody {
                         continue;
                     }
                     if this.encoder.is_some() {
-                        this.set_pending_item_bytes(this.item.len() - this.input_offset);
+                        this.set_pending_item_bytes(this.item().len() - this.input_offset);
                     }
                     let frame = reservation.commit(output_bytes);
                     if identity_complete {
@@ -805,7 +881,7 @@ impl Body for SseBody {
                         let completion = match this.poll_bounded_operation(
                             context,
                             BrotliOperation::Flush,
-                            Bytes::new(),
+                            (!job_pending).then(SseItem::empty),
                             0,
                         ) {
                             Poll::Pending => return Poll::Pending,
@@ -893,7 +969,7 @@ impl Body for SseBody {
                         let completion = match this.poll_bounded_operation(
                             context,
                             BrotliOperation::Finish,
-                            Bytes::new(),
+                            (!job_pending).then(SseItem::empty),
                             0,
                         ) {
                             Poll::Pending => return Poll::Pending,
@@ -1013,6 +1089,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn inline_sse_item_moves_and_drops_its_owner_once() {
+        struct Owner {
+            bytes: &'static [u8],
+            drops: Arc<AtomicUsize>,
+        }
+
+        impl AsRef<[u8]> for Owner {
+            fn as_ref(&self) -> &[u8] {
+                self.bytes
+            }
+        }
+
+        impl Drop for Owner {
+            fn drop(&mut self) {
+                self.drops.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        let drops = Arc::new(AtomicUsize::new(0));
+        let item = SseItem::new(Owner {
+            bytes: b"data: inline\n\n",
+            drops: Arc::clone(&drops),
+        });
+        let moved = Some(item).expect("inline item moves without an adapter");
+        assert_eq!(moved.as_ref(), b"data: inline\n\n");
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
+        drop(moved);
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+    }
+
     struct ScriptedSource {
         items: VecDeque<Bytes>,
         cancellations: Arc<AtomicUsize>,
@@ -1024,7 +1131,7 @@ mod tests {
         fn poll_item(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
             self.polls.fetch_add(1, Ordering::Relaxed);
             match self.items.pop_front() {
-                Some(item) => SseSourcePoll::Item(item),
+                Some(item) => SseSourcePoll::Item(SseItem::new(item)),
                 None => SseSourcePoll::End,
             }
         }
@@ -1124,7 +1231,7 @@ mod tests {
                 self.polls += 1;
                 match self.polls {
                     1 => SseSourcePoll::Advancing,
-                    2 => SseSourcePoll::Item(Bytes::from_static(b"data: ready\n\n")),
+                    2 => SseSourcePoll::Item(SseItem::new(Bytes::from_static(b"data: ready\n\n"))),
                     _ => SseSourcePoll::End,
                 }
             }

@@ -29,7 +29,7 @@ use crate::response::{
     application_parts, finalize_response, full_body, safe_internal_server_error, RequestSemantics,
     ServerBody, ServerData, ServerResponse,
 };
-use crate::response_body::{SseBody, SseCompression, SseItemSource, SseSourcePoll};
+use crate::response_body::{SseBody, SseCompression, SseItem, SseItemSource, SseSourcePoll};
 use crate::roc_executor::{
     AdmissionClass, FixedExecutor, FixedExecutorHandle, QueueTicket, SubmitError,
 };
@@ -1481,7 +1481,7 @@ impl SseItemSource for RocSseItemSource {
                     wait_millis,
                 }) => {
                     self.after_item = Some((source, wait_millis));
-                    return SseSourcePoll::Item(Bytes::from_owner(item));
+                    return SseSourcePoll::Item(SseItem::new(item));
                 }
                 Ok(SseAdvance::Wait {
                     source,
@@ -2826,7 +2826,7 @@ mod tests {
     impl SseItemSource for OneShotSseSource {
         fn poll_item(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
             match self.item.take() {
-                Some(item) => SseSourcePoll::Item(item),
+                Some(item) => SseSourcePoll::Item(SseItem::new(item)),
                 None => SseSourcePoll::End,
             }
         }
