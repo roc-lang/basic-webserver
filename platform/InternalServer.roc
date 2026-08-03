@@ -1,4 +1,5 @@
 import Server
+import Sse
 import Host
 import http.Header
 import http.Method
@@ -30,21 +31,29 @@ InternalServer :: [].{
 		content_length : U64,
 	}
 
-	OutcomeToHost : {
-		status : U16,
-		headers : List(HostHeader),
-		body : List(U8),
-		stop : Bool,
-		exit_code : I64,
-		kind : U8,
-		file_root_id : Str,
-		file_relative : Str,
-		file_disposition : U8,
-		file_download_name : Str,
-		file_cache_override : Bool,
-		file_cache_tag : U8,
-		file_cache_max_age_seconds : U32,
-	}
+	OutcomeToHost := [
+		Ordinary(
+			{
+				status : U16,
+				headers : List(HostHeader),
+				body : List(U8),
+				stop : Bool,
+				exit_code : I64,
+			},
+		),
+		File(
+			{
+				file_root_id : Str,
+				file_relative : Str,
+				file_disposition : U8,
+				file_download_name : Str,
+				file_cache_override : Bool,
+				file_cache_tag : U8,
+				file_cache_max_age_seconds : U32,
+			},
+		),
+		Stream(Sse.Source),
+	]
 
 	ConfigToHost : {
 		host : Str,
@@ -166,38 +175,30 @@ InternalServer :: [].{
 		)
 
 	to_host_outcome : Server.Outcome -> OutcomeToHost
-	to_host_outcome = |outcome| {
-		raw = Server.Outcome.to_host(outcome)
-		response_to_host(raw)
-	}
+	to_host_outcome = |outcome|
+		match Server.Outcome.to_host(outcome) {
+			OrdinaryToHost(raw) => Ordinary(response_to_host(raw))
+			FileToHost(raw) => File(raw)
+			StreamToHost(source) => Stream(source)
+		}
 
 	response_to_host : {
-		kind : U8,
 		response : Response.Response,
 		stop : Bool,
 		exit_code : I64,
-		file_root_id : Str,
-		file_relative : Str,
-		file_disposition : U8,
-		file_download_name : Str,
-		file_cache_override : Bool,
-		file_cache_tag : U8,
-		file_cache_max_age_seconds : U32,
-	} -> OutcomeToHost
+	} -> {
+		status : U16,
+		headers : List(HostHeader),
+		body : List(U8),
+		stop : Bool,
+		exit_code : I64,
+	}
 	response_to_host = |raw| {
 		status: Response.status(raw.response),
 		headers: Response.headers(raw.response).map(to_host_header),
 		body: Response.body(raw.response),
 		stop: raw.stop,
 		exit_code: raw.exit_code,
-		kind: raw.kind,
-		file_root_id: raw.file_root_id,
-		file_relative: raw.file_relative,
-		file_disposition: raw.file_disposition,
-		file_download_name: raw.file_download_name,
-		file_cache_override: raw.file_cache_override,
-		file_cache_tag: raw.file_cache_tag,
-		file_cache_max_age_seconds: raw.file_cache_max_age_seconds,
 	}
 
 	to_host_config : Server.Config -> ConfigToHost

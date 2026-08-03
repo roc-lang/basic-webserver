@@ -12,11 +12,12 @@ import tempfile
 from pathlib import Path
 
 
-# Glue provenance: the committed Rust glue is generated with the compiler and
-# RustGlue.roc shipped together in nightly-2026-July-29-fe0ab22. Compiler and
-# glue-spec revisions must match.
+# Glue provenance: the Datastar experiment requires consuming tagged-union
+# projections and erased-callable reuse from roc-lang/roc#10530. The committed
+# Rust glue is generated with that compiler and its matching RustGlue.roc.
+# Compiler and glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "fe0ab22cf0a764249330342fa36363624fc8157d"
+KNOWN_GOOD_REVISION = "6d6542068989bc527c4d133702c1856a1e966612"
 
 
 def rooted_path(value: str) -> Path:

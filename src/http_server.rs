@@ -1,8 +1,9 @@
 //! Tokio/Hyper server lifecycle and the provided Roc application entrypoints.
 
 use crate::abi::{
-    roc_host, ServerConfig, ServerFileRoot, ServerHeader, ServerNativeFileRoute,
-    ServerReadinessRoute, ServerRequest, ServerResponse as RocServerResponse, ServerShutdownReason,
+    roc_host, ServerConfig, ServerFileResponse, ServerFileRoot, ServerHeader,
+    ServerNativeFileRoute, ServerOrdinaryResponse, ServerReadinessRoute, ServerRequest,
+    ServerResponse as RocServerResponse, ServerResponseTag, ServerShutdownReason,
     ServerWritableRoot,
 };
 use crate::body_sink::{BodySinkService, WritableRootSpec};
@@ -27,6 +28,7 @@ use crate::response::{
     application_parts, finalize_response, full_body, safe_internal_server_error, RequestSemantics,
     ServerBody, ServerData, ServerResponse,
 };
+use crate::response_body::{SseBody, SseCompression, SseItemSource, SseSourcePoll};
 use crate::roc_platform_abi::*;
 use crate::server_transport::{detect_protocol, Http1Activity, Http1Io, PrefixedStream, Protocol};
 use crate::shutdown::{ActiveRequest, RequestTracker, ShutdownController, ShutdownReason};
@@ -40,11 +42,13 @@ use http_body_util::BodyExt;
 #[cfg(test)]
 use http_body_util::Full;
 use hyper::body::{Body, Frame, SizeHint};
-use hyper::header::CONTENT_LENGTH;
+use hyper::header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE};
 #[cfg(test)]
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
+use std::io;
+use std::mem::MaybeUninit;
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
@@ -56,6 +60,8 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::{spawn_blocking, JoinSet};
 
 const MAX_TRANSPORT_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
+const SSE_MAX_ITEM_BYTES: usize = 1024 * 1024;
+const SSE_FRAME_BYTES: usize = 16 * 1024;
 
 #[derive(Clone)]
 struct RuntimeConfig {
@@ -478,6 +484,7 @@ struct ServerContext {
     config: Arc<RuntimeConfig>,
     roc_context: Arc<RocContext>,
     handlers: HandlerAdmission,
+    stream_slots: Arc<Semaphore>,
     requests: RequestTracker,
     shutdown: ShutdownController,
     telemetry: TelemetryHandle,
@@ -491,10 +498,12 @@ pub fn start() -> i32 {
 }
 
 fn start_inner() -> i32 {
-    let init_result = unsafe { roc_init_for_host() };
+    let mut init_result = unsafe { roc_init_for_host() };
     let initialized = match init_result.tag {
-        InitForHostResultTag::Ok => init_result.payload_ok(),
-        InitForHostResultTag::Err => return exit_code_to_i32(init_result.payload_err()),
+        InitForHostResultTag::Ok => unsafe { init_result.take_payload_ok_unchecked() },
+        InitForHostResultTag::Err => {
+            return exit_code_to_i32(unsafe { init_result.take_payload_err_unchecked() });
+        }
     };
 
     let raw_context = initialized.context;
@@ -531,6 +540,7 @@ fn start_inner() -> i32 {
             config.max_queued_handlers,
             Arc::clone(&config.metrics),
         ),
+        stream_slots: Arc::new(Semaphore::new(config.max_handlers)),
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
         telemetry: telemetry.handle(),
@@ -578,13 +588,15 @@ fn finish_shutdown(reason: ShutdownReason, context: RocBox, hook_timeout: Durati
         })
         .expect("failed to start shutdown watchdog");
 
-    let result = unsafe { roc_shutdown_for_host(raw_reason, context) };
+    let mut result = unsafe { roc_shutdown_for_host(raw_reason, context) };
     let _ = finished_sender.send(());
     let _ = watchdog.join();
 
     match result.tag {
         ShutdownForHostResultTag::Ok => default_exit_code,
-        ShutdownForHostResultTag::Err => exit_code_to_i32(result.payload_err()),
+        ShutdownForHostResultTag::Err => {
+            exit_code_to_i32(unsafe { result.take_payload_err_unchecked() })
+        }
     }
 }
 
@@ -855,7 +867,325 @@ enum RocOutcome {
         Option<i64>,
     ),
     File(FilePlan),
+    Stream(OwnedSseSource),
     Invalid(String),
+}
+
+/// Affine owner for the generated tagged response value. Generated ABI types
+/// are layout values and therefore `Copy`; this wrapper is the host's source of
+/// truth for whether a consuming payload projection has moved the one owner.
+struct OwnedRocOutcome {
+    raw: MaybeUninit<RocServerResponse>,
+    live: bool,
+}
+
+impl OwnedRocOutcome {
+    fn new(raw: RocServerResponse) -> Self {
+        Self {
+            raw: MaybeUninit::new(raw),
+            live: true,
+        }
+    }
+
+    fn tag(&self) -> ServerResponseTag {
+        unsafe { self.raw.assume_init_ref().tag }
+    }
+
+    unsafe fn take_ordinary(&mut self) -> ServerOrdinaryResponse {
+        let payload = unsafe { self.raw.assume_init_mut().take_payload_ordinary_unchecked() };
+        self.live = false;
+        payload
+    }
+
+    unsafe fn take_file(&mut self) -> ServerFileResponse {
+        let payload = unsafe { self.raw.assume_init_mut().take_payload_file_unchecked() };
+        self.live = false;
+        payload
+    }
+
+    unsafe fn take_stream(&mut self) -> RocErasedCallable {
+        let payload = unsafe { self.raw.assume_init_mut().take_payload_stream_unchecked() };
+        self.live = false;
+        payload
+    }
+}
+
+impl Drop for OwnedRocOutcome {
+    fn drop(&mut self) {
+        if self.live {
+            let raw = unsafe { self.raw.assume_init_read() };
+            self.live = false;
+            unsafe { raw.decref(roc_host()) };
+        }
+    }
+}
+
+struct OwnedSseSource(Option<RocErasedCallable>);
+
+impl OwnedSseSource {
+    fn new(raw: RocErasedCallable) -> Self {
+        Self(Some(raw))
+    }
+
+    fn advance(mut self, wake_generation: u64) -> OwnedSseStep {
+        let source = self.0.take().expect("live SSE source owns its callable");
+        OwnedSseStep::new(unsafe { roc_sse_advance_for_host(source, wake_generation) })
+    }
+}
+
+struct OwnedSseStep {
+    raw: MaybeUninit<SseStepToHost>,
+    live: bool,
+}
+
+unsafe impl Send for OwnedSseStep {}
+
+impl OwnedSseStep {
+    fn new(raw: SseStepToHost) -> Self {
+        Self {
+            raw: MaybeUninit::new(raw),
+            live: true,
+        }
+    }
+
+    fn into_result(mut self) -> Result<SseAdvance, io::Error> {
+        let tag = unsafe { self.raw.assume_init_ref().tag };
+        let result = match tag {
+            SseStepToHostTag::EmitToHost => {
+                let payload = unsafe {
+                    self.raw
+                        .assume_init_mut()
+                        .take_payload_emit_to_host_unchecked()
+                };
+                SseAdvance::Emit {
+                    item: OwnedSseItem(Some(payload.item)),
+                    source: OwnedSseSource::new(payload.source),
+                    wait_millis: payload.wait_millis,
+                }
+            }
+            SseStepToHostTag::WaitToHost => {
+                let payload = unsafe {
+                    self.raw
+                        .assume_init_mut()
+                        .take_payload_wait_to_host_unchecked()
+                };
+                SseAdvance::Wait {
+                    source: OwnedSseSource::new(payload.source),
+                    wait_millis: payload.wait_millis,
+                }
+            }
+            SseStepToHostTag::EndToHost => SseAdvance::End,
+            SseStepToHostTag::ErrorToHost => {
+                let error = unsafe {
+                    self.raw
+                        .assume_init_mut()
+                        .take_payload_error_to_host_unchecked()
+                };
+                let detail = error.as_str().to_owned();
+                unsafe { error.decref(roc_host()) };
+                self.live = false;
+                return Err(io::Error::other(format!(
+                    "Roc SSE transition failed: {detail}"
+                )));
+            }
+        };
+        self.live = false;
+        Ok(result)
+    }
+}
+
+impl Drop for OwnedSseStep {
+    fn drop(&mut self) {
+        if self.live {
+            let raw = unsafe { self.raw.assume_init_read() };
+            self.live = false;
+            unsafe { raw.decref(roc_host()) };
+        }
+    }
+}
+
+struct OwnedSseItem(Option<RocListWith<u8, false>>);
+
+impl AsRef<[u8]> for OwnedSseItem {
+    fn as_ref(&self) -> &[u8] {
+        self.0
+            .as_ref()
+            .expect("live SSE item owns its Roc list")
+            .as_slice()
+    }
+}
+
+unsafe impl Send for OwnedSseItem {}
+
+impl Drop for OwnedSseItem {
+    fn drop(&mut self) {
+        if let Some(item) = self.0.take() {
+            unsafe { item.decref(roc_host()) };
+        }
+    }
+}
+
+enum SseAdvance {
+    Emit {
+        item: OwnedSseItem,
+        source: OwnedSseSource,
+        wait_millis: u64,
+    },
+    Wait {
+        source: OwnedSseSource,
+        wait_millis: u64,
+    },
+    End,
+}
+
+type SseAdvanceFuture =
+    Pin<Box<dyn Future<Output = Result<OwnedSseStep, io::Error>> + Send + 'static>>;
+
+struct RocSseItemSource {
+    source: Option<OwnedSseSource>,
+    advancing: Option<SseAdvanceFuture>,
+    after_item: Option<(OwnedSseSource, u64)>,
+    wake: Option<Pin<Box<tokio::time::Sleep>>>,
+    wake_generation: u64,
+    handlers: HandlerAdmission,
+    handler_queue_timeout: Duration,
+    _stream_slot: OwnedSemaphorePermit,
+    ended: bool,
+}
+
+impl RocSseItemSource {
+    fn new(
+        source: OwnedSseSource,
+        handlers: HandlerAdmission,
+        handler_queue_timeout: Duration,
+        stream_slot: OwnedSemaphorePermit,
+    ) -> Self {
+        Self {
+            source: Some(source),
+            advancing: None,
+            after_item: None,
+            wake: None,
+            wake_generation: 0,
+            handlers,
+            handler_queue_timeout,
+            _stream_slot: stream_slot,
+            ended: false,
+        }
+    }
+
+    fn park(&mut self, source: OwnedSseSource, wait_millis: u64) {
+        self.source = Some(source);
+        self.wake = (wait_millis != 0)
+            .then(|| Box::pin(tokio::time::sleep(Duration::from_millis(wait_millis))));
+    }
+
+    fn start_advance(&mut self) {
+        let source = self.source.take().expect("parked SSE source exists");
+        self.wake_generation = self.wake_generation.wrapping_add(1);
+        let wake_generation = self.wake_generation;
+        let handlers = self.handlers.clone();
+        let wait_timeout = self.handler_queue_timeout;
+        self.advancing = Some(Box::pin(async move {
+            let admitted = handlers.admit(wait_timeout).await.map_err(|error| {
+                io::Error::other(format!("SSE transition admission failed: {error:?}"))
+            })?;
+            let active = admitted.active;
+            spawn_blocking(move || {
+                let _active = active;
+                source.advance(wake_generation)
+            })
+            .await
+            .map_err(|error| io::Error::other(format!("SSE transition panicked: {error}")))
+        }));
+    }
+}
+
+impl SseItemSource for RocSseItemSource {
+    fn poll_item(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> SseSourcePoll {
+        loop {
+            if self.ended {
+                return SseSourcePoll::End;
+            }
+            if self.after_item.is_some() {
+                return SseSourcePoll::Advancing;
+            }
+            if let Some(wake) = &mut self.wake {
+                if wake.as_mut().poll(context).is_pending() {
+                    return SseSourcePoll::Parked;
+                }
+                self.wake = None;
+            }
+            if self.advancing.is_none() {
+                self.start_advance();
+            }
+            let completion = self
+                .advancing
+                .as_mut()
+                .expect("started SSE transition exists");
+            let step = match completion.as_mut().poll(context) {
+                Poll::Pending => return SseSourcePoll::Advancing,
+                Poll::Ready(Ok(step)) => {
+                    self.advancing = None;
+                    step
+                }
+                Poll::Ready(Err(error)) => {
+                    self.advancing = None;
+                    self.ended = true;
+                    return SseSourcePoll::Error(error);
+                }
+            };
+            match step.into_result() {
+                Ok(SseAdvance::Emit {
+                    item,
+                    source,
+                    wait_millis,
+                }) => {
+                    self.after_item = Some((source, wait_millis));
+                    return SseSourcePoll::Item(Bytes::from_owner(item));
+                }
+                Ok(SseAdvance::Wait {
+                    source,
+                    wait_millis,
+                }) => self.park(source, wait_millis),
+                Ok(SseAdvance::End) => {
+                    self.ended = true;
+                    return SseSourcePoll::End;
+                }
+                Err(error) => {
+                    self.ended = true;
+                    return SseSourcePoll::Error(error);
+                }
+            }
+        }
+    }
+
+    fn item_drained(mut self: Pin<&mut Self>) {
+        let (source, wait_millis) = self
+            .after_item
+            .take()
+            .expect("drained SSE item has one retained next source");
+        self.park(source, wait_millis);
+    }
+
+    fn cancel(mut self: Pin<&mut Self>) {
+        self.ended = true;
+        self.source.take();
+        self.after_item.take();
+        self.wake.take();
+        self.advancing.take();
+    }
+}
+
+// SAFETY: a returned erased callable is immutable Roc-owned state. Its ARC
+// slots are atomic and the host allocator/deallocator is thread-safe.
+unsafe impl Send for OwnedSseSource {}
+
+impl Drop for OwnedSseSource {
+    fn drop(&mut self) {
+        if let Some(source) = self.0.take() {
+            unsafe { decref_erased_callable(source, roc_host()) };
+        }
+    }
 }
 
 fn outcome_from_roc(
@@ -863,8 +1193,10 @@ fn outcome_from_roc(
     accepted_encodings: AcceptedEncodings,
     response_semantics: &RequestSemantics,
 ) -> RocOutcome {
-    match response.kind {
-        0 => {
+    let mut owner = OwnedRocOutcome::new(response);
+    match owner.tag() {
+        ServerResponseTag::Ordinary => {
+            let response = unsafe { owner.take_ordinary() };
             let stop_code = response.stop.then_some(response.exit_code);
             RocOutcome::Ordinary(
                 response_to_hyper(
@@ -875,7 +1207,8 @@ fn outcome_from_roc(
                 stop_code,
             )
         }
-        1 => {
+        ServerResponseTag::File => {
+            let response = unsafe { owner.take_file() };
             let root_id = response.file_root_id.as_str().to_owned();
             let relative = response.file_relative.as_str().to_owned();
             let disposition = match response.file_disposition {
@@ -907,21 +1240,12 @@ fn outcome_from_roc(
                     "Roc returned a malformed file cache override".to_owned(),
                 );
             };
-            let valid = !response.stop
-                && response.status == 500
-                && response.body.is_empty()
-                && response.headers.is_empty();
             unsafe { response.decref(roc_host()) };
-            if !valid {
-                return RocOutcome::Invalid(
-                    "Roc returned a malformed file response plan".to_owned(),
-                );
-            }
             RocOutcome::File(FilePlan::authorized(root_id, relative, disposition, cache))
         }
-        _ => {
-            unsafe { response.decref(roc_host()) };
-            RocOutcome::Invalid("Roc returned an unknown response-plan kind".to_owned())
+        ServerResponseTag::Stream => {
+            let source = unsafe { owner.take_stream() };
+            RocOutcome::Stream(OwnedSseSource::new(source))
         }
     }
 }
@@ -974,12 +1298,28 @@ fn response_to_hyper(
     Ok(hyper::Response::from_parts(parts, full_body(body)))
 }
 
+fn sse_response(source: RocSseItemSource) -> ServerResponse {
+    let (_handle, body) = SseBody::new(
+        source,
+        SSE_MAX_ITEM_BYTES,
+        1,
+        SSE_FRAME_BYTES,
+        SseCompression::Identity,
+    );
+    hyper::Response::builder()
+        .status(hyper::StatusCode::OK)
+        .header(CONTENT_TYPE, "text/event-stream")
+        .header(CACHE_CONTROL, "no-cache")
+        .body(body.boxed_unsync())
+        .expect("canonical SSE response is valid")
+}
+
 /// Owns every Roc reference in a response while Hyper may still transmit the
 /// body. This is intentionally the whole response rather than just its body:
 /// generated recursive decref remains the single source of truth, and keeping
 /// the small header descriptors alive until body completion is bounded.
 struct RocResponseOwner {
-    response: RocServerResponse,
+    response: ServerOrdinaryResponse,
 }
 
 impl AsRef<[u8]> for RocResponseOwner {
@@ -1418,6 +1758,20 @@ async fn handle_req(
                                 .await;
                             record_file_failure(&telemetry, failure);
                             response
+                        }
+                        Ok(RocOutcome::Stream(source)) => {
+                            match Arc::clone(&context.stream_slots).try_acquire_owned() {
+                                Ok(stream_slot) => sse_response(RocSseItemSource::new(
+                                    source,
+                                    context.handlers.clone(),
+                                    context.config.handler_queue_timeout,
+                                    stream_slot,
+                                )),
+                                Err(_) => {
+                                    telemetry.reject(RejectionReason::HandlerOverload);
+                                    overloaded()
+                                }
+                            }
                         }
                         Ok(RocOutcome::Invalid(detail)) => {
                             telemetry.reject(RejectionReason::InvalidRocResponse);
@@ -2010,17 +2364,42 @@ mod tests {
         }
     }
 
+    fn ordinary_response(
+        body: RocListWith<u8, false>,
+        status: u16,
+        stop: bool,
+        exit_code: i64,
+    ) -> ServerOrdinaryResponse {
+        ServerOrdinaryResponse {
+            exit_code,
+            body,
+            headers: RocList::empty(),
+            status,
+            stop,
+        }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    fn ordinary_outcome(response: ServerOrdinaryResponse) -> RocServerResponse {
+        RocServerResponse {
+            payload: InternalServerOutcomeToHostPayload {
+                ordinary: core::mem::ManuallyDrop::new(response),
+            },
+            tag: ServerResponseTag::Ordinary,
+        }
+    }
+
     struct OneShotSseSource {
         item: Option<Bytes>,
         cancellations: Arc<AtomicUsize>,
     }
 
     impl SseItemSource for OneShotSseSource {
-        fn poll_item(
-            mut self: Pin<&mut Self>,
-            _context: &mut Context<'_>,
-        ) -> Poll<std::io::Result<Option<Bytes>>> {
-            Poll::Ready(Ok(self.item.take()))
+        fn poll_item(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
+            match self.item.take() {
+                Some(item) => SseSourcePoll::Item(item),
+                None => SseSourcePoll::End,
+            }
         }
 
         fn item_drained(self: Pin<&mut Self>) {}
@@ -2183,21 +2562,7 @@ mod tests {
             "the escaped response slice must keep request metadata alive"
         );
 
-        let roc_response = RocServerResponse {
-            exit_code: 0,
-            body: escaped_body,
-            file_download_name: RocStr::empty(),
-            file_relative: RocStr::empty(),
-            file_root_id: RocStr::empty(),
-            headers: RocList::empty(),
-            file_cache_max_age_seconds: 0,
-            status: 200,
-            file_cache_override: false,
-            file_cache_tag: 0,
-            file_disposition: 0,
-            kind: 0,
-            stop: false,
-        };
+        let roc_response = ordinary_response(escaped_body, 200, false, 0);
         let response = response_to_hyper(
             RocResponseOwner {
                 response: roc_response,
@@ -2278,21 +2643,12 @@ mod tests {
             drops: Arc::clone(&drops),
         });
         let original_ptr = bytes.as_ptr();
-        let response = RocServerResponse {
-            exit_code: 0,
-            body: crate::request_body::seamless_chunk_for_test(bytes),
-            file_download_name: RocStr::empty(),
-            file_relative: RocStr::empty(),
-            file_root_id: RocStr::empty(),
-            headers: RocList::empty(),
-            file_cache_max_age_seconds: 0,
-            status: 200,
-            file_cache_override: false,
-            file_cache_tag: 0,
-            file_disposition: 0,
-            kind: 0,
-            stop: false,
-        };
+        let response = ordinary_response(
+            crate::request_body::seamless_chunk_for_test(bytes),
+            200,
+            false,
+            0,
+        );
 
         let response = response_to_hyper(
             RocResponseOwner { response },
@@ -2322,21 +2678,12 @@ mod tests {
     async fn ordinary_responses_negotiate_zstandard_inside_the_handler_domain() {
         initialize_test_host();
         let original = b"compressible ordinary response ".repeat(256);
-        let response = RocServerResponse {
-            exit_code: 0,
-            body: unsafe { RocListWith::<u8, false>::from_slice(&original, roc_host()) },
-            file_download_name: RocStr::empty(),
-            file_relative: RocStr::empty(),
-            file_root_id: RocStr::empty(),
-            headers: RocList::empty(),
-            file_cache_max_age_seconds: 0,
-            status: 200,
-            file_cache_override: false,
-            file_cache_tag: 0,
-            file_disposition: 0,
-            kind: 0,
-            stop: false,
-        };
+        let response = ordinary_response(
+            unsafe { RocListWith::<u8, false>::from_slice(&original, roc_host()) },
+            200,
+            false,
+            0,
+        );
         let mut request_headers = hyper::HeaderMap::new();
         request_headers.insert(
             hyper::header::ACCEPT_ENCODING,
@@ -2397,21 +2744,12 @@ mod tests {
     #[test]
     fn invalid_stop_after_keeps_its_shutdown_intent_and_uses_normal_validation() {
         initialize_test_host();
-        let response = RocServerResponse {
-            exit_code: 17,
-            body: unsafe { RocListWith::<u8, false>::from_slice(b"not allowed", roc_host()) },
-            file_download_name: RocStr::empty(),
-            file_relative: RocStr::empty(),
-            file_root_id: RocStr::empty(),
-            headers: RocList::empty(),
-            file_cache_max_age_seconds: 0,
-            status: 204,
-            file_cache_override: false,
-            file_cache_tag: 0,
-            file_disposition: 0,
-            kind: 0,
-            stop: true,
-        };
+        let response = ordinary_outcome(ordinary_response(
+            unsafe { RocListWith::<u8, false>::from_slice(b"not allowed", roc_host()) },
+            204,
+            true,
+            17,
+        ));
 
         let RocOutcome::Ordinary(response, stop_code) =
             outcome_from_roc(response, no_compression(), &get_http1_semantics())

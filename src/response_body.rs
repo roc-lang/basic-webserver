@@ -286,10 +286,10 @@ pub(crate) enum SseCompression {
 /// directly to the socket: the body reserves bounded host output before it
 /// polls the next item or advances compression.
 pub(crate) trait SseItemSource: Send {
-    fn poll_item(
-        self: Pin<&mut Self>,
-        context: &mut Context<'_>,
-    ) -> Poll<io::Result<Option<Bytes>>>;
+    /// `Advancing` retains the body's output reservation because application
+    /// state may be published when an in-flight callback completes. `Parked`
+    /// releases it while a timer or admission waiter owns the waker.
+    fn poll_item(self: Pin<&mut Self>, context: &mut Context<'_>) -> SseSourcePoll;
 
     /// Acknowledge that the current logical item has been copied into identity
     /// frames or completely FLUSHed into Brotli frames owned by the host.
@@ -304,6 +304,14 @@ pub(crate) trait SseItemSource: Send {
     fn item_drained(self: Pin<&mut Self>);
 
     fn cancel(self: Pin<&mut Self>) {}
+}
+
+pub(crate) enum SseSourcePoll {
+    Parked,
+    Advancing,
+    Item(Bytes),
+    End,
+    Error(io::Error),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -511,13 +519,17 @@ impl Body for SseBody {
         loop {
             match this.phase {
                 SsePhase::PollSource => {
-                    let reservation = match this.reservation(context) {
-                        Poll::Ready(reservation) => reservation,
-                        Poll::Pending => return Poll::Pending,
+                    let reservation = if let Some(reservation) = this.reservation.take() {
+                        reservation
+                    } else {
+                        match this.reservation(context) {
+                            Poll::Ready(reservation) => reservation,
+                            Poll::Pending => return Poll::Pending,
+                        }
                     };
                     let source = this.source.as_mut().expect("live SSE body has a source");
                     match source.as_mut().poll_item(context) {
-                        Poll::Ready(Ok(Some(item))) => {
+                        SseSourcePoll::Item(item) => {
                             if item.len() > this.max_item_bytes {
                                 drop(reservation);
                                 let error = io::Error::new(
@@ -533,7 +545,7 @@ impl Body for SseBody {
                             this.set_pending_item_bytes(this.item.len());
                             this.phase = SsePhase::Process;
                         }
-                        Poll::Ready(Ok(None)) => {
+                        SseSourcePoll::End => {
                             this.reservation = Some(reservation);
                             this.lifecycle
                                 .lock()
@@ -545,13 +557,17 @@ impl Body for SseBody {
                                 this.finish_normally();
                             }
                         }
-                        Poll::Ready(Err(error)) => {
+                        SseSourcePoll::Error(error) => {
                             drop(reservation);
                             this.fail();
                             return Poll::Ready(Some(Err(error)));
                         }
-                        Poll::Pending => {
+                        SseSourcePoll::Parked => {
                             drop(reservation);
+                            return Poll::Pending;
+                        }
+                        SseSourcePoll::Advancing => {
+                            this.reservation = Some(reservation);
                             return Poll::Pending;
                         }
                     }
@@ -733,12 +749,12 @@ mod tests {
     }
 
     impl SseItemSource for ScriptedSource {
-        fn poll_item(
-            mut self: Pin<&mut Self>,
-            _context: &mut Context<'_>,
-        ) -> Poll<io::Result<Option<Bytes>>> {
+        fn poll_item(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
             self.polls.fetch_add(1, Ordering::Relaxed);
-            Poll::Ready(Ok(self.items.pop_front()))
+            match self.items.pop_front() {
+                Some(item) => SseSourcePoll::Item(item),
+                None => SseSourcePoll::End,
+            }
         }
 
         fn cancel(self: Pin<&mut Self>) {
@@ -823,6 +839,49 @@ mod tests {
         drop(ready(pool.poll_reserve(&context)));
         assert_eq!(pool.stats().free_slots, 1);
         assert_eq!(pool.stats().in_use_slots, 0);
+    }
+
+    #[test]
+    fn advancing_source_reuses_its_held_output_reservation_on_completion() {
+        struct CompletingSource {
+            polls: u8,
+        }
+
+        impl SseItemSource for CompletingSource {
+            fn poll_item(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
+                self.polls += 1;
+                match self.polls {
+                    1 => SseSourcePoll::Advancing,
+                    2 => SseSourcePoll::Item(Bytes::from_static(b"data: ready\n\n")),
+                    _ => SseSourcePoll::End,
+                }
+            }
+
+            fn item_drained(self: Pin<&mut Self>) {}
+        }
+
+        let (handle, mut body) = SseBody::new(
+            CompletingSource { polls: 0 },
+            64,
+            1,
+            64,
+            SseCompression::Identity,
+        );
+        let waker = futures::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
+
+        assert!(Pin::new(&mut body).poll_frame(&mut context).is_pending());
+        assert_eq!(handle.stats().frames.reserved_slots, 1);
+        let frame = ready(Pin::new(&mut body).poll_frame(&mut context))
+            .expect("completed source emits one frame")
+            .expect("completed source does not fail");
+        let data = frame.into_data().expect("SSE body emits data");
+        assert_eq!(data.chunk(), b"data: ready\n\n");
+        drop(data);
+        assert!(matches!(
+            Pin::new(&mut body).poll_frame(&mut context),
+            Poll::Ready(None)
+        ));
     }
 
     #[test]

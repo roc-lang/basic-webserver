@@ -1,4 +1,5 @@
 import Host
+import Sse
 import Path
 import http.Header
 import http.Method
@@ -1166,6 +1167,7 @@ Server :: [].{
 	## beginning graceful shutdown, and preserves the first shutdown cause.
 	Outcome := [
 		Respond(Response.Response),
+		Stream(Sse.Source),
 		ServeFile(
 			{
 				files : FileRoot,
@@ -1178,34 +1180,29 @@ Server :: [].{
 	].{
 
 		## Platform ABI conversion hook; not an application API.
-		to_host : Outcome -> {
-			kind : U8,
-			response : Response.Response,
-			stop : Bool,
-			exit_code : I64,
-			file_root_id : Str,
-			file_relative : Str,
-			file_disposition : U8,
-			file_download_name : Str,
-			file_cache_override : Bool,
-			file_cache_tag : U8,
-			file_cache_max_age_seconds : U32,
-		}
+		to_host : Outcome -> [
+			OrdinaryToHost({ response : Response.Response, stop : Bool, exit_code : I64 }),
+			FileToHost(
+				{
+					file_root_id : Str,
+					file_relative : Str,
+					file_disposition : U8,
+					file_download_name : Str,
+					file_cache_override : Bool,
+					file_cache_tag : U8,
+					file_cache_max_age_seconds : U32,
+				},
+			),
+			StreamToHost(Sse.Source),
+		]
 		to_host = |outcome|
 			match outcome {
-				Respond(response) => {
-					kind: 0,
+				Respond(response) => OrdinaryToHost({
 					response,
 					stop: Bool.False,
 					exit_code: 0,
-					file_root_id: "",
-					file_relative: "",
-					file_disposition: 0,
-					file_download_name: "",
-					file_cache_override: Bool.False,
-					file_cache_tag: 0,
-					file_cache_max_age_seconds: 0,
-				}
+				})
+				Stream(source) => StreamToHost(source)
 				ServeFile({ files, relative, disposition, cache }) => {
 					FileRoot(root) = files
 					raw_cache = CacheChoice.to_host(cache)
@@ -1214,11 +1211,7 @@ Server :: [].{
 							Inline => (0, "")
 							Attachment(name) => (1, name)
 						}
-					{
-						kind: 1,
-						response: Response.from_status(500),
-						stop: Bool.False,
-						exit_code: 0,
+					FileToHost({
 						file_root_id: root.id,
 						file_relative: RelativeFile.to_host(relative),
 						file_disposition: disposition_tag,
@@ -1226,23 +1219,20 @@ Server :: [].{
 						file_cache_override: raw_cache.override,
 						file_cache_tag: raw_cache.tag,
 						file_cache_max_age_seconds: raw_cache.max_age_seconds,
-					}
+					})
 				}
-				StopAfter({ response, exit_code }) => {
-					kind: 0,
+				StopAfter({ response, exit_code }) => OrdinaryToHost({
 					response,
 					stop: Bool.True,
 					exit_code,
-					file_root_id: "",
-					file_relative: "",
-					file_disposition: 0,
-					file_download_name: "",
-					file_cache_override: Bool.False,
-					file_cache_tag: 0,
-					file_cache_max_age_seconds: 0,
-				}
+				})
 			}
 	}
+
+	## Return a dynamic server-sent event response. The host supplies canonical
+	## SSE response headers and owns transport framing and content coding.
+	stream : Sse.Source -> Outcome
+	stream = |source| Stream(source)
 
 	## Return a response and keep serving requests.
 	respond : Response.Response -> Outcome

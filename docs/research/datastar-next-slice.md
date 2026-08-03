@@ -211,7 +211,7 @@ The adapter needs a private vocabulary such as
 `Parked`, retains it on `Advancing`, and does not poll again until completion
 wakes it. Source cancellation is required rather than a default no-op.
 
-## First real-listener slice
+## First real-listener slice (passed)
 
 Compose the retained outcome and stream heap through the actual bound HTTP/1.1
 listener using identity coding first. The research application produces:
@@ -234,10 +234,11 @@ cancellation while parked/admitting/advancing/draining, completion after body
 drop, and configured maximum idle streams reaching exactly the expected
 high-water before the next rejection.
 
-The first listener slice may make one explicit bounded copy from Roc event
-bytes into a host frame after holding the maximum-item token. Report it as
-temporary. A later performance slice can transfer the Roc item as a
-transport-owned `Buf` without complicating the scheduler proof.
+The implemented slice transfers the Roc event list directly into a
+`Bytes::from_owner` value, then copies from that owner into the already selected
+fixed host frames. Results, including the reservation handoff bug found by the
+live listener, are recorded in
+[`datastar-listener-findings.md`](datastar-listener-findings.md).
 
 ## Brotli CPU follow-up
 

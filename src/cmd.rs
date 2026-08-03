@@ -96,7 +96,10 @@ fn cmd_to_std(cmd: &Cmd, working_dir: InheritOrSet, roc_host: &RocHost) -> io::R
     // hosted arguments.
     let owned_working_dir = match working_dir.tag {
         InheritOrSetTag::Inherit => Ok(None),
-        InheritOrSetTag::Set => os_string_from_raw_borrowed(working_dir.payload_set()).map(Some),
+        InheritOrSetTag::Set => {
+            os_string_from_raw_borrowed(unsafe { *working_dir.borrow_payload_set_unchecked() })
+                .map(Some)
+        }
     };
     unsafe { (*cmd).decref(roc_host) };
     unsafe { working_dir.decref(roc_host) };
