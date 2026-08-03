@@ -27,6 +27,7 @@ ROC_INSTRUMENTED_SERVER = BUILD / "roc-server-instrumented"
 GO_SERVER = BUILD / "go-server"
 GO_MODULE = ROOT / "research" / "datastar-parity" / "go-reference"
 GO_DEFAULT = Path("/tmp/go1.26.5/bin/go")
+ROC_DEFAULT = Path(shutil.which("roc") or "roc")
 SERVER_CPU = "2"
 CLIENT_CPU = "3"
 CLOCK_TICKS = os.sysconf("SC_CLK_TCK")
@@ -37,12 +38,12 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
-def build(go: Path) -> None:
+def build(roc: Path, go: Path) -> None:
     BUILD.mkdir(parents=True, exist_ok=True)
     run([sys.executable, "scripts/build.py"])
     run(
         [
-            "roc",
+            str(roc),
             "build",
             "--no-cache",
             "--opt=speed",
@@ -58,10 +59,10 @@ def build(go: Path) -> None:
         cwd=GO_MODULE,
         env=environment,
     )
-    build_instrumented_roc_server()
+    build_instrumented_roc_server(roc)
 
 
-def build_instrumented_roc_server() -> None:
+def build_instrumented_roc_server(roc: Path) -> None:
     target = "x86_64-unknown-linux-musl"
     host_archive = ROOT / "platform" / "targets" / "x64musl" / "libhost.a"
     saved_archive = BUILD / "libhost-production.a"
@@ -93,7 +94,7 @@ def build_instrumented_roc_server() -> None:
         shutil.copy2(ROOT / "target" / target / "release" / "libhost.a", host_archive)
         run(
             [
-                "roc",
+                str(roc),
                 "build",
                 "--no-cache",
                 "--opt=speed",
@@ -522,7 +523,7 @@ def median_summary(records: list[dict[str, object]]) -> list[dict[str, object]]:
     return summaries
 
 
-def environment_record(go: Path, samples: int) -> dict[str, object]:
+def environment_record(roc: Path, go: Path, samples: int) -> dict[str, object]:
     def output(command: list[str]) -> str:
         return subprocess.check_output(command, cwd=ROOT, text=True).strip()
 
@@ -530,7 +531,8 @@ def environment_record(go: Path, samples: int) -> dict[str, object]:
         "kind": "environment",
         "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "git_commit": output(["git", "rev-parse", "HEAD"]),
-        "roc": output(["roc", "version"]),
+        "roc": output([str(roc), "version"]),
+        "roc_binary": str(roc.resolve()),
         "rustc": output(["rustc", "--version"]),
         "go": output([str(go), "version"]),
         "curl": output(["curl", "--version"]).splitlines()[0],
@@ -552,6 +554,7 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--skip-idle", action="store_true")
     parser.add_argument("--skip-progressive", action="store_true")
     parser.add_argument("--allocation-samples", type=int, default=3)
+    parser.add_argument("--roc", type=Path, default=ROC_DEFAULT)
     parser.add_argument("--go", type=Path, default=GO_DEFAULT)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
@@ -566,11 +569,13 @@ def main() -> None:
     if not sys.platform.startswith("linux"):
         raise SystemExit("this controlled /proc benchmark currently requires Linux")
     if not args.skip_build:
-        build(args.go)
+        build(args.roc, args.go)
     if not ROC_SERVER.is_file() or not GO_SERVER.is_file():
         raise SystemExit("benchmark servers are missing; rerun without --skip-build")
 
-    records: list[dict[str, object]] = [environment_record(args.go, args.samples)]
+    records: list[dict[str, object]] = [
+        environment_record(args.roc, args.go, args.samples)
+    ]
     for coding in ("identity", "scale"):
         for implementation in ("roc", "go"):
             server = Server.start(implementation, coding)
