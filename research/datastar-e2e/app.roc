@@ -149,8 +149,19 @@ prepared_state = |remaining, payload_bytes| {
 
 html_payload : U64, U64 -> Str
 html_payload = |target_bytes, sequence| {
-	padding = payload_padding(target_bytes, sequence)
-	html_payload_with_padding(padding, sequence)
+	prefix = "<article id=\"feed\" data-seq=\"${U64.to_str(sequence)}\"><p>"
+	suffix = "</p></article>"
+	fixed_bytes = Str.count_utf8_bytes(prefix) + Str.count_utf8_bytes(suffix)
+	padding =
+		if target_bytes > fixed_bytes {
+			Str.repeat("x", target_bytes - fixed_bytes)
+		} else {
+			""
+		}
+	Str.with_capacity(target_bytes)
+		.concat(prefix)
+		.concat(padding)
+		.concat(suffix)
 }
 
 payload_padding : U64, U64 -> Str
