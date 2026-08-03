@@ -74,6 +74,8 @@ InternalServer :: [].{
 		max_connections : U32,
 		max_handlers : U16,
 		max_queued_handlers : U16,
+		sse_max_streams : U16,
+		sse_max_event_bytes : U32,
 		file_roots : List(
 			{
 				id : Str,

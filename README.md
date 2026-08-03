@@ -10,9 +10,10 @@ Examples: [0.14.0-rc1](https://github.com/roc-lang/basic-webserver/tree/0.14.0-r
 # Basic Web Server for Roc
 
 `basic-webserver` is a cross-platform [Roc platform](https://www.roc-lang.org/platforms)
-for conventional HTTP request/response applications. It is designed for JSON
-and HTML APIs, SQLite-backed applications, server-rendered forms, webhooks,
-bounded uploads, and small services deployed behind a reverse proxy.
+for conventional HTTP request/response applications and typed server-sent
+events. It is designed for JSON and HTML APIs, Datastar actions, SQLite-backed
+applications, server-rendered forms, webhooks, bounded uploads, and small
+services deployed behind a reverse proxy.
 
 The Rust host uses [Hyper](https://hyper.rs) and [Tokio](https://tokio.rs).
 Applications provide three functions:
@@ -80,6 +81,8 @@ The defaults are finite so overload has deliberate behavior:
 | Active connections | 256 |
 | Concurrent Roc handlers | 32 |
 | Queued handlers | 64 |
+| Admitted SSE responses | 256 |
+| Framed SSE event | 1 MiB |
 | Request target | 8 KiB |
 | Decoded request headers | 32 KiB |
 | Request header fields | 100 |
@@ -108,6 +111,11 @@ normally put a reverse proxy or load balancer in front. Ordinary responses are
 complete in-memory values, while request bodies can be consumed as bounded
 streams. The host validates response fields and owns framing for both protocol
 versions; see the [response design](design.md#response-validation-and-framing).
+
+Typed SSE sources run one finite Roc transition at a time and park without a
+worker between events. The host owns timers, backpressure, cancellation,
+streaming Brotli, and HTTP/1.1 or HTTP/2 framing. Initial source failures occur
+before response commitment. See the [typed SSE and Datastar guide](docs/sse.md).
 
 Eligible responses of at least 1 KiB are compressed automatically when the
 client accepts Zstandard, Brotli, or gzip. The host negotiates quality weights,
@@ -159,6 +167,7 @@ reasons, and dropped access-log events.
 The platform exposes typed modules for:
 
 - bounded inbound request bodies and server lifecycle;
+- typed SSE sources and Datastar event constructors;
 - pooled outbound HTTP and HTTPS requests;
 - pooled SQLite connections, transactions, and prepared statements;
 - finite command execution with time and output limits;

@@ -1,13 +1,13 @@
 # Retained Roc SSE source contract
 
-Status: composite-callable compiler feasibility, Rust consuming projection,
-outcome transfer, and a bounded host stream heap are proven by Roc candidates
-through `6d65420689`; retained typed sources are again the preferred product
-hypothesis under the platform's trusted-application memory model.
+Status: completed ownership evidence for the retained source selected by
+[`design.md`](../../design.md); current API contract is in
+[`docs/sse.md`](../sse.md).
 
 Date: 2026-08-03
 
-This work does not change `design.md` and does not select the public API.
+This document did not itself select the public API. It remains the ownership
+and compiler evidence behind the later accepted design.
 
 ## Product-state conclusion
 

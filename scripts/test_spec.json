@@ -994,6 +994,42 @@
               "response_headers": {
                 "Vary": "Accept-Encoding"
               }
+            },
+            {
+              "target": "/error-first",
+              "status": 500,
+              "expect_body": "500 Internal Server Error"
+            },
+            {
+              "target": "/oversize-first",
+              "status": 500,
+              "expect_body": "500 Internal Server Error"
+            },
+            {
+              "target": "/wait-first",
+              "expect_body": "data: after initial wait\n\n",
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/end-first",
+              "expect_body": "",
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/options",
+              "body_contains": [
+                "event: datastar-patch-elements\nid: event0\nretry: 2000\ndata: selector div\ndata: mode append\ndata: namespace svg\ndata: useViewTransition true\ndata: viewTransitionSelector #transition\ndata: elements <svg>Merge</svg>\n\n",
+                "event: datastar-patch-signals\ndata: onlyIfMissing true\ndata: signals {\"one\":1}\n\n",
+                "event: datastar-patch-elements\ndata: mode remove\ndata: selector #target\ndata: useViewTransition true\n\n"
+              ]
             }
           ]
         }

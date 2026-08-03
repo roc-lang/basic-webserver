@@ -6,6 +6,37 @@
 Sse :: [].{
 	Source := [Source(Box(U64 => StepToHost))]
 
+	EventId := [AbsentEventId, ClearEventId, SetEventId(Str)]
+
+	Retry := [NoRetry, RetryAfter(U64)]
+
+	EventOptions := {
+		id : EventId,
+		retry : Retry,
+	}
+
+	default_event_options : EventOptions
+	default_event_options = { id: AbsentEventId, retry: NoRetry }
+
+	## Validate an SSE event ID. IDs become `Last-Event-ID` request header
+	## values on reconnect, so NUL and line endings are rejected rather than
+	## normalized.
+	event_id : Str -> Try(EventId, [InvalidEventId])
+	event_id = |value|
+		if Str.contains(value, "\r") or Str.contains(value, "\n") or List.any(Str.to_utf8(value), |byte| byte == 0) {
+			Err(InvalidEventId)
+		} else {
+			Ok(SetEventId(value))
+		}
+
+	## Emit an empty `id:` field, clearing Datastar's retained reconnect ID.
+	clear_event_id : EventId
+	clear_event_id = ClearEventId
+
+	## Ask the client to use a new reconnect delay, in milliseconds.
+	retry_after : U64 -> Retry
+	retry_after = |milliseconds| RetryAfter(milliseconds)
+
 	Event := [Event(List(U8))].{
 
 		## Construct a named SSE event containing one keyed data value. The common
@@ -45,8 +76,25 @@ Sse :: [].{
 		## field. Every logical line in a data field is emitted as its own
 		## `data:` line.
 		named : Str, List(Str) -> Event
-		named = |name, values| {
+		named = |name, values| named_with(name, values, default_event_options)
+
+		## Construct a named event with optional reconnect ID and retry metadata.
+		## The ID is already validated by [`event_id`](#Sse.event_id); all data
+		## values remain canonical `data:` fields.
+		named_with : Str, List(Str), EventOptions -> Event
+		named_with = |name, values, options| {
 			safe_name = Str.join_with(Str.split_on(Str.join_with(Str.split_on(name, "\r"), ""), "\n"), "")
+			id_fields =
+				match options.id {
+					AbsentEventId => []
+					ClearEventId => ["id:"]
+					SetEventId(value) => ["id: ${value}"]
+				}
+			retry_fields =
+				match options.retry {
+					NoRetry => []
+					RetryAfter(milliseconds) => ["retry: ${U64.to_str(milliseconds)}"]
+				}
 			fields = values.map(
 				|value| {
 					lf = Str.join_with(Str.split_on(value, "\r\n"), "\n")
@@ -55,7 +103,8 @@ Sse :: [].{
 					Str.join_with(lines, "\n")
 				},
 			)
-			Event(Str.to_utf8("event: ${safe_name}\n${Str.join_with(fields, "\n")}\n\n"))
+			lines = List.concat(List.concat(["event: ${safe_name}"], id_fields), List.concat(retry_fields, fields))
+			Event(Str.to_utf8("${Str.join_with(lines, "\n")}\n\n"))
 		}
 
 		## Construct one SSE data event. Embedded CR, LF, and CRLF line endings
@@ -94,14 +143,14 @@ Sse :: [].{
 	## Retain typed application state behind a private affine source. Every
 	## invocation returns the next source owner; the host never copies or
 	## reconstructs application state.
-	unfold! : state, (state, U64 => Try(Step(state), err)) => Source
+	unfold! : state, (state => Try(Step(state), err)) => Source
 	unfold! = |initial_state, transition!| {
 		from_state : state -> Source
 		from_state = |state|
 			Source(
 				Box.box(
-					|wake_generation| {
-						match transition!(state, wake_generation) {
+					|_wake_generation| {
+						match transition!(state) {
 							Ok(Emit({ event: Event(item), state: next_state, wake })) =>
 								EmitToHost({
 									item,

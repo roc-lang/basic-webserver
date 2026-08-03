@@ -87,6 +87,16 @@ Server :: [].{
 	default_max_queued_handlers : U16
 	default_max_queued_handlers = 64
 
+	## Default maximum number of admitted SSE responses. Parked streams do not
+	## consume Roc handler workers; this independently bounds their host-owned
+	## source slots, timers, body state, and optional compression state.
+	default_max_sse_streams : U16
+	default_max_sse_streams = 256
+
+	## Default maximum size of one completely framed SSE event: 1 MiB.
+	default_max_sse_event_bytes : U32
+	default_max_sse_event_bytes = 1024 * 1024
+
 	## Default maximum idle time for completing each request head: 10 seconds.
 	default_header_timeout_ms : U64
 	default_header_timeout_ms = 10_000
@@ -638,6 +648,10 @@ Server :: [].{
 					max_concurrent : U16,
 					timeout_ms : U64,
 				},
+				sse : {
+					max_streams : U16,
+					max_event_bytes : U32,
+				},
 				operations : {
 					access_log : AccessLog,
 					metrics : Metrics,
@@ -705,6 +719,8 @@ Server :: [].{
 			file_chunk_bytes : U32,
 			body_sink_max_concurrent : U16,
 			body_sink_timeout_ms : U64,
+			sse_max_streams : U16,
+			sse_max_event_bytes : U32,
 			access_log_enabled : Bool,
 			access_log_target : U8,
 			access_log_buffer_events : U16,
@@ -742,6 +758,8 @@ Server :: [].{
 				file_chunk_bytes: config.file_transfers.chunk_bytes,
 				body_sink_max_concurrent: config.body_sinks.max_concurrent,
 				body_sink_timeout_ms: config.body_sinks.timeout_ms,
+				sse_max_streams: config.sse.max_streams,
+				sse_max_event_bytes: config.sse.max_event_bytes,
 				access_log_enabled: access_log.enabled,
 				access_log_target: access_log.target,
 				access_log_buffer_events: access_log.buffer_events,
@@ -807,6 +825,10 @@ Server :: [].{
 		body_sinks: {
 			max_concurrent: default_max_body_sinks,
 			timeout_ms: default_body_sink_timeout_ms,
+		},
+		sse: {
+			max_streams: default_max_sse_streams,
+			max_event_bytes: default_max_sse_event_bytes,
 		},
 		operations: {
 			access_log: AccessLogOff,
@@ -880,6 +902,12 @@ Server :: [].{
 	## host-managed request-body sinks. Saturation is typed and does not queue.
 	with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
 	with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
+
+	## Set independent admitted-stream and per-event bounds for typed SSE
+	## responses. Both values must be non-zero; events above 16 MiB fail startup.
+	## Saturated stream admission returns 503 before response commitment.
+	with_sse_limits : Config, { max_streams : U16, max_event_bytes : U32 } -> Config
+	with_sse_limits = |Config(config), sse| Config({ ..config, sse })
 
 	## Configure host-owned structured request-completion logging.
 	with_access_log : Config, AccessLog -> Config

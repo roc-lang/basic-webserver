@@ -1,18 +1,16 @@
 # Datastar research synthesis and spike contract
 
-Status: production body, composite-callable reuse, Rust consuming projection,
-outcome transfer, and a bounded host stream heap passed; retained typed sources
-with host-owned application context are the preferred scheduler hypothesis for
-the next product slice
+Status: completed research synthesis; superseded as a contract by
+[`design.md`](../../design.md) and [`docs/sse.md`](../sse.md)
 
 Date: 2026-08-03
 
 Branch: `datastar-experiment`
 
 This document reconciles the independent Datastar protocol, Roc ABI,
-transport/browser, and Brotli-footprint tracks. It records the agreed direction
-for the next feasibility spikes. It is not an accepted platform contract and
-does not change [`design.md`](../../design.md).
+transport/browser, and Brotli-footprint tracks. It records the direction and
+evidence used during feasibility work; the resulting accepted contract now
+lives in the authoritative design and focused SSE guide.
 
 ## Bottom line
 

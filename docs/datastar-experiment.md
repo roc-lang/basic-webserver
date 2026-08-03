@@ -1,22 +1,21 @@
 # First-class SSE and Datastar experiment
 
-- Status: design hypothesis for feasibility work
+- Status: completed research record; accepted contract is in
+  [`design.md`](../design.md) and [`docs/sse.md`](sse.md)
 - Branch: `datastar-experiment`
 - Started: 2026-08-01
 - Baseline: `origin/main` at `2032390` (2026-08-01 fetch)
 
 ## Purpose
 
-This document records a proposed product boundary, application experience, host
-architecture, and research plan for making Server-Sent Events (SSE) and
-Datastar first-class in `basic-webserver`.
+This document records the product hypotheses and evidence that led to making
+Server-Sent Events (SSE) and Datastar first-class in `basic-webserver`.
 
-It is intentionally not part of [`design.md`](../design.md). The current design
-contract explicitly says that Roc-produced incremental response streams and
-application-defined SSE runtimes are non-goals. This experiment investigates a
-deliberate change to that boundary. The accepted design should change only
-after the hypotheses here have been tested and the scope change has been
-accepted on its merits.
+It is a historical research record, not the current contract. The tested
+hypotheses resulted in a deliberate [`design.md`](../design.md) scope change;
+current API and lifecycle behavior are summarized in [`docs/sse.md`](sse.md).
+Open questions and candidate APIs below should be read in that historical
+context.
 
 This document separates four kinds of statements:
 

@@ -1,14 +1,13 @@
 # Host-owned retained-source Datastar feasibility slice
 
-Status: preferred product hypothesis after reconciling retained-state review
-with the platform trust boundary
+Status: completed feasibility slice; superseded by the accepted
+[`design.md`](../../design.md) contract and [`docs/sse.md`](../sse.md)
 
 Date: 2026-08-03
 
-This is implementation-specific research guidance, not an accepted platform
-contract. It does not change [`design.md`](../../design.md) or select final
-public names. Dynamic Roc-produced SSE remains a deliberate experiment against
-an explicit current non-goal.
+This is retained as implementation-specific research evidence. The source
+model passed and was consolidated into the accepted platform contract; later
+sections describe the state of the experiment when they were written.
 
 ## Why the state model changed again
 

@@ -17,7 +17,7 @@ from pathlib import Path
 # Rust glue is generated with that compiler and its matching RustGlue.roc.
 # Compiler and glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "6d6542068989bc527c4d133702c1856a1e966612"
+KNOWN_GOOD_REVISION = "5a5f4c02a01363b7cce039df8abab8e3bebaf496"
 
 
 def rooted_path(value: str) -> Path:
