@@ -32,6 +32,13 @@ The follow-up `Str.repeat` isolation and fix are captured in the paired
 and
 [`results/2026-08-03-repeat-after.jsonl`](results/2026-08-03-repeat-after.jsonl)
 files.
+The unified Roc executor is measured with the same compiler on both sides in
+[`results/2026-08-03-executor-before.jsonl`](results/2026-08-03-executor-before.jsonl)
+and
+[`results/2026-08-03-executor-after.jsonl`](results/2026-08-03-executor-after.jsonl).
+An intermediate run before replacing the final `Bytes` owner box is retained
+in
+[`results/2026-08-03-executor-before-inline.jsonl`](results/2026-08-03-executor-before-inline.jsonl).
 
 Run the controlled Linux comparison with:
 
