@@ -240,13 +240,13 @@ fixed host frames. Results, including the reservation handoff bug found by the
 live listener, are recorded in
 [`datastar-listener-findings.md`](datastar-listener-findings.md).
 
-## Brotli CPU follow-up
+## Brotli CPU follow-up (passed for the initial production path)
 
-Do not add Brotli to the first timer slice. The current body executes PROCESS,
-FLUSH, and FINISH synchronously inside `Body::poll_frame`; bounded memory alone
-does not bound CPU time on an async transport worker.
+The first timer slice was validated with identity coding. Brotli was then added
+through a separate executor so PROCESS, FLUSH, and FINISH do not execute inside
+`Body::poll_frame` on an async transport worker.
 
-The preferred follow-up remains a fixed preallocated compression executor:
+The implemented follow-up is a fixed preallocated compression executor:
 
 - start `K` named compression threads;
 - preallocate `M` lanes and a bounded queue of lane IDs, with `M` equal to
@@ -259,7 +259,8 @@ The preferred follow-up remains a fixed preallocated compression executor:
 Queued cancellation skips work. Running cancellation returns promptly from the
 body; the worker destroys the encoder without FINISH and releases the lane when
 the finite operation returns. Only measured named compression profiles enter
-this executor.
+this executor. Initial results are recorded in
+[`datastar-brotli-executor-findings.md`](datastar-brotli-executor-findings.md).
 
 ## Bounded-cursor fallback
 
@@ -276,8 +277,9 @@ realistic Roc-versus-Go examples.
 
 ## Non-claims
 
-Passing this slice would not yet establish Brotli CPU isolation, HTTP/2
-fairness, browser/proxy coverage, `Pulse`, cross-target behavior, public API
-names, or acceptance of the deliberate `design.md` scope change. It would
+Passing this slice does not yet establish HTTP/2
+fairness, full Brotli lifecycle CPU isolation, browser/proxy coverage, `Pulse`,
+cross-target behavior, public API names, or acceptance of the deliberate
+`design.md` scope change. It would
 establish the retained source and production scheduler/body seam needed to
 investigate those questions.

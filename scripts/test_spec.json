@@ -970,7 +970,29 @@
               ],
               "response_headers": {
                 "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache"
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "headers": {
+                "Accept-Encoding": "br"
+              },
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Content-Encoding": "br",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "headers": {
+                "Accept-Encoding": "gzip, identity;q=0"
+              },
+              "status": 406,
+              "expect_body": "No acceptable SSE content coding",
+              "response_headers": {
+                "Vary": "Accept-Encoding"
               }
             }
           ]

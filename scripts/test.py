@@ -1296,8 +1296,12 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
     target = str(request.get("target", "/"))
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=float(request.get("timeout", 5)))
     try:
-        connection.putrequest(method, target)
         names = {name.lower() for name, _ in headers}
+        connection.putrequest(
+            method,
+            target,
+            skip_accept_encoding="accept-encoding" in names,
+        )
         if body and "content-length" not in names:
             headers.append(("Content-Length", str(len(body))))
         for name, value in headers:

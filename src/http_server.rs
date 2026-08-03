@@ -7,9 +7,10 @@ use crate::abi::{
     ServerWritableRoot,
 };
 use crate::body_sink::{BodySinkService, WritableRootSpec};
+use crate::brotli_executor::{BrotliExecutor, BrotliLane, BrotliProfile};
 use crate::compression::{
     apply_content_coding, encode_bytes, response_is_compressible, vary_on_accept_encoding,
-    AcceptedEncodings, MAX_BUFFERED_COMPRESSION_BYTES,
+    AcceptedEncodings, StreamingContentCoding, MAX_BUFFERED_COMPRESSION_BYTES,
 };
 use crate::file_server::{
     CachePolicy, Disposition, FilePlan, FileRootSpec, FileServeFailure, FileService,
@@ -485,6 +486,7 @@ struct ServerContext {
     roc_context: Arc<RocContext>,
     handlers: HandlerAdmission,
     stream_slots: Arc<Semaphore>,
+    brotli: BrotliExecutor,
     requests: RequestTracker,
     shutdown: ShutdownController,
     telemetry: TelemetryHandle,
@@ -532,6 +534,21 @@ fn start_inner() -> i32 {
     };
     let roc_context = Arc::new(RocContext::new(raw_context));
     let shutdown = ShutdownController::new();
+    let brotli_workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(config.max_handlers)
+        .max(1);
+    let brotli = match BrotliExecutor::new(brotli_workers, config.max_handlers) {
+        Ok(executor) => executor,
+        Err(error) => {
+            return finish_shutdown(
+                ShutdownReason::StartupFailed(format!("failed to start Brotli executor: {error}")),
+                raw_context,
+                config.hook_timeout,
+            );
+        }
+    };
     let context = ServerContext {
         config: Arc::new(config.clone()),
         roc_context: Arc::clone(&roc_context),
@@ -541,6 +558,7 @@ fn start_inner() -> i32 {
             Arc::clone(&config.metrics),
         ),
         stream_slots: Arc::new(Semaphore::new(config.max_handlers)),
+        brotli,
         requests: RequestTracker::new(),
         shutdown: shutdown.clone(),
         telemetry: telemetry.handle(),
@@ -867,7 +885,10 @@ enum RocOutcome {
         Option<i64>,
     ),
     File(FilePlan),
-    Stream(OwnedSseSource),
+    Stream {
+        source: OwnedSseSource,
+        coding: StreamingContentCoding,
+    },
     Invalid(String),
 }
 
@@ -1045,10 +1066,12 @@ struct RocSseItemSource {
     source: Option<OwnedSseSource>,
     advancing: Option<SseAdvanceFuture>,
     after_item: Option<(OwnedSseSource, u64)>,
-    wake: Option<Pin<Box<tokio::time::Sleep>>>,
+    wake: Pin<Box<tokio::time::Sleep>>,
+    wake_parked: bool,
     wake_generation: u64,
     handlers: HandlerAdmission,
     handler_queue_timeout: Duration,
+    active_request: Arc<ActiveRequest>,
     _stream_slot: OwnedSemaphorePermit,
     ended: bool,
 }
@@ -1058,16 +1081,19 @@ impl RocSseItemSource {
         source: OwnedSseSource,
         handlers: HandlerAdmission,
         handler_queue_timeout: Duration,
+        active_request: Arc<ActiveRequest>,
         stream_slot: OwnedSemaphorePermit,
     ) -> Self {
         Self {
             source: Some(source),
             advancing: None,
             after_item: None,
-            wake: None,
+            wake: Box::pin(tokio::time::sleep(Duration::ZERO)),
+            wake_parked: false,
             wake_generation: 0,
             handlers,
             handler_queue_timeout,
+            active_request,
             _stream_slot: stream_slot,
             ended: false,
         }
@@ -1075,8 +1101,12 @@ impl RocSseItemSource {
 
     fn park(&mut self, source: OwnedSseSource, wait_millis: u64) {
         self.source = Some(source);
-        self.wake = (wait_millis != 0)
-            .then(|| Box::pin(tokio::time::sleep(Duration::from_millis(wait_millis))));
+        self.wake_parked = wait_millis != 0;
+        if self.wake_parked {
+            self.wake
+                .as_mut()
+                .reset(tokio::time::Instant::now() + Duration::from_millis(wait_millis));
+        }
     }
 
     fn start_advance(&mut self) {
@@ -1085,17 +1115,23 @@ impl RocSseItemSource {
         let wake_generation = self.wake_generation;
         let handlers = self.handlers.clone();
         let wait_timeout = self.handler_queue_timeout;
+        let active_request = Arc::clone(&self.active_request);
         self.advancing = Some(Box::pin(async move {
             let admitted = handlers.admit(wait_timeout).await.map_err(|error| {
                 io::Error::other(format!("SSE transition admission failed: {error:?}"))
             })?;
             let active = admitted.active;
-            spawn_blocking(move || {
+            let (_active_request, step) = spawn_blocking(move || {
                 let _active = active;
-                source.advance(wake_generation)
+                // A cancelled body drops the future waiting on this
+                // non-cancellable call. Retain request drain accounting in the
+                // task's output until Roc has returned and the detached result
+                // has been consumed or whole-dropped.
+                (active_request, source.advance(wake_generation))
             })
             .await
-            .map_err(|error| io::Error::other(format!("SSE transition panicked: {error}")))
+            .map_err(|error| io::Error::other(format!("SSE transition panicked: {error}")))?;
+            Ok(step)
         }));
     }
 }
@@ -1109,11 +1145,11 @@ impl SseItemSource for RocSseItemSource {
             if self.after_item.is_some() {
                 return SseSourcePoll::Advancing;
             }
-            if let Some(wake) = &mut self.wake {
-                if wake.as_mut().poll(context).is_pending() {
+            if self.wake_parked {
+                if self.wake.as_mut().poll(context).is_pending() {
                     return SseSourcePoll::Parked;
                 }
-                self.wake = None;
+                self.wake_parked = false;
             }
             if self.advancing.is_none() {
                 self.start_advance();
@@ -1171,7 +1207,7 @@ impl SseItemSource for RocSseItemSource {
         self.ended = true;
         self.source.take();
         self.after_item.take();
-        self.wake.take();
+        self.wake_parked = false;
         self.advancing.take();
     }
 }
@@ -1245,7 +1281,10 @@ fn outcome_from_roc(
         }
         ServerResponseTag::Stream => {
             let source = unsafe { owner.take_stream() };
-            RocOutcome::Stream(OwnedSseSource::new(source))
+            RocOutcome::Stream {
+                source: OwnedSseSource::new(source),
+                coding: accepted_encodings.preferred_streaming(),
+            }
         }
     }
 }
@@ -1298,20 +1337,33 @@ fn response_to_hyper(
     Ok(hyper::Response::from_parts(parts, full_body(body)))
 }
 
-fn sse_response(source: RocSseItemSource) -> ServerResponse {
-    let (_handle, body) = SseBody::new(
-        source,
-        SSE_MAX_ITEM_BYTES,
-        1,
-        SSE_FRAME_BYTES,
-        SseCompression::Identity,
-    );
-    hyper::Response::builder()
+fn sse_response(source: RocSseItemSource, brotli: Option<BrotliLane>) -> ServerResponse {
+    let compressed = brotli.is_some();
+    let (_handle, body) = match brotli {
+        Some(lane) => {
+            SseBody::new_bounded_brotli(source, SSE_MAX_ITEM_BYTES, 1, SSE_FRAME_BYTES, lane)
+        }
+        None => SseBody::new(
+            source,
+            SSE_MAX_ITEM_BYTES,
+            1,
+            SSE_FRAME_BYTES,
+            SseCompression::Identity,
+        ),
+    };
+    let mut response = hyper::Response::builder()
         .status(hyper::StatusCode::OK)
         .header(CONTENT_TYPE, "text/event-stream")
         .header(CACHE_CONTROL, "no-cache")
         .body(body.boxed_unsync())
-        .expect("canonical SSE response is valid")
+        .expect("canonical SSE response is valid");
+    vary_on_accept_encoding(response.headers_mut());
+    if compressed {
+        response
+            .headers_mut()
+            .insert(hyper::header::CONTENT_ENCODING, "br".parse().unwrap());
+    }
+    response
 }
 
 /// Owns every Roc reference in a response while Hyper may still transmit the
@@ -1353,6 +1405,17 @@ fn overloaded() -> ServerResponse {
         .status(hyper::StatusCode::SERVICE_UNAVAILABLE)
         .body(full_body(Bytes::from_static(b"Server is overloaded")))
         .expect("static 503 response is valid")
+}
+
+fn no_acceptable_sse_content_coding() -> ServerResponse {
+    let mut response = hyper::Response::builder()
+        .status(hyper::StatusCode::NOT_ACCEPTABLE)
+        .body(full_body(Bytes::from_static(
+            b"No acceptable SSE content coding",
+        )))
+        .expect("static 406 response is valid");
+    vary_on_accept_encoding(response.headers_mut());
+    response
 }
 
 fn handler_queue_timed_out() -> ServerResponse {
@@ -1759,17 +1822,46 @@ async fn handle_req(
                             record_file_failure(&telemetry, failure);
                             response
                         }
-                        Ok(RocOutcome::Stream(source)) => {
-                            match Arc::clone(&context.stream_slots).try_acquire_owned() {
-                                Ok(stream_slot) => sse_response(RocSseItemSource::new(
-                                    source,
-                                    context.handlers.clone(),
-                                    context.config.handler_queue_timeout,
-                                    stream_slot,
-                                )),
-                                Err(_) => {
-                                    telemetry.reject(RejectionReason::HandlerOverload);
-                                    overloaded()
+                        Ok(RocOutcome::Stream { source, coding }) => {
+                            if coding == StreamingContentCoding::NotAcceptable {
+                                no_acceptable_sse_content_coding()
+                            } else {
+                                match Arc::clone(&context.stream_slots).try_acquire_owned() {
+                                    Ok(stream_slot) => {
+                                        let lane = if coding == StreamingContentCoding::Brotli {
+                                            match context.brotli.try_admit(BrotliProfile::Scale) {
+                                                Some(lane) => Some(lane),
+                                                None => {
+                                                    telemetry
+                                                        .reject(RejectionReason::HandlerOverload);
+                                                    return finalize_and_track_response(
+                                                        overloaded(),
+                                                        &response_semantics,
+                                                        Some(active_request),
+                                                        http1_activity,
+                                                        Some(body_idle_timeout),
+                                                        &telemetry,
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            None
+                                        };
+                                        sse_response(
+                                            RocSseItemSource::new(
+                                                source,
+                                                context.handlers.clone(),
+                                                context.config.handler_queue_timeout,
+                                                Arc::clone(&active_request),
+                                                stream_slot,
+                                            ),
+                                            lane,
+                                        )
+                                    }
+                                    Err(_) => {
+                                        telemetry.reject(RejectionReason::HandlerOverload);
+                                        overloaded()
+                                    }
                                 }
                             }
                         }
@@ -2345,7 +2437,7 @@ async fn watch_signals(shutdown: ShutdownController) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::response_body::{ResponseFramePool, SseBody, SseCompression, SseItemSource};
+    use crate::response_body::{ResponseFramePool, SseBody, SseItemSource};
     use std::io::Read;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -3169,19 +3261,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn brotli_sse_body_finishes_through_the_real_http1_path() {
+    async fn bounded_brotli_sse_finishes_through_the_real_http1_path() {
         let payload = large_sse_item();
         let (cancellations, source) = one_shot_sse_source(payload.clone());
-        let (handle, body) = SseBody::new(
-            source,
-            128 * 1024,
-            1,
-            7,
-            SseCompression::Brotli {
-                quality: 3,
-                window_bits: 12,
-            },
-        );
+        let executor = BrotliExecutor::new(2, 1).unwrap();
+        let lane = executor.try_admit(BrotliProfile::Compression).unwrap();
+        let (handle, body) = SseBody::new_bounded_brotli(source, 128 * 1024, 1, 7, lane);
         let mut response = hyper::Response::new(body.boxed_unsync());
         response
             .headers_mut()
@@ -3234,22 +3319,17 @@ mod tests {
         assert!(handle.stats().finished);
         assert_eq!(handle.stats().frames.in_use_slots, 0);
         assert_eq!(handle.stats().frames.high_water_slots, 1);
+        assert_eq!(executor.stats().active_lanes, 0);
+        assert_eq!(executor.stats().lane_high_water, 1);
     }
 
     #[tokio::test]
-    async fn brotli_sse_body_finishes_through_incremental_http2_flow_control() {
+    async fn bounded_brotli_sse_finishes_through_incremental_http2_flow_control() {
         let payload = large_sse_item();
         let (cancellations, source) = one_shot_sse_source(payload.clone());
-        let (handle, body) = SseBody::new(
-            source,
-            128 * 1024,
-            1,
-            7,
-            SseCompression::Brotli {
-                quality: 3,
-                window_bits: 12,
-            },
-        );
+        let executor = BrotliExecutor::new(2, 1).unwrap();
+        let lane = executor.try_admit(BrotliProfile::Compression).unwrap();
+        let (handle, body) = SseBody::new_bounded_brotli(source, 128 * 1024, 1, 7, lane);
         let mut response = hyper::Response::new(body.boxed_unsync());
         response
             .headers_mut()
@@ -3329,22 +3409,17 @@ mod tests {
         assert!(handle.stats().finished);
         assert_eq!(handle.stats().frames.in_use_slots, 0);
         assert_eq!(handle.stats().frames.high_water_slots, 1);
+        assert_eq!(executor.stats().active_lanes, 0);
+        assert_eq!(executor.stats().available_lanes, 1);
     }
 
     #[tokio::test]
     async fn stalled_http2_sse_reader_aborts_without_finish_and_releases_everything() {
         let payload = large_sse_item();
         let (cancellations, source) = one_shot_sse_source(payload);
-        let (handle, body) = SseBody::new(
-            source,
-            128 * 1024,
-            1,
-            7,
-            SseCompression::Brotli {
-                quality: 3,
-                window_bits: 12,
-            },
-        );
+        let executor = BrotliExecutor::new(2, 1).unwrap();
+        let lane = executor.try_admit(BrotliProfile::Compression).unwrap();
+        let (handle, body) = SseBody::new_bounded_brotli(source, 128 * 1024, 1, 7, lane);
         let response = hyper::Response::new(body.boxed_unsync());
 
         let (client_io, server_io) = tokio::io::duplex(4096);
@@ -3401,6 +3476,12 @@ mod tests {
         assert_eq!(stats.frames.in_use_slots, 0);
         assert_eq!(stats.frames.free_slots, 1);
         assert_eq!(stats.frames.high_water_slots, 1);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while executor.stats().available_lanes != 1 && std::time::Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert_eq!(executor.stats().active_lanes, 0);
+        assert_eq!(executor.stats().available_lanes, 1);
 
         drop(body);
         drop(sender);

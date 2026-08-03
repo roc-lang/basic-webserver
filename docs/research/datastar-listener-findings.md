@@ -1,7 +1,7 @@
 # Retained Roc SSE through the production listener
 
-Status: identity-coded listener feasibility passed; API names and resource
-configuration remain experimental
+Status: identity and bounded-Brotli listener feasibility passed; API names and
+resource configuration remain experimental
 
 Date: 2026-08-03
 
@@ -20,10 +20,11 @@ the stream advances, ends, errors, is rejected, or is cancelled.
 The production HTTP/1.1 listener passes a finite source that emits A, waits on
 a host timer, emits B, performs a timer-only `Wait`, emits a 20,014-byte framed
 event through multiple 16 KiB host frames, emits a final event, and ends. The
-wire response has canonical `text/event-stream` and `no-cache` headers, ordered
-bytes, and clean EOF. All 53 cross-platform specification cases pass on the
-native x64musl runner, including this new case; all 181 Rust host tests and 215
-Roc platform tests also pass.
+wire response has canonical `text/event-stream`, `no-cache`, and negotiated
+`Vary` headers, ordered bytes, and clean EOF. Brotli and identity are selected
+explicitly, while a request forbidding both receives 406. All 53 cross-platform
+specification cases pass on the native x64musl runner, including these cases;
+all 188 Rust host tests and 215 Roc platform tests also pass.
 
 ## Ownership boundary
 
@@ -45,7 +46,10 @@ next source and its wake timer.
 Dropping a parked source recursively releases its captured state. Dropping an
 admission future before dispatch releases its source. Dropping an in-flight
 join handle does not cancel the blocking Roc invocation or release its active
-permit; the detached task whole-drops the returned step when it completes.
+permit; the detached task whole-drops the returned step when it completes. Its
+task result also retains the request drain guard, so graceful shutdown cannot
+run `shutdown!` or release application context while a cancelled transition is
+still executing.
 
 ## Scheduling and bounds
 
@@ -76,6 +80,23 @@ reserve a second frame. `PollSource` now consumes its held reservation first,
 and a focused one-slot regression proves the completed callback can publish
 without a second reservation.
 
+## Known allocation boundary
+
+The event bytes cross from Roc into `Bytes` without a copy, body frames are
+reused, and the source now allocates one timer object per stream and resets it
+for every later wake instead of boxing a new timer per transition. Two known
+per-transition allocation candidates remain in the production adapter:
+
+- `start_advance` boxes a fresh admission/join future; and
+- Tokio `spawn_blocking` creates scheduler task state for each finite Roc
+  transition.
+
+Those allocations belong to the Roc callback scheduling path, not the bounded
+Brotli operation path. A warmed whole-listener allocator trace should quantify
+them before choosing whether to add a fixed callback executor or a reusable
+admission state machine. Roc event construction and closure repacking must be
+measured in the same window so host and compiler allocations are not conflated.
+
 ## What this does not yet prove
 
 - The first transition is not executed before response commitment, so an
@@ -84,14 +105,17 @@ without a second reservation.
   are not yet application-configurable or fully observable.
 - Cancellation and saturation need end-to-end Roc allocation/resource ledgers,
   not only the lower-level retained-source fixture and Rust body tests.
+- The live Brotli request proves negotiation and clean EOF, while exact
+  byte-for-byte Brotli decoding is currently pinned by a separate real-Hyper
+  bounded-executor test rather than the portable compiled-app harness.
 - The public event type currently exposes only normalized `data` events.
   IDs, event names, retry, comments/heartbeats, and first-class Datastar events
   need typed constructors and validation.
-- SSE content coding remains identity-only on this application path. The
-  existing inline Brotli body is intentionally not enabled because PROCESS,
-  FLUSH, and FINISH still run on an async transport worker.
+- Brotli now runs on the bounded executor described in
+  [`datastar-brotli-executor-findings.md`](datastar-brotli-executor-findings.md).
+  Final resource configuration, mixed-load validation, and a new whole-process
+  allocation measurement remain open.
 
-The next research slice is the bounded Brotli executor described in
-[`datastar-next-slice.md`](datastar-next-slice.md): fixed worker threads, finite
-lane admission, one finite operation per job, prompt body cancellation, and
-normal FINISH only on source EOF.
+The bounded Brotli executor follow-up described in
+[`datastar-next-slice.md`](datastar-next-slice.md) now passes its initial
+production-path feasibility gates.

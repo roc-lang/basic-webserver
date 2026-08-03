@@ -444,6 +444,13 @@ pub(crate) enum ContentCoding {
     Gzip,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StreamingContentCoding {
+    Identity,
+    Brotli,
+    NotAcceptable,
+}
+
 impl ContentCoding {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
@@ -541,6 +548,23 @@ impl AcceptedEncodings {
             None
         } else {
             selected
+        }
+    }
+
+    /// Select among the representations the streaming body can produce.
+    /// Streaming deliberately does not advertise the buffered gzip or zstd
+    /// encoders, and must not silently send identity when the client forbids
+    /// both available representations.
+    pub(crate) fn preferred_streaming(self) -> StreamingContentCoding {
+        if !self.present {
+            return StreamingContentCoding::Identity;
+        }
+        if self.brotli != 0 && !(self.identity_explicit && self.identity > self.brotli) {
+            StreamingContentCoding::Brotli
+        } else if self.identity != 0 {
+            StreamingContentCoding::Identity
+        } else {
+            StreamingContentCoding::NotAcceptable
         }
     }
 }
@@ -848,6 +872,26 @@ mod tests {
         assert_eq!(
             accepted(Some("GZIP;Q=1.000, br;q=0")).preferred(),
             Some(ContentCoding::Gzip)
+        );
+        assert_eq!(
+            accepted(Some("zstd, br;q=0.8")).preferred_streaming(),
+            StreamingContentCoding::Brotli
+        );
+        assert_eq!(
+            accepted(Some("br;q=0")).preferred_streaming(),
+            StreamingContentCoding::Identity
+        );
+        assert_eq!(
+            accepted(Some("br;q=0.5, identity;q=0.8")).preferred_streaming(),
+            StreamingContentCoding::Identity
+        );
+        assert_eq!(
+            accepted(Some("gzip, identity;q=0")).preferred_streaming(),
+            StreamingContentCoding::NotAcceptable
+        );
+        assert_eq!(
+            accepted(Some("*;q=0")).preferred_streaming(),
+            StreamingContentCoding::NotAcceptable
         );
     }
 

@@ -5,9 +5,13 @@
 //! Hyper and recover its vector from `Drop`, without allocating a per-frame
 //! ownership adapter.
 
+use crate::brotli_executor::{
+    BrotliCompletion, BrotliJob, BrotliLane, BrotliOperation, BrotliSubmitError,
+};
 use crate::compression::ResumableBrotli;
 use bytes::{Buf, Bytes};
 use hyper::body::{Body, Frame, SizeHint};
+use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -375,11 +379,17 @@ pub(crate) struct SseBody {
     pool: ResponseFramePool,
     max_item_bytes: usize,
     encoder: Option<ResumableBrotli>,
+    bounded_encoder: Option<BoundedBrotliState>,
     reservation: Option<ResponseFrameReservation>,
     item: Bytes,
     input_offset: usize,
     phase: SsePhase,
     lifecycle: Arc<Mutex<SseLifecycle>>,
+}
+
+struct BoundedBrotliState {
+    lane: Option<BrotliLane>,
+    job: Option<BrotliJob>,
 }
 
 impl SseBody {
@@ -426,6 +436,47 @@ impl SseBody {
                 pool,
                 max_item_bytes,
                 encoder,
+                bounded_encoder: None,
+                reservation: None,
+                item: Bytes::new(),
+                input_offset: 0,
+                phase: SsePhase::PollSource,
+                lifecycle,
+            },
+        )
+    }
+
+    pub(crate) fn new_bounded_brotli(
+        source: impl SseItemSource + 'static,
+        max_item_bytes: usize,
+        frame_slots: usize,
+        frame_bytes: usize,
+        lane: BrotliLane,
+    ) -> (SseBodyHandle, Self) {
+        assert!(
+            max_item_bytes > 0,
+            "SSE items must have a finite byte limit"
+        );
+        let pool = ResponseFramePool::new(frame_slots, frame_bytes);
+        let lifecycle = Arc::new(Mutex::new(SseLifecycle {
+            active_encoder: true,
+            ..SseLifecycle::default()
+        }));
+        let handle = SseBodyHandle {
+            pool: pool.clone(),
+            lifecycle: Arc::clone(&lifecycle),
+        };
+        (
+            handle,
+            Self {
+                source: Some(Box::pin(source)),
+                pool,
+                max_item_bytes,
+                encoder: None,
+                bounded_encoder: Some(BoundedBrotliState {
+                    lane: Some(lane),
+                    job: None,
+                }),
                 reservation: None,
                 item: Bytes::new(),
                 input_offset: 0,
@@ -444,6 +495,7 @@ impl SseBody {
 
     fn finish_normally(&mut self) {
         self.encoder.take();
+        self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
         self.item = Bytes::new();
@@ -460,6 +512,7 @@ impl SseBody {
             source.as_mut().cancel();
         }
         self.encoder.take();
+        self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
         self.item = Bytes::new();
@@ -479,6 +532,7 @@ impl SseBody {
             source.as_mut().cancel();
         }
         self.encoder.take();
+        self.bounded_encoder.take();
         self.reservation.take();
         self.source.take();
         self.item = Bytes::new();
@@ -504,6 +558,52 @@ impl SseBody {
             .expect("live SSE body has a source")
             .as_mut()
             .item_drained();
+    }
+
+    fn poll_bounded_operation(
+        &mut self,
+        context: &mut Context<'_>,
+        operation: BrotliOperation,
+        input: Bytes,
+        input_offset: usize,
+    ) -> Poll<io::Result<BrotliCompletion>> {
+        let state = self
+            .bounded_encoder
+            .as_mut()
+            .expect("bounded Brotli operation has an executor lane");
+        if state.job.is_none() {
+            let lane = state.lane.take().expect("idle bounded Brotli owns lane");
+            let reservation = self
+                .reservation
+                .take()
+                .expect("bounded Brotli submission owns output reservation");
+            match lane.submit(operation, input, input_offset, reservation) {
+                Ok(job) => state.job = Some(job),
+                Err((lane, error)) => {
+                    state.lane = Some(lane);
+                    let detail = match error {
+                        BrotliSubmitError::ExecutorStopped => "executor stopped",
+                        BrotliSubmitError::QueueInvariant => {
+                            "queue was full despite finite lane admission"
+                        }
+                    };
+                    return Poll::Ready(Err(io::Error::other(format!(
+                        "bounded Brotli submission failed: {detail}"
+                    ))));
+                }
+            }
+        }
+        let job = state.job.as_mut().expect("submitted Brotli job exists");
+        match Pin::new(job).poll(context) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                state.job = None;
+                match result {
+                    Ok(completion) => Poll::Ready(Ok(completion)),
+                    Err(error) => Poll::Ready(Err(error)),
+                }
+            }
+        }
     }
 }
 
@@ -551,7 +651,7 @@ impl Body for SseBody {
                                 .lock()
                                 .expect("SSE lifecycle poisoned")
                                 .source_ended = true;
-                            if this.encoder.is_some() {
+                            if this.encoder.is_some() || this.bounded_encoder.is_some() {
                                 this.phase = SsePhase::Finish;
                             } else {
                                 this.finish_normally();
@@ -573,6 +673,66 @@ impl Body for SseBody {
                     }
                 }
                 SsePhase::Process => {
+                    if this.bounded_encoder.is_some() {
+                        let job_pending = this
+                            .bounded_encoder
+                            .as_ref()
+                            .is_some_and(|state| state.job.is_some());
+                        if !job_pending && this.reservation.is_none() {
+                            this.reservation = Some(match this.reservation(context) {
+                                Poll::Ready(reservation) => reservation,
+                                Poll::Pending => return Poll::Pending,
+                            });
+                        }
+                        let input = this.item.clone();
+                        let input_offset = this.input_offset;
+                        let completion = match this.poll_bounded_operation(
+                            context,
+                            BrotliOperation::Process,
+                            input,
+                            input_offset,
+                        ) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(Ok(completion)) => completion,
+                            Poll::Ready(Err(error)) => {
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        let BrotliCompletion {
+                            lane,
+                            input,
+                            input_offset,
+                            output: reservation,
+                            step,
+                            ..
+                        } = completion;
+                        this.bounded_encoder
+                            .as_mut()
+                            .expect("bounded Brotli state remains live")
+                            .lane = Some(lane);
+                        this.item = input;
+                        this.input_offset = input_offset;
+                        let step = match step {
+                            Ok(step) => step,
+                            Err(error) => {
+                                drop(reservation);
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        if step.complete {
+                            this.phase = SsePhase::Flush;
+                        }
+                        this.set_pending_item_bytes(this.item.len() - this.input_offset);
+                        if step.output_written == 0 {
+                            drop(reservation);
+                            continue;
+                        }
+                        return Poll::Ready(Some(Ok(Frame::data(ServerData::from(
+                            reservation.commit(step.output_written),
+                        )))));
+                    }
                     let mut reservation = if let Some(reservation) = this.reservation.take() {
                         reservation
                     } else {
@@ -631,6 +791,63 @@ impl Body for SseBody {
                     return Poll::Ready(Some(Ok(Frame::data(ServerData::from(frame)))));
                 }
                 SsePhase::Flush => {
+                    if this.bounded_encoder.is_some() {
+                        let job_pending = this
+                            .bounded_encoder
+                            .as_ref()
+                            .is_some_and(|state| state.job.is_some());
+                        if !job_pending && this.reservation.is_none() {
+                            this.reservation = Some(match this.reservation(context) {
+                                Poll::Ready(reservation) => reservation,
+                                Poll::Pending => return Poll::Pending,
+                            });
+                        }
+                        let completion = match this.poll_bounded_operation(
+                            context,
+                            BrotliOperation::Flush,
+                            Bytes::new(),
+                            0,
+                        ) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(Ok(completion)) => completion,
+                            Poll::Ready(Err(error)) => {
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        let BrotliCompletion {
+                            lane,
+                            input: _,
+                            input_offset: _,
+                            output: reservation,
+                            step,
+                            ..
+                        } = completion;
+                        this.bounded_encoder
+                            .as_mut()
+                            .expect("bounded Brotli state remains live")
+                            .lane = Some(lane);
+                        let step = match step {
+                            Ok(step) => step,
+                            Err(error) => {
+                                drop(reservation);
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        if step.output_written == 0 {
+                            drop(reservation);
+                            if step.complete {
+                                this.acknowledge_item();
+                            }
+                            continue;
+                        }
+                        let frame = reservation.commit(step.output_written);
+                        if step.complete {
+                            this.acknowledge_item();
+                        }
+                        return Poll::Ready(Some(Ok(Frame::data(ServerData::from(frame)))));
+                    }
                     let mut reservation = match this.reservation(context) {
                         Poll::Ready(reservation) => reservation,
                         Poll::Pending => return Poll::Pending,
@@ -662,6 +879,61 @@ impl Body for SseBody {
                     return Poll::Ready(Some(Ok(Frame::data(ServerData::from(frame)))));
                 }
                 SsePhase::Finish => {
+                    if this.bounded_encoder.is_some() {
+                        let job_pending = this
+                            .bounded_encoder
+                            .as_ref()
+                            .is_some_and(|state| state.job.is_some());
+                        if !job_pending && this.reservation.is_none() {
+                            this.reservation = Some(match this.reservation(context) {
+                                Poll::Ready(reservation) => reservation,
+                                Poll::Pending => return Poll::Pending,
+                            });
+                        }
+                        let completion = match this.poll_bounded_operation(
+                            context,
+                            BrotliOperation::Finish,
+                            Bytes::new(),
+                            0,
+                        ) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(Ok(completion)) => completion,
+                            Poll::Ready(Err(error)) => {
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        let BrotliCompletion {
+                            lane,
+                            input: _,
+                            input_offset: _,
+                            output: reservation,
+                            step,
+                            ..
+                        } = completion;
+                        this.bounded_encoder
+                            .as_mut()
+                            .expect("bounded Brotli state remains live")
+                            .lane = Some(lane);
+                        let step = match step {
+                            Ok(step) => step,
+                            Err(error) => {
+                                drop(reservation);
+                                this.fail();
+                                return Poll::Ready(Some(Err(error)));
+                            }
+                        };
+                        if step.complete {
+                            this.finish_normally();
+                        }
+                        if step.output_written == 0 {
+                            drop(reservation);
+                            continue;
+                        }
+                        return Poll::Ready(Some(Ok(Frame::data(ServerData::from(
+                            reservation.commit(step.output_written),
+                        )))));
+                    }
                     let mut reservation = if let Some(reservation) = this.reservation.take() {
                         reservation
                     } else {
@@ -882,6 +1154,31 @@ mod tests {
             Pin::new(&mut body).poll_frame(&mut context),
             Poll::Ready(None)
         ));
+    }
+
+    #[test]
+    fn dropping_bounded_brotli_body_returns_before_worker_releases_lane() {
+        let (cancellations, _drained, _polls, source) =
+            scripted_source(vec![Bytes::from(vec![b'x'; 4 * 1024 * 1024])]);
+        let executor = crate::brotli_executor::BrotliExecutor::new(1, 1).unwrap();
+        let lane = executor
+            .try_admit(crate::brotli_executor::BrotliProfile::Compression)
+            .unwrap();
+        let (_handle, mut body) = SseBody::new_bounded_brotli(source, 5 * 1024 * 1024, 1, 7, lane);
+        let waker = futures::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
+        assert!(Pin::new(&mut body).poll_frame(&mut context).is_pending());
+
+        let started = std::time::Instant::now();
+        drop(body);
+        assert!(started.elapsed() < std::time::Duration::from_millis(50));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while executor.stats().available_lanes != 1 && std::time::Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert_eq!(executor.stats().active_lanes, 0);
+        assert_eq!(executor.stats().available_lanes, 1);
+        assert_eq!(cancellations.load(Ordering::Relaxed), 1);
     }
 
     #[test]

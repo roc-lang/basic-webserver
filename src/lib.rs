@@ -10,6 +10,7 @@
 mod abi;
 mod body_sink;
 mod bounded_gate;
+mod brotli_executor;
 mod capability;
 mod cmd;
 mod compression;
