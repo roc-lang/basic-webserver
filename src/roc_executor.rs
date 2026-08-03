@@ -43,12 +43,43 @@ pub(crate) struct Submission {
     pub(crate) ticket: QueueTicket,
 }
 
-struct Inner<T> {
+struct Inner<T: Send + 'static> {
     state: Mutex<State<T>>,
     available: Condvar,
     workers: usize,
     capacity: usize,
-    execute: fn(T),
+    execute: fn(T, JobRetirement<T>),
+}
+
+/// One admitted job's executor capacity.
+///
+/// Execution functions may retire the job before publishing its result. This
+/// matters when the result's consumer immediately submits follow-up work to a
+/// zero-waiting executor. Dropping the guard is the panic-safe fallback.
+pub(crate) struct JobRetirement<T: Send + 'static> {
+    inner: Option<Arc<Inner<T>>>,
+}
+
+impl<T: Send + 'static> JobRetirement<T> {
+    fn new(inner: Arc<Inner<T>>) -> Self {
+        Self { inner: Some(inner) }
+    }
+
+    pub(crate) fn retire(mut self) {
+        retire_job(
+            self.inner
+                .take()
+                .expect("fixed executor job is retired exactly once"),
+        );
+    }
+}
+
+impl<T: Send + 'static> Drop for JobRetirement<T> {
+    fn drop(&mut self) {
+        if let Some(inner) = self.inner.take() {
+            retire_job(inner);
+        }
+    }
 }
 
 pub(crate) struct FixedExecutor<T: Send + 'static> {
@@ -73,7 +104,7 @@ impl<T: Send + 'static> FixedExecutor<T> {
         thread_name: &str,
         workers: usize,
         waiting: usize,
-        execute: fn(T),
+        execute: fn(T, JobRetirement<T>),
     ) -> io::Result<Self> {
         assert!(workers > 0, "fixed executor requires at least one worker");
         let capacity = workers
@@ -128,6 +159,11 @@ impl<T: Send + 'static> FixedExecutor<T> {
 }
 
 impl<T: Send + 'static> FixedExecutorHandle<T> {
+    /// Reject future submissions while allowing every accepted job to drain.
+    pub(crate) fn stop_admission(&self) {
+        stop(&self.inner);
+    }
+
     /// Construct and enqueue one job while holding the capacity decision.
     ///
     /// `build` lets the caller embed the exact admission class in the job
@@ -196,7 +232,7 @@ impl<T: Send + 'static> FixedExecutorHandle<T> {
     }
 }
 
-fn stop<T>(inner: &Inner<T>) {
+fn stop<T: Send + 'static>(inner: &Inner<T>) {
     let mut state = inner
         .state
         .lock()
@@ -226,17 +262,20 @@ fn worker_loop<T: Send + 'static>(inner: Arc<Inner<T>>) {
                     .expect("fixed executor state mutex poisoned");
             }
         };
-        (inner.execute)(job);
-        let mut state = inner
-            .state
-            .lock()
-            .expect("fixed executor state mutex poisoned");
-        debug_assert!(state.outstanding > 0);
-        state.outstanding -= 1;
-        if state.stopping && state.outstanding == 0 {
-            drop(state);
-            inner.available.notify_all();
-        }
+        (inner.execute)(job, JobRetirement::new(Arc::clone(&inner)));
+    }
+}
+
+fn retire_job<T: Send + 'static>(inner: Arc<Inner<T>>) {
+    let mut state = inner
+        .state
+        .lock()
+        .expect("fixed executor state mutex poisoned");
+    debug_assert!(state.outstanding > 0);
+    state.outstanding -= 1;
+    if state.stopping && state.outstanding == 0 {
+        drop(state);
+        inner.available.notify_all();
     }
 }
 
@@ -244,6 +283,7 @@ fn worker_loop<T: Send + 'static>(inner: Arc<Inner<T>>) {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
     use std::sync::{Barrier, OnceLock};
     use std::time::{Duration, Instant};
 
@@ -253,7 +293,7 @@ mod tests {
         completed: Arc<AtomicUsize>,
     }
 
-    fn run_blocking(job: BlockingJob) {
+    fn run_blocking(job: BlockingJob, _retirement: JobRetirement<BlockingJob>) {
         job.started.wait();
         job.release.wait();
         job.completed.fetch_add(1, Ordering::AcqRel);
@@ -300,6 +340,35 @@ mod tests {
     }
 
     #[test]
+    fn zero_waiting_capacity_is_retired_before_completion_is_published() {
+        struct PublishingJob(mpsc::Sender<()>);
+
+        fn publish(job: PublishingJob, retirement: JobRetirement<PublishingJob>) {
+            retirement.retire();
+            job.0.send(()).unwrap();
+        }
+
+        let executor = FixedExecutor::new("handoff-test", 1, 0, publish).unwrap();
+        let handle = executor.handle();
+        let (completed, receiver) = mpsc::channel();
+
+        let first = handle
+            .try_submit(|_| PublishingJob(completed.clone()))
+            .unwrap();
+        assert_eq!(first.class, AdmissionClass::Active);
+        receiver.recv().unwrap();
+
+        // This is the ordinary-handler-to-first-SSE-transition handoff, and
+        // also an immediate Wait-to-next-transition handoff. The completion
+        // consumer must be able to use the same sole capacity immediately.
+        let second = handle.try_submit(|_| PublishingJob(completed)).unwrap();
+        assert_eq!(second.class, AdmissionClass::Active);
+        receiver.recv().unwrap();
+
+        executor.shutdown();
+    }
+
+    #[test]
     fn cancelling_waiting_work_recovers_capacity_without_dispatch() {
         let executor = FixedExecutor::new("cancel-test", 1, 1, run_blocking).unwrap();
         let handle = executor.handle();
@@ -337,7 +406,7 @@ mod tests {
     #[test]
     fn shutdown_drains_accepted_jobs_and_rejects_new_work() {
         static COMPLETED: OnceLock<Arc<AtomicUsize>> = OnceLock::new();
-        fn count(_: ()) {
+        fn count(_: (), _retirement: JobRetirement<()>) {
             COMPLETED
                 .get()
                 .expect("test counter installed")
@@ -362,7 +431,7 @@ mod tests {
     fn submission_does_not_allocate_after_construction() {
         // The process allocator is not replaced in this unit test, so exercise
         // the stronger structural property: the preallocated ring never grows.
-        fn no_op(_: ()) {}
+        fn no_op(_: (), _retirement: JobRetirement<()>) {}
         let executor = FixedExecutor::new("allocation-test", 1, 3, no_op).unwrap();
         let handle = executor.handle();
         let initial_capacity = handle.inner.state.lock().unwrap().queue.capacity();

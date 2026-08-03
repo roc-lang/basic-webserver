@@ -160,7 +160,7 @@ pointer.
 
 `respond!` calls may execute concurrently. A handler receives only its request,
 immutable context, and explicitly invoked platform effects. It may return an
-ordinary response, a typed native response plan, or one affine typed SSE
+ordinary response, a typed native response plan, or one typed SSE
 source. A returned source represents request-authorized functional state; it
 does not create shared mutable application state or ordering between otherwise
 independent requests.
@@ -715,9 +715,12 @@ without moving their contents through Roc.
 SSE is a narrow exception to the complete ordinary-response rule. An
 application may return a typed, retained functional source whose transitions
 produce canonical SSE events, wait for a host timer, end, or fail. The source
-is affine: while parked, the host owns its sole reference in a finite stream
-slot; while advancing, one synchronous Roc invocation owns it and returns the
-next source. Applications do not receive a socket, response writer, compressor,
+forms one host-owned transition chain: while parked, the host owns the chain's
+current reference in a finite stream slot; while advancing, one synchronous
+Roc invocation owns it and returns the next source. Roc values remain normally
+duplicable inside trusted application code; the platform guarantees only that
+its own use of the returned source is single-owner and sequential. Applications
+do not receive a socket, response writer, compressor,
 task, arbitrary byte sink, or cancellation callback.
 
 The first source transition occurs before the `200 text/event-stream` response

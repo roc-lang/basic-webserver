@@ -343,6 +343,10 @@ pub(crate) struct Metrics {
     connections: Arc<ActiveGauge>,
     handlers_active: Arc<ActiveGauge>,
     handlers_queued: Arc<ActiveGauge>,
+    sse_streams: Arc<ActiveGauge>,
+    sse_brotli_lanes: Arc<ActiveGauge>,
+    sse_brotli_operations_queued: Arc<ActiveGauge>,
+    sse_brotli_operations_running: Arc<ActiveGauge>,
     file_transfers: Arc<ActiveGauge>,
     request_totals: Box<[AtomicU64]>,
     response_bytes: [AtomicU64; Destination::COUNT],
@@ -362,6 +366,10 @@ impl Metrics {
             connections: Arc::new(ActiveGauge::default()),
             handlers_active: Arc::new(ActiveGauge::default()),
             handlers_queued: Arc::new(ActiveGauge::default()),
+            sse_streams: Arc::new(ActiveGauge::default()),
+            sse_brotli_lanes: Arc::new(ActiveGauge::default()),
+            sse_brotli_operations_queued: Arc::new(ActiveGauge::default()),
+            sse_brotli_operations_running: Arc::new(ActiveGauge::default()),
             file_transfers: Arc::new(ActiveGauge::default()),
             request_totals: (0..request_series).map(|_| AtomicU64::new(0)).collect(),
             response_bytes: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -384,6 +392,34 @@ impl Metrics {
 
     pub(crate) fn handler_queued(&self) -> ActiveGaugeGuard {
         self.handlers_queued.guard()
+    }
+
+    pub(crate) fn sse_stream_started(&self) -> ActiveGaugeGuard {
+        self.sse_streams.guard()
+    }
+
+    pub(crate) fn sse_brotli_lane_started(&self) {
+        self.sse_brotli_lanes.increment();
+    }
+
+    pub(crate) fn sse_brotli_lane_finished(&self) {
+        self.sse_brotli_lanes.decrement();
+    }
+
+    pub(crate) fn sse_brotli_operation_queued(&self) {
+        self.sse_brotli_operations_queued.increment();
+    }
+
+    pub(crate) fn sse_brotli_operation_dequeued(&self) {
+        self.sse_brotli_operations_queued.decrement();
+    }
+
+    pub(crate) fn sse_brotli_operation_started(&self) {
+        self.sse_brotli_operations_running.increment();
+    }
+
+    pub(crate) fn sse_brotli_operation_finished(&self) {
+        self.sse_brotli_operations_running.decrement();
     }
 
     pub(crate) fn file_transfer_started(&self) -> ActiveGaugeGuard {
@@ -458,6 +494,30 @@ impl Metrics {
             "basic_webserver_roc_handlers_queued",
             "Requests waiting for Roc handler admission.",
             &self.handlers_queued,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_streams_active",
+            "Admitted SSE response bodies that have not reached a terminal state.",
+            &self.sse_streams,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_lanes_active",
+            "Brotli encoder lanes leased by SSE response bodies.",
+            &self.sse_brotli_lanes,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_operations_queued",
+            "SSE Brotli operations admitted but not yet running.",
+            &self.sse_brotli_operations_queued,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_operations_running",
+            "SSE Brotli operations currently executing.",
+            &self.sse_brotli_operations_running,
         );
         render_gauge(
             &mut output,
@@ -1297,6 +1357,33 @@ mod tests {
             .is_empty());
         drop(handle);
         telemetry.shutdown();
+    }
+
+    #[test]
+    fn sse_resource_metrics_expose_current_and_high_water_usage() {
+        let metrics = Metrics::new();
+        let stream = metrics.sse_stream_started();
+        metrics.sse_brotli_lane_started();
+        metrics.sse_brotli_operation_queued();
+        metrics.sse_brotli_operation_dequeued();
+        metrics.sse_brotli_operation_started();
+
+        let active = metrics.render_openmetrics();
+        assert!(active.contains("basic_webserver_sse_streams_active 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_lanes_active 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_queued 0"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_queued_high_water 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_running 1"));
+
+        metrics.sse_brotli_operation_finished();
+        metrics.sse_brotli_lane_finished();
+        drop(stream);
+        let idle = metrics.render_openmetrics();
+        assert!(idle.contains("basic_webserver_sse_streams_active 0"));
+        assert!(idle.contains("basic_webserver_sse_streams_active_high_water 1"));
+        assert!(idle.contains("basic_webserver_sse_brotli_lanes_active 0"));
+        assert!(idle.contains("basic_webserver_sse_brotli_lanes_active_high_water 1"));
+        assert!(idle.contains("basic_webserver_sse_brotli_operations_running 0"));
     }
 
     #[test]

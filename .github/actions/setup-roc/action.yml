@@ -1,10 +1,26 @@
 name: Install the pinned Roc compiler
-description: Install the exact new-compiler nightly used to generate and test this platform
+description: Build the exact Roc revision used to generate and test this experimental platform
 
 runs:
   using: composite
   steps:
-    - uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427 # ratchet:roc-lang/setup-roc@v0.3.0
+    # The retained erased-callable ABI is layered on roc-lang/roc#10530 and
+    # does not have a nightly artifact yet. Return to setup-roc after landing.
+    - name: Install Zig for the pinned compiler build
+      uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
       with:
-        version: nightly-new-compiler
-        nightly-tag: nightly-2026-July-29-fe0ab22
+        version: 0.16.0
+
+    - name: Checkout the pinned Roc source
+      uses: actions/checkout@v7
+      with:
+        repository: roc-lang/roc
+        ref: 5a5f4c02a01363b7cce039df8abab8e3bebaf496
+        path: target/roc-source
+
+    - name: Build the pinned Roc compiler
+      shell: bash
+      run: |
+        cd "$GITHUB_WORKSPACE/target/roc-source"
+        zig build roc
+        echo "$GITHUB_WORKSPACE/target/roc-source/zig-out/bin" >> "$GITHUB_PATH"

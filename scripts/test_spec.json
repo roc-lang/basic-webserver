@@ -1028,7 +1028,7 @@
               "body_contains": [
                 "event: datastar-patch-elements\nid: event0\nretry: 2000\ndata: selector div\ndata: mode append\ndata: namespace svg\ndata: useViewTransition true\ndata: viewTransitionSelector #transition\ndata: elements <svg>Merge</svg>\n\n",
                 "event: datastar-patch-signals\ndata: onlyIfMissing true\ndata: signals {\"one\":1}\n\n",
-                "event: datastar-patch-elements\ndata: mode remove\ndata: selector #target\ndata: useViewTransition true\n\n"
+                "event: datastar-patch-elements\ndata: mode remove\ndata: selector #target\ndata: useViewTransition true\ndata: viewTransitionSelector #removed-transition\n\n"
               ]
             }
           ]

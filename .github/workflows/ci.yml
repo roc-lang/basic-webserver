@@ -48,17 +48,9 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Checkout the matching Roc glue specification
-        uses: actions/checkout@v7
-        with:
-          repository: roc-lang/roc
-          ref: fe0ab22cf0a764249330342fa36363624fc8157d
-          path: target/roc-glue-source
-          sparse-checkout: src/glue/src/RustGlue.roc
-
       - name: Check generated Rust glue
         env:
-          ROC_GLUE_SPEC: target/roc-glue-source/src/glue/src/RustGlue.roc
+          ROC_GLUE_SPEC: target/roc-source/src/glue/src/RustGlue.roc
         run: python scripts/regenerate_glue.py --check
 
       - name: Run Rust unit tests

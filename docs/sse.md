@@ -39,15 +39,19 @@ One transition returns:
 - `Err(err)`: fail the source.
 
 `Immediately` makes the next transition ready after the current event has
-drained into host-owned frames. `After(milliseconds)` parks it on a host timer.
+drained into host-owned frames. `After(milliseconds)` parks it on a host timer;
+the maximum wait is 24 hours, and a larger value fails the source.
 The application does not receive the host's wake-generation counter, a socket,
 a writer, a task, or a cancellation callback.
 
-The transition closure may retain arbitrary typed Roc state and immutable
-`Context` fields. Prefer small IDs, versions, and durable cursors as changing
-state, then query SQLite or another context capability on each transition. The
-host bounds each admitted source slot but does not trace or byte-quota the
-transitive Roc heap captured by trusted application code.
+The transition closure may retain ordinary immutable Roc values and
+server-lifetime capabilities from `Context`. Request-scoped capabilities are
+not valid retained state: in particular, a request `Server.Body` expires when
+`respond!` returns, before the precommit transition runs. Prefer small IDs,
+versions, and durable cursors as changing state, then query SQLite or another
+context capability on each transition. The host bounds each admitted source
+slot but does not trace or byte-quota the transitive Roc heap captured by
+trusted application code.
 
 ## Commitment and failures
 

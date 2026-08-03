@@ -8,6 +8,7 @@
 
 use crate::compression::{BrotliEncoderStep, ResumableBrotli};
 use crate::response_body::{ResponseFrameReservation, SseItem};
+use crate::telemetry::Metrics;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -132,6 +133,7 @@ struct ExecutorCore {
     available: Mutex<Vec<usize>>,
     lanes: Vec<Arc<LaneSlot>>,
     counters: Counters,
+    metrics: Option<Arc<Metrics>>,
     #[cfg(test)]
     before_publish: Mutex<Option<Arc<Barrier>>>,
 }
@@ -145,6 +147,9 @@ impl ExecutorCore {
             .take();
         let previous = self.counters.active.fetch_sub(1, Ordering::AcqRel);
         debug_assert!(previous > 0, "Brotli active lane accounting underflow");
+        if let Some(metrics) = &self.metrics {
+            metrics.sse_brotli_lane_finished();
+        }
         // Publish availability only after retiring the previous lease. If the
         // slot became visible first, a concurrent admission could increment
         // `active` before this decrement and report a false M+1 high-water.
@@ -181,7 +186,24 @@ pub(crate) struct BrotliExecutor {
 }
 
 impl BrotliExecutor {
+    #[cfg(test)]
     pub(crate) fn new(worker_count: usize, lane_count: usize) -> io::Result<Self> {
+        Self::new_inner(worker_count, lane_count, None)
+    }
+
+    pub(crate) fn new_with_metrics(
+        worker_count: usize,
+        lane_count: usize,
+        metrics: Arc<Metrics>,
+    ) -> io::Result<Self> {
+        Self::new_inner(worker_count, lane_count, Some(metrics))
+    }
+
+    fn new_inner(
+        worker_count: usize,
+        lane_count: usize,
+        metrics: Option<Arc<Metrics>>,
+    ) -> io::Result<Self> {
         if worker_count == 0 || lane_count == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -204,6 +226,7 @@ impl BrotliExecutor {
             available: Mutex::new((0..lane_count).rev().collect()),
             lanes,
             counters: Counters::new(),
+            metrics,
             #[cfg(test)]
             before_publish: Mutex::new(None),
         });
@@ -236,6 +259,9 @@ impl BrotliExecutor {
             &self.owner.core.counters.active,
             &self.owner.core.counters.lane_high_water,
         );
+        if let Some(metrics) = &self.owner.core.metrics {
+            metrics.sse_brotli_lane_started();
+        }
         let slot = Arc::clone(&self.owner.core.lanes[id]);
         debug_assert_eq!(slot.id, id);
         let previous_encoder = slot
@@ -376,6 +402,9 @@ impl BrotliLane {
             &self.core.counters.queued,
             &self.core.counters.queue_high_water,
         );
+        if let Some(metrics) = &self.core.metrics {
+            metrics.sse_brotli_operation_queued();
+        }
         match self.core.sender.try_send(Message::Run(work)) {
             Ok(()) => {
                 self.release_on_drop = false;
@@ -386,10 +415,16 @@ impl BrotliLane {
             }
             Err(TrySendError::Disconnected(Message::Run(_work))) => {
                 self.core.counters.queued.fetch_sub(1, Ordering::AcqRel);
+                if let Some(metrics) = &self.core.metrics {
+                    metrics.sse_brotli_operation_dequeued();
+                }
                 Err((self, BrotliSubmitError::ExecutorStopped))
             }
             Err(TrySendError::Full(Message::Run(_work))) => {
                 self.core.counters.queued.fetch_sub(1, Ordering::AcqRel);
+                if let Some(metrics) = &self.core.metrics {
+                    metrics.sse_brotli_operation_dequeued();
+                }
                 Err((self, BrotliSubmitError::QueueInvariant))
             }
             Err(TrySendError::Disconnected(Message::Stop) | TrySendError::Full(Message::Stop)) => {
@@ -552,12 +587,21 @@ fn worker_loop(receiver: Arc<Mutex<Receiver<Message>>>, worker_index: usize) {
             return;
         };
         work.core.counters.queued.fetch_sub(1, Ordering::AcqRel);
+        if let Some(metrics) = &work.core.metrics {
+            metrics.sse_brotli_operation_dequeued();
+        }
         increment_with_high_water(
             &work.core.counters.running,
             &work.core.counters.running_high_water,
         );
+        if let Some(metrics) = &work.core.metrics {
+            metrics.sse_brotli_operation_started();
+        }
         if work.slot.cell.cancelled.load(Ordering::Acquire) {
             work.core.counters.running.fetch_sub(1, Ordering::AcqRel);
+            if let Some(metrics) = &work.core.metrics {
+                metrics.sse_brotli_operation_finished();
+            }
             work.core.release_lane(work.slot.id);
             continue;
         }
@@ -582,6 +626,9 @@ fn worker_loop(receiver: Arc<Mutex<Receiver<Message>>>, worker_index: usize) {
             }
         };
         work.core.counters.running.fetch_sub(1, Ordering::AcqRel);
+        if let Some(metrics) = &work.core.metrics {
+            metrics.sse_brotli_operation_finished();
+        }
 
         #[cfg(test)]
         if let Some(barrier) = work

@@ -76,7 +76,7 @@ options_transition! = |state| {
 			Emit({
 				event: Datastar.remove_elements_with(
 					"#target",
-					{ ..Datastar.default_remove_elements_options, use_view_transition: Bool.True },
+					{ ..Datastar.default_remove_elements_options, view_transition: ViewTransition(TransitionTarget("#removed-transition")) },
 				),
 				state: 3,
 				wake: Immediately,

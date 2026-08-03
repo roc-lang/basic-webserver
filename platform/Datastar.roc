@@ -42,13 +42,13 @@ Datastar :: [].{
 
 	RemoveElementsOptions := {
 		event : Sse.EventOptions,
-		use_view_transition : Bool,
+		view_transition : ViewTransition,
 	}
 
 	default_remove_elements_options : RemoveElementsOptions
 	default_remove_elements_options = {
 		event: Sse.default_event_options,
-		use_view_transition: Bool.False,
+		view_transition: NoViewTransition,
 	}
 
 	## Patch elements using Datastar's default ID-based outer merge.
@@ -112,10 +112,13 @@ Datastar :: [].{
 	remove_elements_with : Str, RemoveElementsOptions -> Sse.Event
 	remove_elements_with = |selector, options| {
 		transition_fields =
-			if options.use_view_transition {
-				["useViewTransition true"]
-			} else {
-				[]
+			match options.view_transition {
+				NoViewTransition => []
+				ViewTransition(CurrentTarget) => ["useViewTransition true"]
+				ViewTransition(TransitionTarget(transition_selector)) => [
+					"useViewTransition true",
+					"viewTransitionSelector ${single_line(transition_selector)}",
+				]
 			}
 		Sse.Event.named_with(
 			"datastar-patch-elements",

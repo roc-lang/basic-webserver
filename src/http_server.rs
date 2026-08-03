@@ -544,7 +544,10 @@ enum RocDispatchError {
     CompletionLost,
 }
 
-fn execute_roc_job(scheduled: RocScheduledJob) {
+fn execute_roc_job(
+    scheduled: RocScheduledJob,
+    retirement: crate::roc_executor::JobRetirement<RocScheduledJob>,
+) {
     let was_queued = scheduled.admission.is_queued();
     match scheduled.job {
         RocJob::Ordinary(job) => {
@@ -586,6 +589,8 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
             }))
             .map_err(|_| RocExecutionError::Panic);
             body_handle.expire();
+            drop(active_handler);
+            retirement.retire();
             let _ = completion.send(handled);
         }
         RocJob::Sse(job) => {
@@ -604,6 +609,8 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
                 std::panic::catch_unwind(AssertUnwindSafe(|| source.advance(wake_generation)))
                     .map_err(|_| RocExecutionError::Panic);
             active_handler.record_duration(started.elapsed());
+            drop(active_handler);
+            retirement.retire();
             completion.complete(step);
         }
     }
@@ -699,7 +706,11 @@ fn start_inner() -> i32 {
         .unwrap_or(1)
         .min(config.max_handlers)
         .max(1);
-    let brotli = match BrotliExecutor::new(brotli_workers, config.max_sse_streams) {
+    let brotli = match BrotliExecutor::new_with_metrics(
+        brotli_workers,
+        config.max_sse_streams,
+        Arc::clone(&config.metrics),
+    ) {
         Ok(executor) => executor,
         Err(error) => {
             return finish_shutdown(
@@ -1230,6 +1241,17 @@ enum SseAdvance {
     End,
 }
 
+fn validate_sse_wait(wait_millis: u64) -> Result<(), SseTransitionError> {
+    if wait_millis <= MAX_TRANSPORT_TIMEOUT_MS {
+        Ok(())
+    } else {
+        Err(SseTransitionError::InvalidWait {
+            actual: wait_millis,
+            limit: MAX_TRANSPORT_TIMEOUT_MS,
+        })
+    }
+}
+
 enum SseCompletionState {
     Idle,
     Pending { queued: bool },
@@ -1255,6 +1277,8 @@ enum SseCompletionPoll {
 enum SseTransitionError {
     Admission(AdmissionError),
     QueueTimedOut,
+    Cancelled,
+    InvalidWait { actual: u64, limit: u64 },
     Panic,
     Application(io::Error),
     Oversized { actual: usize, limit: usize },
@@ -1265,6 +1289,13 @@ impl std::fmt::Display for SseTransitionError {
         match self {
             Self::Admission(error) => write!(formatter, "transition admission failed: {error:?}"),
             Self::QueueTimedOut => formatter.write_str("transition queue wait timed out"),
+            Self::Cancelled => formatter.write_str("transition cancelled by server shutdown"),
+            Self::InvalidWait { actual, limit } => {
+                write!(
+                    formatter,
+                    "transition wait is {actual}ms; limit is {limit}ms"
+                )
+            }
             Self::Panic => formatter.write_str("transition panicked"),
             Self::Application(error) => write!(formatter, "{error}"),
             Self::Oversized { actual, limit } => {
@@ -1379,6 +1410,7 @@ struct RocSseItemSource {
     handler_queue_timeout: Duration,
     active_request: Arc<ActiveRequest>,
     _stream_slot: OwnedSemaphorePermit,
+    _stream_metric: ActiveGaugeGuard,
     ended: bool,
 }
 
@@ -1391,6 +1423,7 @@ impl RocSseItemSource {
         active_request: Arc<ActiveRequest>,
         stream_slot: OwnedSemaphorePermit,
     ) -> Self {
+        let stream_metric = metrics.sse_stream_started();
         Self {
             source: Some(source),
             after_item: None,
@@ -1406,6 +1439,7 @@ impl RocSseItemSource {
             handler_queue_timeout,
             active_request,
             _stream_slot: stream_slot,
+            _stream_metric: stream_metric,
             ended: false,
         }
     }
@@ -1491,13 +1525,28 @@ impl RocSseItemSource {
             }
             SseCompletionPoll::Ready(Ok(step)) => {
                 self.queued_ticket = None;
-                Poll::Ready(step.into_result().map_err(SseTransitionError::Application))
+                let advance = match step.into_result() {
+                    Ok(advance) => advance,
+                    Err(error) => {
+                        return Poll::Ready(Err(SseTransitionError::Application(error)));
+                    }
+                };
+                let wait_millis = match &advance {
+                    SseAdvance::Emit { wait_millis, .. } | SseAdvance::Wait { wait_millis, .. } => {
+                        *wait_millis
+                    }
+                    SseAdvance::End => 0,
+                };
+                match validate_sse_wait(wait_millis) {
+                    Ok(()) => Poll::Ready(Ok(advance)),
+                    Err(error) => Poll::Ready(Err(error)),
+                }
             }
             SseCompletionPoll::Ready(Err(RocExecutionError::Panic)) => {
                 self.queued_ticket = None;
                 Poll::Ready(Err(SseTransitionError::Panic))
             }
-            SseCompletionPoll::Cancelled => Poll::Ready(Ok(SseAdvance::End)),
+            SseCompletionPoll::Cancelled => Poll::Ready(Err(SseTransitionError::Cancelled)),
             SseCompletionPoll::Idle => unreachable!("SSE transition was submitted"),
         }
     }
@@ -1608,6 +1657,52 @@ impl Drop for RocSseItemSource {
         if !self.ended {
             self.cancel_now();
         }
+    }
+}
+
+struct ShutdownSseItemSource<S: SseItemSource + Unpin> {
+    source: S,
+    requested: Pin<Box<dyn Future<Output = ShutdownReason> + Send>>,
+    cancelled: bool,
+}
+
+impl<S: SseItemSource + Unpin> ShutdownSseItemSource<S> {
+    fn new(source: S, shutdown: ShutdownController) -> Self {
+        Self {
+            source,
+            requested: Box::pin(async move { shutdown.requested().await }),
+            cancelled: false,
+        }
+    }
+
+    fn cancel_inner(&mut self) {
+        if !self.cancelled {
+            self.cancelled = true;
+            Pin::new(&mut self.source).cancel();
+        }
+    }
+}
+
+impl<S: SseItemSource + Unpin> SseItemSource for ShutdownSseItemSource<S> {
+    fn poll_item(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> SseSourcePoll {
+        if self.requested.as_mut().poll(context).is_ready() {
+            self.cancel_inner();
+            return SseSourcePoll::Error(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "SSE stream cancelled by server shutdown",
+            ));
+        }
+        Pin::new(&mut self.source).poll_item(context)
+    }
+
+    fn item_drained(mut self: Pin<&mut Self>) {
+        if !self.cancelled {
+            Pin::new(&mut self.source).item_drained();
+        }
+    }
+
+    fn cancel(mut self: Pin<&mut Self>) {
+        self.cancel_inner();
     }
 }
 
@@ -1740,7 +1835,9 @@ fn sse_response(
     source: RocSseItemSource,
     max_event_bytes: usize,
     brotli: Option<BrotliLane>,
+    shutdown: ShutdownController,
 ) -> ServerResponse {
+    let source = ShutdownSseItemSource::new(source, shutdown);
     let compressed = brotli.is_some();
     let (_handle, body) = match brotli {
         Some(lane) => {
@@ -2295,11 +2392,23 @@ async fn handle_req(
                                     Arc::clone(&active_request),
                                     stream_slot,
                                 );
-                                match source.precommit(context.config.max_sse_event_bytes).await {
+                                let precommit =
+                                    source.precommit(context.config.max_sse_event_bytes);
+                                tokio::pin!(precommit);
+                                let shutdown = context.shutdown.clone();
+                                let prepared = tokio::select! {
+                                    biased;
+                                    _ = shutdown.requested() => {
+                                        Err(SseTransitionError::Cancelled)
+                                    }
+                                    result = &mut precommit => result,
+                                };
+                                match prepared {
                                     Ok(source) => sse_response(
                                         source,
                                         context.config.max_sse_event_bytes,
                                         lane,
+                                        context.shutdown.clone(),
                                     ),
                                     Err(error) => {
                                         drop(lane);
@@ -2311,7 +2420,8 @@ async fn handle_req(
                                             }
                                             SseTransitionError::Admission(
                                                 AdmissionError::Stopping,
-                                            ) => {
+                                            )
+                                            | SseTransitionError::Cancelled => {
                                                 telemetry.reject(RejectionReason::Shutdown);
                                                 service_unavailable()
                                             }
@@ -2323,6 +2433,7 @@ async fn handle_req(
                                                 safe_internal_server_error(&response_semantics)
                                             }
                                             SseTransitionError::Application(_)
+                                            | SseTransitionError::InvalidWait { .. }
                                             | SseTransitionError::Oversized { .. } => {
                                                 telemetry
                                                     .reject(RejectionReason::InvalidRocResponse);
@@ -2802,6 +2913,7 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
         }
     };
 
+    context.roc_executor.stop_admission();
     context.config.routes.begin_draining();
     context.requests.begin_draining();
     let drained = tokio::time::timeout(context.config.drain_timeout, async {
@@ -3347,6 +3459,49 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn shutdown_wakes_and_cancels_a_parked_sse_source() {
+        struct ParkedSource(Arc<AtomicUsize>);
+
+        impl SseItemSource for ParkedSource {
+            fn poll_item(self: Pin<&mut Self>, _context: &mut Context<'_>) -> SseSourcePoll {
+                SseSourcePoll::Parked
+            }
+
+            fn item_drained(self: Pin<&mut Self>) {
+                panic!("parked test source never emits an item");
+            }
+
+            fn cancel(self: Pin<&mut Self>) {
+                self.0.fetch_add(1, Ordering::AcqRel);
+            }
+        }
+
+        let shutdown = ShutdownController::new();
+        let cancellations = Arc::new(AtomicUsize::new(0));
+        let mut source = Box::pin(ShutdownSseItemSource::new(
+            ParkedSource(Arc::clone(&cancellations)),
+            shutdown.clone(),
+        ));
+        let polling = tokio::spawn(async move {
+            futures::future::poll_fn(|context| match source.as_mut().poll_item(context) {
+                SseSourcePoll::Parked => Poll::Pending,
+                SseSourcePoll::Error(error) => Poll::Ready(error),
+                _ => panic!("unexpected parked-source result"),
+            })
+            .await
+        });
+        tokio::task::yield_now().await;
+
+        shutdown.request(ShutdownReason::Terminate);
+        let error = tokio::time::timeout(Duration::from_secs(1), polling)
+            .await
+            .expect("shutdown wakes the parked source")
+            .unwrap();
+        assert_eq!(error.kind(), io::ErrorKind::Interrupted);
+        assert_eq!(cancellations.load(Ordering::Acquire), 1);
+    }
+
     #[test]
     fn app_shutdown_then_first_os_signal_does_not_force_exit() {
         let shutdown = ShutdownController::new();
@@ -3388,6 +3543,19 @@ mod tests {
             Ok(Duration::from_millis(MAX_TRANSPORT_TIMEOUT_MS))
         );
         assert!(validate_transport_timeout("test", MAX_TRANSPORT_TIMEOUT_MS + 1).is_err());
+    }
+
+    #[test]
+    fn sse_wait_bound_is_inclusive_and_prevents_timer_overflow() {
+        assert!(validate_sse_wait(MAX_TRANSPORT_TIMEOUT_MS).is_ok());
+        assert!(matches!(
+            validate_sse_wait(MAX_TRANSPORT_TIMEOUT_MS + 1),
+            Err(SseTransitionError::InvalidWait { .. })
+        ));
+        assert!(matches!(
+            validate_sse_wait(u64::MAX),
+            Err(SseTransitionError::InvalidWait { .. })
+        ));
     }
 
     #[test]
