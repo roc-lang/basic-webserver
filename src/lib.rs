@@ -35,6 +35,7 @@ mod request_target;
 mod response;
 mod response_body;
 mod roc_alloc;
+mod roc_executor;
 mod roc_platform_abi;
 mod server_transport;
 mod shutdown;
