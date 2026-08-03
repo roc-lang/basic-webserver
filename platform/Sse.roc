@@ -26,7 +26,17 @@ Sse :: [].{
 				fields = Str.split_on(normalized, "\n").map(|line| "${key} ${line}")
 				named(safe_name, fields)
 			} else {
-				Event(Str.to_utf8("event: ${safe_name}\ndata: ${key} ${value}\n\n"))
+				frame = Str.with_capacity(
+					17 + Str.count_utf8_bytes(safe_name) + Str.count_utf8_bytes(key) + Str.count_utf8_bytes(value),
+				)
+					.concat("event: ")
+					.concat(safe_name)
+					.concat("\ndata: ")
+					.concat(key)
+					.concat(" ")
+					.concat(value)
+					.concat("\n\n")
+				Event(Str.to_utf8(frame))
 			}
 		}
 
@@ -53,7 +63,11 @@ Sse :: [].{
 		data : Str -> Event
 		data = |value| {
 			if Bool.not(Str.contains(value, "\r")) and Bool.not(Str.contains(value, "\n")) {
-				return Event(Str.to_utf8("data: ${value}\n\n"))
+				frame = Str.with_capacity(8 + Str.count_utf8_bytes(value))
+					.concat("data: ")
+					.concat(value)
+					.concat("\n\n")
+				return Event(Str.to_utf8(frame))
 			}
 			lf = Str.join_with(Str.split_on(value, "\r\n"), "\n")
 			normalized = Str.join_with(Str.split_on(lf, "\r"), "\n")

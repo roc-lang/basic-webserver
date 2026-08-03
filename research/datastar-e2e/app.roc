@@ -122,7 +122,10 @@ html_payload = |target_bytes, sequence| {
 		} else {
 			""
 		}
-	"${prefix}${padding}${suffix}"
+	Str.with_capacity(target_bytes)
+		.concat(prefix)
+		.concat(padding)
+		.concat(suffix)
 }
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

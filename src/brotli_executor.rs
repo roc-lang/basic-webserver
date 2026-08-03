@@ -424,7 +424,7 @@ struct CompletedWork {
     input: Bytes,
     input_offset: usize,
     output: Option<ResponseFrameReservation>,
-    step: io::Result<BrotliEncoderStep>,
+    step: Option<io::Result<BrotliEncoderStep>>,
     #[cfg(test)]
     worker_index: usize,
     release_on_drop: bool,
@@ -486,10 +486,7 @@ impl Future for BrotliJob {
                         .output
                         .take()
                         .expect("live Brotli completion owns output reservation"),
-                    step: std::mem::replace(
-                        &mut work.step,
-                        Err(io::Error::other("Brotli completion already consumed")),
-                    ),
+                    step: work.step.take().expect("Brotli completion owns its step"),
                     #[cfg(test)]
                     worker_index: work.worker_index,
                 }))
@@ -605,7 +602,7 @@ fn worker_loop(receiver: Arc<Mutex<Receiver<Message>>>, worker_index: usize) {
             input: work.input,
             input_offset: work.input_offset,
             output: Some(work.output),
-            step,
+            step: Some(step),
             #[cfg(test)]
             worker_index,
             release_on_drop: true,
