@@ -4,6 +4,7 @@ platform "abi-spike"
 			make_machine! : U64 => Abi.Machine,
 			make_bench_machine : U64 -> Abi.BenchMachine,
 			make_source_machine! : U64 => Abi.SourceMachine,
+			make_source_outcome! : U64 => Abi.SourceOutcome,
 			make_aliased_source_machine! : U64 => Abi.SourceMachine,
 			make_unique_source_machine! : U64 => Abi.SourceMachine,
 			make_sink_machine! : U64 => Abi.SinkMachine,
@@ -23,6 +24,8 @@ platform "abi-spike"
 		"roc_abi_advance_bench_machine": advance_bench_machine_for_host,
 		"roc_abi_drop_bench_machine": drop_bench_machine_for_host,
 		"roc_abi_make_source_machine": make_source_machine_for_host!,
+		"roc_abi_make_source_outcome": make_source_outcome_for_host!,
+		"roc_abi_drop_source_outcome": drop_source_outcome_for_host!,
 		"roc_abi_make_aliased_source_machine": make_aliased_source_machine_for_host!,
 		"roc_abi_make_unique_source_machine": make_unique_source_machine_for_host!,
 		"roc_abi_advance_source_machine": advance_source_machine_for_host!,
@@ -81,6 +84,12 @@ drop_bench_machine_for_host = |_machine| {}
 
 make_source_machine_for_host! : U64 => Abi.SourceMachine
 make_source_machine_for_host! = program.make_source_machine!
+
+make_source_outcome_for_host! : U64 => Abi.SourceOutcome
+make_source_outcome_for_host! = program.make_source_outcome!
+
+drop_source_outcome_for_host! : Abi.SourceOutcome => {}
+drop_source_outcome_for_host! = |_outcome| {}
 
 make_aliased_source_machine_for_host! : U64 => Abi.SourceMachine
 make_aliased_source_machine_for_host! = program.make_aliased_source_machine!

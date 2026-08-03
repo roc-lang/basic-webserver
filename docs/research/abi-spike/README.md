@@ -97,6 +97,15 @@ performs no allocation. The exact evidence and remaining scheduler boundary
 are recorded in
 [`results/2026-08-02-consuming-rust-projection.md`](results/2026-08-02-consuming-rust-projection.md).
 
+The next fixture moves a retained source through a reduced
+`Response | Stream(SourceMachine)` outcome into a fixed-capacity,
+generation-checked Rust stream heap. Development and speed builds pass exact
+saturation, stale slot/wake rejection, overlap rejection, drain
+acknowledgement, normal end, and parked/draining/in-flight cancellation with
+zero live allocations. This restores the retained source as the preferred
+product hypothesis under the platform's trusted-application memory model. See
+[`results/2026-08-03-host-stream-heap.md`](results/2026-08-03-host-stream-heap.md).
+
 The benchmark is not an end-to-end SSE or Go comparison. Its allocation
 counters use atomics in the allocator and therefore perturb allocation-heavy
 timings. It exists to choose the next design spike and to detect large ABI or

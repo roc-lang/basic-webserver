@@ -19,7 +19,7 @@ MachineState : {
 	steps : U64,
 }
 
-program = { make_machine!, make_bench_machine, make_source_machine!, make_aliased_source_machine!, make_unique_source_machine!, make_sink_machine!, make_callable, init_state!, step_state!, bench_step_state }
+program = { make_machine!, make_bench_machine, make_source_machine!, make_source_outcome!, make_aliased_source_machine!, make_unique_source_machine!, make_sink_machine!, make_callable, init_state!, step_state!, bench_step_state }
 
 make_state! : U64 => State
 make_state! = |seed| {
@@ -185,6 +185,14 @@ make_source_machine! = |events| {
 		sequence: 0,
 	})
 }
+
+make_source_outcome! : U64 => Abi.SourceOutcome
+make_source_outcome! = |events|
+	if events == 0 {
+		Abi.SourceOutcome.Response(204)
+	} else {
+		Abi.SourceOutcome.Stream(make_source_machine!(events))
+	}
 
 make_aliased_source_machine! : U64 => Abi.SourceMachine
 make_aliased_source_machine! = |events| {
