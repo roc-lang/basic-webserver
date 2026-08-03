@@ -398,7 +398,22 @@ enum AdmissionError {
 }
 
 struct ActiveHandler {
+    metrics: Arc<Metrics>,
     _metrics: ActiveGaugeGuard,
+}
+
+impl ActiveHandler {
+    fn new(metrics: Arc<Metrics>) -> Self {
+        let gauge = metrics.handler_started();
+        Self {
+            metrics,
+            _metrics: gauge,
+        }
+    }
+
+    fn record_duration(&self, duration: Duration) {
+        self.metrics.record_handler_duration(duration);
+    }
 }
 
 enum RocJobAdmission {
@@ -419,9 +434,7 @@ impl RocJobAdmission {
             AdmissionClass::Active => {
                 metrics.record_handler_queue_wait(Duration::ZERO);
                 Self::Active {
-                    handler: ActiveHandler {
-                        _metrics: metrics.handler_started(),
-                    },
+                    handler: ActiveHandler::new(metrics),
                     queue_wait: Duration::ZERO,
                 }
             }
@@ -447,12 +460,7 @@ impl RocJobAdmission {
                 drop(_metrics);
                 let queue_wait = queued_at.elapsed();
                 metrics.record_handler_queue_wait(queue_wait);
-                (
-                    ActiveHandler {
-                        _metrics: metrics.handler_started(),
-                    },
-                    queue_wait,
-                )
+                (ActiveHandler::new(metrics), queue_wait)
             }
         }
     }
@@ -482,7 +490,6 @@ struct OrdinaryRocJob {
     accepted_encodings: AcceptedEncodings,
     response_semantics: RequestSemantics,
     active_request: Arc<ActiveRequest>,
-    metrics: Arc<Metrics>,
     telemetry: crate::telemetry::RequestTelemetry,
     completion: oneshot::Sender<Result<RocOutcome, RocExecutionError>>,
 }
@@ -544,7 +551,7 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
             if was_queued && job.completion.is_closed() {
                 return;
             }
-            let (_active_handler, queue_wait) = scheduled.admission.promote();
+            let (active_handler, queue_wait) = scheduled.admission.promote();
             let OrdinaryRocJob {
                 parts,
                 metadata,
@@ -555,7 +562,6 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
                 accepted_encodings,
                 response_semantics,
                 active_request: _active_request,
-                metrics,
                 telemetry,
                 completion,
             } = job;
@@ -574,7 +580,7 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
                     accepted_encodings,
                     &response_semantics,
                 );
-                metrics.record_handler_duration(handler_duration);
+                active_handler.record_duration(handler_duration);
                 telemetry.record_handler(queue_wait, handler_duration);
                 result
             }))
@@ -586,16 +592,18 @@ fn execute_roc_job(scheduled: RocScheduledJob) {
             if !job.completion.start_running(was_queued) {
                 return;
             }
-            let (_active_handler, _queue_wait) = scheduled.admission.promote();
+            let (active_handler, _queue_wait) = scheduled.admission.promote();
             let SseRocJob {
                 source,
                 wake_generation,
                 active_request: _active_request,
                 completion,
             } = job;
+            let started = Instant::now();
             let step =
                 std::panic::catch_unwind(AssertUnwindSafe(|| source.advance(wake_generation)))
                     .map_err(|_| RocExecutionError::Panic);
+            active_handler.record_duration(started.elapsed());
             completion.complete(step);
         }
     }
@@ -2149,9 +2157,8 @@ async fn handle_req(
             let roc_context = Arc::clone(&context.roc_context);
             let handler_request = Arc::clone(&active_request);
             let handler_response_semantics = response_semantics.clone();
-            let handler_metrics = context.telemetry.metrics();
             let handler_telemetry = telemetry.clone();
-            let admission_metrics = Arc::clone(&handler_metrics);
+            let admission_metrics = context.telemetry.metrics();
             let admission = context.roc_executor.try_submit(|class| RocScheduledJob {
                 admission: RocJobAdmission::new(class, admission_metrics),
                 job: RocJob::Ordinary(OrdinaryRocJob {
@@ -2164,7 +2171,6 @@ async fn handle_req(
                     accepted_encodings,
                     response_semantics: handler_response_semantics,
                     active_request: handler_request,
-                    metrics: handler_metrics,
                     telemetry: handler_telemetry,
                     completion,
                 }),

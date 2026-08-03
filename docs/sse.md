@@ -99,6 +99,9 @@ An SSE request remains active for metrics, access logging, response-idle
 timeout, and graceful drain until its body ends, fails, or is cancelled. Parked
 time is therefore part of request duration. Active-handler metrics include only
 the initial handler or a currently executing transition, never a parked source.
+Every transition contributes to the bounded Roc-handler duration histogram;
+the access-log handler fields describe the initial `respond!` call, while its
+overall request duration includes the complete stream lifetime.
 
 ## Content coding
 
