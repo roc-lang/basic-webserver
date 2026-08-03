@@ -23,6 +23,11 @@ SDK framing and transport from per-event application rendering.
 
 This is research evidence, not an accepted change to `design.md`.
 
+The measured result and prioritized follow-up hypotheses are in
+[`results/2026-08-03-analysis.md`](results/2026-08-03-analysis.md). The complete
+machine-readable observations are retained beside it in
+[`results/2026-08-03-raw.jsonl`](results/2026-08-03-raw.jsonl).
+
 Run the controlled Linux comparison with:
 
 ```sh
