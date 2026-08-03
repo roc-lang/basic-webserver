@@ -30,6 +30,9 @@ use crate::response::{
     ServerBody, ServerData, ServerResponse,
 };
 use crate::response_body::{SseBody, SseCompression, SseItemSource, SseSourcePoll};
+use crate::roc_executor::{
+    AdmissionClass, FixedExecutor, FixedExecutorHandle, QueueTicket, SubmitError,
+};
 use crate::roc_platform_abi::*;
 use crate::server_transport::{detect_protocol, Http1Activity, Http1Io, PrefixedStream, Protocol};
 use crate::shutdown::{ActiveRequest, RequestTracker, ShutdownController, ShutdownReason};
@@ -38,6 +41,7 @@ use crate::telemetry::{
     TelemetryConfig, TelemetryHandle,
 };
 use bytes::{Buf, Bytes};
+use futures::task::AtomicWaker;
 use futures::{Future, FutureExt, StreamExt};
 use http_body_util::BodyExt;
 #[cfg(test)]
@@ -54,11 +58,11 @@ use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tokio::task::{spawn_blocking, JoinSet};
+use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
+use tokio::task::JoinSet;
 
 const MAX_TRANSPORT_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
 const SSE_MAX_ITEM_BYTES: usize = 1024 * 1024;
@@ -375,78 +379,214 @@ fn validate_concurrency_limits(
     Ok((max_connections, max_handlers as usize))
 }
 
-/// Bounds both the synchronous Roc invocations submitted to Tokio's blocking
-/// pool and the requests waiting to submit one.
-///
-/// An active permit is acquired before `spawn_blocking`, and the runtime's
-/// blocking thread limit is exactly `max_handlers`. Tokio's internal blocking
-/// queue is therefore not used as an implicit request queue.
-#[derive(Clone)]
-struct HandlerAdmission {
-    active: Arc<Semaphore>,
-    queued: Arc<Semaphore>,
-    metrics: Arc<Metrics>,
-}
-
-impl HandlerAdmission {
-    fn new(max_handlers: usize, max_queued_handlers: usize, metrics: Arc<Metrics>) -> Self {
-        Self {
-            active: Arc::new(Semaphore::new(max_handlers)),
-            queued: Arc::new(Semaphore::new(max_queued_handlers)),
-            metrics,
-        }
-    }
-
-    async fn admit(&self, wait_timeout: Duration) -> Result<AdmittedHandler, AdmissionError> {
-        if let Ok(active) = Arc::clone(&self.active).try_acquire_owned() {
-            let queue_wait = Duration::ZERO;
-            self.metrics.record_handler_queue_wait(queue_wait);
-            return Ok(AdmittedHandler {
-                active: ActiveHandler {
-                    _permit: active,
-                    _metrics: self.metrics.handler_started(),
-                },
-                queue_wait,
-            });
-        }
-
-        let queued = Arc::clone(&self.queued)
-            .try_acquire_owned()
-            .map_err(|_| AdmissionError::Full)?;
-        let queued_metrics = self.metrics.handler_queued();
-        let queued_at = Instant::now();
-        let active = tokio::time::timeout(wait_timeout, Arc::clone(&self.active).acquire_owned())
-            .await
-            .map_err(|_| AdmissionError::TimedOut)?
-            .expect("handler admission semaphore is never closed");
-        drop(queued);
-        drop(queued_metrics);
-        let queue_wait = queued_at.elapsed();
-        self.metrics.record_handler_queue_wait(queue_wait);
-        Ok(AdmittedHandler {
-            active: ActiveHandler {
-                _permit: active,
-                _metrics: self.metrics.handler_started(),
-            },
-            queue_wait,
-        })
-    }
-}
-
-struct AdmittedHandler {
-    active: ActiveHandler,
-    queue_wait: Duration,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AdmissionError {
     Full,
-    TimedOut,
+    Stopping,
 }
 
 struct ActiveHandler {
-    _permit: OwnedSemaphorePermit,
     _metrics: ActiveGaugeGuard,
+}
+
+enum RocJobAdmission {
+    Active {
+        handler: ActiveHandler,
+        queue_wait: Duration,
+    },
+    Queued {
+        _metrics: ActiveGaugeGuard,
+        queued_at: Instant,
+        metrics: Arc<Metrics>,
+    },
+}
+
+impl RocJobAdmission {
+    fn new(class: AdmissionClass, metrics: Arc<Metrics>) -> Self {
+        match class {
+            AdmissionClass::Active => {
+                metrics.record_handler_queue_wait(Duration::ZERO);
+                Self::Active {
+                    handler: ActiveHandler {
+                        _metrics: metrics.handler_started(),
+                    },
+                    queue_wait: Duration::ZERO,
+                }
+            }
+            AdmissionClass::Queued => Self::Queued {
+                _metrics: metrics.handler_queued(),
+                queued_at: Instant::now(),
+                metrics,
+            },
+        }
+    }
+
+    fn promote(self) -> (ActiveHandler, Duration) {
+        match self {
+            Self::Active {
+                handler,
+                queue_wait,
+            } => (handler, queue_wait),
+            Self::Queued {
+                _metrics,
+                queued_at,
+                metrics,
+            } => {
+                drop(_metrics);
+                let queue_wait = queued_at.elapsed();
+                metrics.record_handler_queue_wait(queue_wait);
+                (
+                    ActiveHandler {
+                        _metrics: metrics.handler_started(),
+                    },
+                    queue_wait,
+                )
+            }
+        }
+    }
+
+    fn is_queued(&self) -> bool {
+        matches!(self, Self::Queued { .. })
+    }
+}
+
+struct RocScheduledJob {
+    admission: RocJobAdmission,
+    job: RocJob,
+}
+
+enum RocJob {
+    Ordinary(OrdinaryRocJob),
+    Sse(SseRocJob),
+}
+
+struct OrdinaryRocJob {
+    parts: hyper::http::request::Parts,
+    metadata: RequestMetadata,
+    body_handle: crate::request_body::BodyHandle,
+    body_limit: u64,
+    declared_length: Option<u64>,
+    roc_context: Arc<RocContext>,
+    accepted_encodings: AcceptedEncodings,
+    response_semantics: RequestSemantics,
+    active_request: Arc<ActiveRequest>,
+    metrics: Arc<Metrics>,
+    telemetry: crate::telemetry::RequestTelemetry,
+    completion: oneshot::Sender<Result<RocOutcome, RocExecutionError>>,
+}
+
+struct SseRocJob {
+    source: OwnedSseSource,
+    wake_generation: u64,
+    active_request: Arc<ActiveRequest>,
+    completion: Arc<SseCompletionSlot>,
+}
+
+struct QueuedRocJobGuard {
+    executor: FixedExecutorHandle<RocScheduledJob>,
+    ticket: Option<QueueTicket>,
+}
+
+impl QueuedRocJobGuard {
+    fn new(executor: FixedExecutorHandle<RocScheduledJob>, ticket: QueueTicket) -> Self {
+        Self {
+            executor,
+            ticket: Some(ticket),
+        }
+    }
+
+    fn cancel(&mut self) -> bool {
+        self.ticket
+            .take()
+            .and_then(|ticket| self.executor.cancel_queued(ticket))
+            .is_some()
+    }
+
+    fn disarm(&mut self) {
+        self.ticket = None;
+    }
+}
+
+impl Drop for QueuedRocJobGuard {
+    fn drop(&mut self) {
+        let _ = self.cancel();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RocExecutionError {
+    Panic,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RocDispatchError {
+    Admission(AdmissionError),
+    Execution(RocExecutionError),
+    CompletionLost,
+}
+
+fn execute_roc_job(scheduled: RocScheduledJob) {
+    let was_queued = scheduled.admission.is_queued();
+    match scheduled.job {
+        RocJob::Ordinary(job) => {
+            if was_queued && job.completion.is_closed() {
+                return;
+            }
+            let (_active_handler, queue_wait) = scheduled.admission.promote();
+            let OrdinaryRocJob {
+                parts,
+                metadata,
+                body_handle,
+                body_limit,
+                declared_length,
+                roc_context,
+                accepted_encodings,
+                response_semantics,
+                active_request: _active_request,
+                metrics,
+                telemetry,
+                completion,
+            } = job;
+            let handled = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                let roc_request = request_to_roc(
+                    parts,
+                    metadata,
+                    body_handle.retain_for_roc(),
+                    body_limit,
+                    declared_length,
+                );
+                let request_context = roc_context.retain_for_request();
+                let (result, handler_duration) = call_roc(
+                    roc_request,
+                    request_context,
+                    accepted_encodings,
+                    &response_semantics,
+                );
+                metrics.record_handler_duration(handler_duration);
+                telemetry.record_handler(queue_wait, handler_duration);
+                result
+            }))
+            .map_err(|_| RocExecutionError::Panic);
+            body_handle.expire();
+            let _ = completion.send(handled);
+        }
+        RocJob::Sse(job) => {
+            if !job.completion.start_running(was_queued) {
+                return;
+            }
+            let (_active_handler, _queue_wait) = scheduled.admission.promote();
+            let SseRocJob {
+                source,
+                wake_generation,
+                active_request: _active_request,
+                completion,
+            } = job;
+            let step =
+                std::panic::catch_unwind(AssertUnwindSafe(|| source.advance(wake_generation)))
+                    .map_err(|_| RocExecutionError::Panic);
+            completion.complete(step);
+        }
+    }
 }
 
 /// The one Roc-owned application context retained for the server lifetime.
@@ -484,7 +624,7 @@ unsafe impl Sync for RocContext {}
 struct ServerContext {
     config: Arc<RuntimeConfig>,
     roc_context: Arc<RocContext>,
-    handlers: HandlerAdmission,
+    roc_executor: FixedExecutorHandle<RocScheduledJob>,
     stream_slots: Arc<Semaphore>,
     brotli: BrotliExecutor,
     requests: RequestTracker,
@@ -549,14 +689,25 @@ fn start_inner() -> i32 {
             );
         }
     };
+    let roc_executor = match FixedExecutor::new(
+        "roc-handler",
+        config.max_handlers,
+        config.max_queued_handlers,
+        execute_roc_job,
+    ) {
+        Ok(executor) => executor,
+        Err(error) => {
+            return finish_shutdown(
+                ShutdownReason::StartupFailed(format!("failed to start Roc executor: {error}")),
+                raw_context,
+                config.hook_timeout,
+            );
+        }
+    };
     let context = ServerContext {
         config: Arc::new(config.clone()),
         roc_context: Arc::clone(&roc_context),
-        handlers: HandlerAdmission::new(
-            config.max_handlers,
-            config.max_queued_handlers,
-            Arc::clone(&config.metrics),
-        ),
+        roc_executor: roc_executor.handle(),
         stream_slots: Arc::new(Semaphore::new(config.max_handlers)),
         brotli,
         requests: RequestTracker::new(),
@@ -565,7 +716,6 @@ fn start_inner() -> i32 {
     };
 
     let reason = match tokio::runtime::Builder::new_multi_thread()
-        .max_blocking_threads(config.max_handlers)
         .enable_all()
         .build()
     {
@@ -574,6 +724,7 @@ fn start_inner() -> i32 {
             ShutdownReason::RuntimeFailed(format!("failed to initialize Tokio runtime: {error}"))
         }
     };
+    roc_executor.shutdown();
     telemetry.shutdown();
 
     debug_assert_eq!(
@@ -1059,17 +1210,125 @@ enum SseAdvance {
     End,
 }
 
-type SseAdvanceFuture =
-    Pin<Box<dyn Future<Output = Result<OwnedSseStep, io::Error>> + Send + 'static>>;
+enum SseCompletionState {
+    Idle,
+    Pending { queued: bool },
+    Running,
+    Ready(Result<OwnedSseStep, RocExecutionError>),
+    Cancelled,
+}
+
+struct SseCompletionSlot {
+    state: Mutex<SseCompletionState>,
+    waker: AtomicWaker,
+}
+
+enum SseCompletionPoll {
+    Idle,
+    Queued,
+    Active,
+    Ready(Result<OwnedSseStep, RocExecutionError>),
+    Cancelled,
+}
+
+impl SseCompletionSlot {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(SseCompletionState::Idle),
+            waker: AtomicWaker::new(),
+        }
+    }
+
+    fn begin(&self) {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        assert!(matches!(*state, SseCompletionState::Idle));
+        *state = SseCompletionState::Pending { queued: false };
+    }
+
+    fn abort_begin(&self) {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        assert!(matches!(*state, SseCompletionState::Pending { .. }));
+        *state = SseCompletionState::Idle;
+    }
+
+    fn mark_queued(&self) {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        if let SseCompletionState::Pending { queued } = &mut *state {
+            *queued = true;
+        }
+    }
+
+    fn start_running(&self, was_queued: bool) -> bool {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        match &*state {
+            SseCompletionState::Pending { queued } => {
+                debug_assert!(!was_queued || *queued);
+                *state = SseCompletionState::Running;
+                drop(state);
+                self.waker.wake();
+                true
+            }
+            SseCompletionState::Cancelled => false,
+            _ => panic!("SSE completion started from invalid state"),
+        }
+    }
+
+    fn complete(&self, result: Result<OwnedSseStep, RocExecutionError>) {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        match &*state {
+            SseCompletionState::Running => {
+                *state = SseCompletionState::Ready(result);
+                drop(state);
+                self.waker.wake();
+            }
+            SseCompletionState::Cancelled => drop(result),
+            _ => panic!("SSE completion finished from invalid state"),
+        }
+    }
+
+    fn poll(&self, context: &mut Context<'_>) -> SseCompletionPoll {
+        self.waker.register(context.waker());
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        match &*state {
+            SseCompletionState::Idle => SseCompletionPoll::Idle,
+            SseCompletionState::Pending { queued: true } => SseCompletionPoll::Queued,
+            SseCompletionState::Pending { queued: false } | SseCompletionState::Running => {
+                SseCompletionPoll::Active
+            }
+            SseCompletionState::Ready(_) => {
+                let SseCompletionState::Ready(result) =
+                    std::mem::replace(&mut *state, SseCompletionState::Idle)
+                else {
+                    unreachable!()
+                };
+                SseCompletionPoll::Ready(result)
+            }
+            SseCompletionState::Cancelled => SseCompletionPoll::Cancelled,
+        }
+    }
+
+    fn cancel(&self) {
+        let mut state = self.state.lock().expect("SSE completion mutex poisoned");
+        let previous = std::mem::replace(&mut *state, SseCompletionState::Cancelled);
+        drop(state);
+        if let SseCompletionState::Ready(result) = previous {
+            drop(result);
+        }
+        self.waker.wake();
+    }
+}
 
 struct RocSseItemSource {
     source: Option<OwnedSseSource>,
-    advancing: Option<SseAdvanceFuture>,
     after_item: Option<(OwnedSseSource, u64)>,
     wake: Pin<Box<tokio::time::Sleep>>,
     wake_parked: bool,
+    queue_wait: Pin<Box<tokio::time::Sleep>>,
     wake_generation: u64,
-    handlers: HandlerAdmission,
+    executor: FixedExecutorHandle<RocScheduledJob>,
+    completion: Arc<SseCompletionSlot>,
+    queued_ticket: Option<QueueTicket>,
+    metrics: Arc<Metrics>,
     handler_queue_timeout: Duration,
     active_request: Arc<ActiveRequest>,
     _stream_slot: OwnedSemaphorePermit,
@@ -1079,19 +1338,23 @@ struct RocSseItemSource {
 impl RocSseItemSource {
     fn new(
         source: OwnedSseSource,
-        handlers: HandlerAdmission,
+        executor: FixedExecutorHandle<RocScheduledJob>,
+        metrics: Arc<Metrics>,
         handler_queue_timeout: Duration,
         active_request: Arc<ActiveRequest>,
         stream_slot: OwnedSemaphorePermit,
     ) -> Self {
         Self {
             source: Some(source),
-            advancing: None,
             after_item: None,
             wake: Box::pin(tokio::time::sleep(Duration::ZERO)),
             wake_parked: false,
+            queue_wait: Box::pin(tokio::time::sleep(Duration::ZERO)),
             wake_generation: 0,
-            handlers,
+            executor,
+            completion: Arc::new(SseCompletionSlot::new()),
+            queued_ticket: None,
+            metrics,
             handler_queue_timeout,
             active_request,
             _stream_slot: stream_slot,
@@ -1109,30 +1372,45 @@ impl RocSseItemSource {
         }
     }
 
-    fn start_advance(&mut self) {
-        let source = self.source.take().expect("parked SSE source exists");
+    fn start_advance(&mut self) -> Result<(), AdmissionError> {
+        let mut source = Some(self.source.take().expect("parked SSE source exists"));
         self.wake_generation = self.wake_generation.wrapping_add(1);
         let wake_generation = self.wake_generation;
-        let handlers = self.handlers.clone();
-        let wait_timeout = self.handler_queue_timeout;
         let active_request = Arc::clone(&self.active_request);
-        self.advancing = Some(Box::pin(async move {
-            let admitted = handlers.admit(wait_timeout).await.map_err(|error| {
-                io::Error::other(format!("SSE transition admission failed: {error:?}"))
-            })?;
-            let active = admitted.active;
-            let (_active_request, step) = spawn_blocking(move || {
-                let _active = active;
-                // A cancelled body drops the future waiting on this
-                // non-cancellable call. Retain request drain accounting in the
-                // task's output until Roc has returned and the detached result
-                // has been consumed or whole-dropped.
-                (active_request, source.advance(wake_generation))
-            })
-            .await
-            .map_err(|error| io::Error::other(format!("SSE transition panicked: {error}")))?;
-            Ok(step)
-        }));
+        let completion = Arc::clone(&self.completion);
+        let metrics = Arc::clone(&self.metrics);
+        self.completion.begin();
+        let admitted = self.executor.try_submit(|class| {
+            if class == AdmissionClass::Queued {
+                completion.mark_queued();
+            }
+            RocScheduledJob {
+                admission: RocJobAdmission::new(class, metrics),
+                job: RocJob::Sse(SseRocJob {
+                    source: source.take().expect("admitted SSE source exists"),
+                    wake_generation,
+                    active_request,
+                    completion,
+                }),
+            }
+        });
+        match admitted {
+            Ok(admission) if admission.class == AdmissionClass::Active => Ok(()),
+            Ok(admission) => {
+                self.queued_ticket = Some(admission.ticket);
+                self.queue_wait
+                    .as_mut()
+                    .reset(tokio::time::Instant::now() + self.handler_queue_timeout);
+                Ok(())
+            }
+            Err(error) => {
+                self.completion.abort_begin();
+                Err(match error {
+                    SubmitError::Full => AdmissionError::Full,
+                    SubmitError::Stopping => AdmissionError::Stopping,
+                })
+            }
+        }
     }
 }
 
@@ -1151,24 +1429,50 @@ impl SseItemSource for RocSseItemSource {
                 }
                 self.wake_parked = false;
             }
-            if self.advancing.is_none() {
-                self.start_advance();
+            let mut completion = self.completion.poll(context);
+            if matches!(completion, SseCompletionPoll::Idle) {
+                if let Err(error) = self.start_advance() {
+                    self.ended = true;
+                    return SseSourcePoll::Error(io::Error::other(format!(
+                        "SSE transition admission failed: {error:?}"
+                    )));
+                }
+                completion = self.completion.poll(context);
             }
-            let completion = self
-                .advancing
-                .as_mut()
-                .expect("started SSE transition exists");
-            let step = match completion.as_mut().poll(context) {
-                Poll::Pending => return SseSourcePoll::Advancing,
-                Poll::Ready(Ok(step)) => {
-                    self.advancing = None;
+            let step = match completion {
+                SseCompletionPoll::Queued => {
+                    if self.queue_wait.as_mut().poll(context).is_ready() {
+                        if let Some(ticket) = self.queued_ticket.take() {
+                            if let Some(job) = self.executor.cancel_queued(ticket) {
+                                self.completion.cancel();
+                                drop(job);
+                                self.ended = true;
+                                return SseSourcePoll::Error(io::Error::other(
+                                    "SSE transition admission timed out",
+                                ));
+                            }
+                        }
+                    }
+                    return SseSourcePoll::Advancing;
+                }
+                SseCompletionPoll::Active => {
+                    self.queued_ticket = None;
+                    return SseSourcePoll::Advancing;
+                }
+                SseCompletionPoll::Ready(Ok(step)) => {
+                    self.queued_ticket = None;
                     step
                 }
-                Poll::Ready(Err(error)) => {
-                    self.advancing = None;
+                SseCompletionPoll::Ready(Err(RocExecutionError::Panic)) => {
+                    self.queued_ticket = None;
                     self.ended = true;
-                    return SseSourcePoll::Error(error);
+                    return SseSourcePoll::Error(io::Error::other("SSE transition panicked"));
                 }
+                SseCompletionPoll::Cancelled => {
+                    self.ended = true;
+                    return SseSourcePoll::End;
+                }
+                SseCompletionPoll::Idle => unreachable!("SSE transition was submitted"),
             };
             match step.into_result() {
                 Ok(SseAdvance::Emit {
@@ -1208,7 +1512,10 @@ impl SseItemSource for RocSseItemSource {
         self.source.take();
         self.after_item.take();
         self.wake_parked = false;
-        self.advancing.take();
+        if let Some(ticket) = self.queued_ticket.take() {
+            drop(self.executor.cancel_queued(ticket));
+        }
+        self.completion.cancel();
     }
 }
 
@@ -1749,137 +2056,166 @@ async fn handle_req(
             let body_idle_timeout = context.config.body_idle_timeout;
             tokio::spawn(async move { body_pump.run(body, chunk_bytes, body_idle_timeout).await });
 
-            match context
-                .handlers
-                .admit(context.config.handler_queue_timeout)
-                .await
-            {
-                Err(AdmissionError::Full) => {
+            let (completion, receiver) = oneshot::channel();
+            let body_limit = context.config.body_max_bytes;
+            let roc_context = Arc::clone(&context.roc_context);
+            let handler_request = Arc::clone(&active_request);
+            let handler_response_semantics = response_semantics.clone();
+            let handler_metrics = context.telemetry.metrics();
+            let handler_telemetry = telemetry.clone();
+            let admission_metrics = Arc::clone(&handler_metrics);
+            let admission = context.roc_executor.try_submit(|class| RocScheduledJob {
+                admission: RocJobAdmission::new(class, admission_metrics),
+                job: RocJob::Ordinary(OrdinaryRocJob {
+                    parts,
+                    metadata,
+                    body_handle,
+                    body_limit,
+                    declared_length,
+                    roc_context,
+                    accepted_encodings,
+                    response_semantics: handler_response_semantics,
+                    active_request: handler_request,
+                    metrics: handler_metrics,
+                    telemetry: handler_telemetry,
+                    completion,
+                }),
+            });
+            let handled = match admission {
+                Err(SubmitError::Full) => Err(RocDispatchError::Admission(AdmissionError::Full)),
+                Err(SubmitError::Stopping) => {
+                    Err(RocDispatchError::Admission(AdmissionError::Stopping))
+                }
+                Ok(admission) => {
+                    telemetry.set_destination(Destination::Roc);
+                    let mut receiver = receiver;
+                    let mut queued = (admission.class == AdmissionClass::Queued).then(|| {
+                        QueuedRocJobGuard::new(context.roc_executor.clone(), admission.ticket)
+                    });
+                    let received = if let Some(queued) = &mut queued {
+                        match tokio::time::timeout(
+                            context.config.handler_queue_timeout,
+                            &mut receiver,
+                        )
+                        .await
+                        {
+                            Ok(received) => received,
+                            Err(_) => {
+                                if queued.cancel() {
+                                    telemetry.reject(RejectionReason::HandlerOverload);
+                                    return finalize_and_track_response(
+                                        handler_queue_timed_out(),
+                                        &response_semantics,
+                                        Some(active_request),
+                                        http1_activity,
+                                        Some(body_idle_timeout),
+                                        &telemetry,
+                                    );
+                                }
+                                receiver.await
+                            }
+                        }
+                    } else {
+                        receiver.await
+                    };
+                    if let Some(queued) = &mut queued {
+                        queued.disarm();
+                    }
+                    match received {
+                        Ok(Ok(outcome)) => Ok(outcome),
+                        Ok(Err(error)) => Err(RocDispatchError::Execution(error)),
+                        Err(_) => Err(RocDispatchError::CompletionLost),
+                    }
+                }
+            };
+
+            match handled {
+                Err(RocDispatchError::Admission(AdmissionError::Full)) => {
                     telemetry.reject(RejectionReason::HandlerOverload);
                     overloaded()
                 }
-                Err(AdmissionError::TimedOut) => {
-                    telemetry.reject(RejectionReason::HandlerOverload);
-                    handler_queue_timed_out()
+                Err(RocDispatchError::Admission(AdmissionError::Stopping)) => {
+                    telemetry.reject(RejectionReason::Shutdown);
+                    service_unavailable()
                 }
-                Ok(admitted) => {
-                    telemetry.set_destination(Destination::Roc);
-                    let active_handler = admitted.active;
-                    let handler_queue_wait = admitted.queue_wait;
-                    let body_limit = context.config.body_max_bytes;
-                    let roc_context = Arc::clone(&context.roc_context);
-                    let handler_request = Arc::clone(&active_request);
-                    let handler_response_semantics = response_semantics.clone();
-                    let handler_metrics = context.telemetry.metrics();
-                    let handler_telemetry = telemetry.clone();
-                    let handled = spawn_blocking(move || {
-                        // These guards intentionally live in the non-cancellable
-                        // blocking task. Aborting its Tokio JoinHandle must not
-                        // make shutdown believe Roc has stopped using its slot,
-                        // body, or immutable application context.
-                        let _active_request = handler_request;
-                        let _active_handler = active_handler;
-                        let roc_request = request_to_roc(
-                            parts,
-                            metadata,
-                            body_handle.retain_for_roc(),
-                            body_limit,
-                            declared_length,
-                        );
-                        let request_context = roc_context.retain_for_request();
-                        let (result, handler_duration) = call_roc(
-                            roc_request,
-                            request_context,
-                            accepted_encodings,
-                            &handler_response_semantics,
-                        );
-                        handler_metrics.record_handler_duration(handler_duration);
-                        handler_telemetry.record_handler(handler_queue_wait, handler_duration);
-                        body_handle.expire();
-                        result
-                    })
-                    .await;
-
-                    match handled {
-                        Ok(RocOutcome::Ordinary(response, stop_code)) => {
-                            request_stop_after(&context.shutdown, stop_code);
-                            match response {
-                                Ok(response) => response,
-                                Err(error) => {
-                                    telemetry.reject(RejectionReason::InvalidRocResponse);
-                                    eprintln!("Invalid Roc response: {error}");
-                                    safe_internal_server_error(&response_semantics)
-                                }
-                            }
-                        }
-                        Ok(RocOutcome::File(plan)) => {
-                            telemetry.set_destination(Destination::NativeFile);
-                            let (response, failure) = context
-                                .config
-                                .files
-                                .serve(plan, file_method, file_headers, Arc::clone(&active_request))
-                                .await;
-                            record_file_failure(&telemetry, failure);
-                            response
-                        }
-                        Ok(RocOutcome::Stream { source, coding }) => {
-                            if coding == StreamingContentCoding::NotAcceptable {
-                                no_acceptable_sse_content_coding()
-                            } else {
-                                match Arc::clone(&context.stream_slots).try_acquire_owned() {
-                                    Ok(stream_slot) => {
-                                        let lane = if coding == StreamingContentCoding::Brotli {
-                                            match context.brotli.try_admit(BrotliProfile::Scale) {
-                                                Some(lane) => Some(lane),
-                                                None => {
-                                                    telemetry
-                                                        .reject(RejectionReason::HandlerOverload);
-                                                    return finalize_and_track_response(
-                                                        overloaded(),
-                                                        &response_semantics,
-                                                        Some(active_request),
-                                                        http1_activity,
-                                                        Some(body_idle_timeout),
-                                                        &telemetry,
-                                                    );
-                                                }
-                                            }
-                                        } else {
-                                            None
-                                        };
-                                        sse_response(
-                                            RocSseItemSource::new(
-                                                source,
-                                                context.handlers.clone(),
-                                                context.config.handler_queue_timeout,
-                                                Arc::clone(&active_request),
-                                                stream_slot,
-                                            ),
-                                            lane,
-                                        )
-                                    }
-                                    Err(_) => {
-                                        telemetry.reject(RejectionReason::HandlerOverload);
-                                        overloaded()
-                                    }
-                                }
-                            }
-                        }
-                        Ok(RocOutcome::Invalid(detail)) => {
-                            telemetry.reject(RejectionReason::InvalidRocResponse);
-                            eprintln!("Invalid Roc response plan: {detail}");
-                            safe_internal_server_error(&response_semantics)
-                        }
+                Err(RocDispatchError::Execution(RocExecutionError::Panic)) => {
+                    telemetry.reject(RejectionReason::RocPanic);
+                    eprintln!("Recovered from calling Roc");
+                    safe_internal_server_error(&response_semantics)
+                }
+                Err(RocDispatchError::CompletionLost) => {
+                    telemetry.reject(RejectionReason::HostPanic);
+                    eprintln!("Roc executor lost a completion");
+                    safe_internal_server_error(&response_semantics)
+                }
+                Ok(RocOutcome::Ordinary(response, stop_code)) => {
+                    request_stop_after(&context.shutdown, stop_code);
+                    match response {
+                        Ok(response) => response,
                         Err(error) => {
-                            telemetry.reject(if error.is_panic() {
-                                RejectionReason::RocPanic
-                            } else {
-                                RejectionReason::HostPanic
-                            });
-                            eprintln!("Recovered from calling Roc: {error:?}");
+                            telemetry.reject(RejectionReason::InvalidRocResponse);
+                            eprintln!("Invalid Roc response: {error}");
                             safe_internal_server_error(&response_semantics)
                         }
                     }
+                }
+                Ok(RocOutcome::File(plan)) => {
+                    telemetry.set_destination(Destination::NativeFile);
+                    let (response, failure) = context
+                        .config
+                        .files
+                        .serve(plan, file_method, file_headers, Arc::clone(&active_request))
+                        .await;
+                    record_file_failure(&telemetry, failure);
+                    response
+                }
+                Ok(RocOutcome::Stream { source, coding }) => {
+                    if coding == StreamingContentCoding::NotAcceptable {
+                        no_acceptable_sse_content_coding()
+                    } else {
+                        match Arc::clone(&context.stream_slots).try_acquire_owned() {
+                            Ok(stream_slot) => {
+                                let lane = if coding == StreamingContentCoding::Brotli {
+                                    match context.brotli.try_admit(BrotliProfile::Scale) {
+                                        Some(lane) => Some(lane),
+                                        None => {
+                                            telemetry.reject(RejectionReason::HandlerOverload);
+                                            return finalize_and_track_response(
+                                                overloaded(),
+                                                &response_semantics,
+                                                Some(active_request),
+                                                http1_activity,
+                                                Some(body_idle_timeout),
+                                                &telemetry,
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    None
+                                };
+                                sse_response(
+                                    RocSseItemSource::new(
+                                        source,
+                                        context.roc_executor.clone(),
+                                        context.telemetry.metrics(),
+                                        context.config.handler_queue_timeout,
+                                        Arc::clone(&active_request),
+                                        stream_slot,
+                                    ),
+                                    lane,
+                                )
+                            }
+                            Err(_) => {
+                                telemetry.reject(RejectionReason::HandlerOverload);
+                                overloaded()
+                            }
+                        }
+                    }
+                }
+                Ok(RocOutcome::Invalid(detail)) => {
+                    telemetry.reject(RejectionReason::InvalidRocResponse);
+                    eprintln!("Invalid Roc response plan: {detail}");
+                    safe_internal_server_error(&response_semantics)
                 }
             }
         }
@@ -2351,10 +2687,11 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
             context.config.drain_timeout
         );
 
-        // spawn_blocking Roc handlers cannot be safely preempted. Running the
-        // shutdown hook or dropping the context while one may still use it
-        // would be unsound, so the configured drain deadline is a hard process
-        // deadline and intentionally skips application shutdown cleanup.
+        // A synchronous Roc invocation already running on the fixed executor
+        // cannot be safely preempted. Running the shutdown hook or dropping
+        // the context while one may still use it would be unsound, so the
+        // configured drain deadline is a hard process deadline and
+        // intentionally skips application shutdown cleanup.
         std::process::exit(1);
     }
 
@@ -2923,69 +3260,31 @@ mod tests {
         assert!(validate_transport_timeout("test", MAX_TRANSPORT_TIMEOUT_MS + 1).is_err());
     }
 
-    #[tokio::test]
-    async fn handler_admission_bounds_active_and_queued_work() {
-        let admission = HandlerAdmission::new(1, 1, Metrics::new());
-        let wait = Duration::from_secs(1);
-        let first = admission.admit(wait).await.unwrap();
+    #[test]
+    fn reusable_sse_completion_tracks_queue_promotion_and_cancel() {
+        let slot = SseCompletionSlot::new();
+        let mut context = Context::from_waker(futures::task::noop_waker_ref());
 
-        let waiting = {
-            let admission = admission.clone();
-            tokio::spawn(async move { admission.admit(wait).await })
-        };
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while admission.queued.available_permits() != 0 {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("second handler did not enter the bounded queue");
-        assert_eq!(admission.queued.available_permits(), 0);
-        assert_eq!(
-            admission.admit(wait).await.err(),
-            Some(AdmissionError::Full),
-            "work beyond the active and queued limits must be rejected",
-        );
-
-        drop(first);
-        let second = tokio::time::timeout(Duration::from_secs(1), waiting)
-            .await
-            .expect("queued handler was not admitted after capacity became available")
-            .unwrap()
-            .expect("bounded queued handler should be admitted");
-        assert_eq!(admission.queued.available_permits(), 1);
-        assert_eq!(admission.active.available_permits(), 0);
-        drop(second);
-        assert_eq!(admission.active.available_permits(), 1);
+        assert!(matches!(slot.poll(&mut context), SseCompletionPoll::Idle));
+        slot.begin();
+        slot.mark_queued();
+        assert!(matches!(slot.poll(&mut context), SseCompletionPoll::Queued));
+        assert!(slot.start_running(true));
+        assert!(matches!(slot.poll(&mut context), SseCompletionPoll::Active));
+        slot.cancel();
+        assert!(matches!(
+            slot.poll(&mut context),
+            SseCompletionPoll::Cancelled
+        ));
     }
 
-    #[tokio::test]
-    async fn zero_handler_queue_rejects_immediately_at_saturation() {
-        let admission = HandlerAdmission::new(1, 0, Metrics::new());
-        let wait = Duration::from_secs(1);
-        let active = admission.admit(wait).await.unwrap();
-        assert_eq!(
-            admission.admit(wait).await.err(),
-            Some(AdmissionError::Full)
-        );
-        drop(active);
-        assert!(admission.admit(wait).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn expired_handler_queue_wait_releases_its_slot_without_dispatch() {
-        let admission = HandlerAdmission::new(1, 1, Metrics::new());
-        let active = admission.admit(Duration::from_secs(1)).await.unwrap();
-
-        assert_eq!(
-            admission.admit(Duration::from_millis(20)).await.err(),
-            Some(AdmissionError::TimedOut)
-        );
-        assert_eq!(admission.queued.available_permits(), 1);
-        assert_eq!(admission.active.available_permits(), 0);
-
-        drop(active);
-        assert!(admission.admit(Duration::from_secs(1)).await.is_ok());
+    #[test]
+    fn cancelled_queued_sse_completion_cannot_start() {
+        let slot = SseCompletionSlot::new();
+        slot.begin();
+        slot.mark_queued();
+        slot.cancel();
+        assert!(!slot.start_running(true));
     }
 
     #[test]

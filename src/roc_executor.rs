@@ -22,9 +22,25 @@ pub(crate) enum SubmitError {
 }
 
 struct State<T> {
-    queue: VecDeque<T>,
+    queue: VecDeque<Entry<T>>,
     outstanding: usize,
+    next_ticket: u64,
     stopping: bool,
+}
+
+struct Entry<T> {
+    ticket: QueueTicket,
+    class: AdmissionClass,
+    job: T,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct QueueTicket(u64);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Submission {
+    pub(crate) class: AdmissionClass,
+    pub(crate) ticket: QueueTicket,
 }
 
 struct Inner<T> {
@@ -67,6 +83,7 @@ impl<T: Send + 'static> FixedExecutor<T> {
             state: Mutex::new(State {
                 queue: VecDeque::with_capacity(capacity),
                 outstanding: 0,
+                next_ticket: 0,
                 stopping: false,
             }),
             available: Condvar::new(),
@@ -118,7 +135,7 @@ impl<T: Send + 'static> FixedExecutorHandle<T> {
     pub(crate) fn try_submit(
         &self,
         build: impl FnOnce(AdmissionClass) -> T,
-    ) -> Result<AdmissionClass, SubmitError> {
+    ) -> Result<Submission, SubmitError> {
         let mut state = self
             .inner
             .state
@@ -135,13 +152,38 @@ impl<T: Send + 'static> FixedExecutorHandle<T> {
         } else {
             AdmissionClass::Queued
         };
+        let ticket = QueueTicket(state.next_ticket);
+        state.next_ticket = state.next_ticket.wrapping_add(1);
         let job = build(class);
-        state.queue.push_back(job);
+        state.queue.push_back(Entry { ticket, class, job });
         state.outstanding += 1;
         debug_assert!(state.queue.len() <= self.inner.capacity);
         drop(state);
         self.inner.available.notify_one();
-        Ok(class)
+        Ok(Submission { class, ticket })
+    }
+
+    /// Remove a job which was admitted as queued but has reached its caller's
+    /// deadline. `None` means a worker already claimed it.
+    pub(crate) fn cancel_queued(&self, ticket: QueueTicket) -> Option<T> {
+        let mut state = self
+            .inner
+            .state
+            .lock()
+            .expect("fixed executor state mutex poisoned");
+        let index = state
+            .queue
+            .iter()
+            .position(|entry| entry.ticket == ticket)?;
+        assert_eq!(state.queue[index].class, AdmissionClass::Queued);
+        let entry = state
+            .queue
+            .remove(index)
+            .expect("located fixed executor entry exists");
+        debug_assert!(state.outstanding > 0);
+        state.outstanding -= 1;
+        drop(state);
+        Some(entry.job)
     }
 
     #[cfg(test)]
@@ -172,8 +214,8 @@ fn worker_loop<T: Send + 'static>(inner: Arc<Inner<T>>) {
                 .lock()
                 .expect("fixed executor state mutex poisoned");
             loop {
-                if let Some(job) = state.queue.pop_front() {
-                    break job;
+                if let Some(entry) = state.queue.pop_front() {
+                    break entry.job;
                 }
                 if state.stopping {
                     return;
@@ -230,22 +272,57 @@ mod tests {
             completed: Arc::clone(&completed),
         };
 
-        assert_eq!(
-            handle.try_submit(|class| {
+        let first = handle
+            .try_submit(|class| {
                 assert_eq!(class, AdmissionClass::Active);
                 job()
-            }),
-            Ok(AdmissionClass::Active)
-        );
+            })
+            .unwrap();
+        assert_eq!(first.class, AdmissionClass::Active);
         started.wait();
-        assert_eq!(
-            handle.try_submit(|class| {
+        let second = handle
+            .try_submit(|class| {
                 assert_eq!(class, AdmissionClass::Queued);
                 job()
-            }),
-            Ok(AdmissionClass::Queued)
-        );
+            })
+            .unwrap();
+        assert_eq!(second.class, AdmissionClass::Queued);
         assert_eq!(handle.try_submit(|_| job()), Err(SubmitError::Full));
+
+        release.wait();
+        while completed.load(Ordering::Acquire) != 1 {
+            std::thread::yield_now();
+        }
+        started.wait();
+        release.wait();
+        executor.shutdown();
+        assert_eq!(completed.load(Ordering::Acquire), 2);
+    }
+
+    #[test]
+    fn cancelling_waiting_work_recovers_capacity_without_dispatch() {
+        let executor = FixedExecutor::new("cancel-test", 1, 1, run_blocking).unwrap();
+        let handle = executor.handle();
+        let started = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let completed = Arc::new(AtomicUsize::new(0));
+        let job = || BlockingJob {
+            started: Arc::clone(&started),
+            release: Arc::clone(&release),
+            completed: Arc::clone(&completed),
+        };
+
+        handle.try_submit(|_| job()).unwrap();
+        started.wait();
+        let waiting = handle.try_submit(|_| job()).unwrap();
+        assert_eq!(waiting.class, AdmissionClass::Queued);
+        drop(
+            handle
+                .cancel_queued(waiting.ticket)
+                .expect("waiting job remains cancellable"),
+        );
+        let replacement = handle.try_submit(|_| job()).unwrap();
+        assert_eq!(replacement.class, AdmissionClass::Queued);
 
         release.wait();
         while completed.load(Ordering::Acquire) != 1 {
