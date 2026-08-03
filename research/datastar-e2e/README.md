@@ -5,6 +5,12 @@ research program. `app.roc` and the pinned official Go SDK reference server
 serve the same fixed workloads; `scripts/datastar_benchmark.py` builds both,
 verifies their decoded event streams, and records repeated measurements.
 
+The operational follow-up adds mixed ordinary/SSE load, simultaneous timer
+wakes, p50/p95/p99 latency, exact stream saturation and recovery, several
+parked-stream counts, and disconnect storms. Its analysis is
+[`results/2026-08-03-operational.md`](results/2026-08-03-operational.md), with
+raw records beside it.
+
 The comparison has two distinct compression baselines:
 
 - `identity` sends uncompressed SSE from both servers;
@@ -21,7 +27,8 @@ SDK framing and transport from per-event application rendering.
 `/progressive` emits three events 100 ms apart, `/finite` emits one event, and
 `/idle` emits immediately and then parks for 60 seconds.
 
-This is research evidence, not an accepted change to `design.md`.
+This is reproducible evidence for the accepted typed SSE design; it does not
+define portable performance guarantees.
 
 The measured result and prioritized follow-up hypotheses are in
 [`results/2026-08-03-analysis.md`](results/2026-08-03-analysis.md). The complete
