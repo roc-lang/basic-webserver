@@ -1015,6 +1015,21 @@
               }
             },
             {
+              "raw": true,
+              "half_close": false,
+              "expect_close": true,
+              "timeout": 2,
+              "data": "GET /long-wait-first HTTP/1.1\r\nHost: localhost\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n",
+              "expect_response_before_ms": {
+                "timeout_ms": 200,
+                "contains": "HTTP/1.1 200 OK\r\n",
+                "not_contains": "after long initial wait"
+              },
+              "response_contains": [
+                "data: after long initial wait\n\n"
+              ]
+            },
+            {
               "target": "/end-first",
               "expect_body": "",
               "response_headers": {
@@ -1031,6 +1046,19 @@
                 "event: datastar-patch-elements\ndata: mode remove\ndata: selector #target\ndata: useViewTransition true\ndata: viewTransitionSelector #removed-transition\n\n"
               ]
             }
+          ],
+          "http2_requests": [
+            {
+              "name": "typed-sse-precommit",
+              "target": "/options",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "data: viewTransitionSelector #removed-transition"
+              ]
+            }
+          ],
+          "http2_completion_order": [
+            "typed-sse-precommit"
           ]
         }
       ]

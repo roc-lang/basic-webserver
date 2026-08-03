@@ -107,6 +107,12 @@ Every transition contributes to the bounded Roc-handler duration histogram;
 the access-log handler fields describe the initial `respond!` call, while its
 overall request duration includes the complete stream lifetime.
 
+The OpenMetrics endpoint also exports current and high-water gauges for
+admitted SSE streams, leased Brotli lanes, queued Brotli operations, and
+running Brotli operations under the `basic_webserver_sse_*` namespace. These
+distinguish stream-slot pressure from compression pressure when a request is
+rejected before commitment.
+
 ## Content coding
 
 The response always uses host-owned canonical headers:

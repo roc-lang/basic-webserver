@@ -26,6 +26,7 @@ respond! = |request, _context| {
 		"/error-first" => Ok(Server.stream(Sse.unfold!({}, |_state| Err(StreamFailed("initial transition failed")))))
 		"/end-first" => Ok(Server.stream(Sse.unfold!({}, |_state| Ok(End))))
 		"/wait-first" => Ok(Server.stream(Sse.unfold!(0, wait_first_transition!)))
+		"/long-wait-first" => Ok(Server.stream(Sse.unfold!(0, long_wait_first_transition!)))
 		"/oversize-first" => Ok(Server.stream(Sse.unfold!({}, |_state| Ok(Emit({ event: Sse.Event.data(Str.repeat("x", 1024 * 1024)), state: {}, wake: Immediately })))))
 		"/options" => Ok(Server.stream(Sse.unfold!(0, options_transition!)))
 		_ => Ok(Server.stream(Sse.unfold!(0, transition!)))
@@ -91,6 +92,14 @@ wait_first_transition! = |state|
 	match state {
 		0 => Ok(Wait({ state: 1, wake: After(20) }))
 		1 => Ok(Emit({ event: Sse.Event.data("after initial wait"), state: 2, wake: Immediately }))
+		_ => Ok(End)
+	}
+
+long_wait_first_transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
+long_wait_first_transition! = |state|
+	match state {
+		0 => Ok(Wait({ state: 1, wake: After(500) }))
+		1 => Ok(Emit({ event: Sse.Event.data("after long initial wait"), state: 2, wake: Immediately }))
 		_ => Ok(End)
 	}
 

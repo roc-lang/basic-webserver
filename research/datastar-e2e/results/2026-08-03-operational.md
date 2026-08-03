@@ -8,12 +8,13 @@ than another framing or transport optimization. Raw records are in
 
 The environment record pins:
 
-- basic-webserver `8d3483d93da109b884a7d2666722295f0026a4b3`;
-- Roc `debug-5a5f4c02` from the compiler branch used for the retained-callable
-  and `Str.repeat` work;
-- Go 1.26.5; and
-- 3 measured samples after one warmup, with Roc and Go pinned to the same
-  server CPU and clients pinned to another CPU.
+- basic-webserver and harness `54d54708fba0658284a889bf10a868aaae1e17de`;
+- Roc `debug-5a5f4c02` from the retained erased-callable compiler branch;
+- Go 1.26.5;
+- one server process on CPU 2 and the Python/curl clients on CPU 3; and
+- three measured samples after one warmup for timing scenarios. Idle-memory
+  samples intentionally use fresh processes without warmup so their fixed and
+  marginal costs remain visible.
 
 Run the operational subset with:
 
@@ -28,70 +29,82 @@ python3 scripts/datastar_benchmark.py \
   --idle-streams 10,50,100 \
   --load-requests 64 \
   --load-concurrency 16 \
-  --wake-streams 32 \
+  --ready-streams 64 \
+  --wake-streams 96 \
   --disconnects 50 \
   --output results/operational.jsonl
 ```
 
-The Go reference now has the same explicit 128-stream admission limit as the
-Roc comparison app. That is comparison scaffolding around datastar-go, not a
-claim that the SDK supplies server admission policy automatically.
+The Go reference has the same explicit 128-stream admission limit as the Roc
+comparison app. That is comparison scaffolding around datastar-go, not a claim
+that the SDK supplies server admission policy automatically.
 
 ## Result
 
-The current implementation is operationally comparable to the bounded Go
-reference in this controlled local test:
+The corrected evidence supports the accepted bounded design:
 
-- With no parked streams, 16 concurrent ordinary requests reached median
-  18,421 requests/s in Roc and 18,132 requests/s in Go. With 50 parked SSE
-  responses, Roc measured 17,238 requests/s and Go 19,318 requests/s. Median
-  p99 was 1.05 ms for Roc and 0.93 ms for Go with the parked streams. These raw
-  TCP requests deliberately include connection setup and Python driver cost;
-  the result supports isolation from parked SSE, not a sub-millisecond product
-  guarantee.
-- Thirty-two streams waking after the same 100 ms delay completed their second
-  event at p99 103.74 ms in Roc and 103.06 ms in Go. Completion spread was
-  2.21 ms in Roc and 2.60 ms in Go. The unified Roc pool handled the wake wave
-  without serializing one worker per parked stream.
-- At exactly 128 parked streams, the next identity and Brotli stream received
-  `503` in both implementations. Closing one stream restored admission; all
-  median saturation responses and recovery requests completed in under
-  0.1 ms.
-- After 50 rapid open/first-event/disconnect cycles, both identity and Brotli
-  servers immediately served a finite stream. Median recovery was 0.068-0.079
-  ms for Roc and 0.044-0.080 ms for Go.
-- Progressive event gaps remained close to the requested 100 ms: Roc measured
-  101.19 and 101.17 ms; Go measured 100.19 and 100.17 ms. First response bytes
-  arrived in 0.20 ms for Roc and 0.16 ms for Go.
+- Parked streams did not occupy execution capacity. With 16 concurrent
+  ordinary clients, median p99 was 1.94 ms with no parked Roc streams and
+  1.29 ms with 50; Go measured 1.35 ms and 2.12 ms. The change within each
+  implementation is run noise, so this establishes absence of material parked
+  interference rather than a throughput ranking.
+- A contention scenario started 64 transition-heavy, 1,000-event SSE responses
+  alongside 64 ordinary requests. Roc ordinary-request p99 was 13.50 ms while
+  the SSE group completed in 531 ms; Go ordinary p99 was 221.18 ms while its
+  SSE group completed in 221 ms. Roc's unified bounded pool preserved ordinary
+  responsiveness by sharing execution, at the cost of lower aggregate event
+  throughput in this single-core workload. This is the clearest remaining
+  engineering tradeoff, not evidence for another framing ABI.
+- For 96 concurrently opened two-event streams, the per-stream first-to-second
+  event gap had median p99 102.33 ms in Roc and 110.84 ms in Go against a
+  requested 100 ms. This deliberately reports each stream's gap; it does not
+  claim that connection setup armed every timer at one common instant.
+- At exactly 128 parked streams, the next stream received `503` in both
+  implementations. Closing one restored admission. Identity and Brotli runs
+  both sent their matching `Accept-Encoding`; successful Brotli recovery also
+  required `Content-Encoding: br`.
+- A concurrent burst of 50 open/first-event/disconnect operations returned
+  parked stream slots and Brotli lanes. Median recovery was 0.18/0.30 ms for
+  Roc identity/Brotli and 0.13/0.17 ms for Go. This covers parked cancellation,
+  not cancellation of a synchronously running Roc transition.
+- Progressive event gaps stayed close to the requested 100 ms: Roc measured
+  101.29 and 101.21 ms; Go measured 100.24 and 100.56 ms. First response bytes
+  arrived in 0.38 ms for Roc and 0.24 ms for Go.
+
+The request counts are intentionally small and include raw TCP connection and
+Python-driver cost. They are useful for bounded lifecycle comparisons, not
+sub-millisecond product guarantees or headline requests-per-second claims.
 
 ## Parked memory
 
-RSS deltas are page-granular and noisy at small counts, so the 100-stream
-sample is the useful comparison:
+Cold-start delta divided by stream count was misleading because both servers
+show substantial fixed lazy initialization. The table instead uses the median
+RSS delta change from 50 to 100 streams:
 
-| Coding | Roc bytes/stream | Go bytes/stream | Roc/Go |
+| Coding | Roc marginal bytes/stream | Go marginal bytes/stream | Roc/Go |
 | --- | ---: | ---: | ---: |
-| identity | 99,410 | 43,704 | 2.27x |
-| Brotli q1 | 104,284 | 76,308 | 1.37x |
+| identity | 45,629 | 40,796 | 1.12x |
+| Brotli q1 | 49,316 | 75,530 | 0.65x |
 
-This characterizes the accepted implementation rather than reopening the hot
-path. Each parked Roc body currently owns its response frame capacity. Sharing
-frames only among active streams remains a possible future optimization, as
-does structured host framing of the one remaining Roc event allocation. Both
-are explicitly outside this consolidation work.
+These page-granular three-sample slopes do not establish a meaningful parked
+memory gap. The active-only response-frame pool remains a possible future
+optimization, as does structured host framing of the one remaining Roc event
+allocation, but neither is justified as a consolidation gate by this evidence.
 
 ## Interpretation
 
-The evidence now covers the comparison questions that matter for this design:
+The operational comparison now demonstrates:
 
 - parked sources consume no Roc worker;
-- ordinary work remains responsive with many active SSE requests;
-- a simultaneous ready wave has Go-comparable timing;
-- stream capacity saturates deliberately and recovers immediately;
-- cancellation storms return stream and Brotli capacity; and
-- the remaining measurable gap is parked memory and small-event fixed cost,
-  not an unbounded lifecycle or transport failure.
+- ordinary handlers and ready SSE transitions genuinely contend through one
+  bounded execution policy;
+- timer-driven transitions remain close to Go at 96 concurrent streams;
+- identity and Brotli stream capacity saturate deliberately and recover; and
+- concurrent parked-stream cancellation returns stream and Brotli capacity.
 
-This does not claim that Roc wins every microbenchmark. The acceptance target
-is a predictable bounded server with an idiomatic typed application API and
-operational behavior comparable to a deliberately bounded Go implementation.
+The comparison does not claim that Roc wins every microbenchmark or that it
+has covered preemption of running Roc code. The acceptance target is an
+idiomatic typed API and a finite, observable lifecycle with Go-comparable
+behavior. The evidence meets that target while identifying unified-pool
+throughput/fairness as the next tuning surface if production workloads demand
+it.

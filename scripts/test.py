@@ -1421,6 +1421,37 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
                 time.sleep(float(fragment["delay_ms"]) / 1000)
         if request.get("half_close", True):
             sock.shutdown(socket.SHUT_WR)
+        early = request.get("expect_response_before_ms")
+        if early is not None:
+            if not isinstance(early, dict):
+                fail(f"{owner}: expect_response_before_ms must be an object")
+            timeout_ms = float(early.get("timeout_ms", 0))
+            expected = str(early.get("contains", "")).encode()
+            if timeout_ms <= 0 or not expected:
+                fail(
+                    f"{owner}: expect_response_before_ms needs positive timeout_ms and contains"
+                )
+            deadline = time.monotonic() + timeout_ms / 1000
+            while expected not in received:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    fail(
+                        f"{owner}: raw response did not contain {expected!r} within {timeout_ms}ms"
+                    )
+                sock.settimeout(remaining)
+                try:
+                    chunk = sock.recv(65536)
+                except TimeoutError:
+                    fail(
+                        f"{owner}: raw response did not contain {expected!r} within {timeout_ms}ms"
+                    )
+                if not chunk:
+                    fail(f"{owner}: raw connection closed before early response assertion")
+                received.extend(chunk)
+            forbidden = early.get("not_contains")
+            if forbidden is not None and str(forbidden).encode() in received:
+                fail(f"{owner}: raw early response unexpectedly contained {forbidden!r}")
+            sock.settimeout(float(request.get("timeout", 5)))
         while True:
             try:
                 chunk = sock.recv(65536)

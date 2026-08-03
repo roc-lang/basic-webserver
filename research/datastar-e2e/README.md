@@ -5,9 +5,9 @@ research program. `app.roc` and the pinned official Go SDK reference server
 serve the same fixed workloads; `scripts/datastar_benchmark.py` builds both,
 verifies their decoded event streams, and records repeated measurements.
 
-The operational follow-up adds mixed ordinary/SSE load, simultaneous timer
-wakes, p50/p95/p99 latency, exact stream saturation and recovery, several
-parked-stream counts, and disconnect storms. Its analysis is
+The operational follow-up adds mixed ordinary/SSE load, concurrent per-stream
+timer gaps, p50/p95/p99 latency, exact stream saturation and recovery, several
+parked-stream counts, and concurrent parked-stream cancellation bursts. Its analysis is
 [`results/2026-08-03-operational.md`](results/2026-08-03-operational.md), with
 raw records beside it.
 
@@ -54,7 +54,8 @@ python3 scripts/datastar_benchmark.py \
   --output research/datastar-e2e/results/YYYY-MM-DD-raw.jsonl
 ```
 
-The server is pinned to logical CPU 2 and curl to logical CPU 3. The script
+The server is pinned to logical CPU 2 and the Python/curl clients to logical
+CPU 3. The script
 uses HTTP/1.1 because Go's idiomatic `net/http.ListenAndServe` reference does
 not offer cleartext HTTP/2; HTTP/2 remains a Roc transport validation rather
 than part of this direct semantic comparison.
