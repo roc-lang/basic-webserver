@@ -5,6 +5,7 @@ app [Context, program] {
 }
 
 import pf.Server
+import pf.Datastar
 import pf.Sse
 
 Context : {}
@@ -21,11 +22,11 @@ respond! = |_request, _context|
 transition! : U64, U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
 transition! = |state, _wake_generation|
 	match state {
-		0 => Ok(Emit({ event: Sse.Event.data("A"), state: 1, wake: After(50) }))
-		1 => Ok(Emit({ event: Sse.Event.data("B"), state: 2, wake: Immediately }))
+		0 => Ok(Emit({ event: Datastar.patch_elements("<div id=\"stage\">A</div>"), state: 1, wake: After(50) }))
+		1 => Ok(Emit({ event: Datastar.patch_signals("{\"stage\":\"B\"}"), state: 2, wake: Immediately }))
 		2 => Ok(Wait({ state: 3, wake: After(20) }))
-		3 => Ok(Emit({ event: Sse.Event.data("large-${Str.repeat("x", 20000)}"), state: 4, wake: Immediately }))
-		4 => Ok(Emit({ event: Sse.Event.data("done"), state: 5, wake: Immediately }))
+		3 => Ok(Emit({ event: Datastar.patch_elements("<pre id=\"large\">${Str.repeat("x", 20000)}</pre>"), state: 4, wake: Immediately }))
+		4 => Ok(Emit({ event: Datastar.patch_elements("<div id=\"stage\">done</div>"), state: 5, wake: Immediately }))
 		5 => Ok(End)
 		_ => Err(StreamFailed("invalid retained source state"))
 	}

@@ -962,11 +962,11 @@
           "name": "retained-source-through-listener",
           "requests": [
             {
-              "expect_body_bytes": 20044,
               "body_contains": [
-                "data: A\n\ndata: B\n\n",
-                "data: large-xxxxxxxx",
-                "data: done\n\n"
+                "event: datastar-patch-elements\ndata: elements <div id=\"stage\">A</div>\n\n",
+                "event: datastar-patch-signals\ndata: signals {\"stage\":\"B\"}\n\n",
+                "data: elements <pre id=\"large\">xxxxxxxx",
+                "data: elements <div id=\"stage\">done</div>\n\n"
               ],
               "response_headers": {
                 "Content-Type": "text/event-stream",

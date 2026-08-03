@@ -8,6 +8,24 @@ Sse :: [].{
 
 	Event := [Event(List(U8))].{
 
+		## Construct one named SSE event from already-keyed data fields. Event
+		## names have line endings removed so they cannot create a second SSE
+		## field. Every logical line in a data field is emitted as its own
+		## `data:` line.
+		named : Str, List(Str) -> Event
+		named = |name, values| {
+			safe_name = Str.join_with(Str.split_on(Str.join_with(Str.split_on(name, "\r"), ""), "\n"), "")
+			fields = values.map(
+				|value| {
+					lf = Str.join_with(Str.split_on(value, "\r\n"), "\n")
+					normalized = Str.join_with(Str.split_on(lf, "\r"), "\n")
+					lines = Str.split_on(normalized, "\n").map(|line| "data: ${line}")
+					Str.join_with(lines, "\n")
+				},
+			)
+			Event(Str.to_utf8("event: ${safe_name}\n${Str.join_with(fields, "\n")}\n\n"))
+		}
+
 		## Construct one SSE data event. Embedded CR, LF, and CRLF line endings
 		## are normalized and emitted as one `data:` field per logical line.
 		data : Str -> Event

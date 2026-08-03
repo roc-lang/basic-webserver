@@ -84,6 +84,37 @@ static REQUEST_BODY_HIGH_WATER: AtomicUsize = AtomicUsize::new(0);
 static ACTIVE_SEAMLESS_BACKINGS: AtomicUsize = AtomicUsize::new(0);
 static SEAMLESS_BACKING_HIGH_WATER: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(feature = "sse-benchmark-instrumentation")]
+static BENCH_ALLOC_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "sse-benchmark-instrumentation")]
+static BENCH_DEALLOC_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "sse-benchmark-instrumentation")]
+static BENCH_REALLOC_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "sse-benchmark-instrumentation")]
+static BENCH_ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "sse-benchmark-instrumentation")]
+static BENCH_REALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(feature = "sse-benchmark-instrumentation")]
+pub(crate) struct BenchmarkAllocationCounts {
+    pub allocs: usize,
+    pub deallocs: usize,
+    pub reallocs: usize,
+    pub allocated_bytes: usize,
+    pub reallocated_bytes: usize,
+}
+
+#[cfg(feature = "sse-benchmark-instrumentation")]
+pub(crate) fn benchmark_counts() -> BenchmarkAllocationCounts {
+    BenchmarkAllocationCounts {
+        allocs: BENCH_ALLOC_CALLS.load(Ordering::Relaxed),
+        deallocs: BENCH_DEALLOC_CALLS.load(Ordering::Relaxed),
+        reallocs: BENCH_REALLOC_CALLS.load(Ordering::Relaxed),
+        allocated_bytes: BENCH_ALLOCATED_BYTES.load(Ordering::Relaxed),
+        reallocated_bytes: BENCH_REALLOCATED_BYTES.load(Ordering::Relaxed),
+    }
+}
+
 #[cfg(debug_assertions)]
 #[derive(Clone, Copy)]
 struct DebugAllocation {
@@ -433,10 +464,17 @@ pub(crate) extern "C" fn roc_alloc(
     length: usize,
     alignment: usize,
 ) -> *mut c_void {
+    #[cfg(feature = "sse-benchmark-instrumentation")]
+    {
+        BENCH_ALLOC_CALLS.fetch_add(1, Ordering::Relaxed);
+        BENCH_ALLOCATED_BYTES.fetch_add(length, Ordering::Relaxed);
+    }
     unsafe { allocate(length, alignment, AllocationKind::Ordinary, None).cast() }
 }
 
 pub(crate) extern "C" fn roc_dealloc(_roc_host: *mut RocHost, ptr: *mut c_void, alignment: usize) {
+    #[cfg(feature = "sse-benchmark-instrumentation")]
+    BENCH_DEALLOC_CALLS.fetch_add(1, Ordering::Relaxed);
     let user_ptr = ptr.cast::<u8>();
     let (layout, base, kind, drop_fn) = unsafe {
         let header = &mut *validate_header(user_ptr, Some(alignment));
@@ -467,6 +505,11 @@ pub(crate) extern "C" fn roc_realloc(
     new_length: usize,
     alignment: usize,
 ) -> *mut c_void {
+    #[cfg(feature = "sse-benchmark-instrumentation")]
+    {
+        BENCH_REALLOC_CALLS.fetch_add(1, Ordering::Relaxed);
+        BENCH_REALLOCATED_BYTES.fetch_add(new_length, Ordering::Relaxed);
+    }
     let old_user_ptr = ptr.cast::<u8>();
     unsafe {
         let header = &mut *validate_header(old_user_ptr, Some(alignment));

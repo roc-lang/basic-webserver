@@ -17,6 +17,7 @@ platform "webserver"
 	exposes [
 		Attribute,
 		Cmd,
+		Datastar,
 		Env,
 		File,
 		Html,
@@ -121,6 +122,7 @@ platform "webserver"
 	}
 
 import Cmd
+import Datastar
 import Env
 import File
 import Host

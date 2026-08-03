@@ -8,6 +8,8 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+#[cfg(feature = "sse-benchmark-instrumentation")]
+mod allocation_benchmark;
 mod body_sink;
 mod bounded_gate;
 mod brotli_executor;
@@ -59,7 +61,7 @@ pub fn rust_main() -> i32 {
         + request_body::metrics().active_bodies
         + request_body::metrics().active_backings
         + readiness::active_resources();
-    if live_resources != 0 {
+    let result = if live_resources != 0 {
         eprintln!(
             "host resource lifecycle error: {live_resources} native resources remained after \
              shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={}, \
@@ -75,5 +77,8 @@ pub fn rust_main() -> i32 {
         1
     } else {
         exit_code
-    }
+    };
+    #[cfg(feature = "sse-benchmark-instrumentation")]
+    allocation_benchmark::report();
+    result
 }
