@@ -376,7 +376,12 @@ def idle_sample(server: Server, streams: int, sample: int) -> dict[str, object]:
 
 
 def allocation_total(
-    implementation: str, coding: str, path: str, events: int, sample: int
+    implementation: str,
+    coding: str,
+    workload: str,
+    path: str,
+    events: int,
+    sample: int,
 ) -> dict[str, object]:
     server = Server.start(implementation, coding, allocations=True)
     try:
@@ -397,6 +402,7 @@ def allocation_total(
             "kind": "allocation-total",
             "implementation": implementation,
             "coding": coding,
+            "workload": workload,
             "path": path,
             "events": events,
             "sample": sample,
@@ -419,6 +425,7 @@ def allocation_total(
         "kind": "allocation-total",
         "implementation": implementation,
         "coding": coding,
+        "workload": workload,
         "path": path,
         "events": events,
         "sample": sample,
@@ -443,38 +450,42 @@ def allocation_slopes(records: list[dict[str, object]]) -> list[dict[str, object
     )
     for implementation in ("roc", "go"):
         for coding in ("identity", "scale"):
-            sample_ids = sorted(
-                {
-                    int(record["sample"])
-                    for record in records
-                    if record["kind"] == "allocation-total"
-                    and record["implementation"] == implementation
-                    and record["coding"] == coding
-                }
-            )
-            for sample in sample_ids:
-                selected = {
-                    int(record["events"]): record
-                    for record in records
-                    if record["kind"] == "allocation-total"
-                    and record["implementation"] == implementation
-                    and record["coding"] == coding
-                    and record["sample"] == sample
-                }
-                low, high = selected[100], selected[1000]
-                summary: dict[str, object] = {
-                    "kind": "allocation-slope",
-                    "implementation": implementation,
-                    "coding": coding,
-                    "sample": sample,
-                    "event_delta": 900,
-                }
-                for field in measured_fields:
-                    if field in low and field in high:
-                        summary[f"{field}_per_event"] = (
-                            int(high[field]) - int(low[field])
-                        ) / 900
-                summaries.append(summary)
+            for workload in ("dynamic", "transport"):
+                sample_ids = sorted(
+                    {
+                        int(record["sample"])
+                        for record in records
+                        if record["kind"] == "allocation-total"
+                        and record["implementation"] == implementation
+                        and record["coding"] == coding
+                        and record["workload"] == workload
+                    }
+                )
+                for sample in sample_ids:
+                    selected = {
+                        int(record["events"]): record
+                        for record in records
+                        if record["kind"] == "allocation-total"
+                        and record["implementation"] == implementation
+                        and record["coding"] == coding
+                        and record["workload"] == workload
+                        and record["sample"] == sample
+                    }
+                    low, high = selected[100], selected[1000]
+                    summary: dict[str, object] = {
+                        "kind": "allocation-slope",
+                        "implementation": implementation,
+                        "coding": coding,
+                        "workload": workload,
+                        "sample": sample,
+                        "event_delta": 900,
+                    }
+                    for field in measured_fields:
+                        if field in low and field in high:
+                            summary[f"{field}_per_event"] = (
+                                int(high[field]) - int(low[field])
+                            ) / 900
+                    summaries.append(summary)
     return summaries
 
 
@@ -564,6 +575,9 @@ def main() -> None:
             try:
                 records.extend(verify(server))
                 for path, events in (
+                    ("/transport-256", 10000),
+                    ("/transport-4096", 2000),
+                    ("/transport-65536", 200),
                     ("/hot-10000", 10000),
                     ("/hot-4096", 2000),
                     ("/hot-65536", 200),
@@ -599,12 +613,20 @@ def main() -> None:
         for coding in ("identity", "scale"):
             for implementation in ("roc", "go"):
                 for sample in range(args.allocation_samples):
-                    records.append(
-                        allocation_total(implementation, coding, "/hot-100", 100, sample)
-                    )
-                    records.append(
-                        allocation_total(implementation, coding, "/hot-1000", 1000, sample)
-                    )
+                    for workload, low_path, high_path in (
+                        ("dynamic", "/hot-100", "/hot-1000"),
+                        ("transport", "/transport-100", "/transport-1000"),
+                    ):
+                        records.append(
+                            allocation_total(
+                                implementation, coding, workload, low_path, 100, sample
+                            )
+                        )
+                        records.append(
+                            allocation_total(
+                                implementation, coding, workload, high_path, 1000, sample
+                            )
+                        )
         records.extend(allocation_slopes(records))
 
     records.extend(median_summary(records))

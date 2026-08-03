@@ -24,7 +24,10 @@ func main() {
 	http.HandleFunc("/finite", finite)
 	http.HandleFunc("/progressive", progressive)
 	http.HandleFunc("/persistent", persistent)
-	for _, route := range []string{"/hot-100", "/hot-1000", "/hot-10000", "/hot-4096", "/hot-65536", "/idle"} {
+	for _, route := range []string{
+		"/hot-100", "/hot-1000", "/hot-10000", "/hot-4096", "/hot-65536",
+		"/transport-100", "/transport-1000", "/transport-256", "/transport-4096", "/transport-65536", "/idle",
+	} {
 		http.HandleFunc(route, fixedWorkload)
 	}
 	log.Printf("Go Datastar reference listening on http://%s (%s)", *address, *coding)
@@ -77,8 +80,16 @@ func fixedWorkload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sse := stream(w, r)
+	preparedHTML := ""
+	if strings.HasPrefix(r.URL.Path, "/transport-") {
+		preparedHTML = htmlPayload(payloadBytes, 1)
+	}
 	for sequence := 1; sequence <= events; sequence++ {
-		if err := sse.PatchElements(htmlPayload(payloadBytes, sequence)); err != nil {
+		html := preparedHTML
+		if html == "" {
+			html = htmlPayload(payloadBytes, sequence)
+		}
+		if err := sse.PatchElements(html); err != nil {
 			return
 		}
 		if delay != 0 && sequence != events {
@@ -113,12 +124,18 @@ func workload(path string) (events int, payloadBytes int, delay time.Duration) {
 		return 100, 256, 0
 	case "/hot-1000":
 		return 1000, 256, 0
+	case "/transport-100":
+		return 100, 256, 0
+	case "/transport-1000":
+		return 1000, 256, 0
 	case "/hot-10000":
 		return 10000, 256, 0
-	case "/hot-4096":
+	case "/hot-4096", "/transport-4096":
 		return 2000, 4096, 0
-	case "/hot-65536":
+	case "/hot-65536", "/transport-65536":
 		return 200, 65536, 0
+	case "/transport-256":
+		return 10000, 256, 0
 	case "/idle":
 		return 1_000_000, 256, 60 * time.Second
 	default:

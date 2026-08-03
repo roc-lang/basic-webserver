@@ -15,6 +15,9 @@ The comparison has two distinct compression baselines:
 
 The hot routes are `/hot-100`, `/hot-1000`, `/hot-10000`, `/hot-4096`, and
 `/hot-65536`.
+The corresponding `/transport-256`, `/transport-4096`, and
+`/transport-65536` routes retain one pre-rendered HTML value so they isolate
+SDK framing and transport from per-event application rendering.
 `/progressive` emits three events 100 ms apart, `/finite` emits one event, and
 `/idle` emits immediately and then parks for 60 seconds.
 

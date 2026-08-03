@@ -23,7 +23,7 @@ Datastar :: [].{
 
 	## Patch elements using Datastar's default ID-based outer merge.
 	patch_elements : Str -> Sse.Event
-	patch_elements = |html| patch_elements_with(html, default_patch_elements_options)
+	patch_elements = |html| Sse.Event.keyed("datastar-patch-elements", "elements", html)
 
 	## Patch elements with an explicit selector, patch mode, or view transition.
 	patch_elements_with : Str, PatchElementsOptions -> Sse.Event
@@ -67,7 +67,7 @@ Datastar :: [].{
 	## a separate Datastar `signals` field.
 	patch_signals : Str -> Sse.Event
 	patch_signals = |signals|
-		Sse.Event.named("datastar-patch-signals", keyed_lines("signals", signals))
+		Sse.Event.keyed("datastar-patch-signals", "signals", signals)
 
 }
 

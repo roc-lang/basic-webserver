@@ -8,6 +8,28 @@ Sse :: [].{
 
 	Event := [Event(List(U8))].{
 
+		## Construct a named SSE event containing one keyed data value. The common
+		## single-line path creates the complete frame once; multiline values fall
+		## back to canonical repeated keyed fields.
+		keyed : Str, Str, Str -> Event
+		keyed = |name, key, value| {
+			safe_name =
+				if Str.contains(name, "\r") or Str.contains(name, "\n") {
+					Str.join_with(Str.split_on(Str.join_with(Str.split_on(name, "\r"), ""), "\n"), "")
+				} else {
+					name
+				}
+
+			if Str.contains(value, "\r") or Str.contains(value, "\n") {
+				lf = Str.join_with(Str.split_on(value, "\r\n"), "\n")
+				normalized = Str.join_with(Str.split_on(lf, "\r"), "\n")
+				fields = Str.split_on(normalized, "\n").map(|line| "${key} ${line}")
+				named(safe_name, fields)
+			} else {
+				Event(Str.to_utf8("event: ${safe_name}\ndata: ${key} ${value}\n\n"))
+			}
+		}
+
 		## Construct one named SSE event from already-keyed data fields. Event
 		## names have line endings removed so they cannot create a second SSE
 		## field. Every logical line in a data field is emitted as its own
@@ -30,6 +52,9 @@ Sse :: [].{
 		## are normalized and emitted as one `data:` field per logical line.
 		data : Str -> Event
 		data = |value| {
+			if Bool.not(Str.contains(value, "\r")) and Bool.not(Str.contains(value, "\n")) {
+				return Event(Str.to_utf8("data: ${value}\n\n"))
+			}
 			lf = Str.join_with(Str.split_on(value, "\r\n"), "\n")
 			normalized = Str.join_with(Str.split_on(lf, "\r"), "\n")
 			fields = Str.split_on(normalized, "\n").map(|line| "data: ${line}")
