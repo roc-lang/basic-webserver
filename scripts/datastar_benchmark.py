@@ -450,7 +450,7 @@ def allocation_slopes(records: list[dict[str, object]]) -> list[dict[str, object
     )
     for implementation in ("roc", "go"):
         for coding in ("identity", "scale"):
-            for workload in ("dynamic", "transport"):
+            for workload in ("dynamic", "repeat", "assemble", "transport"):
                 sample_ids = sorted(
                     {
                         int(record["sample"])
@@ -549,6 +549,8 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--warmup", type=int, default=2)
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--skip-allocations", action="store_true")
+    parser.add_argument("--skip-idle", action="store_true")
+    parser.add_argument("--skip-progressive", action="store_true")
     parser.add_argument("--allocation-samples", type=int, default=3)
     parser.add_argument("--go", type=Path, default=GO_DEFAULT)
     parser.add_argument("--output", type=Path)
@@ -578,6 +580,12 @@ def main() -> None:
                     ("/transport-256", 10000),
                     ("/transport-4096", 2000),
                     ("/transport-65536", 200),
+                    ("/repeat-256", 10000),
+                    ("/repeat-4096", 2000),
+                    ("/repeat-65536", 200),
+                    ("/assemble-256", 10000),
+                    ("/assemble-4096", 2000),
+                    ("/assemble-65536", 200),
                     ("/hot-10000", 10000),
                     ("/hot-4096", 2000),
                     ("/hot-65536", 200),
@@ -586,7 +594,7 @@ def main() -> None:
                         hot_sample(server, path, events, -1)
                     for sample in range(args.samples):
                         records.append(hot_sample(server, path, events, sample))
-                if coding == "identity":
+                if coding == "identity" and not args.skip_progressive:
                     for _ in range(args.warmup):
                         progressive_sample(server, -1)
                     for sample in range(args.samples):
@@ -595,15 +603,16 @@ def main() -> None:
                 server.stop()
                 server.close_logs()
 
-    for coding in ("identity", "scale"):
-        for implementation in ("roc", "go"):
-            for sample in range(args.samples):
-                server = Server.start(implementation, coding)
-                try:
-                    records.append(idle_sample(server, 50, sample))
-                finally:
-                    server.stop()
-                    server.close_logs()
+    if not args.skip_idle:
+        for coding in ("identity", "scale"):
+            for implementation in ("roc", "go"):
+                for sample in range(args.samples):
+                    server = Server.start(implementation, coding)
+                    try:
+                        records.append(idle_sample(server, 50, sample))
+                    finally:
+                        server.stop()
+                        server.close_logs()
 
     if not args.skip_allocations:
         if not ROC_INSTRUMENTED_SERVER.is_file():
@@ -615,6 +624,8 @@ def main() -> None:
                 for sample in range(args.allocation_samples):
                     for workload, low_path, high_path in (
                         ("dynamic", "/hot-100", "/hot-1000"),
+                        ("repeat", "/repeat-100", "/repeat-1000"),
+                        ("assemble", "/assemble-100", "/assemble-1000"),
                         ("transport", "/transport-100", "/transport-1000"),
                     ):
                         records.append(

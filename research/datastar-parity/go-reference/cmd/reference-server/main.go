@@ -26,6 +26,8 @@ func main() {
 	http.HandleFunc("/persistent", persistent)
 	for _, route := range []string{
 		"/hot-100", "/hot-1000", "/hot-10000", "/hot-4096", "/hot-65536",
+		"/repeat-100", "/repeat-1000", "/repeat-256", "/repeat-4096", "/repeat-65536",
+		"/assemble-100", "/assemble-1000", "/assemble-256", "/assemble-4096", "/assemble-65536",
 		"/transport-100", "/transport-1000", "/transport-256", "/transport-4096", "/transport-65536", "/idle",
 	} {
 		http.HandleFunc(route, fixedWorkload)
@@ -81,12 +83,19 @@ func fixedWorkload(w http.ResponseWriter, r *http.Request) {
 
 	sse := stream(w, r)
 	preparedHTML := ""
+	preparedPadding := ""
 	if strings.HasPrefix(r.URL.Path, "/transport-") {
 		preparedHTML = htmlPayload(payloadBytes, 1)
+	} else if strings.HasPrefix(r.URL.Path, "/assemble-") {
+		preparedPadding = payloadPadding(payloadBytes, 1)
 	}
 	for sequence := 1; sequence <= events; sequence++ {
 		html := preparedHTML
-		if html == "" {
+		if strings.HasPrefix(r.URL.Path, "/repeat-") {
+			html = strings.Repeat("x", payloadBytes)
+		} else if preparedPadding != "" {
+			html = htmlPayloadWithPadding(preparedPadding, sequence)
+		} else if html == "" {
 			html = htmlPayload(payloadBytes, sequence)
 		}
 		if err := sse.PatchElements(html); err != nil {
@@ -120,19 +129,19 @@ func fixedWorkload(w http.ResponseWriter, r *http.Request) {
 
 func workload(path string) (events int, payloadBytes int, delay time.Duration) {
 	switch path {
-	case "/hot-100":
+	case "/hot-100", "/repeat-100", "/assemble-100":
 		return 100, 256, 0
-	case "/hot-1000":
+	case "/hot-1000", "/repeat-1000", "/assemble-1000":
 		return 1000, 256, 0
 	case "/transport-100":
 		return 100, 256, 0
 	case "/transport-1000":
 		return 1000, 256, 0
-	case "/hot-10000":
+	case "/hot-10000", "/repeat-256", "/assemble-256":
 		return 10000, 256, 0
-	case "/hot-4096", "/transport-4096":
+	case "/hot-4096", "/repeat-4096", "/assemble-4096", "/transport-4096":
 		return 2000, 4096, 0
-	case "/hot-65536", "/transport-65536":
+	case "/hot-65536", "/repeat-65536", "/assemble-65536", "/transport-65536":
 		return 200, 65536, 0
 	case "/transport-256":
 		return 10000, 256, 0
@@ -144,13 +153,23 @@ func workload(path string) (events int, payloadBytes int, delay time.Duration) {
 }
 
 func htmlPayload(targetBytes, sequence int) string {
+	return htmlPayloadWithPadding(payloadPadding(targetBytes, sequence), sequence)
+}
+
+func payloadPadding(targetBytes, sequence int) string {
 	prefix := `<article id="feed" data-seq="` + strconv.Itoa(sequence) + `"><p>`
 	suffix := `</p></article>`
 	padding := targetBytes - len(prefix) - len(suffix)
 	if padding < 0 {
 		padding = 0
 	}
-	return prefix + strings.Repeat("x", padding) + suffix
+	return strings.Repeat("x", padding)
+}
+
+func htmlPayloadWithPadding(padding string, sequence int) string {
+	prefix := `<article id="feed" data-seq="` + strconv.Itoa(sequence) + `"><p>`
+	suffix := `</p></article>`
+	return prefix + padding + suffix
 }
 
 func persistent(w http.ResponseWriter, r *http.Request) {
