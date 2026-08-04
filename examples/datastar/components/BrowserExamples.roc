@@ -11,6 +11,9 @@ BrowserExamples :: [].{
 
 	custom_plugin : () -> Server.Outcome
 	custom_plugin = || Server.respond(Page.response(custom_plugin_document))
+
+	event_bubbling : () -> Server.Outcome
+	event_bubbling = || Server.respond(Page.response(event_bubbling_document))
 }
 
 custom_event_document : Html.Document
@@ -40,6 +43,19 @@ custom_plugin_document =
 			]),
 			Html.h2([], [Html.text("What this validates")]),
 			Html.p([], [Html.text("The pinned client exposes its plugin APIs to browser modules and applies both extension points to ordinary page markup without server-owned state.")]),
+		],
+	)
+
+event_bubbling_document : Html.Document
+event_bubbling_document =
+	Page.document(
+		"Event Bubbling",
+		[
+			Html.h1([], [Html.text("Event Bubbling")]),
+			Html.p([], [Html.text("Handle clicks from many buttons with one listener on their common container.")]),
+			demo([Html.dangerously_include_unescaped_html(event_bubbling_demo)]),
+			Html.h2([], [Html.text("What this validates")]),
+			Html.p([], [Html.text("A Datastar event expression receives the native event and can inspect the originating descendant after the event bubbles.")]),
 		],
 	)
 
@@ -97,3 +113,23 @@ custom_plugin_demo =
 	\\        document.documentElement.dataset.customPluginReady = 'true'
 	\\    })
 	\\</script>
+
+event_bubbling_demo : Str
+event_bubbling_demo =
+	\\<div id="event-bubbling-demo" data-signals:key="">
+	\\    <p>Key pressed: <span id="event-bubbling-key" data-text="$key"></span></p>
+	\\    <div id="event-bubbling-container" data-on:click="$key = evt.target.closest('button[data-id]')?.dataset.id ?? $key">
+	\\        <button data-id="KEY ELSE">KEY ELSE</button>
+	\\        <button data-id="CM">CM</button>
+	\\        <button data-id="OM">OM</button>
+	\\        <button data-id="FETCH">FETCH</button>
+	\\        <button data-id="SET">SET</button>
+	\\        <button data-id="EXEC">EXEC</button>
+	\\        <button data-id="TEST ALARM">TEST ALARM</button>
+	\\        <button data-id="3">3</button>
+	\\        <button data-id="2">2</button>
+	\\        <button data-id="1">1</button>
+	\\        <button data-id="ENTER">ENTER</button>
+	\\        <button data-id="CLEAR">CLEAR</button>
+	\\    </div>
+	\\</div>

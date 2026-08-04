@@ -532,6 +532,154 @@ def custom_plugin(driver: Firefox, base: str) -> None:
     )
 
 
+def delete_row(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/delete_row")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#delete-row-body tr').length === 3"
+        ),
+        "Delete Row initial rows",
+    )
+    driver.execute(
+        """
+        window.confirm = () => true;
+        document.querySelector('[data-delete-row="0"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#delete-row-body tr').length === 2"
+        ),
+        "Delete Row removal patch",
+    )
+    driver.execute("document.querySelector('[data-action=\"reset-delete-rows\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#delete-row-body tr').length === 3"
+        ),
+        "Delete Row reset patch",
+    )
+
+
+def edit_row(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/edit_row")
+    driver.execute("document.querySelector('[data-edit-row=\"0\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#edit-row-0 input').length === 2"
+        ),
+        "Edit Row editor patch",
+    )
+    driver.execute(
+        """
+        const values = ['Jane Roc', 'jane@example.com'];
+        [...document.querySelectorAll('#edit-row-0 input')].forEach((input, index) => {
+            input.value = values[index];
+            input.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+        document.querySelector('[data-action="save-edit-0"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-edit-name="0"]').textContent === 'Jane Roc'
+                && document.querySelector('[data-edit-email="0"]').textContent === 'jane@example.com';
+            """
+        ),
+        "Edit Row saved patch",
+    )
+    driver.execute("document.querySelector('[data-action=\"reset-edit-rows\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('[data-edit-name=\"0\"]').textContent === 'Joe Smith'"
+        ),
+        "Edit Row reset patch",
+    )
+
+
+def event_bubbling(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/event_bubbling")
+    driver.execute(
+        "document.querySelector('#event-bubbling-container [data-id=\"FETCH\"]').click()"
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#event-bubbling-key').textContent === 'FETCH'"
+        ),
+        "Event Bubbling delegated click",
+    )
+
+
+def file_upload(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/file_upload")
+    driver.execute(
+        """
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(['roc'], 'probe.txt', {type: 'text/plain'}));
+        const input = document.querySelector('#file-upload-input');
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', {bubbles: true}));
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return !document.querySelector('[data-action=\"upload-files\"]').disabled"
+        ),
+        "File Upload file binding",
+    )
+    driver.execute("document.querySelector('[data-action=\"upload-files\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#file-upload').textContent.includes('Received 1 file(s): probe.txt.')"
+        ),
+        "File Upload file-signal response patch",
+    )
+
+
+def form_data(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/form_data")
+    driver.execute(
+        """
+        document.querySelector('input[value="bar"]').click();
+        document.querySelector('[data-action="form-get"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#form-data-result').textContent === 'Received checkbox value: bar'"
+        ),
+        "Form Data GET form response",
+    )
+
+
+def inline_validation(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/inline_validation")
+    driver.execute(
+        """
+        const values = {
+            '#validation-email': 'test@test.com',
+            '#validation-first-name': 'Jane',
+            '#validation-last-name': 'Roc',
+        };
+        for (const [selector, value] of Object.entries(values)) {
+            const input = document.querySelector(selector);
+            input.value = value;
+            input.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-validation-result="valid"]')?.textContent === 'All fields are valid.'
+                && document.querySelector('#validation-submit').getAttribute('aria-disabled') === 'false';
+            """
+        ),
+        "Inline Validation valid status patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -573,9 +721,17 @@ def main() -> int:
             click_to_load(driver, base)
             custom_event(driver, base)
             custom_plugin(driver, base)
+            delete_row(driver, base)
+            edit_row(driver, base)
+            event_bubbling(driver, base)
+            file_upload(driver, base)
+            form_data(driver, base)
+            inline_validation(driver, base)
         print(
             "PASS Active Search, Animations, Bad Apple, Bulk Update, "
-            "Click To Edit, Click To Load, Custom Event, Custom Plugin "
+            "Click To Edit, Click To Load, Custom Event, Custom Plugin, "
+            "Delete Row, Edit Row, Event Bubbling, File Upload, Form Data, "
+            "Inline Validation "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

@@ -82,7 +82,13 @@
                 "/examples/click_to_edit",
                 "/examples/click_to_load",
                 "/examples/custom_event",
-                "/examples/custom_plugin"
+                "/examples/custom_plugin",
+                "/examples/delete_row",
+                "/examples/edit_row",
+                "/examples/event_bubbling",
+                "/examples/file_upload",
+                "/examples/form_data",
+                "/examples/inline_validation"
               ]
             },
             {
@@ -576,6 +582,142 @@
                 "data-alert=\"'Hello from an attribute'\"",
                 "import { action, attribute } from '/datastar.js'",
                 "customPluginReady"
+              ]
+            },
+            {
+              "target": "/examples/delete_row",
+              "body_contains": [
+                "id=\"delete-row-body\"",
+                "data-delete-row=\"0\"",
+                "@delete(&#39;/examples/delete_row/0&#39;)",
+                "Angie MacDowell"
+              ]
+            },
+            {
+              "method": "DELETE",
+              "target": "/examples/delete_row/0",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "data: mode remove",
+                "data: selector #delete-row-0"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/delete_row/reset",
+              "body_contains": [
+                "id=\"delete-row-body\"",
+                "id=\"delete-row-0\"",
+                "id=\"delete-row-2\""
+              ]
+            },
+            {
+              "target": "/examples/edit_row",
+              "body_contains": [
+                "id=\"edit-row-body\"",
+                "data-edit-row=\"0\"",
+                "Joe Smith",
+                "kim@yee.org"
+              ]
+            },
+            {
+              "target": "/examples/edit_row/0",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "id=\"edit-row-0\"",
+                "data-bind:edit-name",
+                "data-action=\"save-edit-0\""
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/edit_row/0",
+              "headers": {
+                "Content-Type": "application/json",
+                "Datastar-Request": "true"
+              },
+              "body": "{\"editEmail\":\"jane%40example.com\",\"editName\":\"Jane Roc\"}",
+              "body_contains": [
+                "data-edit-name=\"0\"",
+                "Jane Roc",
+                "jane%40example.com"
+              ]
+            },
+            {
+              "target": "/examples/event_bubbling",
+              "body_contains": [
+                "id=\"event-bubbling-container\"",
+                "evt.target.closest('button[data-id]')",
+                "data-id=\"FETCH\""
+              ]
+            },
+            {
+              "target": "/examples/file_upload",
+              "body_contains": [
+                "id=\"file-upload-input\"",
+                "data-bind:files",
+                "@post('/examples/file_upload')"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/examples/file_upload",
+              "headers": {
+                "Content-Type": "application/json",
+                "Datastar-Request": "true"
+              },
+              "body": "{\"files\":[{\"name\":\"probe.txt\",\"contents\":\"cm9j\",\"mime\":\"text/plain\"}]}",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "id=\"file-upload\"",
+                "Received 1 file(s): probe.txt."
+              ]
+            },
+            {
+              "target": "/examples/form_data",
+              "body_contains": [
+                "id=\"form-data-form\"",
+                "contentType: 'form'",
+                "data-action=\"form-external\""
+              ]
+            },
+            {
+              "target": "/examples/form_data/data?checkboxes=bar",
+              "body_contains": [
+                "id=\"form-data-result\"",
+                "Received checkbox value: bar"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/examples/form_data/data",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "body": "checkboxes=baz",
+              "body_contains": [
+                "Received checkbox value: baz"
+              ]
+            },
+            {
+              "target": "/examples/inline_validation",
+              "body_contains": [
+                "id=\"inline-validation-demo\"",
+                "data-bind:email",
+                "@post('/examples/inline_validation/validate')"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/examples/inline_validation/validate",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"email\":\"test@test.com\",\"firstName\":\"Jane\",\"lastName\":\"Roc\"}",
+              "body_contains": [
+                "data-validation-result=\"valid\"",
+                "All fields are valid.",
+                "aria-disabled=\"false\""
               ]
             },
             {

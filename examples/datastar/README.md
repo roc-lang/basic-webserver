@@ -77,13 +77,13 @@ report](../../docs/research/datastar-typed-markup-spike.md).
 - [x] Custom Event
 - [x] Custom Plugin
 - [ ] DBmon
-- [ ] Delete Row
-- [ ] Edit Row
-- [ ] Event Bubbling
-- [ ] File Upload
-- [ ] Form Data
+- [x] Delete Row
+- [x] Edit Row
+- [x] Event Bubbling
+- [x] File Upload
+- [x] Form Data
 - [ ] Infinite Scroll
-- [ ] Inline Validation
+- [x] Inline Validation
 - [ ] Lazy Load
 - [ ] Lazy Tabs
 - [ ] On Signal Patch

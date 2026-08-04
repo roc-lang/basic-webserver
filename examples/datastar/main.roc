@@ -9,6 +9,7 @@ import ./components/BulkUpdate
 import ./components/ClickToEdit
 import ./components/Animations
 import ./components/BrowserExamples
+import ./components/CrudExamples
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -38,7 +39,7 @@ animations = Animations.default
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
-init! = || Ok({ config: Server.default_config, context: {} })
+init! = || Ok({ config: Server.with_request_body_limit(Server.default_config, 2 * 1024 * 1024), context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, _context| {
@@ -65,6 +66,12 @@ respond! = |request, _context| {
 			Err(err) => return Err(err)
 			Ok(NotHandled) => {}
 		}
+	_ =
+		match CrudExamples.respond!(request, path) {
+			Ok(Handled(outcome)) => return Ok(outcome)
+			Err(err) => return Err(err)
+			Ok(NotHandled) => {}
+		}
 
 	if click_to_load.more_target().matches(request.method(), path) {
 		click_to_load.more!(request)
@@ -79,6 +86,7 @@ respond! = |request, _context| {
 		(GET, "/examples/bad_apple/updates") => Ok(Server.stream(Sse.unfold!(0, bad_apple_transition!)))
 		(GET, "/examples/custom_event") => Ok(BrowserExamples.custom_event())
 		(GET, "/examples/custom_plugin") => Ok(BrowserExamples.custom_plugin())
+		(GET, "/examples/event_bubbling") => Ok(BrowserExamples.event_bubbling())
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -226,7 +234,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li><li><a href="/examples/delete_row">Delete Row</a></li><li><a href="/examples/edit_row">Edit Row</a></li><li><a href="/examples/event_bubbling">Event Bubbling</a></li><li><a href="/examples/file_upload">File Upload</a></li><li><a href="/examples/form_data">Form Data</a></li><li><a href="/examples/inline_validation">Inline Validation</a></li></ol>
 	,
 )
 
