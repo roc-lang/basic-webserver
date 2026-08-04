@@ -18,6 +18,7 @@ platform "webserver"
 		Attribute,
 		Cmd,
 		Datastar,
+		DatastarMarkup,
 		Env,
 		File,
 		Html,
@@ -123,6 +124,7 @@ platform "webserver"
 
 import Cmd
 import Datastar
+import DatastarMarkup
 import Env
 import File
 import Host

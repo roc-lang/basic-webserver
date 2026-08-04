@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -246,6 +247,12 @@ class SpecValidationTests(unittest.TestCase):
                 ),
                 mock.call(
                     "custom-roc", "test", test.ROOT / "platform" / "main.roc"
+                ),
+                mock.call(
+                    sys.executable,
+                    test.ROOT / "scripts" / "test_datastar_markup_types.py",
+                    "--roc",
+                    "custom-roc",
                 ),
             ],
         )

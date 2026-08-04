@@ -28,6 +28,34 @@ HtmlNode := [
 ## ```
 Html := [].{
 
+	## Rendered sibling HTML nodes suitable for a Datastar element patch.
+	##
+	## This nominal boundary distinguishes rendered markup from ordinary text.
+	## It does not claim that the fragment has particular IDs or matches a DOM
+	## selector.
+	Fragment := [Fragment(Str)].{
+
+		## Return the rendered fragment text.
+		to_str : Fragment -> Str
+		to_str = |Fragment(value)| value
+
+		## Return the rendered fragment bytes.
+		to_bytes : Fragment -> List(U8)
+		to_bytes = |Fragment(value)| Str.to_utf8(value)
+	}
+
+	## A complete rendered HTML document including its document type.
+	Document := [Document(Str)].{
+
+		## Return the rendered document text.
+		to_str : Document -> Str
+		to_str = |Document(value)| value
+
+		## Return the rendered document bytes.
+		to_bytes : Document -> List(U8)
+		to_bytes = |Document(value)| Str.to_utf8(value)
+	}
+
 	## An HTML node. Prefer this module's constructors so text and attribute
 	## values are escaped consistently.
 	Node : HtmlNode
@@ -53,6 +81,21 @@ Html := [].{
 	## Render a complete HTML document beginning with `<!DOCTYPE html>`.
 	render : HtmlNode -> Str
 	render = |node| Str.concat("<!DOCTYPE html>", render_without_doc_type(node))
+
+	## Render sibling nodes as one patchable HTML fragment.
+	render_fragment : List(HtmlNode) -> Fragment
+	render_fragment = |nodes| Fragment(render_children(nodes))
+
+	## Render one root node as a complete HTML document.
+	render_document : HtmlNode -> Document
+	render_document = |node| Document(render(node))
+
+	## Treat an already-rendered string as a patchable fragment.
+	##
+	## This is the explicit compatibility boundary for another renderer or
+	## trusted literal markup. Dynamic or untrusted text belongs in [`text`].
+	fragment_from_rendered_str : Str -> Fragment
+	fragment_from_rendered_str = |value| Fragment(value)
 
 	## Render a node without adding a document type declaration.
 	render_without_doc_type : HtmlNode -> Str
@@ -225,6 +268,20 @@ expect {
 
 	Html.render(node)
 		== "<!DOCTYPE html><div class=\"&quot;&lt;&amp;&#39;&#10;&#13;\">&lt;Roc &amp; friends&gt;</div>"
+}
+
+expect {
+	fragment = Html.render_fragment([
+		Html.p([Attribute.id("first")], [Html.text("one < two")]),
+		Html.p([], [Html.text("three")]),
+	])
+
+	fragment.to_str() == "<p id=\"first\">one &lt; two</p><p>three</p>"
+}
+
+expect {
+	document = Html.render_document(Html.html([], [Html.body([], [Html.text("Hello")])]))
+	document.to_str() == "<!DOCTYPE html><html><body>Hello</body></html>"
 }
 
 ## Trusted raw HTML is the explicit escape hatch.

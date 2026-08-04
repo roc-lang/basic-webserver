@@ -62,7 +62,28 @@ Datastar :: [].{
 				.with_body(event_bytes(events)),
 		)
 
-	PatchMode := [After, Append, Before, Inner, Outer, Prepend, Remove, Replace]
+	PatchMode := [After, Append, Before, Inner, Outer, Prepend, Remove, Replace].{
+		after : PatchMode
+		after = After
+
+		append : PatchMode
+		append = Append
+
+		before : PatchMode
+		before = Before
+
+		inner : PatchMode
+		inner = Inner
+
+		outer : PatchMode
+		outer = Outer
+
+		prepend : PatchMode
+		prepend = Prepend
+
+		replace : PatchMode
+		replace = Replace
+	}
 
 	Selector := [FromElementIds, Select(Str)]
 

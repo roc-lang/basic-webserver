@@ -1993,6 +1993,13 @@ def validate_platform_sources(roc: str) -> None:
     command(roc, "fmt", "--check", ROOT / "platform")
     print("==> test platform", flush=True)
     command(roc, "test", ROOT / "platform" / "main.roc")
+    print("==> test Datastar markup type failures", flush=True)
+    command(
+        sys.executable,
+        ROOT / "scripts" / "test_datastar_markup_types.py",
+        "--roc",
+        roc,
+    )
 
 
 def validate_sources(
