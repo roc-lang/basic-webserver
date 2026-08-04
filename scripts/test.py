@@ -286,6 +286,7 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
         for incompatible in (
             "requests",
             "concurrent_requests",
+            "persistent_requests",
             "http2_requests",
             "expect_exit",
             "wait_for_stdout",
@@ -333,6 +334,21 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
             )
         if "mtime_unix" in fixture and not isinstance(fixture["mtime_unix"], int):
             fail(f"{owner}: fixture mtime_unix must be an integer")
+    persistent_requests = case.get("persistent_requests", [])
+    if not isinstance(persistent_requests, list):
+        fail(f"{owner}: persistent_requests must be an array")
+    for index, request in enumerate(persistent_requests, 1):
+        if not isinstance(request, dict):
+            fail(f"{owner}: persistent request {index} must be an object")
+        if request.get("raw", False):
+            fail(f"{owner}: raw persistent requests are not supported")
+    persistent_repeat = case.get("persistent_repeat", 1)
+    if (
+        not isinstance(persistent_repeat, int)
+        or isinstance(persistent_repeat, bool)
+        or not 1 <= persistent_repeat <= 100_000
+    ):
+        fail(f"{owner}: persistent_repeat must be an integer from 1 through 100000")
     http2_requests = case.get("http2_requests", [])
     if not isinstance(http2_requests, list):
         fail(f"{owner}: http2_requests must be an array")
@@ -1290,28 +1306,28 @@ def run_http2_exchanges(
         )
 
 
-def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None:
+def run_http_exchange_on_connection(
+    connection: http.client.HTTPConnection,
+    request: dict[str, object],
+    owner: str,
+) -> None:
     body, headers = request_body(request)
     method = str(request.get("method", "GET"))
     target = str(request.get("target", "/"))
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=float(request.get("timeout", 5)))
-    try:
-        names = {name.lower() for name, _ in headers}
-        connection.putrequest(
-            method,
-            target,
-            skip_accept_encoding="accept-encoding" in names,
-        )
-        if body and "content-length" not in names:
-            headers.append(("Content-Length", str(len(body))))
-        for name, value in headers:
-            connection.putheader(name, value)
-        connection.endheaders(body if body else None)
-        response = connection.getresponse()
-        response_body = response.read()
-        response_headers = response.getheaders()
-    finally:
-        connection.close()
+    names = {name.lower() for name, _ in headers}
+    connection.putrequest(
+        method,
+        target,
+        skip_accept_encoding="accept-encoding" in names,
+    )
+    if body and "content-length" not in names:
+        headers.append(("Content-Length", str(len(body))))
+    for name, value in headers:
+        connection.putheader(name, value)
+    connection.endheaders(body if body else None)
+    response = connection.getresponse()
+    response_body = response.read()
+    response_headers = response.getheaders()
 
     expected_status = int(request.get("status", 200))
     if response.status != expected_status:
@@ -1355,6 +1371,45 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
             )
     body_text = response_body.decode("utf-8", errors="replace")
     assertion_text(owner, "response body", body_text, request, "body_")
+
+
+def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None:
+    connection = http.client.HTTPConnection(
+        "127.0.0.1", port, timeout=float(request.get("timeout", 5))
+    )
+    try:
+        run_http_exchange_on_connection(connection, request, owner)
+    finally:
+        connection.close()
+
+
+def run_persistent_http_exchanges(
+    port: int,
+    requests: list[object],
+    repeat: int,
+    owner: str,
+) -> None:
+    if not requests:
+        return
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    socket: socket.socket | None = None
+    try:
+        for repetition in range(1, repeat + 1):
+            for index, request in enumerate(requests, 1):
+                if not isinstance(request, dict):
+                    fail(f"{owner}: persistent request {index} must be an object")
+                request_owner = (
+                    f"{owner} persistent repetition {repetition} request {index}"
+                )
+                run_http_exchange_on_connection(connection, request, request_owner)
+                if connection.sock is None:
+                    fail(f"{request_owner}: server closed the HTTP/1.1 connection")
+                if socket is None:
+                    socket = connection.sock
+                elif connection.sock is not socket:
+                    fail(f"{request_owner}: server did not preserve the HTTP/1.1 connection")
+    finally:
+        connection.close()
 
 
 def run_concurrent_http_exchanges(
@@ -1588,6 +1643,15 @@ def run_server_case(
                     if not isinstance(concurrent, list):
                         fail(f"{owner}: concurrent_requests must be an array")
                     run_concurrent_http_exchanges(port, concurrent, owner, timeout)
+                    persistent = case.get("persistent_requests", [])
+                    if not isinstance(persistent, list):
+                        fail(f"{owner}: persistent_requests must be an array")
+                    run_persistent_http_exchanges(
+                        port,
+                        persistent,
+                        int(case.get("persistent_repeat", 1)),
+                        owner,
+                    )
                     http2_requests = case.get("http2_requests", [])
                     http2_completion_order = case.get("http2_completion_order", [])
                     if not isinstance(http2_requests, list):

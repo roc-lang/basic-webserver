@@ -161,6 +161,30 @@
                 "Content-Type": "text/javascript; charset=utf-8"
               }
             }
+          ],
+          "persistent_repeat": 1000,
+          "persistent_requests": [
+            {
+              "target": "/examples/active_search/search?datastar=%7B%22activeSearch%22%3A%22bry%22%7D",
+              "headers": {
+                "Accept-Encoding": "identity",
+                "Datastar-Request": "true"
+              },
+              "body_contains": [
+                "Bryana",
+                "Bernier"
+              ]
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%7B%22activeSearch%22%3A%22no-match%22%7D",
+              "headers": {
+                "Accept-Encoding": "identity",
+                "Datastar-Request": "true"
+              },
+              "body_not_contains": [
+                "<tbody><tr>"
+              ]
+            }
           ]
         }
       ]

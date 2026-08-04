@@ -141,6 +141,16 @@ class SpecValidationTests(unittest.TestCase):
         ):
             test.validate_case("examples/request-limits.roc", case, set())
 
+    def test_persistent_request_repetition_is_bounded(self) -> None:
+        case = {
+            "name": "persistent",
+            "persistent_requests": [{"target": "/"}],
+            "persistent_repeat": 100_001,
+        }
+
+        with self.assertRaisesRegex(test.TestFailure, "persistent_repeat"):
+            test.validate_case("examples/datastar/showcase.roc", case, set())
+
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             log = Path(raw_directory) / "memcheck.log"

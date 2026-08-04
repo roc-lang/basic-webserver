@@ -38,6 +38,12 @@ The command requires Firefox and geckodriver. It deliberately runs once for a
 native artifact; the portable listener suite remains responsible for the full
 release target matrix.
 
+Use a recent Roc `main` build. Roc builds before the erased-callable ownership
+fixes merged in roc-lang/roc#10530 can abort with `bad allocation magic` after
+repeated Datastar actions on one persistent connection. The listener suite
+keeps 1,000 alternating Active Search actions on one connection as a regression
+case; `--repeat N` applies the same stress to the Firefox checks.
+
 The client is the repository's already-pinned Datastar v1.0.2 bundle. The
 example pages are adaptations, not copies of the Datastar site's surrounding
 navigation or visual design.

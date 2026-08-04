@@ -205,28 +205,38 @@ def active_search(driver: Firefox, base: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--binary", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--binary", type=Path)
+    source.add_argument("--base-url")
     parser.add_argument("--geckodriver", default=shutil.which("geckodriver"))
     # Let geckodriver resolve Firefox unless an actual browser binary is
     # supplied. On snap-based Linux systems `which firefox` is a launcher
     # script and is not accepted by moz:firefoxOptions.binary.
     parser.add_argument("--firefox")
+    parser.add_argument("--repeat", type=int, default=1)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    binary = args.binary.resolve()
-    if not binary.is_file():
-        fail(f"showcase binary does not exist: {binary}")
     if not args.geckodriver:
         fail("geckodriver was not found on PATH")
+    if args.repeat < 1:
+        fail("--repeat must be at least 1")
 
-    server, base = start_server(binary)
+    server: subprocess.Popen[str] | None = None
+    if args.binary is not None:
+        binary = args.binary.resolve()
+        if not binary.is_file():
+            fail(f"showcase binary does not exist: {binary}")
+        server, base = start_server(binary)
+    else:
+        base = str(args.base_url).rstrip("/")
     driver: Firefox | None = None
     try:
         driver = Firefox(args.geckodriver, args.firefox)
-        active_search(driver, base)
+        for _ in range(args.repeat):
+            active_search(driver, base)
         print(
             "PASS Active Search "
             f"({driver.capabilities['browserName']} "
@@ -235,12 +245,13 @@ def main() -> int:
     finally:
         if driver is not None:
             driver.close()
-        server.terminate()
-        try:
-            server.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            server.kill()
-            server.wait(timeout=5)
+        if server is not None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
     return 0
 
 
