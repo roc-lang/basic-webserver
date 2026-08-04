@@ -4,8 +4,10 @@ description: Build the exact Roc revision used to generate and test this experim
 runs:
   using: composite
   steps:
-    # The retained erased-callable ABI is layered on roc-lang/roc#10530 and
-    # does not have a nightly artifact yet. Return to setup-roc after landing.
+    # The retained erased-callable ABI is layered on roc-lang/roc#10530, while
+    # local type-module imports require roc-lang/roc#10602. Neither complete
+    # dependency chain has a nightly artifact yet. Return to setup-roc after
+    # both land.
     - name: Install Zig for the pinned compiler build
       uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
       with:
@@ -15,7 +17,7 @@ runs:
       uses: actions/checkout@v7
       with:
         repository: roc-lang/roc
-        ref: 5a5f4c02a01363b7cce039df8abab8e3bebaf496
+        ref: 5eb3fe6460aa1b734f173bbb2cc5c15892eff1dc
         path: target/roc-source
 
     - name: Build the pinned Roc compiler

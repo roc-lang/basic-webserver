@@ -44,6 +44,10 @@ repeated Datastar actions on one persistent connection. The listener suite
 keeps 1,000 alternating Active Search actions on one connection as a regression
 case; `--repeat N` applies the same stress to the Firefox checks.
 
+The componentized showcase also currently requires the local type-module import
+and cache fixes in [roc-lang/roc#10602](https://github.com/roc-lang/roc/pull/10602).
+The draft PR's CI pins that exact compiler head until the fix lands.
+
 The client is the repository's already-pinned Datastar v1.0.2 bundle. The
 example pages are adaptations, not copies of the Datastar site's surrounding
 navigation or visual design.

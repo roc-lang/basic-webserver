@@ -13,11 +13,12 @@ from pathlib import Path
 
 
 # Glue provenance: the Datastar experiment requires consuming tagged-union
-# projections and erased-callable reuse from roc-lang/roc#10530. The committed
-# Rust glue is generated with that compiler and its matching RustGlue.roc.
-# Compiler and glue-spec revisions must match.
+# projections and erased-callable reuse from roc-lang/roc#10530, plus local
+# type-module imports from roc-lang/roc#10602. The committed Rust glue is
+# generated with that compiler and its matching RustGlue.roc. Compiler and
+# glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_GOOD_REVISION = "5a5f4c02a01363b7cce039df8abab8e3bebaf496"
+KNOWN_GOOD_REVISION = "5eb3fe6460aa1b734f173bbb2cc5c15892eff1dc"
 
 
 def rooted_path(value: str) -> Path:
