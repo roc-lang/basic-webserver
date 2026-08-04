@@ -2573,15 +2573,30 @@ async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
     tokio::select! {
         result = &mut connection => {
             if let Err(error) = result {
-                eprintln!("Error serving connection: {error:?}");
+                eprintln!("{}", http1_connection_diagnostic(&error, false));
             }
         }
         _ = context.shutdown.requested() => {
             connection.as_mut().graceful_shutdown();
             if let Err(error) = connection.await {
-                eprintln!("Error draining connection: {error:?}");
+                eprintln!("{}", http1_connection_diagnostic(&error, true));
             }
         }
+    }
+}
+
+fn http1_connection_diagnostic(error: &hyper::Error, draining: bool) -> String {
+    if error.is_incomplete_message() {
+        return "Client disconnected before finishing an HTTP request. This can happen when a browser cancels a navigation. The incomplete request was not passed to the Roc application."
+            .to_owned();
+    }
+
+    if draining {
+        format!(
+            "Could not finish an HTTP/1.1 connection while the server was shutting down: {error}"
+        )
+    } else {
+        format!("Could not serve an HTTP/1.1 connection: {error}")
     }
 }
 
@@ -3031,6 +3046,7 @@ mod tests {
     use crate::response_body::{ResponseFramePool, SseBody, SseItemSource};
     use std::io::Read;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::AsyncWriteExt;
 
     fn initialize_test_host() {
         crate::abi::initialize_test_roc_host();
@@ -3482,6 +3498,31 @@ mod tests {
             Some("Server runtime failed: reactor stopped".to_owned())
         );
         assert_eq!(shutdown_diagnostic(&ShutdownReason::Interrupt), None);
+    }
+
+    #[tokio::test]
+    async fn incomplete_http1_request_has_a_beginner_facing_diagnostic() {
+        let (mut client_io, server_io) = tokio::io::duplex(1024);
+        let service = hyper::service::service_fn(|_request| async {
+            Ok::<_, Infallible>(hyper::Response::new(Full::new(Bytes::new())))
+        });
+        let connection = hyper::server::conn::http1::Builder::new()
+            .serve_connection(TokioIo::new(server_io), service);
+
+        client_io
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await
+            .unwrap();
+        drop(client_io);
+
+        let error = connection
+            .await
+            .expect_err("the client closed an incomplete HTTP request");
+        assert!(error.is_incomplete_message());
+        assert_eq!(
+            http1_connection_diagnostic(&error, false),
+            "Client disconnected before finishing an HTTP request. This can happen when a browser cancels a navigation. The incomplete request was not passed to the Roc application."
+        );
     }
 
     #[tokio::test]
