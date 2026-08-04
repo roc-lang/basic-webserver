@@ -1,6 +1,9 @@
 import Attribute
 import Datastar
 import Html
+import RoutePath
+import Selector
+import SignalName
 import Sse
 import http.Method
 
@@ -12,87 +15,67 @@ import http.Method
 ## unchecked constructors.
 DatastarMarkup :: [].{
 
-	## A validated canonical Datastar signal name and its attribute spelling.
-	SignalName := [SignalName({ attribute : Str, canonical : Str })].{
-
-		## Validate a dynamically obtained canonical signal name.
-		parse : Str -> Try(SignalName, [InvalidSignalName(Str)])
-		parse = |value|
-			if valid_signal_name(value) {
-				Ok(SignalName({ canonical: value, attribute: signal_attribute_name(value) }))
-			} else {
-				Err(InvalidSignalName(value))
-			}
-
-		## Validate a quoted signal name during compile-time evaluation.
-		from_quote : Str -> Try(SignalName, [BadQuotedBytes(Str)])
-		from_quote = |value|
-			match SignalName.parse(value) {
-				Ok(name) => Ok(name)
-				Err(_) => Err(BadQuotedBytes("Datastar signal names must start with an ASCII letter and contain only ASCII letters or digits"))
-			}
-
-		canonical : SignalName -> Str
-		canonical = |SignalName(name)| name.canonical
-
-		attribute : SignalName -> Str
-		attribute = |SignalName(name)| name.attribute
-	}
-
 	## A typed signal handle. The type parameter is compile-time evidence; the
 	## value stores only validated spellings and the encoded initial value.
-	Signal(a) := { attribute : Str, canonical : Str, initial_json : Str }.{
+	Signal(a) := { attribute : Str, canonical : Str }.{
 
-		## Define a boolean signal whose value is included in requests by default.
-		bool : SignalName, Bool -> Signal(Bool)
-		bool = |name, initial| Signal.(
+		## Name a boolean signal which is included in requests by default.
+		bool : SignalName -> Signal(Bool)
+		bool = |name| Signal.(
 			{
 				canonical: name.canonical(),
 				attribute: name.attribute(),
-				initial_json: Json.to_str(initial),
 			},
 		)
 
-		## Define a string signal whose value is included in requests by default.
-		str : SignalName, Str -> Signal(Str)
-		str = |name, initial| Signal.(
+		## Name a string signal which is included in requests by default.
+		str : SignalName -> Signal(Str)
+		str = |name| Signal.(
 			{
 				canonical: name.canonical(),
 				attribute: name.attribute(),
-				initial_json: Json.to_str(initial),
 			},
 		)
 
-		## Define a U64 signal whose value is included in requests by default.
+		## Name a U64 signal which is included in requests by default.
 		## Browser arithmetic is exact only through JavaScript's safe-integer range.
-		u64 : SignalName, U64 -> Signal(U64)
-		u64 = |name, initial| Signal.(
+		u64 : SignalName -> Signal(U64)
+		u64 = |name| Signal.(
 			{
 				canonical: name.canonical(),
 				attribute: name.attribute(),
-				initial_json: Json.to_str(initial),
+			},
+		)
+
+		## Name a list-of-booleans signal which is included in requests.
+		bool_list : SignalName -> Signal(List(Bool))
+		bool_list = |name| Signal.(
+			{
+				canonical: name.canonical(),
+				attribute: name.attribute(),
 			},
 		)
 
 		## Define an underscore-prefixed boolean signal. Datastar excludes these
 		## signals from backend requests by default, but request filters may include
 		## them; this is not a confidentiality boundary.
-		excluded_bool : SignalName, Bool -> Signal(Bool)
-		excluded_bool = |name, initial| Signal.(
+		excluded_bool : SignalName -> Signal(Bool)
+		excluded_bool = |name| Signal.(
 			{
 				canonical: "_${name.canonical()}",
 				attribute: "_${name.attribute()}",
-				initial_json: Json.to_str(initial),
 			},
 		)
 
-		## Finalize this signal's checked initial value for a heterogeneous list.
-		definition : Signal(a) -> SignalDef
-		definition = |signal| SignalDef.(
-			{
-				field: "${Json.to_str(signal.canonical)}:${signal.initial_json}",
-			},
-		)
+		## Pair this signal with a checked initial value.
+		definition = |signal, value| {
+			_ = signal_value_types_match(signal, value)
+			SignalDef.(
+				{
+					field: "${Json.to_str(signal.canonical)}:${Json.to_str(value)}",
+				},
+			)
+		}
 
 		## Finalize a checked server update for a heterogeneous list.
 		update = |signal, value| {
@@ -137,6 +120,22 @@ DatastarMarkup :: [].{
 		## Toggle this boolean signal in the browser.
 		toggle : Signal(Bool) -> Action
 		toggle = |signal| Action.({ source: "$${signal.canonical} = !$${signal.canonical}" })
+
+		## Bind one checkbox position to a list-of-booleans signal.
+		bind_each_bool : Signal(List(Bool)) -> Attribute
+		bind_each_bool = |signal| Attribute.attribute("data-bind:${signal.attribute}", "")
+
+		## Test whether every member of a list-of-booleans signal is true.
+		every_true : Signal(List(Bool)) -> Expr(Bool)
+		every_true = |signal| Expr.({ source: "$${signal.canonical}.every(Boolean)" })
+
+		## Fill a list-of-booleans signal from one checked-state expression.
+		fill : Signal(List(Bool)), U64, Expr(Bool) -> Action
+		fill = |signal, count, value| Action.(
+			{
+				source: "$${signal.canonical} = Array(${U64.to_str(count)}).fill(${value.source})",
+			},
+		)
 	}
 
 	## A typed Datastar expression. Its type records the result promised by the
@@ -149,6 +148,9 @@ DatastarMarkup :: [].{
 
 		str : Str -> Expr(Str)
 		str = |value| Expr.({ source: Json.to_str(value) })
+
+		event_target_checked : Expr(Bool)
+		event_target_checked = Expr.({ source: "evt.target.checked" })
 
 		not : Expr(Bool) -> Expr(Bool)
 		not = |expression| Expr.({ source: "!(${expression.source})" })
@@ -195,10 +197,12 @@ DatastarMarkup :: [].{
 	## Install checked signal definitions on an element.
 	signals : List(SignalDef) -> Attribute
 	signals = |definitions|
-		Attribute.attribute(
-			"data-signals",
-			"{${Str.join_with(definitions.map(|definition| definition.to_field()), ",")}}",
-		)
+		signal_definitions_attribute("data-signals", definitions)
+
+	## Install checked signal definitions without replacing existing signals.
+	signals_if_missing : List(SignalDef) -> Attribute
+	signals_if_missing = |definitions|
+		signal_definitions_attribute("data-signals__ifmissing", definitions)
 
 	## Patch checked signal updates from the server.
 	patch_signals : List(SignalUpdate) -> Sse.Event
@@ -250,28 +254,6 @@ DatastarMarkup :: [].{
 		)
 	}
 
-	## A validated application route path used by a backend request action.
-	RoutePath := [RoutePath(Str)].{
-
-		parse : Str -> Try(RoutePath, [InvalidRoutePath(Str)])
-		parse = |value|
-			if valid_route_path(value) {
-				Ok(RoutePath(value))
-			} else {
-				Err(InvalidRoutePath(value))
-			}
-
-		from_quote : Str -> Try(RoutePath, [BadQuotedBytes(Str)])
-		from_quote = |value|
-			match RoutePath.parse(value) {
-				Ok(path) => Ok(path)
-				Err(_) => Err(BadQuotedBytes("Datastar backend request paths must be absolute application paths without a query, fragment, line ending, NUL, or backslash"))
-			}
-
-		to_str : RoutePath -> Str
-		to_str = |RoutePath(value)| value
-	}
-
 	## An HTTP method and route path that render one matching Datastar backend
 	## request action. The method is owned here and cannot disagree with request().
 	RequestTarget := [
@@ -308,58 +290,6 @@ DatastarMarkup :: [].{
 			(expected_method, path) = request_target_match_parts(target)
 			method == expected_method and raw_path == path.to_str()
 		}
-	}
-
-	## A validated CSS selector for a targeted Datastar element operation.
-	Selector := [Selector(Str)].{
-
-		parse : Str -> Try(Selector, [InvalidSelector(Str)])
-		parse = |value|
-			if valid_selector(value) {
-				Ok(Selector(value))
-			} else {
-				Err(InvalidSelector(value))
-			}
-
-		from_quote : Str -> Try(Selector, [BadQuotedBytes(Str)])
-		from_quote = |value|
-			match Selector.parse(value) {
-				Ok(selector) => Ok(selector)
-				Err(_) => Err(BadQuotedBytes("Datastar selectors must be non-empty and cannot contain NUL or line endings"))
-			}
-
-		to_str : Selector -> Str
-		to_str = |Selector(value)| value
-	}
-
-	## An HTML element ID restricted to a directly selectable ASCII subset.
-	## Reusing one value for the HTML attribute and patch target removes a common
-	## source of selector drift.
-	ElementId := [ElementId(Str)].{
-
-		parse : Str -> Try(ElementId, [InvalidElementId(Str)])
-		parse = |value|
-			if valid_element_id(value) {
-				Ok(ElementId(value))
-			} else {
-				Err(InvalidElementId(value))
-			}
-
-		from_quote : Str -> Try(ElementId, [BadQuotedBytes(Str)])
-		from_quote = |value|
-			match ElementId.parse(value) {
-				Ok(element_id) => Ok(element_id)
-				Err(_) => Err(BadQuotedBytes("Datastar element IDs must start with an ASCII letter and contain only ASCII letters, digits, hyphens, or underscores"))
-			}
-
-		attribute : ElementId -> Attribute
-		attribute = |ElementId(value)| Attribute.id(value)
-
-		patch_target : ElementId -> PatchTarget
-		patch_target = |ElementId(value)| PatchTarget(Selector("#${value}"))
-
-		descendant : ElementId, Selector -> PatchTarget
-		descendant = |ElementId(value), selector| PatchTarget(Selector("#${value} ${selector.to_str()}"))
 	}
 
 	## A selector-required element patch target. Its receiver operations prevent
@@ -406,7 +336,14 @@ DatastarMarkup :: [].{
 signal_value_types_match : DatastarMarkup.Signal(a), a -> {}
 signal_value_types_match = |_, _| {}
 
-targeted_patch : Html.Fragment, DatastarMarkup.Selector, Datastar.PatchMode -> Sse.Event
+signal_definitions_attribute : Str, List(DatastarMarkup.SignalDef) -> Attribute
+signal_definitions_attribute = |name, definitions|
+	Attribute.attribute(
+		name,
+		"{${Str.join_with(definitions.map(|definition| definition.to_field()), ",")}}",
+	)
+
+targeted_patch : Html.Fragment, Selector, Datastar.PatchMode -> Sse.Event
 targeted_patch = |fragment, selector, mode|
 	Datastar.patch_elements_with(
 		fragment.to_str(),
@@ -417,7 +354,7 @@ targeted_patch = |fragment, selector, mode|
 		},
 	)
 
-request_target_parts : DatastarMarkup.RequestTarget -> (Str, DatastarMarkup.RoutePath)
+request_target_parts : DatastarMarkup.RequestTarget -> (Str, RoutePath)
 request_target_parts = |target|
 	match target {
 		DeleteTarget(path) => ("delete", path)
@@ -427,7 +364,7 @@ request_target_parts = |target|
 		PutTarget(path) => ("put", path)
 	}
 
-request_target_match_parts : DatastarMarkup.RequestTarget -> (Method, DatastarMarkup.RoutePath)
+request_target_match_parts : DatastarMarkup.RequestTarget -> (Method, RoutePath)
 request_target_match_parts = |target|
 	match target {
 		DeleteTarget(path) => (DELETE, path)
@@ -437,81 +374,24 @@ request_target_match_parts = |target|
 		PutTarget(path) => (PUT, path)
 	}
 
-valid_signal_name : Str -> Bool
-valid_signal_name = |value| {
-	bytes = Str.to_utf8(value)
-	match bytes {
-		[first, .. as rest] => ascii_letter(first) and rest.all(ascii_letter_or_digit)
-		[] => Bool.False
-	}
-}
-
-signal_attribute_name : Str -> Str
-signal_attribute_name = |value|
-	Str.from_utf8_lossy(
-		Str.to_utf8(value).fold(
-			[],
-			|bytes, byte|
-				if byte >= 65 and byte <= 90 {
-					bytes.concat([45, byte + 32])
-				} else {
-					bytes.append(byte)
-				},
-		),
-	)
-
-ascii_letter : U8 -> Bool
-ascii_letter = |byte| (byte >= 65 and byte <= 90) or (byte >= 97 and byte <= 122)
-
-ascii_letter_or_digit : U8 -> Bool
-ascii_letter_or_digit = |byte| ascii_letter(byte) or (byte >= 48 and byte <= 57)
-
-valid_element_id : Str -> Bool
-valid_element_id = |value| {
-	bytes = Str.to_utf8(value)
-	match bytes {
-		[first, .. as rest] =>
-			ascii_letter(first) and
-				rest.all(|byte| ascii_letter_or_digit(byte) or byte == 45 or byte == 95)
-		[] => Bool.False
-	}
-}
-
-valid_route_path : Str -> Bool
-valid_route_path = |value| {
-	bytes = Str.to_utf8(value)
-	bytes.len() > 0 and
-		bytes.first() == Ok(47) and
-			Bool.not(Str.starts_with(value, "//")) and
-				Bool.not(Str.contains(value, "?")) and
-					Bool.not(Str.contains(value, "#")) and
-						Bool.not(Str.contains(value, "\\")) and
-							Bool.not(bytes.any(|byte| byte == 0 or byte == 10 or byte == 13))
-}
-
-valid_selector : Str -> Bool
-valid_selector = |value|
-	Bool.not(value.is_empty()) and
-		Bool.not(Str.to_utf8(value).any(|byte| byte == 0 or byte == 10 or byte == 13))
-
 expect {
-	page = DatastarMarkup.Signal.u64("page", 0)
-	fetching = DatastarMarkup.Signal.excluded_bool("fetching", Bool.False)
-	attribute = DatastarMarkup.signals([page.definition(), fetching.definition()])
+	page = DatastarMarkup.Signal.u64("page")
+	fetching = DatastarMarkup.Signal.excluded_bool("fetching")
+	attribute = DatastarMarkup.signals([page.definition(0), fetching.definition(Bool.False)])
 
 	Attribute.raw_name(attribute) == "data-signals" and
 		Attribute.raw_value(attribute) == "{\"page\":0,\"_fetching\":false}"
 }
 
 expect {
-	message = DatastarMarkup.Signal.str("message", "quote \" newline\n")
-	attribute = DatastarMarkup.signals([message.definition()])
+	message = DatastarMarkup.Signal.str("message")
+	attribute = DatastarMarkup.signals([message.definition("quote \" newline\n")])
 
 	Attribute.raw_value(attribute) == "{\"message\":\"quote \\\" newline\\n\"}"
 }
 
 expect {
-	fetching = DatastarMarkup.Signal.excluded_bool("fetching", Bool.False)
+	fetching = DatastarMarkup.Signal.excluded_bool("fetching")
 	target = DatastarMarkup.RequestTarget.get("/examples/load")
 	action = target.request().unless(fetching.expr()).on_click()
 
@@ -519,31 +399,30 @@ expect {
 }
 
 expect {
-	match DatastarMarkup.SignalName.from_quote("activeSearch") {
+	match SignalName.from_quote("activeSearch") {
 		Ok(name) => name.attribute() == "active-search"
 		Err(_) => Bool.False
 	}
 }
 
 expect {
-	agents : DatastarMarkup.ElementId
-	agents = "agents"
-	selector = agents.descendant("tbody")
-	fragment = Html.render_fragment([Html.tr([], [Html.td([], [Html.text("Agent")])])])
-	bytes = selector.append(fragment).to_bytes()
-
-	Str.from_utf8_lossy(bytes) == "event: datastar-patch-elements\ndata: selector #agents tbody\ndata: mode append\ndata: elements <tr><td>Agent</td></tr>\n\n"
-}
-
-expect {
-	page = DatastarMarkup.Signal.u64("page", 0)
-	fetching = DatastarMarkup.Signal.bool("fetching", Bool.False)
+	page = DatastarMarkup.Signal.u64("page")
+	fetching = DatastarMarkup.Signal.bool("fetching")
 	event = DatastarMarkup.patch_signals([
 		page.update(1),
 		fetching.update(Bool.True),
 	])
 
 	Str.from_utf8_lossy(event.to_bytes()) == "event: datastar-patch-signals\ndata: signals {\"page\":1,\"fetching\":true}\n\n"
+}
+
+expect {
+	selections = DatastarMarkup.Signal.bool_list("selections")
+	change = selections.fill(4, DatastarMarkup.Expr.event_target_checked).on(DatastarMarkup.DomEvent.change)
+	checked = selections.every_true().disabled_when_true()
+
+	Attribute.raw_value(change) == "$selections = Array(4).fill(evt.target.checked)" and
+		Attribute.raw_value(checked) == "$selections.every(Boolean)"
 }
 
 expect {
@@ -556,7 +435,7 @@ expect {
 }
 
 expect {
-	match DatastarMarkup.RoutePath.parse("/dynamic/path") {
+	match RoutePath.parse("/dynamic/path") {
 		Ok(path) => path.to_str() == "/dynamic/path"
 		Err(_) => Bool.False
 	}

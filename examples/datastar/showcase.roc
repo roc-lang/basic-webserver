@@ -6,6 +6,7 @@ app [Context, program] {
 
 import pf.Datastar
 import pf.DatastarMarkup
+import pf.ElementId
 import pf.Attribute
 import pf.Html
 import pf.Server
@@ -413,21 +414,21 @@ click_to_edit_default_contact : ClickToEditContact
 click_to_edit_default_contact = { firstName: "John", lastName: "Doe", email: "john@example.com" }
 
 click_to_load_page_signal : DatastarMarkup.Signal(U64)
-click_to_load_page_signal = DatastarMarkup.Signal.u64("page", 0)
+click_to_load_page_signal = DatastarMarkup.Signal.u64("page")
 
 click_to_load_fetching_signal : DatastarMarkup.Signal(Bool)
-click_to_load_fetching_signal = DatastarMarkup.Signal.excluded_bool("fetching", Bool.False)
+click_to_load_fetching_signal = DatastarMarkup.Signal.excluded_bool("fetching")
 
 click_to_load_more_target : DatastarMarkup.RequestTarget
 click_to_load_more_target = DatastarMarkup.RequestTarget.get("/examples/click_to_load/more")
 
-click_to_load_root_id : DatastarMarkup.ElementId
+click_to_load_root_id : ElementId
 click_to_load_root_id = "click-to-load"
 
-click_to_load_agents_id : DatastarMarkup.ElementId
+click_to_load_agents_id : ElementId
 click_to_load_agents_id = "agents"
 
-click_to_load_more_id : DatastarMarkup.ElementId
+click_to_load_more_id : ElementId
 click_to_load_more_id = "load-more"
 
 click_to_load_rows_target : DatastarMarkup.PatchTarget
@@ -720,7 +721,7 @@ click_to_load_page = typed_page(
 				Html.div(
 					[
 						click_to_load_root_id.attribute(),
-						DatastarMarkup.signals([click_to_load_page_signal.definition()]),
+						DatastarMarkup.signals([click_to_load_page_signal.definition(0)]),
 					],
 					[
 						Html.table(

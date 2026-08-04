@@ -20,12 +20,12 @@ HTTP_PACKAGE = (
 CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "toggle-string-signal",
-        'probe = DatastarMarkup.Signal.str("name", "Ada").toggle()',
+        'probe = DatastarMarkup.Signal.str("name").toggle()',
         ("TYPE MISMATCH", "Signal(Str)", "toggle"),
     ),
     (
         "update-bool-with-string",
-        'probe = DatastarMarkup.Signal.bool("enabled", Bool.False).update("yes")',
+        'probe = DatastarMarkup.Signal.bool("enabled").update("yes")',
         ("TYPE MISMATCH", "string literal", "Bool"),
     ),
     (
@@ -56,7 +56,7 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ),
     (
         "invalid-literal-signal-name",
-        'probe = DatastarMarkup.Signal.bool("not-valid", Bool.False)',
+        'probe = DatastarMarkup.Signal.bool("not-valid")',
         ("INVALID STRING", "signal names must start"),
     ),
     (
@@ -68,11 +68,16 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "invalid-literal-element-id",
         '\n'.join(
             (
-                'probe : DatastarMarkup.ElementId',
+                'probe : ElementId',
                 'probe = "9 agents"',
             )
         ),
         ("INVALID STRING", "element IDs must start"),
+    ),
+    (
+        "opaque-element-id-constructor",
+        'probe = ElementId.("agents")',
+        ("OPAQUE", "ElementId"),
     ),
 )
 
@@ -84,6 +89,7 @@ def source_for(probe: str) -> str:
 }}
 
 import pf.DatastarMarkup
+import pf.ElementId
 import pf.Server
 import http.Response
 
