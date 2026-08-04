@@ -41,6 +41,8 @@ respond! = |request, _context| {
 		(GET, "/examples/animations/view_transition") => view_transition!(request)
 		(DELETE, "/examples/animations") => Ok(Server.stream(Sse.unfold!(0, fade_out_transition!)))
 		(GET, "/examples/animations/fade_me_in") => Ok(Server.stream(Sse.unfold!(0, fade_in_transition!)))
+		(GET, "/examples/bad_apple") => Ok(Server.respond(html_response(bad_apple_page)))
+		(GET, "/examples/bad_apple/updates") => Ok(Server.stream(Sse.unfold!(0, bad_apple_transition!)))
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -156,6 +158,59 @@ fade_in_button : Str -> Str
 fade_in_button = |attributes|
 	\\<button id="fade-me-in"${attributes} data-on:click="@get('/examples/animations/fade_me_in')">Fade me in on click</button>
 
+bad_apple_transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
+bad_apple_transition! = |frame_index| {
+	if frame_index >= 60 {
+		return Ok(End)
+	}
+	percentage = ((frame_index + 1) * 100) // 60
+	signals = Json.to_str({ percentage, contents: bad_apple_frame(frame_index) })
+	Ok(
+		Emit({
+			event: Datastar.patch_signals(signals),
+			state: frame_index + 1,
+			wake: After(33),
+		}),
+	)
+}
+
+bad_apple_frame : U64 -> Str
+bad_apple_frame = |frame_index|
+	match frame_index % 4 {
+		0 =>
+			\\          ██
+			\\        ██████
+			\\      ██████████
+			\\    ██████████████
+			\\      ██████████
+			\\        ██████
+			\\          ██
+		1 =>
+			\\      ██████████
+			\\    ████      ████
+			\\  ████          ████
+			\\  ████    ██    ████
+			\\  ████          ████
+			\\    ████      ████
+			\\      ██████████
+		2 =>
+			\\  ██████████████████
+			\\  ████          ████
+			\\  ████  ██████  ████
+			\\  ████  ██████  ████
+			\\  ████          ████
+			\\  ██████████████████
+			\\
+		_ =>
+			\\██████████████████████
+			\\████              ████
+			\\████    ██████    ████
+			\\████    ██████    ████
+			\\████              ████
+			\\██████████████████████
+			\\██████████████████████
+		}
+
 contacts : List(Contact)
 contacts = [
 	{ first: "Abraham", last: "Jakubowski", search: "abraham jakubowski" },
@@ -231,7 +286,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li></ol>
 	,
 )
 
@@ -261,6 +316,22 @@ animations_page = page(
 	\\<fieldset><legend>Demo</legend>${fade_in_button(" style=\"transition: opacity 1s ease-out\"")}</fieldset>
 	\\<h2>What this validates</h2>
 	\\<p>One page composes finite view-transition responses with host-scheduled timer streams and delayed multi-event transitions.</p>
+	,
+)
+
+bad_apple_page : Str
+bad_apple_page = page(
+	"Bad Apple",
+	\\<h1>Bad Apple</h1>
+	\\<p>A compact 30fps ASCII animation driven entirely by signal patches.</p>
+	\\<fieldset><legend>Demo</legend>
+	\\    <div id="bad-apple" data-signals="{percentage: 0, contents: 'frames loading'}" data-init="@get('/examples/bad_apple/updates')">
+	\\        <label><span data-text="'Percentage: ' + $percentage + '%'"></span><input type="range" min="0" max="100" disabled data-attr:value="$percentage"></label>
+	\\        <pre data-text="$contents">frames loading</pre>
+	\\    </div>
+	\\</fieldset>
+	\\<h2>What this validates</h2>
+	\\<p>A bounded retained source emits 60 typed signal patches at roughly 30fps; the browser updates existing elements without server-rendering HTML for each frame.</p>
 	,
 )
 

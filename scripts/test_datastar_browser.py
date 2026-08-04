@@ -266,6 +266,29 @@ def animations(driver: Firefox, base: str) -> None:
     )
 
 
+def bad_apple(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/bad_apple")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const value = Number(document.querySelector('#bad-apple input').value);
+            return value > 0 && value < 100;
+            """
+        ),
+        "Bad Apple intermediate signal patch",
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            const root = document.querySelector('#bad-apple');
+            return Number(root.querySelector('input').value) === 100
+                && root.querySelector('pre').textContent.includes('████');
+            """
+        ),
+        "Bad Apple final signal patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -301,8 +324,9 @@ def main() -> int:
         for _ in range(args.repeat):
             active_search(driver, base)
             animations(driver, base)
+            bad_apple(driver, base)
         print(
-            "PASS Active Search, Animations "
+            "PASS Active Search, Animations, Bad Apple "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

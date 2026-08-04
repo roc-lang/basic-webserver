@@ -243,6 +243,46 @@
               ]
             },
             {
+              "target": "/examples/bad_apple",
+              "body_contains": [
+                "data-init=\"@get('/examples/bad_apple/updates')\"",
+                "data-text=\"$contents\"",
+                "data-attr:value=\"$percentage\"",
+                "30fps"
+              ]
+            },
+            {
+              "target": "/examples/bad_apple/updates",
+              "headers": {
+                "Accept-Encoding": "identity",
+                "Datastar-Request": "true"
+              },
+              "body_contains": [
+                "event: datastar-patch-signals",
+                "data: signals {\"contents\":",
+                "\"percentage\":1}",
+                "\"percentage\":100}"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/examples/bad_apple/updates",
+              "headers": {
+                "Accept-Encoding": "br",
+                "Datastar-Request": "true"
+              },
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Content-Encoding": "br",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
               "target": "/datastar.js",
               "body_contains": [
                 "Datastar"

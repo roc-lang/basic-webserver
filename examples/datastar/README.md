@@ -58,7 +58,7 @@ being evaluated.
 
 - [x] Active Search
 - [x] Animations
-- [ ] Bad Apple
+- [x] Bad Apple
 - [ ] Bulk Update
 - [ ] Click To Edit
 - [ ] Click To Load
