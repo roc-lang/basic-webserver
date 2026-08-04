@@ -6,6 +6,7 @@ app [Context, program] {
 
 import ./components/ClickToLoad
 import ./components/BulkUpdate
+import ./components/ClickToEdit
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -20,17 +21,6 @@ ActiveSearchSignals : { activeSearch : Str }
 
 ViewTransitionSignals : { shouldRestore : Bool }
 
-ClickToEditSignals : {
-	email : Str,
-	firstName : Str,
-	lastName : Str,
-	savedEmail : Str,
-	savedFirstName : Str,
-	savedLastName : Str,
-}
-
-ClickToEditContact : { email : Str, firstName : Str, lastName : Str }
-
 Contact : { first : Str, last : Str, search : Str }
 
 click_to_load : ClickToLoad
@@ -38,6 +28,9 @@ click_to_load = ClickToLoad.default
 
 bulk_update : BulkUpdate
 bulk_update = BulkUpdate.default
+
+click_to_edit : ClickToEdit
+click_to_edit = ClickToEdit.default
 
 program = { init!, respond!, shutdown! }
 
@@ -53,6 +46,12 @@ respond! = |request, _context| {
 		}
 	_ =
 		match bulk_update.respond!(request, path) {
+			Ok(Handled(outcome)) => return Ok(outcome)
+			Err(err) => return Err(err)
+			Ok(NotHandled) => {}
+		}
+	_ =
+		match click_to_edit.respond!(request, path) {
 			Ok(Handled(outcome)) => return Ok(outcome)
 			Err(err) => return Err(err)
 			Ok(NotHandled) => {}
@@ -74,11 +73,6 @@ respond! = |request, _context| {
 		(GET, "/examples/animations/fade_me_in") => Ok(Server.stream(Sse.unfold!(0, fade_in_transition!)))
 		(GET, "/examples/bad_apple") => Ok(Server.respond(html_response(bad_apple_page)))
 		(GET, "/examples/bad_apple/updates") => Ok(Server.stream(Sse.unfold!(0, bad_apple_transition!)))
-		(GET, "/examples/click_to_edit") => Ok(Server.respond(html_response(click_to_edit_page)))
-		(GET, "/examples/click_to_edit/edit") => Ok(Datastar.respond([Datastar.patch_elements(click_to_edit_form)]))
-		(PUT, "/examples/click_to_edit") => click_to_edit_save!(request)
-		(GET, "/examples/click_to_edit/cancel") => click_to_edit_cancel!(request)
-		(PATCH, "/examples/click_to_edit/reset") => Ok(click_to_edit_reset())
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -247,99 +241,6 @@ bad_apple_frame = |frame_index|
 			\\██████████████████████
 		}
 
-click_to_edit_save! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
-click_to_edit_save! = |request| {
-	signals_result = click_to_edit_signals!(request)
-	signals =
-		match signals_result {
-			Ok(value) => value
-			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Click To Edit signals: ${Str.inspect(err)}")))
-		}
-	contact = { firstName: signals.firstName, lastName: signals.lastName, email: signals.email }
-	if contact.firstName.is_empty() or contact.lastName.is_empty() or Bool.not(Str.contains(contact.email, "@")) {
-		return Ok(Server.respond(text_response(422, "First name, last name, and a valid email are required")))
-	}
-
-	saved = Json.to_str({ savedEmail: contact.email, savedFirstName: contact.firstName, savedLastName: contact.lastName })
-	Ok(
-		Datastar.respond([
-			Datastar.patch_signals(saved),
-			Datastar.patch_elements(click_to_edit_view(contact)),
-		]),
-	)
-}
-
-click_to_edit_cancel! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
-click_to_edit_cancel! = |request| {
-	signals_result = click_to_edit_signals!(request)
-	signals =
-		match signals_result {
-			Ok(value) => value
-			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Click To Edit signals: ${Str.inspect(err)}")))
-		}
-	contact = { firstName: signals.savedFirstName, lastName: signals.savedLastName, email: signals.savedEmail }
-	draft = Json.to_str({ email: contact.email, firstName: contact.firstName, lastName: contact.lastName })
-	Ok(
-		Datastar.respond([
-			Datastar.patch_signals(draft),
-			Datastar.patch_elements(click_to_edit_view(contact)),
-		]),
-	)
-}
-
-click_to_edit_signals! : Server.Request => Try(ClickToEditSignals, Datastar.SignalsError)
-click_to_edit_signals! = |request| {
-	result : Try(ClickToEditSignals, Datastar.SignalsError)
-	result = Datastar.read_signals!(request)
-	result
-}
-
-click_to_edit_reset : () -> Server.Outcome
-click_to_edit_reset = || {
-	contact = click_to_edit_default_contact
-	signals = Json.to_str({
-		email: contact.email,
-		firstName: contact.firstName,
-		lastName: contact.lastName,
-		savedEmail: contact.email,
-		savedFirstName: contact.firstName,
-		savedLastName: contact.lastName,
-	})
-	Datastar.respond([
-		Datastar.patch_signals(signals),
-		Datastar.patch_elements(click_to_edit_view(contact)),
-	])
-}
-
-click_to_edit_view : ClickToEditContact -> Str
-click_to_edit_view = |contact| {
-	first_name = escaped_text(contact.firstName)
-	last_name = escaped_text(contact.lastName)
-	email =
-		Html.render_without_doc_type(
-			Html.a([Attribute.href("mailto:${contact.email}")], [Html.text(contact.email)]),
-		)
-
-	\\<div id="demo">
-	\\    <p>First Name: <span data-field="first-name">${first_name}</span></p>
-	\\    <p>Last Name: <span data-field="last-name">${last_name}</span></p>
-	\\    <p>Email: <span data-field="email">${email}</span></p>
-	\\    <div role="group"><button data-action="edit" data-indicator:_fetching data-attr:disabled="$_fetching" data-on:click="@get('/examples/click_to_edit/edit')">Edit</button><button data-action="reset" data-indicator:_fetching data-attr:disabled="$_fetching" data-on:click="@patch('/examples/click_to_edit/reset')">Reset</button></div>
-	\\</div>
-}
-
-click_to_edit_form : Str
-click_to_edit_form =
-	\\<div id="demo">
-	\\    <label>First Name <input type="text" data-bind:first-name data-attr:disabled="$_fetching"></label>
-	\\    <label>Last Name <input type="text" data-bind:last-name data-attr:disabled="$_fetching"></label>
-	\\    <label>Email <input type="email" data-bind:email data-attr:disabled="$_fetching"></label>
-	\\    <div role="group"><button data-action="save" data-indicator:_fetching data-attr:disabled="$_fetching" data-on:click="@put('/examples/click_to_edit')">Save</button><button data-action="cancel" data-indicator:_fetching data-attr:disabled="$_fetching" data-on:click="@get('/examples/click_to_edit/cancel')">Cancel</button></div>
-	\\</div>
-
-click_to_edit_default_contact : ClickToEditContact
-click_to_edit_default_contact = { firstName: "John", lastName: "Doe", email: "john@example.com" }
-
 contacts : List(Contact)
 contacts = [
 	{ first: "Abraham", last: "Jakubowski", search: "abraham jakubowski" },
@@ -465,20 +366,6 @@ bad_apple_page = page(
 	\\<p>A bounded retained source emits 60 typed signal patches at roughly 30fps; the browser updates existing elements without server-rendering HTML for each frame.</p>
 	,
 )
-
-click_to_edit_page : Str
-click_to_edit_page = page(
-	"Click To Edit",
-	\\<h1>Click To Edit</h1>
-	\\<p>Edit a contact inline without a page refresh or an HTML form.</p>
-	\\<fieldset><legend>Demo</legend><div data-signals__ifmissing="{_fetching: false, firstName: 'John', lastName: 'Doe', email: 'john@example.com', savedFirstName: 'John', savedLastName: 'Doe', savedEmail: 'john@example.com'}">${click_to_edit_view(click_to_edit_default_contact)}</div></fieldset>
-	\\<h2>What this validates</h2>
-	\\<p>GET swaps the record for signal-bound inputs; PUT validates the full signals body; Cancel restores the last saved signals; and PATCH resets the record. The self-contained probe keeps its saved contact in signals, while a real application can use the same flow with database state.</p>
-	,
-)
-
-escaped_text : Str -> Str
-escaped_text = |value| Html.render_without_doc_type(Html.text(value))
 
 ascii_lower : Str -> Str
 ascii_lower = |value|

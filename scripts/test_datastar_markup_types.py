@@ -34,6 +34,11 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("TYPE MISMATCH", "Expr(Str)", "disabled_when_true"),
     ),
     (
+        "bind-bool-to-text-input",
+        'probe = DatastarMarkup.Signal.bool("enabled").text_input([])',
+        ("TYPE MISMATCH", "Signal(Bool)", "Signal(Str)", "text_input"),
+    ),
+    (
         "compare-different-expression-types",
         'probe = DatastarMarkup.Expr.str("one").equals(DatastarMarkup.Expr.bool(Bool.True))',
         ("TYPE MISMATCH", "Expr(Str)", "Expr(Bool)"),

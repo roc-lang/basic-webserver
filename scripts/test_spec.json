@@ -367,21 +367,23 @@
             {
               "target": "/examples/click_to_edit",
               "body_contains": [
-                "data-signals__ifmissing",
+                "data-signals__ifmissing=\"{&quot;firstName&quot;:&quot;John&quot;,&quot;lastName&quot;:&quot;Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;savedFirstName&quot;:&quot;John&quot;,&quot;savedLastName&quot;:&quot;Doe&quot;,&quot;savedEmail&quot;:&quot;john@example.com&quot;,&quot;_fetching&quot;:false}\"",
                 "First Name: <span data-field=\"first-name\">John</span>",
-                "data-on:click=\"@get('/examples/click_to_edit/edit')\"",
-                "data-on:click=\"@patch('/examples/click_to_edit/reset')\""
+                "data-on:click=\"!($_fetching) &amp;&amp; @get(&quot;/examples/click_to_edit/edit&quot;)\"",
+                "data-on:click=\"!($_fetching) &amp;&amp; @patch(&quot;/examples/click_to_edit/reset&quot;)\""
               ]
             },
             {
               "target": "/examples/click_to_edit/edit",
               "body_contains": [
                 "event: datastar-patch-elements",
+                "data: selector #demo",
+                "data: mode replace",
                 "data-bind:first-name",
                 "data-bind:last-name",
                 "data-bind:email",
-                "data-on:click=\"@put('/examples/click_to_edit')\"",
-                "data-on:click=\"@get('/examples/click_to_edit/cancel')\""
+                "data-on:click=\"!($_fetching) &amp;&amp; @put(&quot;/examples/click_to_edit&quot;)\"",
+                "data-on:click=\"!($_fetching) &amp;&amp; @get(&quot;/examples/click_to_edit/cancel&quot;)\""
               ]
             },
             {
@@ -450,6 +452,13 @@
               "status": 400,
               "body_contains": [
                 "Invalid Click To Edit signals"
+              ]
+            },
+            {
+              "target": "/examples/click_to_edit/cancel?datastar=%7B%22email%22%3A%22draft%40example.com%22%2C%22firstName%22%3A%22Draft%22%2C%22lastName%22%3A%22Name%22%2C%22savedEmail%22%3A%22invalid%22%2C%22savedFirstName%22%3A%22%22%2C%22savedLastName%22%3A%22Roc%22%7D",
+              "status": 422,
+              "body_contains": [
+                "The saved contact is invalid"
               ]
             },
             {

@@ -12,11 +12,12 @@ receiver-style static dispatch, makes common protocol-invalid states
 unrepresentable, and preserves static top-level rendering without becoming a
 complete frontend, JavaScript, HTML-content-model, or routing framework?
 
-The spike converts Click To Load and Bulk Update. Together they exercise static
-pages, typed scalar and list signals, excluded-by-default fetch indicators,
-backend requests, server dispatch, dynamic HTML fragments, explicit append and
-replacement targets, signal updates, checkbox bindings, event-local checked
-state, and coordinated signal/element patches.
+The spike converts Click To Load, Bulk Update, and Click To Edit. Together they
+exercise static pages, typed scalar and list signals, excluded-by-default fetch
+indicators, backend requests, server dispatch, dynamic HTML fragments, explicit
+append and replacement targets, signal updates, checkbox and text-input
+bindings, event-local checked state, validated domain values, and coordinated
+signal/element patches.
 
 ## Candidate boundary
 
@@ -92,6 +93,26 @@ needs action types in public records or signatures would still need a separately
 importable action type module or broader compiler support for exposing nested
 types from local type modules.
 
+Click To Edit adds a deliberately element-owning binding operation:
+
+```roc
+handles.first_name.text_input([
+    Attribute.type("text"),
+    handles.fetching.disabled_when_true(),
+])
+```
+
+Returning `Html.Node` instead of a generic `data-bind` attribute makes binding
+a string signal to a non-input element unrepresentable through this operation.
+Separate constructors can cover textareas or selects if later examples justify
+them without pretending all signal/element combinations are valid.
+
+The component validates a structural draft into a nominal `Contact` before any
+save or cancel result is rendered. Saved browser signals are still untrusted
+request data, so Cancel validates them too. The application config constructor
+returns `Try(ClickToEdit, [InvalidInitialContact])`; only the known-valid static
+default is constructed directly inside the module.
+
 ## Compile-time literal conversion
 
 `SignalName`, `RoutePath`, `Selector`, and `ElementId` implement Roc's
@@ -143,6 +164,9 @@ The typed surface prevents:
   dispatch;
 - pairing Bulk Update's activate request target with its deactivate server
   transition, or vice versa;
+- attaching the typed Click To Edit string binding to a non-input element;
+- rendering an invalid Click To Edit draft or client-supplied saved contact as
+  a valid contact;
 - appending HTML without an explicit target;
 - removing a target while also supplying an HTML fragment; and
 - passing ordinary text or a complete document where a patchable fragment is
@@ -190,17 +214,17 @@ the guarantees of values assembled from typed handles.
 
 The implementation currently passes:
 
-- 230 platform `expect` tests, including literal conversion, heterogeneous
+- 231 platform `expect` tests, including literal conversion, heterogeneous
   definition/update erasure, JSON/JavaScript encoding, receiver expressions,
   event modifiers, checked-state expressions, patch targets, and rendered
   fragment/document states;
-- ten intentionally invalid application checks with required compiler
+- eleven intentionally invalid application checks with required compiler
   diagnostics;
 - `roc check`, an optimized `roc build`, and the complete 28-application
   validation suite;
 - all 54 native runtime cases, including complete listener assertions for Click
-  To Load and Bulk Update's initial page, both transitions, malformed signals,
-  and wrong-length lists; and
+  To Load, Bulk Update, and Click To Edit pages, actions, malformed signals,
+  invalid contacts, and wrong-length lists; and
 - the real Firefox suite for Active Search, Animations, Bad Apple, Bulk Update,
   Click To Edit, and Click To Load against pinned Datastar v1.0.2.
 
@@ -226,8 +250,7 @@ router, DOM type-state system, or JavaScript parser.
 Before treating the API as stable:
 
 1. replace or constrain the provisional `Signal.u64` browser-number model;
-2. try Click To Edit and Animations for methods, forms, view transitions, and
-   attribute ordering;
+2. try Animations for view transitions, timed actions, and attribute ordering;
 3. count unchecked escapes and judge whether the typed subset remains honest;
 4. measure dynamic fragment allocations and compiler/binary-size deltas; and
 5. decide whether `DatastarMarkup` remains platform-exposed or becomes a

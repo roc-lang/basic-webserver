@@ -125,6 +125,12 @@ DatastarMarkup :: [].{
 		bind_each_bool : Signal(List(Bool)) -> Attribute
 		bind_each_bool = |signal| Attribute.attribute("data-bind:${signal.attribute}", "")
 
+		## Construct an input bound to this string signal. Owning the element here
+		## prevents a text binding from being attached to a non-input element.
+		text_input : Signal(Str), List(Attribute) -> Html.Node
+		text_input = |signal, attributes|
+			Html.input(attributes.append(Attribute.attribute("data-bind:${signal.attribute}", "")))
+
 		## Test whether every member of a list-of-booleans signal is true.
 		every_true : Signal(List(Bool)) -> Expr(Bool)
 		every_true = |signal| Expr.({ source: "$${signal.canonical}.every(Boolean)" })
@@ -392,6 +398,13 @@ expect {
 	attribute = DatastarMarkup.signals([message.definition("quote \" newline\n")])
 
 	Attribute.raw_value(attribute) == "{\"message\":\"quote \\\" newline\\n\"}"
+}
+
+expect {
+	name = DatastarMarkup.Signal.str("firstName")
+	input = name.text_input([Attribute.type("text")])
+
+	Html.render_without_doc_type(input) == "<input type=\"text\" data-bind:first-name=\"\">"
 }
 
 expect {

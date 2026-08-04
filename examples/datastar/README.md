@@ -54,9 +54,10 @@ branch and is not present in the 0.15.0 release bundle. From the repository
 root, `roc examples/datastar/showcase.roc` therefore exercises exactly the code
 being evaluated.
 
-Click To Load and Bulk Update are typed-markup feasibility probes. They use
-nominal signals, expressions, actions, request and patch targets, compile-time
-literal validation, composable signal record builders, and component-owned
+Click To Load, Bulk Update, and Click To Edit are typed-markup feasibility
+probes. They use nominal signals, expressions, actions, request and patch
+targets, compile-time literal validation, composable signal record builders,
+validated domain values, element-owning text bindings, and component-owned
 dispatch while retaining deliberate escape hatches at the boundary. The
 guarantees, limits, compile-failure cases, and performance evidence are in the
 [typed Datastar markup report](../../docs/research/datastar-typed-markup-spike.md).
