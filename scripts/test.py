@@ -1462,8 +1462,9 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
         fail(f"{owner}: raw fragments must be an array")
     received = bytearray()
     closed = False
-    with socket.create_connection(("127.0.0.1", port), timeout=float(request.get("timeout", 5))) as sock:
-        sock.settimeout(float(request.get("timeout", 5)))
+    timeout = float(request.get("timeout", 5))
+    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+        sock.settimeout(timeout)
         for fragment in fragments:
             if not isinstance(fragment, dict):
                 fail(f"{owner}: each raw fragment must be an object")
@@ -1506,8 +1507,13 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
             forbidden = early.get("not_contains")
             if forbidden is not None and str(forbidden).encode() in received:
                 fail(f"{owner}: raw early response unexpectedly contained {forbidden!r}")
-            sock.settimeout(float(request.get("timeout", 5)))
+            sock.settimeout(timeout)
+        read_deadline = time.monotonic() + timeout
         while True:
+            remaining = read_deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            sock.settimeout(remaining)
             try:
                 chunk = sock.recv(65536)
             except TimeoutError:

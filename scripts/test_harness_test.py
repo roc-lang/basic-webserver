@@ -3,12 +3,58 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import socket
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from scripts import test, update_app_platform_urls
+
+
+class RawExchangeTests(unittest.TestCase):
+    def test_raw_exchange_timeout_is_total_for_an_infinite_stream(self) -> None:
+        listener = socket.socket()
+        self.addCleanup(listener.close)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+
+        def stream_forever() -> None:
+            connection, _address = listener.accept()
+            with connection:
+                connection.recv(1024)
+                while True:
+                    try:
+                        connection.sendall(b"event: tick\n\n")
+                    except OSError:
+                        return
+                    time.sleep(0.005)
+
+        server = threading.Thread(target=stream_forever, daemon=True)
+        server.start()
+        started = time.monotonic()
+
+        test.run_raw_exchange(
+            port,
+            {
+                "data": "GET /events HTTP/1.1\r\nHost: localhost\r\n\r\n",
+                "half_close": False,
+                "timeout": 0.05,
+                "expect_response_before_ms": {
+                    "timeout_ms": 100,
+                    "contains": "event: tick",
+                },
+                "response_contains": ["event: tick"],
+            },
+            "infinite stream",
+        )
+
+        self.assertLess(time.monotonic() - started, 0.5)
+        server.join(timeout=0.5)
+        self.assertFalse(server.is_alive())
 
 
 class SpecValidationTests(unittest.TestCase):
