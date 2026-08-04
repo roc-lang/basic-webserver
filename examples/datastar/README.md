@@ -61,7 +61,7 @@ being evaluated.
 - [x] Bad Apple
 - [x] Bulk Update
 - [x] Click To Edit
-- [ ] Click To Load
+- [x] Click To Load
 - [ ] Custom Event
 - [ ] Custom Plugin
 - [ ] DBmon

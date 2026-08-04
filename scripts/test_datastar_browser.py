@@ -431,6 +431,47 @@ def click_to_edit(driver: Firefox, base: str) -> None:
     )
 
 
+def click_to_load(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/click_to_load")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#agents tbody tr').length === 10"
+        ),
+        "Click To Load initial page",
+    )
+
+    driver.execute("document.querySelector('#load-more').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const rows = [...document.querySelectorAll('#agents tbody tr')];
+            const button = document.querySelector('#load-more');
+            return rows.length === 20
+                && rows[19].dataset.agent === '19'
+                && rows[19].children[0].textContent === 'Agent Smith 19'
+                && !button.disabled
+                && button.textContent === 'Load More';
+            """
+        ),
+        "Click To Load appended second page",
+    )
+
+    driver.execute("document.querySelector('#load-more').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const rows = [...document.querySelectorAll('#agents tbody tr')];
+            const button = document.querySelector('#load-more');
+            return rows.length === 30
+                && rows[29].dataset.agent === '29'
+                && button.tagName === 'P'
+                && button.textContent === 'All agents loaded';
+            """
+        ),
+        "Click To Load final page and completion patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -469,8 +510,10 @@ def main() -> int:
             bad_apple(driver, base)
             bulk_update(driver, base)
             click_to_edit(driver, base)
+            click_to_load(driver, base)
         print(
-            "PASS Active Search, Animations, Bad Apple, Bulk Update, Click To Edit "
+            "PASS Active Search, Animations, Bad Apple, Bulk Update, "
+            "Click To Edit, Click To Load "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

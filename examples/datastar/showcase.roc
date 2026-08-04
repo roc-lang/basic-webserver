@@ -33,6 +33,8 @@ ClickToEditSignals : {
 
 ClickToEditContact : { email : Str, firstName : Str, lastName : Str }
 
+ClickToLoadSignals : { page : U64 }
+
 Contact : { first : Str, last : Str, search : Str }
 
 program = { init!, respond!, shutdown! }
@@ -68,6 +70,8 @@ respond! = |request, _context| {
 		(PUT, "/examples/click_to_edit") => click_to_edit_save!(request)
 		(GET, "/examples/click_to_edit/cancel") => click_to_edit_cancel!(request)
 		(PATCH, "/examples/click_to_edit/reset") => Ok(click_to_edit_reset())
+		(GET, "/examples/click_to_load") => Ok(Server.respond(html_response(click_to_load_page)))
+		(GET, "/examples/click_to_load/more") => click_to_load_more!(request)
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -406,6 +410,57 @@ click_to_edit_form =
 click_to_edit_default_contact : ClickToEditContact
 click_to_edit_default_contact = { firstName: "John", lastName: "Doe", email: "john@example.com" }
 
+click_to_load_more! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+click_to_load_more! = |request| {
+	signals_result : Try(ClickToLoadSignals, Datastar.SignalsError)
+	signals_result = Datastar.read_signals!(request)
+	signals =
+		match signals_result {
+			Ok(value) => value
+			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Click To Load signals: ${Str.inspect(err)}")))
+		}
+	if signals.page >= 2 {
+		return Ok(Server.respond(text_response(400, "All Click To Load pages have already been requested")))
+	}
+
+	next_page = signals.page + 1
+	start = next_page * 10
+	rows = Datastar.patch_elements_with(
+		click_to_load_rows(start, 10),
+		{
+			..Datastar.default_patch_elements_options,
+			mode: Append,
+			selector: Select("#agents tbody"),
+		},
+	)
+	page_signal = Datastar.patch_signals(Json.to_str({ page: next_page }))
+	events =
+		if next_page == 2 {
+			[rows, page_signal, Datastar.patch_elements(click_to_load_complete_button)]
+		} else {
+			[rows, page_signal]
+		}
+	Ok(Datastar.respond(events))
+}
+
+click_to_load_rows : U64, U64 -> Str
+click_to_load_rows = |index, remaining|
+	if remaining == 0 {
+		""
+	} else {
+		Str.concat(click_to_load_row(index), click_to_load_rows(index + 1, remaining - 1))
+	}
+
+click_to_load_row : U64 -> Str
+click_to_load_row = |index| {
+	number = U64.to_str(index)
+	\\<tr data-agent="${number}"><td>Agent Smith ${number}</td><td><a href="mailto:agent${number}@example.com">agent${number}@example.com</a></td><td>agent-${number}</td></tr>
+}
+
+click_to_load_complete_button : Str
+click_to_load_complete_button =
+	\\<p id="load-more">All agents loaded</p>
+
 contacts : List(Contact)
 contacts = [
 	{ first: "Abraham", last: "Jakubowski", search: "abraham jakubowski" },
@@ -483,7 +538,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li></ol>
 	,
 )
 
@@ -556,6 +611,22 @@ click_to_edit_page = page(
 
 escaped_text : Str -> Str
 escaped_text = |value| Html.render_without_doc_type(Html.text(value))
+
+click_to_load_page : Str
+click_to_load_page = page(
+	"Click To Load",
+	\\<h1>Click To Load</h1>
+	\\<p>Load the next page of agents into an existing table.</p>
+	\\<fieldset><legend>Demo</legend>
+	\\    <div id="click-to-load" data-signals="{page: 0}">
+	\\        <table id="agents"><thead><tr><th>Name</th><th>Email</th><th>ID</th></tr></thead><tbody>${click_to_load_rows(0, 10)}</tbody></table>
+	\\        <button id="load-more" data-indicator:_fetching data-attr:disabled="$_fetching" data-on:click="!$_fetching && @get('/examples/click_to_load/more')">Load More</button>
+	\\    </div>
+	\\</fieldset>
+	\\<h2>What this validates</h2>
+	\\<p>Each finite GET response appends ten rows with an explicit selector and patch mode, advances a pagination signal, and eventually replaces the stable load button.</p>
+	,
+)
 
 ascii_lower : Str -> Str
 ascii_lower = |value|

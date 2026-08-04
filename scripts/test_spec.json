@@ -79,7 +79,8 @@
                 "Roc + Datastar examples",
                 "/examples/active_search",
                 "/examples/bulk_update",
-                "/examples/click_to_edit"
+                "/examples/click_to_edit",
+                "/examples/click_to_load"
               ]
             },
             {
@@ -432,6 +433,52 @@
               "status": 400,
               "body_contains": [
                 "Invalid Click To Edit signals"
+              ]
+            },
+            {
+              "target": "/examples/click_to_load",
+              "body_contains": [
+                "data-signals=\"{page: 0}\"",
+                "id=\"agents\"",
+                "data-agent=\"0\"",
+                "data-agent=\"9\"",
+                "data-on:click=\"!$_fetching && @get('/examples/click_to_load/more')\"",
+                "Load More"
+              ]
+            },
+            {
+              "target": "/examples/click_to_load/more?datastar=%7B%22page%22%3A0%7D",
+              "headers": {
+                "Datastar-Request": "true"
+              },
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "data: selector #agents tbody",
+                "data: mode append",
+                "data-agent=\"10\"",
+                "Agent Smith 19",
+                "event: datastar-patch-signals",
+                "data: signals {\"page\":1}"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache"
+              }
+            },
+            {
+              "target": "/examples/click_to_load/more?datastar=%7B%22page%22%3A1%7D",
+              "body_contains": [
+                "data-agent=\"20\"",
+                "Agent Smith 29",
+                "data: signals {\"page\":2}",
+                "<p id=\"load-more\">All agents loaded</p>"
+              ]
+            },
+            {
+              "target": "/examples/click_to_load/more?datastar=%7B%22page%22%3A2%7D",
+              "status": 400,
+              "body_contains": [
+                "All Click To Load pages have already been requested"
               ]
             },
             {
