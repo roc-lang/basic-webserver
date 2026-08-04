@@ -100,6 +100,7 @@
                 "/examples/svg_morphing",
                 "/examples/templ_counter",
                 "/examples/title_update",
+                "/examples/todomvc",
                 "/examples/web_component",
                 "/examples/match_media"
               ]
@@ -948,6 +949,177 @@
               "response_headers": {
                 "Content-Type": "text/event-stream"
               }
+            },
+            {
+              "target": "/examples/todomvc",
+              "body_contains": [
+                "id=\"todomvc\"",
+                "data-init=\"@get(&#39;/examples/todomvc/updates&#39;)\"",
+                "data-bind:input",
+                "Learn any backend language",
+                "<strong>3</strong> items pending"
+              ]
+            },
+            {
+              "target": "/examples/todomvc/updates",
+              "body_contains": [
+                "event: datastar-patch-signals",
+                "\"editingId\":-1",
+                "event: datastar-patch-elements",
+                "id=\"todo-list\"",
+                "data-todo-id=\"3\""
+              ]
+            },
+            {
+              "method": "PATCH",
+              "target": "/examples/todomvc/-1",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"\",\"editingId\":-1,\"input\":\"Ship Roc example\",\"mode\":0,\"todos\":[{\"completed\":false,\"id\":0,\"title\":\"Learn any backend language\"},{\"completed\":false,\"id\":1,\"title\":\"Learn Datastar\"},{\"completed\":false,\"id\":2,\"title\":\"???\"},{\"completed\":true,\"id\":3,\"title\":\"Profit\"}]}",
+              "body_contains": [
+                "\"input\":\"\"",
+                "data-todo-id=\"4\"",
+                "Ship Roc example",
+                "<strong>4</strong> items pending"
+              ]
+            },
+            {
+              "method": "PATCH",
+              "target": "/examples/todomvc/-1",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"\",\"editingId\":-1,\"input\":\"\",\"mode\":0,\"todos\":[]}",
+              "status": 422,
+              "body_contains": [
+                "A todo title is required"
+              ]
+            },
+            {
+              "method": "PATCH",
+              "target": "/examples/todomvc/-1",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{}",
+              "status": 400,
+              "body_contains": [
+                "Invalid TodoMVC signals"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/examples/todomvc/0/toggle",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"\",\"editingId\":-1,\"input\":\"\",\"mode\":0,\"todos\":[{\"completed\":false,\"id\":0,\"title\":\"Learn any backend language\"},{\"completed\":false,\"id\":1,\"title\":\"Learn Datastar\"},{\"completed\":false,\"id\":2,\"title\":\"???\"},{\"completed\":true,\"id\":3,\"title\":\"Profit\"}]}",
+              "body_contains": [
+                "\"completed\":true,\"id\":0",
+                "id=\"todo-0\" data-todo-id=\"0\" class=\"completed\"",
+                "<strong>2</strong> items pending"
+              ]
+            },
+            {
+              "method": "POST",
+              "target": "/examples/todomvc/-1/toggle",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"\",\"editingId\":-1,\"input\":\"\",\"mode\":0,\"todos\":[{\"completed\":false,\"id\":0,\"title\":\"Learn any backend language\"},{\"completed\":false,\"id\":1,\"title\":\"Learn Datastar\"},{\"completed\":false,\"id\":2,\"title\":\"???\"},{\"completed\":true,\"id\":3,\"title\":\"Profit\"}]}",
+              "body_contains": [
+                "\"completed\":true,\"id\":2",
+                "data-action=\"toggle-all-todos\" aria-label=\"Toggle all todos\" data-on:click__prevent=\"@post(&#39;/examples/todomvc/-1/toggle&#39;)\" checked=\"\"",
+                "<strong>0</strong> items pending"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/todomvc/mode/2",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"\",\"editingId\":-1,\"input\":\"\",\"mode\":0,\"todos\":[{\"completed\":false,\"id\":0,\"title\":\"Learn any backend language\"},{\"completed\":false,\"id\":1,\"title\":\"Learn Datastar\"},{\"completed\":false,\"id\":2,\"title\":\"???\"},{\"completed\":true,\"id\":3,\"title\":\"Profit\"}]}",
+              "body_contains": [
+                "\"mode\":2",
+                "<ul id=\"todo-list\"><li id=\"todo-3\"",
+                "class=\"selected\" data-mode=\"2\""
+              ]
+            },
+            {
+              "target": "/examples/todomvc/0/edit?datastar=%7B%22editTitle%22%3A%22%22%2C%22editingId%22%3A-1%2C%22input%22%3A%22%22%2C%22mode%22%3A0%2C%22todos%22%3A%5B%7B%22completed%22%3Afalse%2C%22id%22%3A0%2C%22title%22%3A%22Learn%20any%20backend%20language%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A1%2C%22title%22%3A%22Learn%20Datastar%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A2%2C%22title%22%3A%22%3F%3F%3F%22%7D%2C%7B%22completed%22%3Atrue%2C%22id%22%3A3%2C%22title%22%3A%22Profit%22%7D%5D%7D",
+              "body_contains": [
+                "\"editTitle\":\"Learn any backend language\"",
+                "\"editingId\":0",
+                "id=\"edit-todo-0\"",
+                "data-action=\"save-todo-0\""
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/todomvc/0",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"Learn Roc\",\"editingId\":0,\"input\":\"\",\"mode\":0,\"todos\":[{\"completed\":false,\"id\":0,\"title\":\"Learn any backend language\"},{\"completed\":false,\"id\":1,\"title\":\"Learn Datastar\"},{\"completed\":false,\"id\":2,\"title\":\"???\"},{\"completed\":true,\"id\":3,\"title\":\"Profit\"}]}",
+              "body_contains": [
+                "\"editTitle\":\"\"",
+                "\"editingId\":-1",
+                "data-todo-title=\"0\"",
+                ">Learn Roc</span>"
+              ]
+            },
+            {
+              "target": "/examples/todomvc/cancel?datastar=%7B%22editTitle%22%3A%22Learn%20any%20backend%20language%22%2C%22editingId%22%3A0%2C%22input%22%3A%22%22%2C%22mode%22%3A0%2C%22todos%22%3A%5B%7B%22completed%22%3Afalse%2C%22id%22%3A0%2C%22title%22%3A%22Learn%20any%20backend%20language%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A1%2C%22title%22%3A%22Learn%20Datastar%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A2%2C%22title%22%3A%22%3F%3F%3F%22%7D%2C%7B%22completed%22%3Atrue%2C%22id%22%3A3%2C%22title%22%3A%22Profit%22%7D%5D%7D",
+              "body_contains": [
+                "\"editingId\":-1",
+                "data-todo-title=\"0\"",
+                ">Learn any backend language</span>"
+              ]
+            },
+            {
+              "method": "DELETE",
+              "target": "/examples/todomvc/0?datastar=%7B%22editTitle%22%3A%22%22%2C%22editingId%22%3A-1%2C%22input%22%3A%22%22%2C%22mode%22%3A0%2C%22todos%22%3A%5B%7B%22completed%22%3Afalse%2C%22id%22%3A0%2C%22title%22%3A%22Learn%20any%20backend%20language%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A1%2C%22title%22%3A%22Learn%20Datastar%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A2%2C%22title%22%3A%22%3F%3F%3F%22%7D%2C%7B%22completed%22%3Atrue%2C%22id%22%3A3%2C%22title%22%3A%22Profit%22%7D%5D%7D",
+              "body_contains": [
+                "id=\"todo-1\"",
+                "<strong>2</strong> items pending"
+              ],
+              "body_not_contains": [
+                "id=\"todo-0\""
+              ]
+            },
+            {
+              "method": "DELETE",
+              "target": "/examples/todomvc/completed?datastar=%7B%22editTitle%22%3A%22%22%2C%22editingId%22%3A-1%2C%22input%22%3A%22%22%2C%22mode%22%3A0%2C%22todos%22%3A%5B%7B%22completed%22%3Afalse%2C%22id%22%3A0%2C%22title%22%3A%22Learn%20any%20backend%20language%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A1%2C%22title%22%3A%22Learn%20Datastar%22%7D%2C%7B%22completed%22%3Afalse%2C%22id%22%3A2%2C%22title%22%3A%22%3F%3F%3F%22%7D%2C%7B%22completed%22%3Atrue%2C%22id%22%3A3%2C%22title%22%3A%22Profit%22%7D%5D%7D",
+              "body_contains": [
+                "id=\"todo-0\"",
+                "<strong>3</strong> items pending"
+              ],
+              "body_not_contains": [
+                "id=\"todo-3\""
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/todomvc/reset",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"editTitle\":\"draft\",\"editingId\":0,\"input\":\"new\",\"mode\":2,\"todos\":[]}",
+              "body_contains": [
+                "\"editingId\":-1",
+                "\"mode\":0",
+                "Learn any backend language",
+                "Profit"
+              ]
+            },
+            {
+              "target": "/examples/todomvc/not-an-id/edit",
+              "status": 404,
+              "body_contains": [
+                "Todo not found"
+              ]
             },
             {
               "target": "/datastar.js",

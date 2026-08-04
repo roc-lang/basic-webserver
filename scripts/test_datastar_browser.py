@@ -891,6 +891,106 @@ def title_update(driver: Firefox, base: str) -> None:
     )
 
 
+def todomvc(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/todomvc")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelectorAll('#todo-list [data-todo-id]').length === 4
+                && document.querySelector('#todo-pending').textContent.trim() === '3 items pending';
+            """
+        ),
+        "TodoMVC initial update",
+    )
+
+    driver.execute(
+        """
+        const input = document.querySelector('#new-todo');
+        input.value = 'Ship Roc example';
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelectorAll('#todo-list [data-todo-id]').length === 5
+                && document.querySelector('[data-todo-title="4"]').textContent === 'Ship Roc example'
+                && document.querySelector('#new-todo').value === '';
+            """
+        ),
+        "TodoMVC add action",
+    )
+
+    driver.execute("document.querySelector('[data-action=\"toggle-todo-4\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#todo-4').classList.contains('completed')
+                && document.querySelector('#todo-pending').textContent.trim() === '3 items pending';
+            """
+        ),
+        "TodoMVC toggle action",
+    )
+
+    driver.execute("document.querySelector('[data-mode=\"2\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const ids = [...document.querySelectorAll('#todo-list [data-todo-id]')]
+                .map(item => item.dataset.todoId).join(',');
+            return ids === '3,4' && document.querySelector('[data-mode="2"]').classList.contains('selected');
+            """
+        ),
+        "TodoMVC completed filter",
+    )
+
+    driver.execute("document.querySelector('[data-mode=\"0\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#todo-list [data-todo-id]').length === 5"
+        ),
+        "TodoMVC all filter",
+    )
+    driver.execute("document.querySelector('[data-action=\"edit-todo-0\"]').click()")
+    wait_until(
+        lambda: driver.execute("return document.querySelector('#edit-todo-0') !== null"),
+        "TodoMVC edit form",
+    )
+    driver.execute(
+        """
+        const input = document.querySelector('#edit-todo-0');
+        input.value = 'Learn Roc';
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+        document.querySelector('[data-action="save-todo-0"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('[data-todo-title=\"0\"]').textContent === 'Learn Roc'"
+        ),
+        "TodoMVC edit action",
+    )
+
+    driver.execute("document.querySelector('[data-action=\"delete-todo-4\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#todo-4') === null && document.querySelectorAll('#todo-list [data-todo-id]').length === 4"
+        ),
+        "TodoMVC delete action",
+    )
+    driver.execute("document.querySelector('[data-action=\"reset-todos\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-todo-title="0"]').textContent === 'Learn any backend language'
+                && document.querySelectorAll('#todo-list [data-todo-id]').length === 4;
+            """
+        ),
+        "TodoMVC reset action",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -951,6 +1051,7 @@ def main() -> int:
             svg_morphing(driver, base)
             templ_counter(driver, base)
             title_update(driver, base)
+            todomvc(driver, base)
         print(
             "PASS Active Search, Animations, Bad Apple, Bulk Update, "
             "Click To Edit, Click To Load, Custom Event, Custom Plugin, "
@@ -958,7 +1059,7 @@ def main() -> int:
             "Web Component, Match Media, File Upload, Form Data, "
             "Inline Validation, DBmon, Infinite Scroll, Lazy Load, Lazy Tabs, "
             "Progress Bar, Progressive Load, SVG Morphing, Templ Counter, "
-            "Title Update "
+            "Title Update, TodoMVC "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

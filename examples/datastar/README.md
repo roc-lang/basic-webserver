@@ -93,7 +93,7 @@ report](../../docs/research/datastar-typed-markup-spike.md).
 - [x] SVG Morphing
 - [x] Templ Counter
 - [x] Title Update
-- [ ] TodoMVC
+- [x] TodoMVC
 - [x] Web Component
 - [x] Match Media
 

@@ -11,6 +11,7 @@ import ./components/Animations
 import ./components/BrowserExamples
 import ./components/CrudExamples
 import ./components/LoadingExamples
+import ./components/TodoMvc
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -75,6 +76,12 @@ respond! = |request, _context| {
 		}
 	_ =
 		match LoadingExamples.respond!(request, path) {
+			Ok(Handled(outcome)) => return Ok(outcome)
+			Err(err) => return Err(err)
+			Ok(NotHandled) => {}
+		}
+	_ =
+		match TodoMvc.respond!(request, path) {
 			Ok(Handled(outcome)) => return Ok(outcome)
 			Err(err) => return Err(err)
 			Ok(NotHandled) => {}
@@ -271,6 +278,7 @@ index_page = page(
 	\\    <li><a href="/examples/svg_morphing">SVG Morphing</a></li>
 	\\    <li><a href="/examples/templ_counter">Templ Counter</a></li>
 	\\    <li><a href="/examples/title_update">Title Update</a></li>
+	\\    <li><a href="/examples/todomvc">TodoMVC</a></li>
 	\\    <li><a href="/examples/web_component">Web Component</a></li>
 	\\    <li><a href="/examples/match_media">Match Media</a></li>
 	\\</ol>
