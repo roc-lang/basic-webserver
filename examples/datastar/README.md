@@ -60,7 +60,7 @@ being evaluated.
 - [x] Animations
 - [x] Bad Apple
 - [x] Bulk Update
-- [ ] Click To Edit
+- [x] Click To Edit
 - [ ] Click To Load
 - [ ] Custom Event
 - [ ] Custom Plugin

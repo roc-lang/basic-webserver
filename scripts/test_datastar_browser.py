@@ -350,6 +350,87 @@ def bulk_update(driver: Firefox, base: str) -> None:
     )
 
 
+def click_to_edit(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/click_to_edit")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-field="first-name"]').textContent === 'John'
+                && document.querySelector('[data-field="last-name"]').textContent === 'Doe';
+            """
+        ),
+        "Click To Edit initial contact",
+    )
+
+    driver.execute("document.querySelector('[data-action=\"edit\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const inputs = [...document.querySelectorAll('#demo input')];
+            return inputs.length === 3
+                && inputs[0].value === 'John'
+                && inputs[1].value === 'Doe'
+                && inputs[2].value === 'john@example.com';
+            """
+        ),
+        "Click To Edit signal-bound edit fields",
+    )
+    driver.execute(
+        """
+        const firstName = document.querySelectorAll('#demo input')[0];
+        firstName.value = 'Discarded';
+        firstName.dispatchEvent(new Event('input', {bubbles: true}));
+        document.querySelector('[data-action="cancel"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-field="first-name"]').textContent === 'John'
+                && document.querySelector('#demo input') === null;
+            """
+        ),
+        "Click To Edit cancel restores saved contact",
+    )
+
+    driver.execute("document.querySelector('[data-action=\"edit\"]').click()")
+    wait_until(
+        lambda: driver.execute("return document.querySelectorAll('#demo input').length === 3"),
+        "Click To Edit second edit view",
+    )
+    driver.execute(
+        """
+        const values = ['Jane', 'Roc', 'jane@example.com'];
+        [...document.querySelectorAll('#demo input')].forEach((input, index) => {
+            input.value = values[index];
+            input.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+        document.querySelector('[data-action="save"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-field="first-name"]').textContent === 'Jane'
+                && document.querySelector('[data-field="last-name"]').textContent === 'Roc'
+                && document.querySelector('[data-field="email"]').textContent === 'jane@example.com';
+            """
+        ),
+        "Click To Edit saved contact patch",
+    )
+
+    driver.execute("document.querySelector('[data-action=\"reset\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('[data-field="first-name"]').textContent === 'John'
+                && document.querySelector('[data-field="email"]').textContent === 'john@example.com';
+            """
+        ),
+        "Click To Edit reset patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -387,8 +468,9 @@ def main() -> int:
             animations(driver, base)
             bad_apple(driver, base)
             bulk_update(driver, base)
+            click_to_edit(driver, base)
         print(
-            "PASS Active Search, Animations, Bad Apple, Bulk Update "
+            "PASS Active Search, Animations, Bad Apple, Bulk Update, Click To Edit "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )
