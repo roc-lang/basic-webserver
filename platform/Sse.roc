@@ -39,6 +39,12 @@ Sse :: [].{
 
 	Event := [Event(List(U8))].{
 
+		## Return the canonical framed bytes for a finite response. Applications
+		## normally pass events to a Datastar or SSE response helper instead of
+		## inspecting this representation directly.
+		to_bytes : Event -> List(U8)
+		to_bytes = |Event(bytes)| bytes
+
 		## Construct a named SSE event containing one keyed data value. The common
 		## single-line path creates the complete frame once; multiline values fall
 		## back to canonical repeated keyed fields.

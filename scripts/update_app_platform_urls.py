@@ -16,7 +16,7 @@ def update_apps(paths: list[Path], platform_url: str) -> list[Path]:
     roc_files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            roc_files.extend(sorted(path.glob("*.roc")))
+            roc_files.extend(sorted(path.rglob("*.roc")))
         elif path.suffix == ".roc":
             roc_files.append(path)
         else:

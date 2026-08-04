@@ -1,9 +1,67 @@
 import Sse
+import MultipartFormData
+import Server
+import http.Response
 
 ## Typed constructors for the Datastar SSE protocol. Applications provide
 ## domain HTML or signal JSON; this module owns canonical event names and
 ## per-line field framing.
 Datastar :: [].{
+
+	## Default maximum Datastar signals document: 64 KiB.
+	default_signals_limit_bytes : U64
+	default_signals_limit_bytes = 64 * 1024
+
+	SignalsError := [
+		InvalidSignals(Str),
+		MalformedSignalsQuery,
+		MissingSignals,
+		SignalsBodyFailed(Str),
+		UnsupportedSignalsMethod,
+	]
+
+	## Whether the request carries Datastar's advisory request header. This is
+	## a client hint only; it is not authentication or CSRF protection.
+	is_request : Server.Request -> Bool
+	is_request = |request| has_datastar_header(request.headers())
+
+	## Decode the complete bounded Datastar signals object into the type inferred
+	## by the caller. GET and DELETE read the `datastar` query parameter;
+	## POST, PUT, and PATCH read a JSON request body.
+	read_signals! = |request| read_signals_with_limit!(request, default_signals_limit_bytes)
+
+	## Decode Datastar signals with an application-selected inclusive body limit.
+	read_signals_with_limit! = |request, max_bytes| {
+		json =
+			match request.method() {
+				GET => signals_from_query(request)?
+				DELETE => signals_from_query(request)?
+				POST => signals_from_body!(request, max_bytes)?
+				PUT => signals_from_body!(request, max_bytes)?
+				PATCH => signals_from_body!(request, max_bytes)?
+				_ => return Err(UnsupportedSignalsMethod)
+			}
+
+		match Json.parse(json) {
+			Ok(signals) => Ok(signals)
+			Err(err) => Err(InvalidSignals(Str.inspect(err)))
+		}
+	}
+
+	## Return a complete finite Datastar action as an ordinary bounded response.
+	## This avoids consuming a retained-stream slot when every event is already
+	## available.
+	respond : List(Sse.Event) -> Server.Outcome
+	respond = |events|
+		Server.respond(
+			Response.from_status(200)
+				.with_headers([
+					{ name: "Content-Type", value: "text/event-stream" },
+					{ name: "Cache-Control", value: "no-cache" },
+				])
+				.with_body(event_bytes(events)),
+		)
+
 	PatchMode := [After, Append, Before, Inner, Outer, Prepend, Remove, Replace]
 
 	Selector := [FromElementIds, Select(Str)]
@@ -150,6 +208,65 @@ Datastar :: [].{
 	}
 
 }
+
+signals_from_query : Server.Request -> Try(Str, Datastar.SignalsError)
+signals_from_query = |request| {
+	raw_query =
+		match request.target() {
+			Resource({ raw_query: Present(query), .. }) => query
+			_ => return Err(MissingSignals)
+		}
+	params =
+		MultipartFormData.parse_form_url_encoded(Str.to_utf8(raw_query))
+			? |_err| MalformedSignalsQuery
+
+	match Dict.get(params, "datastar") {
+		Ok(json) if Bool.not(json.is_empty()) => Ok(json)
+		_ => Err(MissingSignals)
+	}
+}
+
+signals_from_body! : Server.Request, U64 => Try(Str, Datastar.SignalsError)
+signals_from_body! = |request, max_bytes| {
+	body = request.body().with_limit(max_bytes).read_all!()
+		? |err| SignalsBodyFailed(Str.inspect(err))
+	match Str.from_utf8(body) {
+		Ok(json) => Ok(json)
+		Err(_) => Err(InvalidSignals("signals JSON must be valid UTF-8"))
+	}
+}
+
+has_datastar_header : List({ name : Str, value : Str }) -> Bool
+has_datastar_header = |headers|
+	match headers {
+		[] => Bool.False
+		[{ name, value }, .. as rest] =>
+			if ascii_lower(name) == "datastar-request" and ascii_lower(value) == "true" {
+				Bool.True
+			} else {
+				has_datastar_header(rest)
+			}
+		}
+
+ascii_lower : Str -> Str
+ascii_lower = |value|
+	Str.from_utf8_lossy(
+		Str.to_utf8(value).map(
+			|byte|
+				if byte >= 65 and byte <= 90 {
+					byte + 32
+				} else {
+					byte
+				},
+		),
+	)
+
+event_bytes : List(Sse.Event) -> List(U8)
+event_bytes = |events|
+	match events {
+		[] => []
+		[first, .. as rest] => List.concat(first.to_bytes(), event_bytes(rest))
+	}
 
 keyed_lines : Str, Str -> List(Str)
 keyed_lines = |key, value| {

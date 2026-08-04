@@ -67,6 +67,105 @@
       ]
     },
     {
+      "path": "examples/datastar/showcase.roc",
+      "mode": "server",
+      "cases": [
+        {
+          "name": "active-search-finite-action",
+          "requests": [
+            {
+              "target": "/",
+              "body_contains": [
+                "Roc + Datastar examples",
+                "/examples/active_search"
+              ]
+            },
+            {
+              "target": "/examples/active_search",
+              "body_contains": [
+                "data-bind:active-search",
+                "Datastar.read_signals!",
+                "Abraham"
+              ],
+              "response_headers": {
+                "Content-Type": "text/html; charset=utf-8"
+              }
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%7B%22activeSearch%22%3A%22bry%22%7D",
+              "headers": {
+                "Datastar-Request": "true"
+              },
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "data: elements <div id=\"demo\">",
+                "Bryana",
+                "Bernier"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache"
+              }
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%7B%22activeSearch%22%3A%22no-match%22%7D",
+              "expect_body": "event: datastar-patch-elements\ndata: elements <div id=\"demo\">\ndata: elements     <input type=\"text\" placeholder=\"Search...\" data-bind:active-search data-on:input__debounce.200ms=\"@get('/examples/active_search/search')\">\ndata: elements     <table>\ndata: elements         <thead><tr><th>First Name</th><th>Last Name</th></tr></thead>\ndata: elements         <tbody></tbody>\ndata: elements     </table>\ndata: elements </div>\n\n"
+            },
+            {
+              "target": "/examples/active_search/search?ignored=1&datastar=%7B%22activeSearch%22%3A%22O%27KEEFE%22%7D",
+              "body_contains": [
+                "Amparo",
+                "O'Keefe"
+              ],
+              "body_not_contains": [
+                "Bryana"
+              ]
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%7B%22activeSearch%22%3A%22%22%7D",
+              "headers": {
+                "Accept-Encoding": "br"
+              },
+              "response_headers": {
+                "Content-Encoding": "br",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/examples/active_search/search",
+              "status": 400,
+              "body_contains": [
+                "MissingSignals"
+              ]
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%7B%7D",
+              "status": 400,
+              "body_contains": [
+                "InvalidSignals"
+              ]
+            },
+            {
+              "target": "/examples/active_search/search?datastar=%ZZ",
+              "status": 400,
+              "body_contains": [
+                "MalformedSignalsQuery"
+              ]
+            },
+            {
+              "target": "/datastar.js",
+              "body_contains": [
+                "Datastar"
+              ],
+              "response_headers": {
+                "Content-Type": "text/javascript; charset=utf-8"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "examples/dir.roc",
       "mode": "server",
       "cases": [

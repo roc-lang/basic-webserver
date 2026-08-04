@@ -136,7 +136,7 @@ def active_sources() -> set[str]:
     return {
         str(path.relative_to(ROOT).as_posix())
         for directory in (ROOT / "examples",)
-        for path in directory.glob("*.roc")
+        for path in directory.rglob("*.roc")
     }
 
 
@@ -1790,8 +1790,10 @@ def examples_hash() -> str:
     digest = hashlib.sha256()
     paths = [
         item
-        for item in (ROOT / "examples").iterdir()
-        if item.is_file() and item.suffix != ".todoroc"
+        for item in (ROOT / "examples").rglob("*")
+        if item.is_file()
+        and item.suffix not in {".pyc", ".todoroc"}
+        and "__pycache__" not in item.parts
     ]
     paths.append(ROOT / "scripts" / "command_helper.py")
     for path in sorted(paths):
