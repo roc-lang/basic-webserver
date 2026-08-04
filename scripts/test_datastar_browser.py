@@ -680,6 +680,136 @@ def inline_validation(driver: Firefox, base: str) -> None:
     )
 
 
+def dbmon(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/dbmon")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#dbmon-render').textContent === 'Render frame 6'"
+        ),
+        "DBmon retained updates",
+    )
+    driver.execute(
+        """
+        const mutation = document.querySelector('#dbmon-mutation');
+        mutation.value = '35';
+        mutation.dispatchEvent(new Event('input', {bubbles: true}));
+        mutation.dispatchEvent(new Event('change', {bubbles: true}));
+        const fps = document.querySelector('#dbmon-fps');
+        fps.value = '72';
+        fps.dispatchEvent(new Event('input', {bubbles: true}));
+        fps.dispatchEvent(new Event('change', {bubbles: true}));
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#dbmon-settings').textContent === 'Mutation 35%, 72 FPS'"
+        ),
+        "DBmon settings patch",
+    )
+
+
+def infinite_scroll(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/infinite_scroll")
+    driver.execute("document.querySelector('#infinite-scroll-sentinel').scrollIntoView()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelectorAll('#infinite-agents tr').length >= 20"
+        ),
+        "Infinite Scroll intersection append",
+    )
+
+
+def lazy_load(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/lazy_load")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#lazy-graph') !== null && document.querySelector('#lazy-load').textContent.includes('Graph loaded.')"
+        ),
+        "Lazy Load graph patch",
+    )
+
+
+def lazy_tabs(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/lazy_tabs")
+    driver.execute("document.querySelector('[data-lazy-tab=\"3\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#lazy-tab-panel').textContent === 'Content loaded for tab 3.'"
+        ),
+        "Lazy Tabs selected content patch",
+    )
+
+
+def progress_bar(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/progress_bar")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const root = document.querySelector('#progress-bar');
+            return root.querySelector('progress').value === 100
+                && root.querySelector('span').textContent === '100%';
+            """
+        ),
+        "Progress Bar completed stream",
+    )
+
+
+def progressive_load(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/progressive_load")
+    driver.execute("document.querySelector('#load-button').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#progressive-header').textContent.includes('Loaded header')
+                && document.querySelector('#progressive-article').textContent.includes('Loaded article')
+                && document.querySelector('#progressive-comments').textContent.includes('Loaded comments')
+                && document.querySelector('#progressive-footer').textContent.includes('Loaded footer')
+                && document.querySelector('#load-button').textContent === 'Load again'
+                && !document.querySelector('#load-button').disabled;
+            """
+        ),
+        "Progressive Load completed regions",
+    )
+
+
+def svg_morphing(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/svg_morphing")
+    driver.execute("document.querySelector('[data-action=\"morph-circle\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#morph-circle').getAttribute('fill') === 'blue'"
+        ),
+        "SVG Morphing namespaced patch",
+    )
+
+
+def templ_counter(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/templ_counter")
+    driver.execute(
+        """
+        document.querySelector('#global-counter').click();
+        document.querySelector('#user-counter').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#global-counter').textContent === 'Increment Global: 5225'
+                && document.querySelector('#user-counter').textContent === 'Increment User: 1';
+            """
+        ),
+        "Templ Counter independent patches",
+    )
+
+
+def title_update(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/title_update")
+    wait_until(
+        lambda: driver.execute("return document.title === 'Title Update frame 3'"),
+        "Title Update completed stream",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -727,11 +857,22 @@ def main() -> int:
             file_upload(driver, base)
             form_data(driver, base)
             inline_validation(driver, base)
+            dbmon(driver, base)
+            infinite_scroll(driver, base)
+            lazy_load(driver, base)
+            lazy_tabs(driver, base)
+            progress_bar(driver, base)
+            progressive_load(driver, base)
+            svg_morphing(driver, base)
+            templ_counter(driver, base)
+            title_update(driver, base)
         print(
             "PASS Active Search, Animations, Bad Apple, Bulk Update, "
             "Click To Edit, Click To Load, Custom Event, Custom Plugin, "
             "Delete Row, Edit Row, Event Bubbling, File Upload, Form Data, "
-            "Inline Validation "
+            "Inline Validation, DBmon, Infinite Scroll, Lazy Load, Lazy Tabs, "
+            "Progress Bar, Progressive Load, SVG Morphing, Templ Counter, "
+            "Title Update "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

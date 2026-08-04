@@ -83,12 +83,21 @@
                 "/examples/click_to_load",
                 "/examples/custom_event",
                 "/examples/custom_plugin",
+                "/examples/dbmon",
                 "/examples/delete_row",
                 "/examples/edit_row",
                 "/examples/event_bubbling",
                 "/examples/file_upload",
                 "/examples/form_data",
-                "/examples/inline_validation"
+                "/examples/infinite_scroll",
+                "/examples/inline_validation",
+                "/examples/lazy_load",
+                "/examples/lazy_tabs",
+                "/examples/progress_bar",
+                "/examples/progressive_load",
+                "/examples/svg_morphing",
+                "/examples/templ_counter",
+                "/examples/title_update"
               ]
             },
             {
@@ -719,6 +728,186 @@
                 "All fields are valid.",
                 "aria-disabled=\"false\""
               ]
+            },
+            {
+              "target": "/examples/dbmon",
+              "body_contains": [
+                "id=\"dbmon-demo\"",
+                "@get('/examples/dbmon/updates')",
+                "data-dbmon-cluster=\"1\"",
+                "Render frame 0"
+              ]
+            },
+            {
+              "target": "/examples/dbmon/updates",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "Render frame 1",
+                "Render frame 6",
+                "id=\"dbmon-body\""
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream"
+              }
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/dbmon/inputs",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"fps\":72,\"mutationRate\":35}",
+              "body_contains": [
+                "id=\"dbmon-settings\"",
+                "Mutation 35%, 72 FPS"
+              ]
+            },
+            {
+              "target": "/examples/infinite_scroll",
+              "body_contains": [
+                "id=\"infinite-agents\"",
+                "data-infinite-agent=\"0\"",
+                "data-infinite-agent=\"9\"",
+                "data-on-intersect=\"@get('/examples/infinite_scroll/more')\""
+              ]
+            },
+            {
+              "target": "/examples/infinite_scroll/more?datastar=%7B%22limit%22%3A10%2C%22offset%22%3A0%7D",
+              "body_contains": [
+                "data: selector #infinite-agents",
+                "data: mode append",
+                "data-infinite-agent=\"10\"",
+                "Agent Smith 19",
+                "data: signals {\"offset\":10}"
+              ]
+            },
+            {
+              "target": "/examples/lazy_load",
+              "body_contains": [
+                "id=\"lazy-load\"",
+                "@get('/examples/lazy_load/graph')",
+                "Loading graph"
+              ]
+            },
+            {
+              "target": "/examples/lazy_load/graph",
+              "body_contains": [
+                "id=\"lazy-graph\"",
+                "Graph loaded.",
+                "event: datastar-patch-elements"
+              ]
+            },
+            {
+              "target": "/examples/lazy_tabs",
+              "body_contains": [
+                "id=\"lazy-tabs\"",
+                "data-lazy-tab=\"3\"",
+                "id=\"lazy-tab-panel\""
+              ]
+            },
+            {
+              "target": "/examples/lazy_tabs/3",
+              "body_contains": [
+                "id=\"lazy-tab-panel\"",
+                "Content loaded for tab 3."
+              ]
+            },
+            {
+              "target": "/examples/progress_bar",
+              "body_contains": [
+                "id=\"progress-bar\"",
+                "@get('/examples/progress_bar/updates', {openWhenHidden: true})",
+                "<progress max=\"100\" value=\"0\">"
+              ]
+            },
+            {
+              "target": "/examples/progress_bar/updates",
+              "body_contains": [
+                "value=\"10\"",
+                "10%",
+                "value=\"100\"",
+                "100%"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream"
+              }
+            },
+            {
+              "target": "/examples/progressive_load",
+              "body_contains": [
+                "id=\"load-button\"",
+                "id=\"progressive-header\"",
+                "id=\"progressive-footer\""
+              ]
+            },
+            {
+              "target": "/examples/progressive_load/updates",
+              "body_contains": [
+                "Loaded header",
+                "Loaded article",
+                "Loaded comments",
+                "Loaded footer",
+                "Load again"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream"
+              }
+            },
+            {
+              "target": "/examples/svg_morphing",
+              "body_contains": [
+                "id=\"morph-circle\"",
+                "fill=\"red\"",
+                "data-action=\"morph-circle\""
+              ]
+            },
+            {
+              "target": "/examples/svg_morphing/circle_color?datastar=%7B%22circleBlue%22%3Afalse%7D",
+              "body_contains": [
+                "data: namespace svg",
+                "id=\"morph-circle\"",
+                "fill=\"blue\"",
+                "data: signals {\"circleBlue\":true}"
+              ]
+            },
+            {
+              "target": "/examples/templ_counter",
+              "body_contains": [
+                "id=\"global-counter\"",
+                "Increment Global: 5224",
+                "Increment User: 0"
+              ]
+            },
+            {
+              "method": "PATCH",
+              "target": "/examples/templ_counter/global",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"globalCount\":5224,\"userCount\":0}",
+              "body_contains": [
+                "Increment Global: 5225",
+                "data: signals {\"globalCount\":5225}"
+              ]
+            },
+            {
+              "target": "/examples/title_update",
+              "body_contains": [
+                "id=\"title-update-status\"",
+                "@get('/examples/title_update/updates')"
+              ]
+            },
+            {
+              "target": "/examples/title_update/updates",
+              "body_contains": [
+                "data: selector title",
+                "data: mode inner",
+                "Title Update frame 1",
+                "Title Update frame 3"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream"
+              }
             },
             {
               "target": "/datastar.js",

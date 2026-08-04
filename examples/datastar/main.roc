@@ -10,6 +10,7 @@ import ./components/ClickToEdit
 import ./components/Animations
 import ./components/BrowserExamples
 import ./components/CrudExamples
+import ./components/LoadingExamples
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -68,6 +69,12 @@ respond! = |request, _context| {
 		}
 	_ =
 		match CrudExamples.respond!(request, path) {
+			Ok(Handled(outcome)) => return Ok(outcome)
+			Err(err) => return Err(err)
+			Ok(NotHandled) => {}
+		}
+	_ =
+		match LoadingExamples.respond!(request, path) {
 			Ok(Handled(outcome)) => return Ok(outcome)
 			Err(err) => return Err(err)
 			Ok(NotHandled) => {}
@@ -234,7 +241,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li><li><a href="/examples/delete_row">Delete Row</a></li><li><a href="/examples/edit_row">Edit Row</a></li><li><a href="/examples/event_bubbling">Event Bubbling</a></li><li><a href="/examples/file_upload">File Upload</a></li><li><a href="/examples/form_data">Form Data</a></li><li><a href="/examples/inline_validation">Inline Validation</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li><li><a href="/examples/dbmon">DBmon</a></li><li><a href="/examples/delete_row">Delete Row</a></li><li><a href="/examples/edit_row">Edit Row</a></li><li><a href="/examples/event_bubbling">Event Bubbling</a></li><li><a href="/examples/file_upload">File Upload</a></li><li><a href="/examples/form_data">Form Data</a></li><li><a href="/examples/infinite_scroll">Infinite Scroll</a></li><li><a href="/examples/inline_validation">Inline Validation</a></li><li><a href="/examples/lazy_load">Lazy Load</a></li><li><a href="/examples/lazy_tabs">Lazy Tabs</a></li><li><a href="/examples/progress_bar">Progress Bar</a></li><li><a href="/examples/progressive_load">Progressive Load</a></li><li><a href="/examples/svg_morphing">SVG Morphing</a></li><li><a href="/examples/templ_counter">Templ Counter</a></li><li><a href="/examples/title_update">Title Update</a></li></ol>
 	,
 )
 

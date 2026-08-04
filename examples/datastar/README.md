@@ -76,23 +76,23 @@ report](../../docs/research/datastar-typed-markup-spike.md).
 - [x] Click To Load
 - [x] Custom Event
 - [x] Custom Plugin
-- [ ] DBmon
+- [x] DBmon
 - [x] Delete Row
 - [x] Edit Row
 - [x] Event Bubbling
 - [x] File Upload
 - [x] Form Data
-- [ ] Infinite Scroll
+- [x] Infinite Scroll
 - [x] Inline Validation
-- [ ] Lazy Load
-- [ ] Lazy Tabs
+- [x] Lazy Load
+- [x] Lazy Tabs
 - [ ] On Signal Patch
-- [ ] Progress Bar
-- [ ] Progressive Load
+- [x] Progress Bar
+- [x] Progressive Load
 - [ ] Sortable
-- [ ] SVG Morphing
-- [ ] Templ Counter
-- [ ] Title Update
+- [x] SVG Morphing
+- [x] Templ Counter
+- [x] Title Update
 - [ ] TodoMVC
 - [ ] Web Component
 - [ ] Match Media
