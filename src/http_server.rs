@@ -679,7 +679,6 @@ fn start_inner() -> i32 {
     let config = match RuntimeConfig::from_roc(initialized.config) {
         Ok(config) => config,
         Err(detail) => {
-            eprintln!("Server startup configuration is invalid: {detail}");
             return finish_shutdown(
                 ShutdownReason::StartupFailed(detail),
                 raw_context,
@@ -768,6 +767,9 @@ fn start_inner() -> i32 {
 
 fn finish_shutdown(reason: ShutdownReason, context: RocBox, hook_timeout: Duration) -> i32 {
     let default_exit_code = reason.default_exit_code();
+    if let Some(diagnostic) = shutdown_diagnostic(&reason) {
+        eprintln!("{diagnostic}");
+    }
     let (tag, detail) = shutdown_reason_to_host(&reason);
     let raw_reason = ServerShutdownReason {
         detail: RocStr::from_str(detail, roc_host()),
@@ -797,6 +799,16 @@ fn finish_shutdown(reason: ShutdownReason, context: RocBox, hook_timeout: Durati
         ShutdownForHostResultTag::Err => {
             exit_code_to_i32(unsafe { result.take_payload_err_unchecked() })
         }
+    }
+}
+
+fn shutdown_diagnostic(reason: &ShutdownReason) -> Option<String> {
+    match reason {
+        ShutdownReason::StartupFailed(detail) => Some(format!("Server startup failed: {detail}")),
+        ShutdownReason::RuntimeFailed(detail) => Some(format!("Server runtime failed: {detail}")),
+        ShutdownReason::ApplicationRequested { .. }
+        | ShutdownReason::Interrupt
+        | ShutdownReason::Terminate => None,
     }
 }
 
@@ -3457,6 +3469,19 @@ mod tests {
             shutdown_reason_to_host(&ShutdownReason::RuntimeFailed("x".to_owned())).0,
             4
         );
+    }
+
+    #[test]
+    fn host_failures_have_unconditional_diagnostics() {
+        assert_eq!(
+            shutdown_diagnostic(&ShutdownReason::StartupFailed("failed to bind".to_owned())),
+            Some("Server startup failed: failed to bind".to_owned())
+        );
+        assert_eq!(
+            shutdown_diagnostic(&ShutdownReason::RuntimeFailed("reactor stopped".to_owned())),
+            Some("Server runtime failed: reactor stopped".to_owned())
+        );
+        assert_eq!(shutdown_diagnostic(&ShutdownReason::Interrupt), None);
     }
 
     #[tokio::test]

@@ -1084,7 +1084,7 @@
           "expect_startup_failure": true,
           "exit_code": 1,
           "stderr_contains": [
-            "Server startup configuration is invalid: duplicate exact native route \"/health\""
+            "Server startup failed: duplicate exact native route \"/health\""
           ]
         },
         {
@@ -1095,7 +1095,7 @@
           "expect_startup_failure": true,
           "exit_code": 1,
           "stderr_contains": [
-            "Server startup configuration is invalid: invalid native route path \"/live?details=true\""
+            "Server startup failed: invalid native route path \"/live?details=true\""
           ]
         }
       ]
