@@ -54,6 +54,12 @@ branch and is not present in the 0.15.0 release bundle. From the repository
 root, `roc examples/datastar/showcase.roc` therefore exercises exactly the code
 being evaluated.
 
+Click To Load is also the first typed-markup feasibility probe. It uses nominal
+signals, expressions, actions, request and patch targets, and compile-time
+literal validation while retaining a deliberate escape hatch at the boundary.
+The guarantees, limits, compile-failure cases, and performance evidence are in
+the [typed Datastar markup report](../../docs/research/datastar-typed-markup-spike.md).
+
 ## Catalog progress
 
 - [x] Active Search

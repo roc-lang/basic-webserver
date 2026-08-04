@@ -438,11 +438,11 @@
             {
               "target": "/examples/click_to_load",
               "body_contains": [
-                "data-signals=\"{page: 0}\"",
+                "data-signals=\"{&quot;page&quot;:0}\"",
                 "id=\"agents\"",
                 "data-agent=\"0\"",
                 "data-agent=\"9\"",
-                "data-on:click=\"!$_fetching && @get('/examples/click_to_load/more')\"",
+                "data-on:click=\"!($_fetching) &amp;&amp; @get(&quot;/examples/click_to_load/more&quot;)\"",
                 "Load More"
               ]
             },

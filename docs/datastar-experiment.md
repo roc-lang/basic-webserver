@@ -2191,3 +2191,23 @@ allocates once per transition and remains about 21x slower than unique Go state
 at batch 1. The callable design therefore advances to controlled performance,
 upstream/compiler, and real-transport validation; it is not yet a production
 platform commitment.
+
+### 2026-08-04: Typed markup and literal dispatch pass the first API gate
+
+Click To Load now exercises a receiver-oriented `DatastarMarkup` companion
+using typed signals, expressions, actions, events, request targets, element IDs,
+patch targets, signal updates, and rendered HTML fragment/document states.
+Contextual `from_quote` conversion validates signal names, route paths,
+selectors, and element IDs at compile time; dynamic inputs use the same
+fallible parsers. A focused review rejected `parser_for`, whole-action literal
+parsing, and heterogeneous interpolation as foundations because they add no
+cross-value type relationship.
+
+Nine compile-failure applications caught one real prototype flaw: inferred
+`Signal.update` initially failed to relate the phantom signal type to its new
+value and accepted a string update for a boolean signal. The repaired API now
+pins that relationship. The optimized showcase, listener checks, and full
+Firefox suite pass, and the fully rendered static page is embedded as one
+constant in the optimized object. The detailed guarantees, proof limits,
+commands, and remaining decisions are in
+[`docs/research/datastar-typed-markup-spike.md`](research/datastar-typed-markup-spike.md).

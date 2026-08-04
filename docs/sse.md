@@ -149,6 +149,11 @@ from the matching `default_*_options` record so later compatible fields do not
 force manual record construction. Signal values remain JSON strings because
 the platform does not choose an application JSON model.
 
+The experimental `DatastarMarkup` companion adds typed signals, expressions,
+actions, request targets, and patch targets over this wire API. Its current
+guarantees and deliberate limits are recorded in the
+[typed markup feasibility report](research/datastar-typed-markup-spike.md).
+
 ## Deliberately deferred optimizations
 
 The current hot transition transfers one complete Roc-framed event allocation
