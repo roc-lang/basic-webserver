@@ -59,7 +59,7 @@ being evaluated.
 - [x] Active Search
 - [x] Animations
 - [x] Bad Apple
-- [ ] Bulk Update
+- [x] Bulk Update
 - [ ] Click To Edit
 - [ ] Click To Load
 - [ ] Custom Event

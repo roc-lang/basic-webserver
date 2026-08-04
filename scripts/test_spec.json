@@ -77,7 +77,8 @@
               "target": "/",
               "body_contains": [
                 "Roc + Datastar examples",
-                "/examples/active_search"
+                "/examples/active_search",
+                "/examples/bulk_update"
               ]
             },
             {
@@ -281,6 +282,68 @@
                 "Content-Encoding": "br",
                 "Vary": "Accept-Encoding"
               }
+            },
+            {
+              "target": "/examples/bulk_update",
+              "body_contains": [
+                "data-bind:selections",
+                "data-on:click=\"@put('/examples/bulk_update/activate')\"",
+                "data-on:click=\"@put('/examples/bulk_update/deactivate')\"",
+                "Joe Smith",
+                "Fuqua Tarkenton",
+                "Inactive",
+                "Active"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/bulk_update/activate",
+              "headers": {
+                "Content-Type": "application/json",
+                "Datastar-Request": "true"
+              },
+              "body": "{\"selections\":[true,true,false,false],\"statuses\":[false,false,true,true]}",
+              "body_contains": [
+                "event: datastar-patch-signals",
+                "data: signals {\"statuses\":[true,true,true,true]}",
+                "event: datastar-patch-elements"
+              ],
+              "body_regex": [
+                "data-user=\"joe\".*Joe Smith.*class=\"status\">Active",
+                "data-user=\"angie\".*Angie MacDowell.*class=\"status\">Active"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache"
+              }
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/bulk_update/deactivate",
+              "headers": {
+                "Content-Type": "application/json",
+                "Datastar-Request": "true"
+              },
+              "body": "{\"selections\":[false,false,true,true],\"statuses\":[true,true,true,true]}",
+              "body_contains": [
+                "data: signals {\"statuses\":[true,true,false,false]}"
+              ],
+              "body_regex": [
+                "data-user=\"fuqua\".*Fuqua Tarkenton.*class=\"status\">Inactive",
+                "data-user=\"kim\".*Kim Yee.*class=\"status\">Inactive"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/bulk_update/activate",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"selections\":[true,false,true],\"statuses\":[false,false,true,true]}",
+              "status": 400,
+              "body_contains": [
+                "Expected exactly four selections and four statuses"
+              ]
             },
             {
               "target": "/datastar.js",

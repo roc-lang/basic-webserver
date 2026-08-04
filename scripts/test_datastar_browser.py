@@ -289,6 +289,67 @@ def bad_apple(driver: Firefox, base: str) -> None:
     )
 
 
+def bulk_update(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/bulk_update")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const statuses = [...document.querySelectorAll('#demo td.status')]
+                .map(element => element.textContent);
+            return JSON.stringify(statuses) === JSON.stringify([
+                'Inactive', 'Inactive', 'Active', 'Active'
+            ]);
+            """
+        ),
+        "Bulk Update initial statuses",
+    )
+
+    driver.execute(
+        """
+        const rows = [...document.querySelectorAll('#demo tbody tr')];
+        rows[0].querySelector('input').click();
+        rows[1].querySelector('input').click();
+        document.querySelector('[data-action="activate"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            const rows = [...document.querySelectorAll('#demo tbody tr')];
+            return rows[0].querySelector('.status').textContent === 'Active'
+                && rows[1].querySelector('.status').textContent === 'Active'
+                && rows.every(row => row.querySelector('.status').textContent === 'Active')
+                && rows[0].querySelector('input').checked
+                && rows[1].querySelector('input').checked;
+            """
+        ),
+        "Bulk Update activate patch and retained selections",
+    )
+
+    driver.execute(
+        """document.querySelector('input[aria-label="Select all users"]').click()"""
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return [...document.querySelectorAll('#demo tbody input[type="checkbox"]')]
+                .every(input => input.checked);
+            """
+        ),
+        "Bulk Update select-all binding",
+    )
+    driver.execute("document.querySelector('[data-action=\"deactivate\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return [...document.querySelectorAll('#demo td.status')]
+                .every(element => element.textContent === 'Inactive');
+            """
+        ),
+        "Bulk Update deactivate patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -325,8 +386,9 @@ def main() -> int:
             active_search(driver, base)
             animations(driver, base)
             bad_apple(driver, base)
+            bulk_update(driver, base)
         print(
-            "PASS Active Search, Animations, Bad Apple "
+            "PASS Active Search, Animations, Bad Apple, Bulk Update "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )
