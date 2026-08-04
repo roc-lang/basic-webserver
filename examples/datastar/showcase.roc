@@ -4,9 +4,8 @@ app [Context, program] {
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
+import ./components/ClickToLoad
 import pf.Datastar
-import pf.DatastarMarkup
-import pf.ElementId
 import pf.Attribute
 import pf.Html
 import pf.Server
@@ -35,9 +34,10 @@ ClickToEditSignals : {
 
 ClickToEditContact : { email : Str, firstName : Str, lastName : Str }
 
-ClickToLoadSignals : { page : U64 }
-
 Contact : { first : Str, last : Str, search : Str }
+
+click_to_load : ClickToLoad
+click_to_load = ClickToLoad.default
 
 program = { init!, respond!, shutdown! }
 
@@ -52,8 +52,10 @@ respond! = |request, _context| {
 			_ => ""
 		}
 
-	if click_to_load_more_target.matches(request.method(), path) {
-		click_to_load_more!(request)
+	if click_to_load.more_target().matches(request.method(), path) {
+		click_to_load.more!(request)
+	} else if click_to_load.page_target().matches(request.method(), path) {
+		Ok(click_to_load.page())
 	} else match (request.method(), path) {
 		(GET, "/") => Ok(Server.respond(html_response(index_page)))
 		(GET, "/datastar.js") => Ok(Server.respond(javascript_response(datastar_js)))
@@ -74,7 +76,6 @@ respond! = |request, _context| {
 		(PUT, "/examples/click_to_edit") => click_to_edit_save!(request)
 		(GET, "/examples/click_to_edit/cancel") => click_to_edit_cancel!(request)
 		(PATCH, "/examples/click_to_edit/reset") => Ok(click_to_edit_reset())
-		(GET, "/examples/click_to_load") => Ok(Server.respond(html_document_response(click_to_load_page)))
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -413,83 +414,6 @@ click_to_edit_form =
 click_to_edit_default_contact : ClickToEditContact
 click_to_edit_default_contact = { firstName: "John", lastName: "Doe", email: "john@example.com" }
 
-click_to_load_page_signal : DatastarMarkup.Signal(U64)
-click_to_load_page_signal = DatastarMarkup.Signal.u64("page")
-
-click_to_load_fetching_signal : DatastarMarkup.Signal(Bool)
-click_to_load_fetching_signal = DatastarMarkup.Signal.excluded_bool("fetching")
-
-click_to_load_more_target : DatastarMarkup.RequestTarget
-click_to_load_more_target = DatastarMarkup.RequestTarget.get("/examples/click_to_load/more")
-
-click_to_load_root_id : ElementId
-click_to_load_root_id = "click-to-load"
-
-click_to_load_agents_id : ElementId
-click_to_load_agents_id = "agents"
-
-click_to_load_more_id : ElementId
-click_to_load_more_id = "load-more"
-
-click_to_load_rows_target : DatastarMarkup.PatchTarget
-click_to_load_rows_target = click_to_load_agents_id.descendant("tbody")
-
-click_to_load_more! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
-click_to_load_more! = |request| {
-	signals_result : Try(ClickToLoadSignals, Datastar.SignalsError)
-	signals_result = Datastar.read_signals!(request)
-	signals =
-		match signals_result {
-			Ok(value) => value
-			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Click To Load signals: ${Str.inspect(err)}")))
-		}
-	if signals.page >= 2 {
-		return Ok(Server.respond(text_response(400, "All Click To Load pages have already been requested")))
-	}
-
-	next_page = signals.page + 1
-	start = next_page * 10
-	rows = click_to_load_rows_target.append(click_to_load_rows(start, 10))
-	page_signal = DatastarMarkup.patch_signals([click_to_load_page_signal.update(next_page)])
-	events =
-		if next_page == 2 {
-			[rows, page_signal, click_to_load_more_id.patch_target().replace(click_to_load_complete_button)]
-		} else {
-			[rows, page_signal]
-		}
-	Ok(Datastar.respond(events))
-}
-
-click_to_load_rows : U64, U64 -> Html.Fragment
-click_to_load_rows = |index, remaining|
-	Html.render_fragment(click_to_load_row_nodes(index, remaining, []))
-
-click_to_load_row_nodes : U64, U64, List(Html.Node) -> List(Html.Node)
-click_to_load_row_nodes = |index, remaining, rows|
-	if remaining == 0 {
-		rows
-	} else {
-		click_to_load_row_nodes(index + 1, remaining - 1, rows.append(click_to_load_row(index)))
-	}
-
-click_to_load_row : U64 -> Html.Node
-click_to_load_row = |index| {
-	number = U64.to_str(index)
-	email = "agent${number}@example.com"
-	Html.tr(
-		[Attribute.attribute("data-agent", number)],
-		[
-			Html.td([], [Html.text("Agent Smith ${number}")]),
-			Html.td([], [Html.a([Attribute.href("mailto:${email}")], [Html.text(email)])]),
-			Html.td([], [Html.text("agent-${number}")]),
-		],
-	)
-}
-
-click_to_load_complete_button : Html.Fragment
-click_to_load_complete_button =
-	Html.render_fragment([Html.p([click_to_load_more_id.attribute()], [Html.text("All agents loaded")])])
-
 contacts : List(Contact)
 contacts = [
 	{ first: "Abraham", last: "Jakubowski", search: "abraham jakubowski" },
@@ -561,72 +485,6 @@ page = |title, content|
 	\\    ${content}
 	\\</body>
 	\\</html>
-
-typed_page_styles : Str
-typed_page_styles =
-	\\:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-	\\body { max-width: 54rem; margin: 3rem auto; padding: 0 1rem; }
-	\\nav { display: flex; gap: 1rem; margin-bottom: 2rem; }
-	\\fieldset { padding: 1.5rem; }
-	\\input { width: min(24rem, 100%); padding: .65rem; }
-	\\input[type="checkbox"] { width: auto; }
-	\\button { margin: 1rem .5rem 0 0; padding: .65rem 1rem; }
-	\\table { width: 100%; margin-top: 1rem; border-collapse: collapse; }
-	\\th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #8886; }
-	\\code { background: #8882; padding: .1rem .3rem; }
-	\\#throb { padding: 2rem; transition: color 1s, background-color 1s; }
-
-typed_page : Str, List(Html.Node) -> Html.Document
-typed_page = |title, content|
-	Html.render_document(
-		Html.html(
-			[Attribute.attribute("lang", "en")],
-			[
-				Html.head(
-					[],
-					[
-						Html.meta([Attribute.attribute("charset", "utf-8")]),
-						Html.meta([
-							Attribute.name("viewport"),
-							Attribute.attribute("content", "width=device-width, initial-scale=1"),
-						]),
-						Html.title([], [Html.text("${title} · Roc + Datastar")]),
-						Html.element(
-							"script",
-							[Attribute.type("module"), Attribute.src("/datastar.js")],
-							[],
-						),
-						Html.element(
-							"style",
-							[],
-							[Html.dangerously_include_unescaped_html(typed_page_styles)],
-						),
-					],
-				),
-				Html.body(
-					[],
-					List.concat(
-						[
-							Html.nav(
-								[],
-								[
-									Html.a([Attribute.href("/")], [Html.text("All examples")]),
-									Html.a(
-										[
-											Attribute.href("https://data-star.dev/examples/"),
-											Attribute.rel("noreferrer"),
-										],
-										[Html.text("Datastar originals")],
-									),
-								],
-							),
-						],
-						content,
-					),
-				),
-			],
-		),
-	)
 
 index_page : Str
 index_page = page(
@@ -707,63 +565,6 @@ click_to_edit_page = page(
 escaped_text : Str -> Str
 escaped_text = |value| Html.render_without_doc_type(Html.text(value))
 
-click_to_load_page : Html.Document
-click_to_load_page = typed_page(
-	"Click To Load",
-	[
-		Html.h1([], [Html.text("Click To Load")]),
-		Html.p([], [Html.text("Load the next page of agents into an existing table.")]),
-		Html.element(
-			"fieldset",
-			[],
-			[
-				Html.element("legend", [], [Html.text("Demo")]),
-				Html.div(
-					[
-						click_to_load_root_id.attribute(),
-						DatastarMarkup.signals([click_to_load_page_signal.definition(0)]),
-					],
-					[
-						Html.table(
-							[click_to_load_agents_id.attribute()],
-							[
-								Html.thead(
-									[],
-									[
-										Html.tr(
-											[],
-											[
-												Html.th([], [Html.text("Name")]),
-												Html.th([], [Html.text("Email")]),
-												Html.th([], [Html.text("ID")]),
-											],
-										),
-									],
-								),
-								Html.tbody([], click_to_load_row_nodes(0, 10, [])),
-							],
-						),
-						Html.button(
-							[
-								click_to_load_more_id.attribute(),
-								click_to_load_fetching_signal.indicator(),
-								click_to_load_fetching_signal.disabled_when_true(),
-								click_to_load_more_target.request().unless(click_to_load_fetching_signal.expr()).on_click(),
-							],
-							[Html.text("Load More")],
-						),
-					],
-				),
-			],
-		),
-		Html.h2([], [Html.text("What this validates")]),
-		Html.p(
-			[],
-			[Html.text("Each finite GET response appends ten rows with an explicit selector and patch mode, advances a pagination signal, and eventually replaces the stable load button.")],
-		),
-	],
-)
-
 ascii_lower : Str -> Str
 ascii_lower = |value|
 	Str.from_utf8_lossy(
@@ -782,12 +583,6 @@ html_response = |body|
 	Response.from_status(200)
 		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
 		.with_body(Str.to_utf8(body))
-
-html_document_response : Html.Document -> Response
-html_document_response = |document|
-	Response.from_status(200)
-		.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
-		.with_body(document.to_bytes())
 
 javascript_response : List(U8) -> Response
 javascript_response = |body|

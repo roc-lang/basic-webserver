@@ -66,6 +66,10 @@ class SpecValidationTests(unittest.TestCase):
             source.parent.mkdir()
             original = 'app [main] { pf: platform "https://example.invalid/old" }\n'
             source.write_text(original, encoding="utf-8")
+            support = source.parent / "Support.roc"
+            support.write_text("Support :: [].{}\n", encoding="utf-8")
+            sibling_app = source.parent / "sibling.roc"
+            sibling_app.write_text("app [main] {}\n", encoding="utf-8")
 
             with (
                 mock.patch.object(test, "ROOT", root),
@@ -82,6 +86,26 @@ class SpecValidationTests(unittest.TestCase):
                 'platform "http://127.0.0.1:1234/platform.tar.zst"',
                 rewritten.read_text(encoding="utf-8"),
             )
+            self.assertEqual(
+                (rewritten.parent / "Support.roc").read_text(encoding="utf-8"),
+                "Support :: [].{}\n",
+            )
+            self.assertFalse((rewritten.parent / "sibling.roc").exists())
+
+    def test_active_sources_excludes_local_type_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            examples = root / "examples"
+            examples.mkdir()
+            (examples / "app.roc").write_text(
+                "## executable\napp [main] {}\n", encoding="utf-8"
+            )
+            (examples / "Component.roc").write_text(
+                "Component :: [].{}\n", encoding="utf-8"
+            )
+
+            with mock.patch.object(test, "ROOT", root):
+                self.assertEqual(test.active_sources(), {"examples/app.roc"})
 
     def test_startup_failure_case_cannot_send_requests(self) -> None:
         case = {

@@ -54,6 +54,7 @@ TARGET_PLATFORMS = {
 }
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
 PLATFORM_DEPENDENCY = re.compile(r'(?m)(\bplatform\s+)"[^"]+"')
+APPLICATION_HEADER = re.compile(r"(?m)^\s*app\s+\[")
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
 HTTP2_CLIENT_PREFACE = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 HTTP2_FRAME_DATA = 0x0
@@ -137,7 +138,25 @@ def active_sources() -> set[str]:
         str(path.relative_to(ROOT).as_posix())
         for directory in (ROOT / "examples",)
         for path in directory.rglob("*.roc")
+        if APPLICATION_HEADER.search(path.read_text(encoding="utf-8")) is not None
     }
+
+
+def copy_local_source_tree(source_path: Path, destination: Path) -> None:
+    """Copy an application's sibling assets and local Roc modules."""
+    for source in source_path.parent.rglob("*"):
+        if not source.is_file() or "__pycache__" in source.parts:
+            continue
+        if source == source_path:
+            continue
+        if source.suffix == ".roc" and APPLICATION_HEADER.search(
+            source.read_text(encoding="utf-8")
+        ) is not None:
+            continue
+        relative = source.relative_to(source_path.parent)
+        copied = destination.parent / relative
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, copied)
 
 
 def declared_targets() -> tuple[str, ...]:
@@ -530,10 +549,6 @@ def prepare_memcheck_binaries(
 
     for source in sorted((ROOT / "platform").glob("*.roc")):
         shutil.copy2(source, platform_dir / source.name)
-    for source in sorted((ROOT / "examples").iterdir()):
-        if source.is_file() and source.suffix != ".roc":
-            shutil.copy2(source, app_dir / source.name)
-
     # Validation processes bind an ephemeral port so the complete suite can run
     # alongside a developer's server and parallel CI jobs.
     server_path = platform_dir / "Server.roc"
@@ -581,11 +596,15 @@ def prepare_memcheck_binaries(
         if not stage_enabled(defaults, app, "build"):
             continue
         source = ROOT / str(app["path"])
-        copied_source = app_dir / source.name
+        copied_source = app_dir / source.relative_to(ROOT / "examples")
+        copy_local_source_tree(source, copied_source)
         app_source = source.read_text(encoding="utf-8")
+        platform_path = os.path.relpath(
+            platform_dir / "main.roc", copied_source.parent
+        ).replace(os.sep, "/")
         app_source, count = re.subn(
             r'(?m)(\bplatform\s+)"[^"]+"',
-            lambda match: f'{match.group(1)}"../platform/main.roc"',
+            lambda match: f'{match.group(1)}"{platform_path}"',
             app_source,
             count=1,
         )
@@ -631,9 +650,7 @@ def rewritten_app_source(app_path: str, platform_url: str | None) -> Path:
 
     destination = VALIDATION_ROOT / "sources" / app_path
     destination.parent.mkdir(parents=True, exist_ok=True)
-    for sibling in source_path.parent.iterdir():
-        if sibling.is_file() and sibling.suffix != ".roc":
-            shutil.copy2(sibling, destination.parent / sibling.name)
+    copy_local_source_tree(source_path, destination)
     destination.write_text(rewritten, encoding="utf-8", newline="\n")
     return destination
 
