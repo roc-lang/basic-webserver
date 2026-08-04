@@ -82,4 +82,3 @@ styles =
 	\\table { width: 100%; margin-top: 1rem; border-collapse: collapse; }
 	\\th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #8886; }
 	\\code { background: #8882; padding: .1rem .3rem; }
-	\\#throb { padding: 2rem; transition: color 1s, background-color 1s; }

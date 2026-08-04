@@ -228,9 +228,6 @@ DatastarMarkup :: [].{
 		change : DomEvent
 		change = DomEvent("change")
 
-		init : DomEvent
-		init = DomEvent("init")
-
 		input : DomEvent
 		input = DomEvent("input")
 
@@ -255,6 +252,11 @@ DatastarMarkup :: [].{
 
 		on_click : Action -> Attribute
 		on_click = |action| action.on(DomEvent.click)
+
+		## Run this action when Datastar initializes the element. Initialization
+		## is a Datastar lifecycle hook, not a DOM event.
+		on_init : Action -> Attribute
+		on_init = |action| Attribute.attribute("data-init", action.source)
 
 		unchecked : Str -> Action
 		unchecked = |source| Action.(
@@ -333,6 +335,21 @@ DatastarMarkup :: [].{
 		replace : PatchTarget, Html.Fragment -> Sse.Event
 		replace = |PatchTarget(selector), fragment|
 			targeted_patch(fragment, selector, Datastar.PatchMode.replace)
+
+		## Replace this target inside a browser View Transition. Keeping the
+		## selector on the receiver prevents the transition target and patched
+		## element from drifting apart.
+		replace_with_view_transition : PatchTarget, Html.Fragment -> Sse.Event
+		replace_with_view_transition = |PatchTarget(selector), fragment|
+			Datastar.patch_elements_with(
+				fragment.to_str(),
+				{
+					..Datastar.default_patch_elements_options,
+					mode: Datastar.PatchMode.replace,
+					selector: Select(selector.to_str()),
+					view_transition: ViewTransition(TransitionTarget(selector.to_str())),
+				},
+			)
 
 		remove : PatchTarget -> Sse.Event
 		remove = |PatchTarget(selector)| Datastar.remove_elements(selector.to_str())
@@ -450,6 +467,23 @@ expect {
 
 	Attribute.raw_name(attribute) == "data-on:input__debounce.200ms" and
 		Attribute.raw_value(attribute) == "@get(\"/\")"
+}
+
+expect {
+	target = DatastarMarkup.RequestTarget.get("/updates")
+	attribute = target.request().on_init()
+
+	Attribute.raw_name(attribute) == "data-init" and
+		Attribute.raw_value(attribute) == "@get(\"/updates\")"
+}
+
+expect {
+	target = DatastarMarkup.PatchTarget.css("#swap")
+	fragment = Html.render_fragment([Html.button([Attribute.id("swap")], [Html.text("Restore")])])
+	event = target.replace_with_view_transition(fragment)
+
+	Str.from_utf8_lossy(event.to_bytes())
+		== "event: datastar-patch-elements\ndata: selector #swap\ndata: mode replace\ndata: useViewTransition true\ndata: viewTransitionSelector #swap\ndata: elements <button id=\"swap\">Restore</button>\n\n"
 }
 
 expect {

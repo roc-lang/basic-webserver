@@ -84,6 +84,11 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         'probe = ElementId.("agents")',
         ("OPAQUE", "ElementId"),
     ),
+    (
+        "view-transition-requires-fragment",
+        'probe = DatastarMarkup.PatchTarget.css("#swap").replace_with_view_transition("<button></button>")',
+        ("TYPE MISMATCH", "Html.Fragment", "string literal"),
+    ),
 )
 
 

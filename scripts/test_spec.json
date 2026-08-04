@@ -159,7 +159,7 @@
               "target": "/examples/animations",
               "body_contains": [
                 "Color Throb",
-                "data-init=\"@get('/examples/animations/throb')\"",
+                "data-init=\"@get(&quot;/examples/animations/throb&quot;)\"",
                 "id=\"view-transition\"",
                 "id=\"fade-out-swap\"",
                 "id=\"fade-me-in\""
@@ -169,8 +169,11 @@
               "target": "/examples/animations/view_transition?datastar=%7B%22shouldRestore%22%3Afalse%7D",
               "body_contains": [
                 "event: datastar-patch-elements",
+                "data: selector #view-transition",
+                "data: mode replace",
                 "data: useViewTransition true",
-                "shouldRestore: true",
+                "data: viewTransitionSelector #view-transition",
+                "&quot;shouldRestore&quot;:true",
                 "Restore It!"
               ],
               "response_headers": {
@@ -182,8 +185,32 @@
               "target": "/examples/animations/view_transition?datastar=%7B%22shouldRestore%22%3Atrue%7D",
               "body_contains": [
                 "data: useViewTransition true",
-                "shouldRestore: false",
+                "&quot;shouldRestore&quot;:false",
                 "Swap It!"
+              ]
+            },
+            {
+              "target": "/examples/animations/view_transition",
+              "status": 400,
+              "body_contains": [
+                "Invalid Animations signals",
+                "MissingSignals"
+              ]
+            },
+            {
+              "target": "/examples/animations/view_transition?datastar=%7B%7D",
+              "status": 400,
+              "body_contains": [
+                "Invalid Animations signals",
+                "InvalidSignals"
+              ]
+            },
+            {
+              "target": "/examples/animations/view_transition?datastar=%ZZ",
+              "status": 400,
+              "body_contains": [
+                "Invalid Animations signals",
+                "MalformedSignalsQuery"
               ]
             },
             {
@@ -205,6 +232,20 @@
             {
               "target": "/examples/animations/fade_me_in?datastar=%7B%7D",
               "headers": {
+                "Accept-Encoding": "identity"
+              },
+              "body_regex": [
+                "opacity: 0.*transition: opacity 1s ease-out"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/examples/animations/fade_me_in?datastar=%7B%7D",
+              "headers": {
                 "Accept-Encoding": "br"
               },
               "response_headers": {
@@ -213,6 +254,14 @@
                 "Content-Encoding": "br",
                 "Vary": "Accept-Encoding"
               }
+            },
+            {
+              "method": "POST",
+              "target": "/examples/animations/view_transition",
+              "status": 404,
+              "body_contains": [
+                "Example not found"
+              ]
             },
             {
               "raw": true,

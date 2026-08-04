@@ -12,12 +12,13 @@ receiver-style static dispatch, makes common protocol-invalid states
 unrepresentable, and preserves static top-level rendering without becoming a
 complete frontend, JavaScript, HTML-content-model, or routing framework?
 
-The spike converts Click To Load, Bulk Update, and Click To Edit. Together they
-exercise static pages, typed scalar and list signals, excluded-by-default fetch
-indicators, backend requests, server dispatch, dynamic HTML fragments, explicit
-append and replacement targets, signal updates, checkbox and text-input
-bindings, event-local checked state, validated domain values, and coordinated
-signal/element patches.
+The spike converts Click To Load, Bulk Update, Click To Edit, and Animations.
+Together they exercise static pages, typed scalar and list signals,
+excluded-by-default fetch indicators, backend requests, server dispatch,
+dynamic HTML fragments, explicit append and replacement targets, signal
+updates, checkbox and text-input bindings, event-local checked state, validated
+domain values, coordinated signal/element patches, browser view transitions,
+and host-scheduled multi-step SSE streams.
 
 ## Candidate boundary
 
@@ -39,24 +40,27 @@ protocol. The pure `DatastarMarkup` companion owns browser markup descriptions:
 Representative application code is:
 
 ```roc
-page = DatastarMarkup.Signal.u64("page", 0)
-fetching = DatastarMarkup.Signal.excluded_bool("fetching", Bool.False)
+definitions = {
+    page: DatastarSignals.u64("page", 0),
+    fetching: DatastarSignals.excluded_bool("fetching", Bool.False),
+}.DatastarSignals
+handles = definitions.handles()
 more = DatastarMarkup.RequestTarget.get("/examples/click_to_load/more")
 agents : DatastarMarkup.ElementId
 agents = "agents"
 
 button = Html.button(
     [
-        fetching.indicator(),
-        fetching.disabled_when_true(),
-        more.request().unless(fetching.expr()).on_click(),
+        handles.fetching.indicator(),
+        handles.fetching.disabled_when_true(),
+        more.request().unless(handles.fetching.expr()).on_click(),
     ],
     [Html.text("Load More")],
 )
 
 events = [
     agents.descendant("tbody").append(rows),
-    DatastarMarkup.patch_signals([page.update(next_page)]),
+    DatastarMarkup.patch_signals([handles.page.update(next_page)]),
 ]
 ```
 
@@ -113,6 +117,33 @@ request data, so Cancel validates them too. The application config constructor
 returns `Try(ClickToEdit, [InvalidInitialContact])`; only the known-valid static
 default is constructed directly inside the module.
 
+Animations validates the retained-stream boundary rather than only finite
+actions. The component captures its typed route and element configuration in
+each `Sse.unfold!` transition closure. The host still retains one opaque source
+and schedules one transition at a time; application code does not flatten its
+configured state into an untyped cursor. Separate closed tag unions model the
+four-state color cycle and the legal fade-in/fade-out sequences, replacing
+numeric cursors whose invalid values previously fell through to completion.
+
+One narrow protocol operation was missing: a typed target could be replaced,
+but requesting a browser View Transition required constructing raw
+`Datastar.PatchElementsOptions`. `PatchTarget.replace_with_view_transition`
+now binds the selector, replacement mode, fragment, and transition request in
+one receiver operation. It requires an `Html.Fragment`, and a compile-failure
+case proves that ordinary `Str` cannot cross that boundary.
+
+The conversion also exposed an invalid abstraction in the initial prototype:
+Datastar initialization had been represented as `DomEvent.init`, which rendered
+`data-on:init`. Initialization is a Datastar lifecycle hook, not a DOM event.
+It now has the dedicated receiver operation `Action.on_init()`, rendering
+`data-init`; `DomEvent` contains only event names accepted by `data-on:*`.
+
+The animation CSS remains `Attribute.style(Str)`. CSS is outside this narrow
+Datastar protocol model, and a nominal wrapper would not by itself validate a
+stylesheet. The component confines its dynamic choice to exhaustive tags whose
+branches return static style constants; no request value is interpolated into
+CSS. This is an explicit escape boundary rather than a claim of CSS typing.
+
 ## Compile-time literal conversion
 
 `SignalName`, `RoutePath`, `Selector`, and `ElementId` implement Roc's
@@ -120,7 +151,7 @@ well-known `from_quote` method. Their constructors take these nominal types, so
 ordinary-looking arguments are parsed during checking:
 
 ```roc
-Signal.u64("page", 0)
+Signal.u64("page")
 RequestTarget.get("/examples/click_to_load/more")
 agents.descendant("tbody")
 ```
@@ -164,6 +195,9 @@ The typed surface prevents:
   dispatch;
 - pairing Bulk Update's activate request target with its deactivate server
   transition, or vice versa;
+- constructing an invalid intermediate Animations timer state or independently
+  selecting one of its component-owned stream transitions;
+- drifting a view-transition selector away from its replacement target;
 - attaching the typed Click To Edit string binding to a non-input element;
 - rendering an invalid Click To Edit draft or client-supplied saved contact as
   a valid contact;
@@ -214,17 +248,18 @@ the guarantees of values assembled from typed handles.
 
 The implementation currently passes:
 
-- 231 platform `expect` tests, including literal conversion, heterogeneous
+- 233 platform `expect` tests, including literal conversion, heterogeneous
   definition/update erasure, JSON/JavaScript encoding, receiver expressions,
   event modifiers, checked-state expressions, patch targets, and rendered
   fragment/document states;
-- eleven intentionally invalid application checks with required compiler
+- twelve intentionally invalid application checks with required compiler
   diagnostics;
 - `roc check`, an optimized `roc build`, and the complete 28-application
   validation suite;
-- all 54 native runtime cases, including complete listener assertions for Click
-  To Load, Bulk Update, and Click To Edit pages, actions, malformed signals,
-  invalid contacts, and wrong-length lists; and
+- all 54 native runtime cases, including complete listener assertions for
+  Animations, Click To Load, Bulk Update, and Click To Edit pages, actions,
+  malformed signals, timed event order, compression, invalid contacts, and
+  wrong-length lists; and
 - the real Firefox suite for Active Search, Animations, Bad Apple, Bulk Update,
   Click To Edit, and Click To Load against pinned Datastar v1.0.2.
 
@@ -250,8 +285,7 @@ router, DOM type-state system, or JavaScript parser.
 Before treating the API as stable:
 
 1. replace or constrain the provisional `Signal.u64` browser-number model;
-2. try Animations for view transitions, timed actions, and attribute ordering;
-3. count unchecked escapes and judge whether the typed subset remains honest;
-4. measure dynamic fragment allocations and compiler/binary-size deltas; and
-5. decide whether `DatastarMarkup` remains platform-exposed or becomes a
+2. count unchecked escapes and judge whether the typed subset remains honest;
+3. measure dynamic fragment allocations and compiler/binary-size deltas; and
+4. decide whether `DatastarMarkup` remains platform-exposed or becomes a
    separately versioned first-party Roc package.

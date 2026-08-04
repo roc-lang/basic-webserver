@@ -219,6 +219,13 @@ def animations(driver: Firefox, base: str) -> None:
         ),
         "Animations view-transition patch",
     )
+    driver.execute("document.querySelector('#view-transition').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#view-transition').textContent === 'Swap It!'"
+        ),
+        "Animations restored view-transition patch",
+    )
 
     driver.execute("document.querySelector('#fade-out-swap').click()")
     wait_until(
