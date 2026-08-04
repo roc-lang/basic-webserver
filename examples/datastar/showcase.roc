@@ -6,12 +6,15 @@ app [Context, program] {
 
 import pf.Datastar
 import pf.Server
+import pf.Sse
 import http.Response
 import "datastar-v1.0.2.js" as datastar_js : List(U8)
 
 Context : {}
 
 ActiveSearchSignals : { activeSearch : Str }
+
+ViewTransitionSignals : { shouldRestore : Bool }
 
 Contact : { first : Str, last : Str, search : Str }
 
@@ -33,6 +36,11 @@ respond! = |request, _context| {
 		(GET, "/datastar.js") => Ok(Server.respond(javascript_response(datastar_js)))
 		(GET, "/examples/active_search") => Ok(Server.respond(html_response(active_search_page)))
 		(GET, "/examples/active_search/search") => active_search!(request)
+		(GET, "/examples/animations") => Ok(Server.respond(html_response(animations_page)))
+		(GET, "/examples/animations/throb") => Ok(Server.stream(Sse.unfold!(0, throb_transition!)))
+		(GET, "/examples/animations/view_transition") => view_transition!(request)
+		(DELETE, "/examples/animations") => Ok(Server.stream(Sse.unfold!(0, fade_out_transition!)))
+		(GET, "/examples/animations/fade_me_in") => Ok(Server.stream(Sse.unfold!(0, fade_in_transition!)))
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -49,6 +57,104 @@ active_search! = |request| {
 
 	Ok(Datastar.respond([Datastar.patch_elements(active_search_demo(signals.activeSearch))]))
 }
+
+view_transition! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+view_transition! = |request| {
+	signals_result : Try(ViewTransitionSignals, Datastar.SignalsError)
+	signals_result = Datastar.read_signals!(request)
+	signals =
+		match signals_result {
+			Ok(value) => value
+			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Datastar signals: ${Str.inspect(err)}")))
+		}
+
+	next = Bool.not(signals.shouldRestore)
+	label = if next {
+		"Restore It!"
+	} else {
+		"Swap It!"
+	}
+	next_json = if next {
+		"true"
+	} else {
+		"false"
+	}
+	element =
+		\\<button id="view-transition" data-signals="{shouldRestore: ${next_json}}" data-on:click="@get('/examples/animations/view_transition')">${label}</button>
+
+	Ok(
+		Datastar.respond([
+			Datastar.patch_elements_with(
+				element,
+				{ ..Datastar.default_patch_elements_options, view_transition: ViewTransition(CurrentTarget) },
+			),
+		]),
+	)
+}
+
+throb_transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
+throb_transition! = |state| {
+	style =
+		match state % 4 {
+			0 => { foreground: "blue", background: "orange" }
+			1 => { foreground: "orange", background: "gray" }
+			2 => { foreground: "gray", background: "red" }
+			_ => { foreground: "red", background: "blue" }
+		}
+	element =
+		\\<div id="throb" style="color: var(--${style.foreground}-8); background-color: var(--${style.background}-5)" data-init="@get('/examples/animations/throb')">${style.foreground} on ${style.background}</div>
+
+	Ok(
+		Emit({
+			event: Datastar.patch_elements(element),
+			state: state + 1,
+			wake: After(1000),
+		}),
+	)
+}
+
+fade_out_transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
+fade_out_transition! = |state|
+	match state {
+		0 => Ok(
+			Emit({
+				event: Datastar.patch_elements(fade_out_button(" style=\"transition: opacity 1s ease-out; opacity: 0\" disabled")),
+				state: 1,
+				wake: After(1000),
+			}),
+		)
+		1 => Ok(
+			Emit({
+				event: Datastar.patch_elements("<div id=\"fade-out-swap\"></div>"),
+				state: 2,
+				wake: After(1000),
+			}),
+		)
+		2 => Ok(Emit({ event: Datastar.patch_elements(fade_out_button("")), state: 3, wake: Immediately }))
+		_ => Ok(End)
+	}
+
+fade_in_transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
+fade_in_transition! = |state|
+	match state {
+		0 => Ok(
+			Emit({
+				event: Datastar.patch_elements(fade_in_button(" style=\"opacity: 0\" disabled")),
+				state: 1,
+				wake: After(1000),
+			}),
+		)
+		1 => Ok(Emit({ event: Datastar.patch_elements(fade_in_button(" style=\"transition: opacity 1s ease-out\"")), state: 2, wake: Immediately }))
+		_ => Ok(End)
+	}
+
+fade_out_button : Str -> Str
+fade_out_button = |attributes|
+	\\<button id="fade-out-swap"${attributes} data-on:click="@delete('/examples/animations')">Fade out then delete on click</button>
+
+fade_in_button : Str -> Str
+fade_in_button = |attributes|
+	\\<button id="fade-me-in"${attributes} data-on:click="@get('/examples/animations/fade_me_in')">Fade me in on click</button>
 
 contacts : List(Contact)
 contacts = [
@@ -111,6 +217,7 @@ page = |title, content|
 	\\        table { width: 100%; margin-top: 1rem; border-collapse: collapse; }
 	\\        th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #8886; }
 	\\        code { background: #8882; padding: .1rem .3rem; }
+	\\        #throb { padding: 2rem; transition: color 1s, background-color 1s; }
 	\\    </style>
 	\\</head>
 	\\<body>
@@ -124,7 +231,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li></ol>
 	,
 )
 
@@ -136,6 +243,24 @@ active_search_page = page(
 	\\<fieldset><legend>Demo</legend>${active_search_demo("")}</fieldset>
 	\\<h2>What this validates</h2>
 	\\<p><code>Datastar.read_signals!</code> decodes GET query signals and <code>Datastar.respond</code> returns a finite typed patch without occupying a retained-stream slot.</p>
+	,
+)
+
+animations_page : Str
+animations_page = page(
+	"Animations",
+	\\<h1>Animations</h1>
+	\\<p>Stable element IDs let CSS and the View Transitions API animate server-driven patches.</p>
+	\\<h2>Color Throb</h2>
+	\\<fieldset><legend>Demo</legend><div id="throb" style="color: var(--brown-8); background-color: var(--orange-5)" data-init="@get('/examples/animations/throb')">brown on orange</div></fieldset>
+	\\<h2>View Transitions</h2>
+	\\<fieldset><legend>Demo</legend><button id="view-transition" data-signals="{shouldRestore: false}" data-on:click="@get('/examples/animations/view_transition')">Swap It!</button></fieldset>
+	\\<h2>Fade Out On Swap</h2>
+	\\<fieldset><legend>Demo</legend>${fade_out_button("")}</fieldset>
+	\\<h2>Fade In On Addition</h2>
+	\\<fieldset><legend>Demo</legend>${fade_in_button(" style=\"transition: opacity 1s ease-out\"")}</fieldset>
+	\\<h2>What this validates</h2>
+	\\<p>One page composes finite view-transition responses with host-scheduled timer streams and delayed multi-event transitions.</p>
 	,
 )
 

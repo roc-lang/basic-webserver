@@ -153,6 +153,96 @@
               ]
             },
             {
+              "target": "/examples/animations",
+              "body_contains": [
+                "Color Throb",
+                "data-init=\"@get('/examples/animations/throb')\"",
+                "id=\"view-transition\"",
+                "id=\"fade-out-swap\"",
+                "id=\"fade-me-in\""
+              ]
+            },
+            {
+              "target": "/examples/animations/view_transition?datastar=%7B%22shouldRestore%22%3Afalse%7D",
+              "body_contains": [
+                "event: datastar-patch-elements",
+                "data: useViewTransition true",
+                "shouldRestore: true",
+                "Restore It!"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache"
+              }
+            },
+            {
+              "target": "/examples/animations/view_transition?datastar=%7B%22shouldRestore%22%3Atrue%7D",
+              "body_contains": [
+                "data: useViewTransition true",
+                "shouldRestore: false",
+                "Swap It!"
+              ]
+            },
+            {
+              "method": "DELETE",
+              "target": "/examples/animations?datastar=%7B%7D",
+              "headers": {
+                "Accept-Encoding": "identity",
+                "Datastar-Request": "true"
+              },
+              "body_regex": [
+                "opacity: 0.*<div id=\\\"fade-out-swap\\\"></div>.*Fade out then delete on click"
+              ],
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "target": "/examples/animations/fade_me_in?datastar=%7B%7D",
+              "headers": {
+                "Accept-Encoding": "br"
+              },
+              "response_headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Content-Encoding": "br",
+                "Vary": "Accept-Encoding"
+              }
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "timeout": 1.5,
+              "data": "GET /examples/animations/throb HTTP/1.1\r\nHost: localhost\r\nAccept-Encoding: identity\r\nDatastar-Request: true\r\nConnection: keep-alive\r\n\r\n",
+              "expect_response_before_ms": {
+                "timeout_ms": 1000,
+                "contains": "blue on orange"
+              },
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "content-type: text/event-stream",
+                "event: datastar-patch-elements",
+                "id=\"throb\""
+              ]
+            },
+            {
+              "raw": true,
+              "half_close": false,
+              "timeout": 1.5,
+              "data": "GET /examples/animations/throb HTTP/1.1\r\nHost: localhost\r\nAccept-Encoding: br\r\nDatastar-Request: true\r\nConnection: keep-alive\r\n\r\n",
+              "expect_response_before_ms": {
+                "timeout_ms": 1000,
+                "contains": "content-encoding: br"
+              },
+              "response_contains": [
+                "HTTP/1.1 200 OK",
+                "content-type: text/event-stream",
+                "vary: Accept-Encoding"
+              ]
+            },
+            {
               "target": "/datastar.js",
               "body_contains": [
                 "Datastar"

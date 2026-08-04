@@ -57,7 +57,7 @@ being evaluated.
 ## Catalog progress
 
 - [x] Active Search
-- [ ] Animations
+- [x] Animations
 - [ ] Bad Apple
 - [ ] Bulk Update
 - [ ] Click To Edit

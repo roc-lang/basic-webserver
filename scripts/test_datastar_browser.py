@@ -203,6 +203,69 @@ def active_search(driver: Firefox, base: str) -> None:
     )
 
 
+def animations(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/animations")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#throb').textContent !== 'brown on orange'"
+        ),
+        "Animations timer-driven throb patch",
+    )
+
+    driver.execute("document.querySelector('#view-transition').click()")
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#view-transition').textContent === 'Restore It!'"
+        ),
+        "Animations view-transition patch",
+    )
+
+    driver.execute("document.querySelector('#fade-out-swap').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const element = document.querySelector('#fade-out-swap');
+            return element.tagName === 'BUTTON'
+                && element.disabled
+                && element.style.opacity === '0';
+            """
+        ),
+        "Animations fade-out first patch",
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#fade-out-swap').tagName === 'DIV'"
+        ),
+        "Animations fade-out removal patch",
+    )
+    wait_until(
+        lambda: driver.execute(
+            "return document.querySelector('#fade-out-swap').tagName === 'BUTTON'"
+        ),
+        "Animations fade-out restoration patch",
+    )
+
+    driver.execute("document.querySelector('#fade-me-in').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const element = document.querySelector('#fade-me-in');
+            return element.disabled && element.style.opacity === '0';
+            """
+        ),
+        "Animations fade-in first patch",
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            const element = document.querySelector('#fade-me-in');
+            return !element.disabled && element.style.opacity !== '0';
+            """
+        ),
+        "Animations fade-in final patch",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -237,8 +300,9 @@ def main() -> int:
         driver = Firefox(args.geckodriver, args.firefox)
         for _ in range(args.repeat):
             active_search(driver, base)
+            animations(driver, base)
         print(
-            "PASS Active Search "
+            "PASS Active Search, Animations "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )
