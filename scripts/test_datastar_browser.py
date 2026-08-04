@@ -479,6 +479,59 @@ def click_to_load(driver: Firefox, base: str) -> None:
     )
 
 
+def custom_event(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/custom_event")
+
+    def current_event() -> str:
+        return driver.execute(
+            """
+            const prefix = 'Last Event Details: ';
+            const text = document.querySelector('#custom-event-output')?.textContent ?? '';
+            if (!text.startsWith(prefix)) return '';
+            try {
+                return JSON.parse(text.slice(prefix.length)).eventTime ? text : '';
+            } catch (_error) {
+                return '';
+            }
+            """
+        )
+
+    first_event = wait_until(current_event, "Custom Event first signal update")
+    wait_until(
+        lambda: (current_event() or first_event) != first_event,
+        "Custom Event repeated signal update",
+    )
+
+
+def custom_plugin(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/custom_plugin")
+    wait_until(
+        lambda: driver.execute(
+            "return document.documentElement.dataset.customPluginReady === 'true'"
+        ),
+        "Custom Plugin registration",
+    )
+    driver.execute(
+        """
+        window.__datastarAlerts = [];
+        window.alert = message => window.__datastarAlerts.push(String(message));
+        document.querySelector('[data-plugin-kind="action"]').click();
+        document.querySelector('[data-plugin-kind="attribute"]').click();
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return JSON.stringify(window.__datastarAlerts) === JSON.stringify([
+                'Hello from an action',
+                'Hello from an attribute',
+            ]);
+            """
+        ),
+        "Custom Plugin action and attribute callbacks",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
@@ -518,9 +571,11 @@ def main() -> int:
             bulk_update(driver, base)
             click_to_edit(driver, base)
             click_to_load(driver, base)
+            custom_event(driver, base)
+            custom_plugin(driver, base)
         print(
             "PASS Active Search, Animations, Bad Apple, Bulk Update, "
-            "Click To Edit, Click To Load "
+            "Click To Edit, Click To Load, Custom Event, Custom Plugin "
             f"({driver.capabilities['browserName']} "
             f"{driver.capabilities['browserVersion']})"
         )

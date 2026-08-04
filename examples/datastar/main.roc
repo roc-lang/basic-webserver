@@ -8,6 +8,7 @@ import ./components/ClickToLoad
 import ./components/BulkUpdate
 import ./components/ClickToEdit
 import ./components/Animations
+import ./components/BrowserExamples
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -76,6 +77,8 @@ respond! = |request, _context| {
 		(GET, "/examples/active_search/search") => active_search!(request)
 		(GET, "/examples/bad_apple") => Ok(Server.respond(html_response(bad_apple_page)))
 		(GET, "/examples/bad_apple/updates") => Ok(Server.stream(Sse.unfold!(0, bad_apple_transition!)))
+		(GET, "/examples/custom_event") => Ok(BrowserExamples.custom_event())
+		(GET, "/examples/custom_plugin") => Ok(BrowserExamples.custom_plugin())
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -223,7 +226,7 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li></ol>
+	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li></ol>
 	,
 )
 

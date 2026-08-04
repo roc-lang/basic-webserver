@@ -80,7 +80,9 @@
                 "/examples/active_search",
                 "/examples/bulk_update",
                 "/examples/click_to_edit",
-                "/examples/click_to_load"
+                "/examples/click_to_load",
+                "/examples/custom_event",
+                "/examples/custom_plugin"
               ]
             },
             {
@@ -554,6 +556,26 @@
               "status": 400,
               "body_contains": [
                 "All Click To Load pages have already been requested"
+              ]
+            },
+            {
+              "target": "/examples/custom_event",
+              "body_contains": [
+                "id=\"custom-event-output\"",
+                "data-signals:_event-details",
+                "data-on:myevent=\"$_eventDetails = evt.detail\"",
+                "new CustomEvent('myevent'",
+                "eventTime"
+              ]
+            },
+            {
+              "target": "/examples/custom_plugin",
+              "body_contains": [
+                "data-plugin-kind=\"action\"",
+                "data-on:click=\"@alert('Hello from an action')\"",
+                "data-alert=\"'Hello from an attribute'\"",
+                "import { action, attribute } from '/datastar.js'",
+                "customPluginReady"
               ]
             },
             {

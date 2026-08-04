@@ -74,8 +74,8 @@ report](../../docs/research/datastar-typed-markup-spike.md).
 - [x] Bulk Update
 - [x] Click To Edit
 - [x] Click To Load
-- [ ] Custom Event
-- [ ] Custom Plugin
+- [x] Custom Event
+- [x] Custom Plugin
 - [ ] DBmon
 - [ ] Delete Row
 - [ ] Edit Row
