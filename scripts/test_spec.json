@@ -289,8 +289,11 @@
               "target": "/examples/bulk_update",
               "body_contains": [
                 "data-bind:selections",
-                "data-on:click=\"@put('/examples/bulk_update/activate')\"",
-                "data-on:click=\"@put('/examples/bulk_update/deactivate')\"",
+                "data-signals__ifmissing=\"{&quot;selections&quot;:[false,false,false,false],&quot;statuses&quot;:[false,false,true,true],&quot;_fetching&quot;:false}\"",
+                "data-on:change=\"$selections = Array(4).fill(evt.target.checked)\"",
+                "data-attr:checked=\"$selections.every(Boolean)\"",
+                "data-on:click=\"!($_fetching) &amp;&amp; @put(&quot;/examples/bulk_update/activate&quot;)\"",
+                "data-on:click=\"!($_fetching) &amp;&amp; @put(&quot;/examples/bulk_update/deactivate&quot;)\"",
                 "Joe Smith",
                 "Fuqua Tarkenton",
                 "Inactive",
@@ -308,7 +311,9 @@
               "body_contains": [
                 "event: datastar-patch-signals",
                 "data: signals {\"statuses\":[true,true,true,true]}",
-                "event: datastar-patch-elements"
+                "event: datastar-patch-elements",
+                "data: selector #demo",
+                "data: mode replace"
               ],
               "body_regex": [
                 "data-user=\"joe\".*Joe Smith.*class=\"status\">Active",
@@ -345,6 +350,18 @@
               "status": 400,
               "body_contains": [
                 "Expected exactly four selections and four statuses"
+              ]
+            },
+            {
+              "method": "PUT",
+              "target": "/examples/bulk_update/activate",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{\"selections\":\"not-a-list\",\"statuses\":[false,false,true,true]}",
+              "status": 400,
+              "body_contains": [
+                "Invalid Bulk Update signals"
               ]
             },
             {
@@ -438,7 +455,7 @@
             {
               "target": "/examples/click_to_load",
               "body_contains": [
-                "data-signals=\"{&quot;page&quot;:0}\"",
+                "data-signals=\"{&quot;page&quot;:0,&quot;_fetching&quot;:false}\"",
                 "id=\"agents\"",
                 "data-agent=\"0\"",
                 "data-agent=\"9\"",

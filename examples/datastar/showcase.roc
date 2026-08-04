@@ -5,6 +5,7 @@ app [Context, program] {
 }
 
 import ./components/ClickToLoad
+import ./components/BulkUpdate
 import pf.Datastar
 import pf.Attribute
 import pf.Html
@@ -18,10 +19,6 @@ Context : {}
 ActiveSearchSignals : { activeSearch : Str }
 
 ViewTransitionSignals : { shouldRestore : Bool }
-
-BulkUpdateSignals : { selections : List(Bool), statuses : List(Bool) }
-
-BulkStatuses : { angie : Bool, fuqua : Bool, joe : Bool, kim : Bool }
 
 ClickToEditSignals : {
 	email : Str,
@@ -39,6 +36,9 @@ Contact : { first : Str, last : Str, search : Str }
 click_to_load : ClickToLoad
 click_to_load = ClickToLoad.default
 
+bulk_update : BulkUpdate
+bulk_update = BulkUpdate.default
+
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
@@ -50,6 +50,12 @@ respond! = |request, _context| {
 		match request.target() {
 			Resource({ raw_path, .. }) => raw_path
 			_ => ""
+		}
+	_ =
+		match bulk_update.respond!(request, path) {
+			Ok(Handled(outcome)) => return Ok(outcome)
+			Err(err) => return Err(err)
+			Ok(NotHandled) => {}
 		}
 
 	if click_to_load.more_target().matches(request.method(), path) {
@@ -68,9 +74,6 @@ respond! = |request, _context| {
 		(GET, "/examples/animations/fade_me_in") => Ok(Server.stream(Sse.unfold!(0, fade_in_transition!)))
 		(GET, "/examples/bad_apple") => Ok(Server.respond(html_response(bad_apple_page)))
 		(GET, "/examples/bad_apple/updates") => Ok(Server.stream(Sse.unfold!(0, bad_apple_transition!)))
-		(GET, "/examples/bulk_update") => Ok(Server.respond(html_response(bulk_update_page)))
-		(PUT, "/examples/bulk_update/activate") => bulk_update!(request, Bool.True)
-		(PUT, "/examples/bulk_update/deactivate") => bulk_update!(request, Bool.False)
 		(GET, "/examples/click_to_edit") => Ok(Server.respond(html_response(click_to_edit_page)))
 		(GET, "/examples/click_to_edit/edit") => Ok(Datastar.respond([Datastar.patch_elements(click_to_edit_form)]))
 		(PUT, "/examples/click_to_edit") => click_to_edit_save!(request)
@@ -243,83 +246,6 @@ bad_apple_frame = |frame_index|
 			\\██████████████████████
 			\\██████████████████████
 		}
-
-bulk_update! : Server.Request, Bool => Try(Server.Outcome, [ServerErr(Str), ..])
-bulk_update! = |request, next_status| {
-	signals_result : Try(BulkUpdateSignals, Datastar.SignalsError)
-	signals_result = Datastar.read_signals!(request)
-	signals =
-		match signals_result {
-			Ok(value) => value
-			Err(err) => return Ok(Server.respond(text_response(400, "Invalid Datastar signals: ${Str.inspect(err)}")))
-		}
-
-	updated =
-		match (signals.selections, signals.statuses) {
-			([joe_selected, angie_selected, fuqua_selected, kim_selected], [joe_status, angie_status, fuqua_status, kim_status]) => {
-				joe: if joe_selected {
-					next_status
-				} else {
-					joe_status
-				},
-				angie: if angie_selected {
-					next_status
-				} else {
-					angie_status
-				},
-				fuqua: if fuqua_selected {
-					next_status
-				} else {
-					fuqua_status
-				},
-				kim: if kim_selected {
-					next_status
-				} else {
-					kim_status
-				},
-			}
-			_ => return Ok(Server.respond(text_response(400, "Expected exactly four selections and four statuses")))
-		}
-
-	status_signals = Json.to_str({ statuses: [updated.joe, updated.angie, updated.fuqua, updated.kim] })
-	Ok(
-		Datastar.respond([
-			Datastar.patch_signals(status_signals),
-			Datastar.patch_elements(bulk_update_demo(updated)),
-		]),
-	)
-}
-
-bulk_update_demo : BulkStatuses -> Str
-bulk_update_demo = |statuses| {
-	status_signals = Json.to_str([statuses.joe, statuses.angie, statuses.fuqua, statuses.kim])
-
-	# With the pinned 1.0.2 client, binding the header checkbox to `_all`
-	# updates its effect before the change handler can read the checked state.
-	# Deriving `checked` from the selections avoids that listener-order race.
-	\\<div id="demo" data-signals__ifmissing="{_fetching: false, selections: Array(4).fill(false), statuses: ${status_signals}}">
-	\\    <table>
-	\\        <thead><tr><th><input aria-label="Select all users" type="checkbox" data-on:change="$selections = Array(4).fill(evt.target.checked)" data-attr:checked="$selections.every(Boolean)" data-attr:disabled="$_fetching"></th><th>Name</th><th>Email</th><th>Status</th></tr></thead>
-	\\        <tbody>
-	\\            ${bulk_update_row("joe", "Joe Smith", "joe@example.com", statuses.joe)}
-	\\            ${bulk_update_row("angie", "Angie MacDowell", "angie@example.com", statuses.angie)}
-	\\            ${bulk_update_row("fuqua", "Fuqua Tarkenton", "fuqua@example.com", statuses.fuqua)}
-	\\            ${bulk_update_row("kim", "Kim Yee", "kim@example.com", statuses.kim)}
-	\\        </tbody>
-	\\    </table>
-	\\    <div role="group"><button data-action="activate" data-on:click="@put('/examples/bulk_update/activate')" data-indicator:_fetching data-attr:disabled="$_fetching">Activate</button><button data-action="deactivate" data-on:click="@put('/examples/bulk_update/deactivate')" data-indicator:_fetching data-attr:disabled="$_fetching">Deactivate</button></div>
-	\\</div>
-}
-
-bulk_update_row : Str, Str, Str, Bool -> Str
-bulk_update_row = |key, name, email, active|
-	\\<tr data-user="${key}"><td><input aria-label="Select ${name}" type="checkbox" data-bind:selections data-attr:disabled="$_fetching"></td><td>${name}</td><td><a href="mailto:${email}">${email}</a></td><td class="status">${
-		if active {
-			"Active"
-		} else {
-			"Inactive"
-		}
-	}</td></tr>
 
 click_to_edit_save! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
 click_to_edit_save! = |request| {
@@ -537,17 +463,6 @@ bad_apple_page = page(
 	\\</fieldset>
 	\\<h2>What this validates</h2>
 	\\<p>A bounded retained source emits 60 typed signal patches at roughly 30fps; the browser updates existing elements without server-rendering HTML for each frame.</p>
-	,
-)
-
-bulk_update_page : Str
-bulk_update_page = page(
-	"Bulk Update",
-	\\<h1>Bulk Update</h1>
-	\\<p>Select users and activate or deactivate them together.</p>
-	\\<fieldset><legend>Demo</legend>${bulk_update_demo({ joe: Bool.False, angie: Bool.False, fuqua: Bool.True, kim: Bool.True })}</fieldset>
-	\\<h2>What this validates</h2>
-	\\<p><code>Datastar.read_signals!</code> decodes a PUT body containing array signals, and one finite response composes a signal patch with a server-rendered element patch. This self-contained probe keeps its four statuses in signals; an application can apply the same selections to database-backed state.</p>
 	,
 )
 

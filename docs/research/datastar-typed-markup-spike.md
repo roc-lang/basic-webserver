@@ -12,10 +12,11 @@ receiver-style static dispatch, makes common protocol-invalid states
 unrepresentable, and preserves static top-level rendering without becoming a
 complete frontend, JavaScript, HTML-content-model, or routing framework?
 
-The spike converts Click To Load because it exercises a static page, a typed
-signal, an excluded-by-default fetch indicator, a backend request, server
-dispatch, a dynamic HTML fragment, an explicit append target, a signal update,
-and a terminal replacement patch.
+The spike converts Click To Load and Bulk Update. Together they exercise static
+pages, typed scalar and list signals, excluded-by-default fetch indicators,
+backend requests, server dispatch, dynamic HTML fragments, explicit append and
+replacement targets, signal updates, checkbox bindings, event-local checked
+state, and coordinated signal/element patches.
 
 ## Candidate boundary
 
@@ -61,6 +62,35 @@ events = [
 The receiver type owns each transformation. Constructors remain associated
 functions because there is no receiver yet. Cross-domain finalizers remain
 namespaced where receiver ownership would invert module dependencies.
+
+Bulk Update also validates component-owned actions. `activate()` and
+`deactivate()` each return a distinct browser action which owns its typed PUT
+target. The component's `respond!` method owns matching those same targets and
+selecting their transitions. The application can only receive `Handled` or
+`NotHandled`; it never supplies the status transition. This removes the
+previous independent route strings and boolean flag, and makes pairing an
+action route with the wrong transition unrepresentable in the application API:
+
+```roc
+match bulk_update.respond!(request, path) {
+    Ok(Handled(outcome)) => Ok(outcome)
+    Ok(NotHandled) => # continue dispatch
+    Err(err) => Err(err)
+}
+```
+
+The importing app cannot currently name the local type module's nested
+`BulkUpdate.Action` in an explicit annotation, although its values and receiver
+methods compose through inference. Importantly, this is not an authority or
+proof boundary: an adversarial compile probe established that a bare constructor
+of a nested nominal tag union remains spellable when its expected type is
+inferred. A rejected design had `match_action()` return a nominal
+`MatchedAction` for `apply!`; an importer could forge `ActivateMatched`, so that
+did not make the state impossible. `respond!` is stronger and simpler because
+the application supplies no transition value at all. A component library that
+needs action types in public records or signatures would still need a separately
+importable action type module or broader compiler support for exposing nested
+types from local type modules.
 
 ## Compile-time literal conversion
 
@@ -111,6 +141,8 @@ The typed surface prevents:
   updates;
 - duplicating the request method/path between browser action and server
   dispatch;
+- pairing Bulk Update's activate request target with its deactivate server
+  transition, or vice versa;
 - appending HTML without an explicit target;
 - removing a target while also supplying an HTML fragment; and
 - passing ordinary text or a complete document where a patchable fragment is
@@ -133,6 +165,9 @@ The spike does not claim:
   reuse one string with different types;
 - agreement between browser signals and the independently inferred record
   passed to `Datastar.read_signals!`;
+- fixed list lengths in a decoded signal record; Bulk Update validates its four
+  selections and statuses once at the request boundary before constructing its
+  fixed-shape state;
 - that raw JavaScript, plugins, or server patches preserve a signal's type;
 - full CSS selector validity or that a selector matches the current DOM;
 - route registration completeness or uniqueness;
@@ -155,13 +190,17 @@ the guarantees of values assembled from typed handles.
 
 The implementation currently passes:
 
-- 225 platform `expect` tests, including literal conversion, heterogeneous
+- 230 platform `expect` tests, including literal conversion, heterogeneous
   definition/update erasure, JSON/JavaScript encoding, receiver expressions,
-  event modifiers, patch targets, and rendered fragment/document states;
-- nine intentionally invalid application checks with required compiler
+  event modifiers, checked-state expressions, patch targets, and rendered
+  fragment/document states;
+- ten intentionally invalid application checks with required compiler
   diagnostics;
-- `roc check` and an optimized `roc build` of the Datastar showcase;
-- the complete listener assertions for Click To Load; and
+- `roc check`, an optimized `roc build`, and the complete 28-application
+  validation suite;
+- all 54 native runtime cases, including complete listener assertions for Click
+  To Load and Bulk Update's initial page, both transitions, malformed signals,
+  and wrong-length lists; and
 - the real Firefox suite for Active Search, Animations, Bad Apple, Bulk Update,
   Click To Edit, and Click To Load against pinned Datastar v1.0.2.
 
@@ -187,10 +226,9 @@ router, DOM type-state system, or JavaScript parser.
 Before treating the API as stable:
 
 1. replace or constrain the provisional `Signal.u64` browser-number model;
-2. try Bulk Update as the hostile binding/list/event-local-expression case;
-3. try Click To Edit and Animations for methods, forms, view transitions, and
+2. try Click To Edit and Animations for methods, forms, view transitions, and
    attribute ordering;
-4. count unchecked escapes and judge whether the typed subset remains honest;
-5. measure dynamic fragment allocations and compiler/binary-size deltas; and
-6. decide whether `DatastarMarkup` remains platform-exposed or becomes a
+3. count unchecked escapes and judge whether the typed subset remains honest;
+4. measure dynamic fragment allocations and compiler/binary-size deltas; and
+5. decide whether `DatastarMarkup` remains platform-exposed or becomes a
    separately versioned first-party Roc package.

@@ -164,6 +164,10 @@ DatastarMarkup :: [].{
 		disabled_when_true : Expr(Bool) -> Attribute
 		disabled_when_true = |expression| Attribute.attribute("data-attr:disabled", expression.source)
 
+		## Check an input while this boolean expression is true.
+		checked_when_true : Expr(Bool) -> Attribute
+		checked_when_true = |expression| Attribute.attribute("data-attr:checked", expression.source)
+
 		text : Expr(Str) -> Attribute
 		text = |expression| Attribute.attribute("data-text", expression.source)
 
@@ -419,10 +423,11 @@ expect {
 expect {
 	selections = DatastarMarkup.Signal.bool_list("selections")
 	change = selections.fill(4, DatastarMarkup.Expr.event_target_checked).on(DatastarMarkup.DomEvent.change)
-	checked = selections.every_true().disabled_when_true()
+	checked = selections.every_true().checked_when_true()
 
 	Attribute.raw_value(change) == "$selections = Array(4).fill(evt.target.checked)" and
-		Attribute.raw_value(checked) == "$selections.every(Boolean)"
+		Attribute.raw_name(checked) == "data-attr:checked" and
+			Attribute.raw_value(checked) == "$selections.every(Boolean)"
 }
 
 expect {
