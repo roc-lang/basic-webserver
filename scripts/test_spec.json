@@ -93,11 +93,15 @@
                 "/examples/inline_validation",
                 "/examples/lazy_load",
                 "/examples/lazy_tabs",
+                "/examples/on_signal_patch",
                 "/examples/progress_bar",
                 "/examples/progressive_load",
+                "/examples/sortable",
                 "/examples/svg_morphing",
                 "/examples/templ_counter",
-                "/examples/title_update"
+                "/examples/title_update",
+                "/examples/web_component",
+                "/examples/match_media"
               ]
             },
             {
@@ -658,6 +662,42 @@
                 "id=\"event-bubbling-container\"",
                 "evt.target.closest('button[data-id]')",
                 "data-id=\"FETCH\""
+              ]
+            },
+            {
+              "target": "/examples/on_signal_patch",
+              "body_contains": [
+                "id=\"on-signal-patch-demo\"",
+                "data-on-signal-patch__delay.1ms=\"$allChanges = [...$allChanges, patch]\"",
+                "data-on-signal-patch-filter=\"{include: /^counter$/}\"",
+                "id=\"counter-signal-patches\""
+              ]
+            },
+            {
+              "target": "/examples/sortable",
+              "body_contains": [
+                "id=\"sortable-list\"",
+                "data-sort-item=\"Alpha\"",
+                "data-on:reordered=\"$sortOrder = evt.detail.order\"",
+                "publishSortableOrder"
+              ]
+            },
+            {
+              "target": "/examples/web_component",
+              "body_contains": [
+                "data-bind:name",
+                "<reverse-component id=\"reverse-component\"",
+                "data-on:reverse=\"$reversed = evt.detail.value\"",
+                "customElements.define('reverse-component'"
+              ]
+            },
+            {
+              "target": "/examples/match_media",
+              "body_contains": [
+                "id=\"match-media-demo\"",
+                "data-on:mediachange=\"$isDark = evt.detail.matches\"",
+                "matchMedia('(prefers-color-scheme: dark)')",
+                "data-class:dark=\"$isDark\""
               ]
             },
             {

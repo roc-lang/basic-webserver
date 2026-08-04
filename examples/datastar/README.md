@@ -86,15 +86,15 @@ report](../../docs/research/datastar-typed-markup-spike.md).
 - [x] Inline Validation
 - [x] Lazy Load
 - [x] Lazy Tabs
-- [ ] On Signal Patch
+- [x] On Signal Patch
 - [x] Progress Bar
 - [x] Progressive Load
-- [ ] Sortable
+- [x] Sortable
 - [x] SVG Morphing
 - [x] Templ Counter
 - [x] Title Update
 - [ ] TodoMVC
-- [ ] Web Component
-- [ ] Match Media
+- [x] Web Component
+- [x] Match Media
 
 The Rocket examples are deliberately excluded as requested.

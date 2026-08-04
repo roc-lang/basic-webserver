@@ -94,6 +94,10 @@ respond! = |request, _context| {
 		(GET, "/examples/custom_event") => Ok(BrowserExamples.custom_event())
 		(GET, "/examples/custom_plugin") => Ok(BrowserExamples.custom_plugin())
 		(GET, "/examples/event_bubbling") => Ok(BrowserExamples.event_bubbling())
+		(GET, "/examples/on_signal_patch") => Ok(BrowserExamples.on_signal_patch())
+		(GET, "/examples/sortable") => Ok(BrowserExamples.sortable())
+		(GET, "/examples/web_component") => Ok(BrowserExamples.web_component())
+		(GET, "/examples/match_media") => Ok(BrowserExamples.match_media())
 		_ => Ok(Server.respond(text_response(404, "Example not found")))
 	}
 }
@@ -241,7 +245,35 @@ index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
 	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
-	\\<ol><li><a href="/examples/active_search">Active Search</a></li><li><a href="/examples/animations">Animations</a></li><li><a href="/examples/bad_apple">Bad Apple</a></li><li><a href="/examples/bulk_update">Bulk Update</a></li><li><a href="/examples/click_to_edit">Click To Edit</a></li><li><a href="/examples/click_to_load">Click To Load</a></li><li><a href="/examples/custom_event">Custom Event</a></li><li><a href="/examples/custom_plugin">Custom Plugin</a></li><li><a href="/examples/dbmon">DBmon</a></li><li><a href="/examples/delete_row">Delete Row</a></li><li><a href="/examples/edit_row">Edit Row</a></li><li><a href="/examples/event_bubbling">Event Bubbling</a></li><li><a href="/examples/file_upload">File Upload</a></li><li><a href="/examples/form_data">Form Data</a></li><li><a href="/examples/infinite_scroll">Infinite Scroll</a></li><li><a href="/examples/inline_validation">Inline Validation</a></li><li><a href="/examples/lazy_load">Lazy Load</a></li><li><a href="/examples/lazy_tabs">Lazy Tabs</a></li><li><a href="/examples/progress_bar">Progress Bar</a></li><li><a href="/examples/progressive_load">Progressive Load</a></li><li><a href="/examples/svg_morphing">SVG Morphing</a></li><li><a href="/examples/templ_counter">Templ Counter</a></li><li><a href="/examples/title_update">Title Update</a></li></ol>
+	\\<ol>
+	\\    <li><a href="/examples/active_search">Active Search</a></li>
+	\\    <li><a href="/examples/animations">Animations</a></li>
+	\\    <li><a href="/examples/bad_apple">Bad Apple</a></li>
+	\\    <li><a href="/examples/bulk_update">Bulk Update</a></li>
+	\\    <li><a href="/examples/click_to_edit">Click To Edit</a></li>
+	\\    <li><a href="/examples/click_to_load">Click To Load</a></li>
+	\\    <li><a href="/examples/custom_event">Custom Event</a></li>
+	\\    <li><a href="/examples/custom_plugin">Custom Plugin</a></li>
+	\\    <li><a href="/examples/dbmon">DBmon</a></li>
+	\\    <li><a href="/examples/delete_row">Delete Row</a></li>
+	\\    <li><a href="/examples/edit_row">Edit Row</a></li>
+	\\    <li><a href="/examples/event_bubbling">Event Bubbling</a></li>
+	\\    <li><a href="/examples/file_upload">File Upload</a></li>
+	\\    <li><a href="/examples/form_data">Form Data</a></li>
+	\\    <li><a href="/examples/infinite_scroll">Infinite Scroll</a></li>
+	\\    <li><a href="/examples/inline_validation">Inline Validation</a></li>
+	\\    <li><a href="/examples/lazy_load">Lazy Load</a></li>
+	\\    <li><a href="/examples/lazy_tabs">Lazy Tabs</a></li>
+	\\    <li><a href="/examples/on_signal_patch">On Signal Patch</a></li>
+	\\    <li><a href="/examples/progress_bar">Progress Bar</a></li>
+	\\    <li><a href="/examples/progressive_load">Progressive Load</a></li>
+	\\    <li><a href="/examples/sortable">Sortable</a></li>
+	\\    <li><a href="/examples/svg_morphing">SVG Morphing</a></li>
+	\\    <li><a href="/examples/templ_counter">Templ Counter</a></li>
+	\\    <li><a href="/examples/title_update">Title Update</a></li>
+	\\    <li><a href="/examples/web_component">Web Component</a></li>
+	\\    <li><a href="/examples/match_media">Match Media</a></li>
+	\\</ol>
 	,
 )
 

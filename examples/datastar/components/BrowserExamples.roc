@@ -14,6 +14,18 @@ BrowserExamples :: [].{
 
 	event_bubbling : () -> Server.Outcome
 	event_bubbling = || Server.respond(Page.response(event_bubbling_document))
+
+	on_signal_patch : () -> Server.Outcome
+	on_signal_patch = || Server.respond(Page.response(on_signal_patch_document))
+
+	sortable : () -> Server.Outcome
+	sortable = || Server.respond(Page.response(sortable_document))
+
+	web_component : () -> Server.Outcome
+	web_component = || Server.respond(Page.response(web_component_document))
+
+	match_media : () -> Server.Outcome
+	match_media = || Server.respond(Page.response(match_media_document))
 }
 
 custom_event_document : Html.Document
@@ -56,6 +68,58 @@ event_bubbling_document =
 			demo([Html.dangerously_include_unescaped_html(event_bubbling_demo)]),
 			Html.h2([], [Html.text("What this validates")]),
 			Html.p([], [Html.text("A Datastar event expression receives the native event and can inspect the originating descendant after the event bubbles.")]),
+		],
+	)
+
+on_signal_patch_document : Html.Document
+on_signal_patch_document =
+	Page.document(
+		"On Signal Patch",
+		[
+			Html.h1([], [Html.text("On Signal Patch")]),
+			Html.p([], [Html.text("Observe all signal changes or filter the observer to one signal path.")]),
+			demo([Html.dangerously_include_unescaped_html(on_signal_patch_demo)]),
+			Html.h2([], [Html.text("What this validates")]),
+			Html.p([], [Html.text("The pinned client exposes signal patches to reactive observers and applies path filters before evaluating an observer expression.")]),
+		],
+	)
+
+sortable_document : Html.Document
+sortable_document =
+	Page.document(
+		"Sortable",
+		[
+			Html.h1([], [Html.text("Sortable")]),
+			Html.p([], [Html.text("Reorder a list with native drag events and report the new order through a Datastar custom-event listener.")]),
+			demo([Html.dangerously_include_unescaped_html(sortable_demo)]),
+			Html.h2([], [Html.text("What this validates")]),
+			Html.p([], [Html.text("Browser-owned sorting can publish a domain event into Datastar signals without adding server-owned state or a third-party runtime dependency.")]),
+		],
+	)
+
+web_component_document : Html.Document
+web_component_document =
+	Page.document(
+		"Web Component",
+		[
+			Html.h1([], [Html.text("Web Component")]),
+			Html.p([], [Html.text("Bind a signal into a custom element and consume the custom event it emits.")]),
+			demo([Html.dangerously_include_unescaped_html(web_component_demo)]),
+			Html.h2([], [Html.text("What this validates")]),
+			Html.p([], [Html.text("Datastar attributes interoperate with custom-element attributes and bubbling CustomEvents in both directions.")]),
+		],
+	)
+
+match_media_document : Html.Document
+match_media_document =
+	Page.document(
+		"Match Media",
+		[
+			Html.h1([], [Html.text("Match Media")]),
+			Html.p([], [Html.text("Mirror the browser's color-scheme media query into a reactive signal.")]),
+			demo([Html.dangerously_include_unescaped_html(match_media_demo)]),
+			Html.h2([], [Html.text("What this validates")]),
+			Html.p([], [Html.text("A browser media-query source can feed ordinary Datastar event, signal, text, and class bindings while staying within the pinned public client.")]),
 		],
 	)
 
@@ -133,3 +197,97 @@ event_bubbling_demo =
 	\\        <button data-id="CLEAR">CLEAR</button>
 	\\    </div>
 	\\</div>
+
+on_signal_patch_demo : Str
+on_signal_patch_demo =
+	\\<div id="on-signal-patch-demo" data-signals="{counter: 0, message: 'Hello World', allChanges: [], counterChanges: []}">
+	\\    <p>Message: <strong id="signal-patch-message" data-text="$message">Hello World</strong></p>
+	\\    <p>Counter: <strong id="signal-patch-counter" data-text="$counter">0</strong></p>
+	\\    <button data-action="signal-message" data-on:click="$message = 'Updated message'">Update Message</button>
+	\\    <button data-action="signal-counter" data-on:click="$counter++">Increment Counter</button>
+	\\    <button data-action="signal-clear" data-on:click="$allChanges = []; $counterChanges = []">Clear Logs</button>
+	\\    <section data-on-signal-patch__delay.1ms="$allChanges = [...$allChanges, patch]" data-on-signal-patch-filter="{exclude: /allChanges|counterChanges/}">
+	\\        <h2>All changes</h2>
+	\\        <pre id="all-signal-patches" data-json-signals__terse="{include: /^allChanges/}"></pre>
+	\\    </section>
+	\\    <section data-on-signal-patch__delay.1ms="$counterChanges = [...$counterChanges, patch]" data-on-signal-patch-filter="{include: /^counter$/}">
+	\\        <h2>Counter changes</h2>
+	\\        <pre id="counter-signal-patches" data-json-signals__terse="{include: /^counterChanges/}"></pre>
+	\\    </section>
+	\\</div>
+
+sortable_demo : Str
+sortable_demo =
+	\\<div id="sortable-demo" data-signals:sort-order="'Alpha, Bravo, Charlie'" data-on:reordered="$sortOrder = evt.detail.order">
+	\\    <p>Current order: <strong id="sortable-order" data-text="$sortOrder">Alpha, Bravo, Charlie</strong></p>
+	\\    <ol id="sortable-list">
+	\\        <li draggable="true" data-sort-item="Alpha">Alpha</li>
+	\\        <li draggable="true" data-sort-item="Bravo">Bravo</li>
+	\\        <li draggable="true" data-sort-item="Charlie">Charlie</li>
+	\\    </ol>
+	\\    <button id="sortable-move-first">Move first item to end</button>
+	\\</div>
+	\\<script>
+	\\    const sortableRoot = document.getElementById('sortable-demo')
+	\\    const sortableList = document.getElementById('sortable-list')
+	\\    const publishSortableOrder = () => {
+	\\        const order = [...sortableList.children].map(item => item.dataset.sortItem).join(', ')
+	\\        sortableRoot.dispatchEvent(new CustomEvent('reordered', { detail: { order } }))
+	\\    }
+	\\    let draggedItem = null
+	\\    sortableList.addEventListener('dragstart', event => {
+	\\        draggedItem = event.target.closest('[data-sort-item]')
+	\\    })
+	\\    sortableList.addEventListener('dragover', event => event.preventDefault())
+	\\    sortableList.addEventListener('drop', event => {
+	\\        event.preventDefault()
+	\\        const target = event.target.closest('[data-sort-item]')
+	\\        if (draggedItem && target && draggedItem !== target) target.before(draggedItem)
+	\\        publishSortableOrder()
+	\\    })
+	\\    document.getElementById('sortable-move-first').addEventListener('click', () => {
+	\\        sortableList.append(sortableList.firstElementChild)
+	\\        publishSortableOrder()
+	\\    })
+	\\</script>
+
+web_component_demo : Str
+web_component_demo =
+	\\<div id="web-component-demo" data-signals="{name: 'Your Name', reversed: 'emaN ruoY'}">
+	\\    <label>Name <input id="web-component-name" data-bind:name value="Your Name"></label>
+	\\    <reverse-component id="reverse-component" name="Your Name" data-attr:name="$name" data-on:reverse="$reversed = evt.detail.value"></reverse-component>
+	\\    <p>Reversed: <strong id="web-component-reversed" data-text="$reversed">emaN ruoY</strong></p>
+	\\</div>
+	\\<script>
+	\\    if (!customElements.get('reverse-component')) {
+	\\        customElements.define('reverse-component', class extends HTMLElement {
+	\\            static observedAttributes = ['name']
+	\\            connectedCallback() { this.update() }
+	\\            attributeChangedCallback() { this.update() }
+	\\            update() {
+	\\                const value = this.getAttribute('name') || ''
+	\\                const reversed = [...value].reverse().join('')
+	\\                this.textContent = reversed
+	\\                this.dispatchEvent(new CustomEvent('reverse', { bubbles: true, detail: { value: reversed } }))
+	\\            }
+	\\        })
+	\\    }
+	\\    document.documentElement.dataset.webComponentReady = 'true'
+	\\</script>
+
+match_media_demo : Str
+match_media_demo =
+	\\<div id="match-media-demo" data-signals:is-dark="false" data-on:mediachange="$isDark = evt.detail.matches">
+	\\    <p id="match-media-result" data-text="$isDark ? 'Dark color scheme' : 'Light color scheme'">Checking color scheme</p>
+	\\    <div id="match-media-card" data-class:dark="$isDark">This card follows the browser preference.</div>
+	\\</div>
+	\\<script>
+	\\    const matchMediaRoot = document.getElementById('match-media-demo')
+	\\    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
+	\\    const publishColorScheme = () => matchMediaRoot.dispatchEvent(new CustomEvent('mediachange', {
+	\\        detail: { matches: colorScheme.matches },
+	\\    }))
+	\\    colorScheme.addEventListener('change', publishColorScheme)
+	\\    setTimeout(publishColorScheme)
+	\\    document.documentElement.dataset.matchMediaReady = 'true'
+	\\</script>

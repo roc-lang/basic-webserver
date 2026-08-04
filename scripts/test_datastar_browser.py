@@ -611,6 +611,87 @@ def event_bubbling(driver: Firefox, base: str) -> None:
     )
 
 
+def on_signal_patch(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/on_signal_patch")
+    driver.execute("document.querySelector('[data-action=\"signal-message\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#signal-patch-message').textContent === 'Updated message'
+                && document.querySelector('#all-signal-patches').textContent.includes('message');
+            """
+        ),
+        "On Signal Patch unfiltered observer",
+    )
+    driver.execute("document.querySelector('[data-action=\"signal-counter\"]').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#signal-patch-counter').textContent === '1'
+                && document.querySelector('#counter-signal-patches').textContent.includes('counter');
+            """
+        ),
+        "On Signal Patch filtered observer",
+    )
+
+
+def sortable(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/sortable")
+    driver.execute("document.querySelector('#sortable-move-first').click()")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const items = [...document.querySelectorAll('#sortable-list [data-sort-item]')];
+            return items.map(item => item.dataset.sortItem).join(', ') === 'Bravo, Charlie, Alpha'
+                && document.querySelector('#sortable-order').textContent === 'Bravo, Charlie, Alpha';
+            """
+        ),
+        "Sortable reordered event",
+    )
+
+
+def web_component(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/web_component")
+    wait_until(
+        lambda: driver.execute(
+            "return document.documentElement.dataset.webComponentReady === 'true'"
+        ),
+        "Web Component definition",
+    )
+    driver.execute(
+        """
+        const input = document.querySelector('#web-component-name');
+        input.value = 'Datastar Roc';
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+        """
+    )
+    wait_until(
+        lambda: driver.execute(
+            """
+            return document.querySelector('#reverse-component').textContent === 'coR ratsataD'
+                && document.querySelector('#web-component-reversed').textContent === 'coR ratsataD';
+            """
+        ),
+        "Web Component signal and event interop",
+    )
+
+
+def match_media(driver: Firefox, base: str) -> None:
+    driver.navigate(f"{base}/examples/match_media")
+    wait_until(
+        lambda: driver.execute(
+            """
+            const expected = matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'Dark color scheme'
+                : 'Light color scheme';
+            return document.documentElement.dataset.matchMediaReady === 'true'
+                && document.querySelector('#match-media-result').textContent === expected;
+            """
+        ),
+        "Match Media reactive preference",
+    )
+
+
 def file_upload(driver: Firefox, base: str) -> None:
     driver.navigate(f"{base}/examples/file_upload")
     driver.execute(
@@ -854,6 +935,10 @@ def main() -> int:
             delete_row(driver, base)
             edit_row(driver, base)
             event_bubbling(driver, base)
+            on_signal_patch(driver, base)
+            sortable(driver, base)
+            web_component(driver, base)
+            match_media(driver, base)
             file_upload(driver, base)
             form_data(driver, base)
             inline_validation(driver, base)
@@ -869,7 +954,8 @@ def main() -> int:
         print(
             "PASS Active Search, Animations, Bad Apple, Bulk Update, "
             "Click To Edit, Click To Load, Custom Event, Custom Plugin, "
-            "Delete Row, Edit Row, Event Bubbling, File Upload, Form Data, "
+            "Delete Row, Edit Row, Event Bubbling, On Signal Patch, Sortable, "
+            "Web Component, Match Media, File Upload, Form Data, "
             "Inline Validation, DBmon, Infinite Scroll, Lazy Load, Lazy Tabs, "
             "Progress Bar, Progressive Load, SVG Morphing, Templ Counter, "
             "Title Update "
