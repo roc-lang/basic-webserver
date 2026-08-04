@@ -67,7 +67,7 @@
       ]
     },
     {
-      "path": "examples/datastar/showcase.roc",
+      "path": "examples/datastar/main.roc",
       "mode": "server",
       "cases": [
         {

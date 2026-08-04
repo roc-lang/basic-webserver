@@ -134,12 +134,23 @@ def command(*args: str | Path, cwd: Path = ROOT) -> None:
 
 
 def active_sources() -> set[str]:
-    return {
-        str(path.relative_to(ROOT).as_posix())
+    sources = {
+        path
         for directory in (ROOT / "examples",)
         for path in directory.rglob("*.roc")
         if APPLICATION_HEADER.search(path.read_text(encoding="utf-8")) is not None
     }
+    invalid_roots = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in sources
+        if path.parent != ROOT / "examples" and path.name != "main.roc"
+    )
+    if invalid_roots:
+        fail(
+            "Nested example application roots must be named main.roc: "
+            f"{invalid_roots}"
+        )
+    return {str(path.relative_to(ROOT).as_posix()) for path in sources}
 
 
 def copy_local_source_tree(source_path: Path, destination: Path) -> None:
@@ -501,8 +512,15 @@ def executable_suffix(target: str) -> str:
     return ".exe" if target == "x64win" else ""
 
 
+def output_relative_path(source: Path, target: str) -> Path:
+    relative = source.relative_to(ROOT / "examples").with_suffix("")
+    return relative.with_name(
+        f"{relative.name}{executable_suffix(target)}"
+    )
+
+
 def output_path(source: Path, target: str, artifact_dir: Path) -> Path:
-    return artifact_dir / target / f"{source.stem}{executable_suffix(target)}"
+    return artifact_dir / target / output_relative_path(source, target)
 
 
 def prepare_artifact_output(target: str, artifact_dir: Path) -> None:
@@ -612,7 +630,8 @@ def prepare_memcheck_binaries(
             fail(f"{source}: expected exactly one platform dependency")
         copied_source.write_text(app_source, encoding="utf-8", newline="\n")
 
-        binary = binary_dir / source.stem
+        binary = binary_dir / output_relative_path(source, "x64glibc")
+        binary.parent.mkdir(parents=True, exist_ok=True)
         print(f"==> memcheck build {app['path']} (x64glibc)", flush=True)
         # TODO: Investigate these Roc compiler bugs upstream, then restore the
         # LLVM speed backend without stripping debug information. The speed
@@ -2066,6 +2085,7 @@ def build_artifacts(
         app_path = str(app["path"])
         source = rewritten_app_source(app_path, platform_url)
         binary = output_path(ROOT / app_path, target, artifact_dir)
+        binary.parent.mkdir(parents=True, exist_ok=True)
         print(f"==> build {app['path']} ({target})", flush=True)
         command(
             roc,

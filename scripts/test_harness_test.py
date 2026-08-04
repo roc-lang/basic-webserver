@@ -107,6 +107,34 @@ class SpecValidationTests(unittest.TestCase):
             with mock.patch.object(test, "ROOT", root):
                 self.assertEqual(test.active_sources(), {"examples/app.roc"})
 
+    def test_nested_example_application_root_must_be_main(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            example = root / "examples" / "componentized"
+            example.mkdir(parents=True)
+            (example / "showcase.roc").write_text(
+                "app [main] {}\n", encoding="utf-8"
+            )
+
+            with (
+                mock.patch.object(test, "ROOT", root),
+                self.assertRaisesRegex(test.TestFailure, "must be named main.roc"),
+            ):
+                test.active_sources()
+
+    def test_nested_example_artifact_preserves_its_directory(self) -> None:
+        source = test.ROOT / "examples" / "datastar" / "main.roc"
+        artifact_dir = test.ROOT / "dist" / "example-binaries"
+
+        self.assertEqual(
+            test.output_path(source, "x64musl", artifact_dir),
+            artifact_dir / "x64musl" / "datastar" / "main",
+        )
+        self.assertEqual(
+            test.output_path(source, "x64win", artifact_dir),
+            artifact_dir / "x64win" / "datastar" / "main.exe",
+        )
+
     def test_startup_failure_case_cannot_send_requests(self) -> None:
         case = {
             "name": "invalid-startup",
@@ -220,7 +248,7 @@ class SpecValidationTests(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(test.TestFailure, "persistent_repeat"):
-            test.validate_case("examples/datastar/showcase.roc", case, set())
+            test.validate_case("examples/datastar/main.roc", case, set())
 
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

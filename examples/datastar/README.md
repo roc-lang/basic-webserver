@@ -4,6 +4,8 @@ This directory reproduces the public, non-Rocket examples from the
 [Datastar example catalog](https://data-star.dev/examples/) in catalog order.
 The examples are intentionally built into one Roc application so the release
 matrix adds one realistic server binary rather than one binary per page.
+Its entrypoint is `main.roc`, allowing Roc tooling opened from any component to
+discover the application root.
 
 Each reproduction is an executable API probe. Server-driven examples use the
 first-party `Datastar` and `Sse` APIs; browser-only examples remain ordinary
@@ -31,7 +33,7 @@ Run the native browser checks after building the showcase binary:
 
 ```sh
 python scripts/test_datastar_browser.py \
-  --binary dist/example-binaries/x64musl/showcase
+  --binary dist/example-binaries/x64musl/datastar/main
 ```
 
 The command requires Firefox and geckodriver. It deliberately runs once for a
@@ -52,10 +54,10 @@ The client is the repository's already-pinned Datastar v1.0.2 bundle. The
 example pages are adaptations, not copies of the Datastar site's surrounding
 navigation or visual design.
 
-Unlike released examples, `showcase.roc` deliberately imports the repository's
+Unlike released examples, `main.roc` deliberately imports the repository's
 local platform. Its first-party Datastar API is under development on this
 branch and is not present in the 0.15.0 release bundle. From the repository
-root, `roc examples/datastar/showcase.roc` therefore exercises exactly the code
+root, `roc examples/datastar/main.roc` therefore exercises exactly the code
 being evaluated.
 
 Click To Load, Bulk Update, Click To Edit, and Animations are typed-markup
