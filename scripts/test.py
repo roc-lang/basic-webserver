@@ -44,7 +44,7 @@ STAGES = ("fmt", "check", "test", "build", "run")
 BUILD_OPTIMIZATIONS = {"speed", "dev"}
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
-PORTABLE_TEXT_SUFFIXES = {".html", ".json", ".py", ".roc"}
+PORTABLE_TEXT_SUFFIXES = {".html", ".js", ".json", ".md", ".py", ".roc"}
 TARGET_PLATFORMS = {
     "x64mac": "darwin",
     "arm64mac": "darwin",

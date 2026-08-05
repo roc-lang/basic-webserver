@@ -446,6 +446,31 @@ class SpecValidationTests(unittest.TestCase):
                 test.portable_file_bytes(database), b"first\r\nsecond\r"
             )
 
+    def test_examples_hash_ignores_text_asset_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            examples = root / "examples"
+            scripts = root / "scripts"
+            examples.mkdir()
+            scripts.mkdir()
+            text_assets = [
+                examples / "app.roc",
+                examples / "README.md",
+                examples / "client.js",
+                examples / "page.html",
+                scripts / "command_helper.py",
+            ]
+            for path in text_assets:
+                path.write_bytes(b"first\nsecond\n")
+
+            with mock.patch.object(test, "ROOT", root):
+                unix_hash = test.examples_hash()
+                for path in text_assets:
+                    path.write_bytes(b"first\r\nsecond\r\n")
+                windows_hash = test.examples_hash()
+
+            self.assertEqual(windows_hash, unix_hash)
+
     def test_generated_fixtures_are_bounded_and_reproducible(self) -> None:
         case = {
             "fixtures": [
