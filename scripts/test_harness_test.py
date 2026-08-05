@@ -59,6 +59,41 @@ class RawExchangeTests(unittest.TestCase):
 
 
 class SpecValidationTests(unittest.TestCase):
+    def test_platform_url_update_ignores_local_type_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            examples = Path(raw_directory) / "examples"
+            components = examples / "components"
+            components.mkdir(parents=True)
+            app = examples / "main.roc"
+            app.write_text(
+                'app [main] { pf: platform "https://example.invalid/old" }\n',
+                encoding="utf-8",
+            )
+            component = components / "Component.roc"
+            component_source = "Component :: [].{}\n"
+            component.write_text(component_source, encoding="utf-8")
+
+            updated = update_app_platform_urls.update_apps(
+                [examples], "https://example.invalid/new"
+            )
+
+            self.assertEqual(updated, [app])
+            self.assertIn(
+                'platform "https://example.invalid/new"',
+                app.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(component.read_text(encoding="utf-8"), component_source)
+
+    def test_platform_url_update_rejects_an_app_without_a_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            app = Path(raw_directory) / "app.roc"
+            app.write_text("app [main] {}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(SystemExit, "found 0"):
+                update_app_platform_urls.update_apps(
+                    [app], "https://example.invalid/new"
+                )
+
     def test_local_bundle_rewrite_uses_a_copy(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             root = Path(raw_directory)
