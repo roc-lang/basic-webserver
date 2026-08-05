@@ -8,8 +8,10 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
-#[cfg(feature = "sse-benchmark-instrumentation")]
+#[cfg(feature = "benchmark-instrumentation")]
 mod allocation_benchmark;
+#[cfg(feature = "benchmark-simulation")]
+mod benchmark_simulation;
 mod body_sink;
 mod bounded_gate;
 mod brotli_executor;
@@ -54,6 +56,9 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 pub fn rust_main() -> i32 {
     env::initialize_launch_dir();
     abi::initialize_roc_host();
+    #[cfg(feature = "benchmark-simulation")]
+    let exit_code = benchmark_simulation::start();
+    #[cfg(not(feature = "benchmark-simulation"))]
     let exit_code = http_server::start();
     let live_resources = sqlite::active_resources()
         + file::active_resources()
@@ -79,7 +84,7 @@ pub fn rust_main() -> i32 {
     } else {
         exit_code
     };
-    #[cfg(feature = "sse-benchmark-instrumentation")]
+    #[cfg(feature = "benchmark-instrumentation")]
     allocation_benchmark::report();
     result
 }

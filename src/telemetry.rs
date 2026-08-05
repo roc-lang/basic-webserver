@@ -358,6 +358,29 @@ pub(crate) struct Metrics {
     access_log_write_failures: AtomicU64,
 }
 
+#[cfg(feature = "benchmark-simulation")]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub(crate) struct OperationalMetricsSnapshot {
+    pub(crate) requests_active: usize,
+    pub(crate) requests_high_water: usize,
+    pub(crate) connections_active: usize,
+    pub(crate) connections_high_water: usize,
+    pub(crate) handlers_active: usize,
+    pub(crate) handlers_high_water: usize,
+    pub(crate) handlers_queued: usize,
+    pub(crate) handlers_queued_high_water: usize,
+    pub(crate) sse_streams_active: usize,
+    pub(crate) sse_streams_high_water: usize,
+    pub(crate) sse_brotli_lanes_active: usize,
+    pub(crate) sse_brotli_lanes_high_water: usize,
+    pub(crate) sse_brotli_operations_queued: usize,
+    pub(crate) sse_brotli_operations_queued_high_water: usize,
+    pub(crate) sse_brotli_operations_running: usize,
+    pub(crate) sse_brotli_operations_running_high_water: usize,
+    pub(crate) file_transfers_active: usize,
+    pub(crate) file_transfers_high_water: usize,
+}
+
 impl Metrics {
     pub(crate) fn new() -> Arc<Self> {
         let request_series = Destination::COUNT * MethodClass::COUNT * Completion::COUNT;
@@ -380,6 +403,32 @@ impl Metrics {
             access_log_dropped: AtomicU64::new(0),
             access_log_write_failures: AtomicU64::new(0),
         })
+    }
+
+    #[cfg(feature = "benchmark-simulation")]
+    pub(crate) fn snapshot(&self) -> OperationalMetricsSnapshot {
+        OperationalMetricsSnapshot {
+            requests_active: self.requests.current(),
+            requests_high_water: self.requests.high_water(),
+            connections_active: self.connections.current(),
+            connections_high_water: self.connections.high_water(),
+            handlers_active: self.handlers_active.current(),
+            handlers_high_water: self.handlers_active.high_water(),
+            handlers_queued: self.handlers_queued.current(),
+            handlers_queued_high_water: self.handlers_queued.high_water(),
+            sse_streams_active: self.sse_streams.current(),
+            sse_streams_high_water: self.sse_streams.high_water(),
+            sse_brotli_lanes_active: self.sse_brotli_lanes.current(),
+            sse_brotli_lanes_high_water: self.sse_brotli_lanes.high_water(),
+            sse_brotli_operations_queued: self.sse_brotli_operations_queued.current(),
+            sse_brotli_operations_queued_high_water: self.sse_brotli_operations_queued.high_water(),
+            sse_brotli_operations_running: self.sse_brotli_operations_running.current(),
+            sse_brotli_operations_running_high_water: self
+                .sse_brotli_operations_running
+                .high_water(),
+            file_transfers_active: self.file_transfers.current(),
+            file_transfers_high_water: self.file_transfers.high_water(),
+        }
     }
 
     pub(crate) fn connection_started(&self) -> ActiveGaugeGuard {

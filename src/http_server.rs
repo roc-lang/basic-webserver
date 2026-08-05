@@ -54,6 +54,7 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::io;
 use std::mem::MaybeUninit;
+#[cfg(not(feature = "benchmark-simulation"))]
 use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
@@ -61,6 +62,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 
@@ -70,7 +72,9 @@ const SSE_FRAME_BYTES: usize = 16 * 1024;
 
 #[derive(Clone)]
 struct RuntimeConfig {
+    #[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
     host: String,
+    #[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
     port: u16,
     max_connections: usize,
     max_handlers: usize,
@@ -648,7 +652,7 @@ unsafe impl Send for RocContext {}
 unsafe impl Sync for RocContext {}
 
 #[derive(Clone)]
-struct ServerContext {
+pub(crate) struct ServerContext {
     config: Arc<RuntimeConfig>,
     roc_context: Arc<RocContext>,
     roc_executor: FixedExecutorHandle<RocScheduledJob>,
@@ -659,14 +663,51 @@ struct ServerContext {
     telemetry: TelemetryHandle,
 }
 
+#[cfg(feature = "benchmark-simulation")]
+impl ServerContext {
+    pub(crate) fn max_connections(&self) -> usize {
+        self.config.max_connections
+    }
+
+    pub(crate) fn shutdown_controller(&self) -> ShutdownController {
+        self.shutdown.clone()
+    }
+
+    pub(crate) fn operational_metrics(&self) -> crate::telemetry::OperationalMetricsSnapshot {
+        self.telemetry.metrics().snapshot()
+    }
+}
+
+#[cfg(not(feature = "benchmark-simulation"))]
 pub fn start() -> i32 {
-    let exit_code = start_inner();
+    start_with_runner_inner(run_tcp_server)
+}
+
+#[cfg(feature = "benchmark-simulation")]
+pub(crate) fn start_with_runner<F, Fut>(runner: F) -> i32
+where
+    F: FnOnce(ServerContext) -> Fut,
+    Fut: std::future::Future<Output = ShutdownReason>,
+{
+    start_with_runner_inner(runner)
+}
+
+fn start_with_runner_inner<F, Fut>(runner: F) -> i32
+where
+    F: FnOnce(ServerContext) -> Fut,
+    Fut: std::future::Future<Output = ShutdownReason>,
+{
+    let exit_code = start_inner(runner);
     crate::http::shutdown();
     crate::tcp::shutdown();
     exit_code
 }
 
-fn start_inner() -> i32 {
+fn start_inner<F, Fut>(runner: F) -> i32
+where
+    F: FnOnce(ServerContext) -> Fut,
+    Fut: std::future::Future<Output = ShutdownReason>,
+{
     let mut init_result = unsafe { roc_init_for_host() };
     let initialized = match init_result.tag {
         InitForHostResultTag::Ok => unsafe { init_result.take_payload_ok_unchecked() },
@@ -749,7 +790,7 @@ fn start_inner() -> i32 {
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(run_server(context)),
+        Ok(runtime) => runtime.block_on(runner(context)),
         Err(error) => {
             ShutdownReason::RuntimeFailed(format!("failed to initialize Tokio runtime: {error}"))
         }
@@ -2525,7 +2566,10 @@ async fn handle_panics(
     Ok(telemetry.instrument(response))
 }
 
-async fn serve_http1(stream: PrefixedStream, context: ServerContext) {
+async fn serve_http1<S>(stream: PrefixedStream<S>, context: ServerContext)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let activity = Http1Activity::new();
     let io = TokioIo::new(Http1Io::new(
         stream,
@@ -2781,7 +2825,10 @@ fn spawn_h2_request(
     });
 }
 
-async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
+async fn serve_http2<S>(stream: PrefixedStream<S>, context: ServerContext)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let mut builder = h2::server::Builder::new();
     builder
         .max_concurrent_streams(context.config.max_http2_streams_per_connection())
@@ -2866,7 +2913,10 @@ async fn serve_http2(stream: PrefixedStream, context: ServerContext) {
     }
 }
 
-async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext) {
+async fn serve_connection<S>(stream: S, context: ServerContext)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let _connection_metrics = context.telemetry.connection_started();
     match detect_protocol(stream, context.config.header_timeout).await {
         Ok((Protocol::Http1, stream)) => serve_http1(stream, context).await,
@@ -2880,7 +2930,28 @@ async fn serve_connection(stream: tokio::net::TcpStream, context: ServerContext)
     }
 }
 
-async fn run_server(context: ServerContext) -> ShutdownReason {
+pub(crate) trait ServerListener {
+    type Stream: AsyncRead + AsyncWrite + Unpin + Send + 'static;
+
+    async fn accept(&mut self) -> io::Result<Self::Stream>;
+}
+
+#[cfg(not(feature = "benchmark-simulation"))]
+struct TcpServerListener(tokio::net::TcpListener);
+
+#[cfg(not(feature = "benchmark-simulation"))]
+impl ServerListener for TcpServerListener {
+    type Stream = tokio::net::TcpStream;
+
+    async fn accept(&mut self) -> io::Result<Self::Stream> {
+        let (stream, _) = self.0.accept().await?;
+        stream.set_nodelay(true)?;
+        Ok(stream)
+    }
+}
+
+#[cfg(not(feature = "benchmark-simulation"))]
+async fn run_tcp_server(context: ServerContext) -> ShutdownReason {
     let listener =
         match tokio::net::TcpListener::bind((context.config.host.as_str(), context.config.port))
             .await
@@ -2900,6 +2971,18 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
 
     let signal_shutdown = context.shutdown.clone();
     let signal_task = tokio::spawn(async move { watch_signals(signal_shutdown).await });
+    let reason = run_server_with_listener(context, TcpServerListener(listener)).await;
+    signal_task.abort();
+    reason
+}
+
+pub(crate) async fn run_server_with_listener<L>(
+    context: ServerContext,
+    mut listener: L,
+) -> ShutdownReason
+where
+    L: ServerListener,
+{
     let mut connections = JoinSet::new();
     let connection_slots = Arc::new(Semaphore::new(context.config.max_connections));
     let mut next_connection_slot = None;
@@ -2921,11 +3004,7 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
                 );
             }
             accepted = listener.accept(), if next_connection_slot.is_some() => match accepted {
-                Ok((stream, _)) => {
-                    if let Err(error) = stream.set_nodelay(true) {
-                        eprintln!("Failed to disable Nagle's algorithm: {error}");
-                        continue;
-                    }
+                Ok(stream) => {
                     let connection_slot = next_connection_slot
                         .take()
                         .expect("accept is polled only with a reserved connection slot");
@@ -2986,15 +3065,16 @@ async fn run_server(context: ServerContext) -> ShutdownReason {
             context.config.body_sinks.high_water_sinks()
         );
     }
-    signal_task.abort();
     reason
 }
 
+#[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
 #[derive(Default)]
 struct TerminationSignals {
     seen_one: bool,
 }
 
+#[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
 impl TerminationSignals {
     /// Return true only after a previous OS termination signal was observed.
     fn should_force_exit(&mut self) -> bool {
@@ -3003,6 +3083,7 @@ impl TerminationSignals {
 }
 
 #[cfg(unix)]
+#[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
 async fn watch_signals(shutdown: ShutdownController) {
     use tokio::signal::unix::{signal, SignalKind};
 
@@ -3023,6 +3104,7 @@ async fn watch_signals(shutdown: ShutdownController) {
 }
 
 #[cfg(not(unix))]
+#[cfg_attr(feature = "benchmark-simulation", allow(dead_code))]
 async fn watch_signals(shutdown: ShutdownController) {
     let mut signals = TerminationSignals::default();
     loop {

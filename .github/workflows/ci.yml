@@ -56,6 +56,9 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --locked
 
+      - name: Run substituted-transport server invariants
+        run: python scripts/benchmark.py check
+
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate
 
