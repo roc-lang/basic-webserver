@@ -16,13 +16,15 @@ the desired architecture.
 ## Product definition
 
 `basic-webserver` is a dependable, high-performance, cross-platform Roc
-platform for conventional HTTP request/response applications.
+platform for conventional HTTP request/response applications and bounded
+server-sent event responses.
 
 It is intended to be especially good for:
 
 - JSON and HTML APIs;
 - CRUD applications backed by SQLite;
 - server-rendered pages and form handling;
+- progressive feedback and timer-driven server-sent events;
 - webhooks and integrations with other HTTP services;
 - bounded uploads;
 - public static assets and authorized file downloads handled by the host;
@@ -157,7 +159,11 @@ pointer.
 ### Request handling
 
 `respond!` calls may execute concurrently. A handler receives only its request,
-immutable context, and explicitly invoked platform effects.
+immutable context, and explicitly invoked platform effects. It may return an
+ordinary response, a typed native response plan, or one typed SSE
+source. A returned source represents request-authorized functional state; it
+does not create shared mutable application state or ordering between otherwise
+independent requests.
 
 The compiled Roc application is treated as a synchronous, reentrant native
 library rather than as an asynchronous executor. Each `respond!` invocation
@@ -170,10 +176,12 @@ network lifecycle surrounding the invocation remains on that thread.
 Synchronous Roc execution must not block the host's asynchronous transport
 workers. The host admits Roc invocations to a distinct, bounded execution
 domain and waits for their results without preventing unrelated connections or
-HTTP/2 streams from making progress. The number of active invocations and the
-amount of queued work are explicit server resources with finite limits and
-documented saturation behaviour; an executor's implicit worker or blocking
-pool limits are not the server's capacity policy.
+HTTP/2 streams from making progress. Ordinary handlers and ready SSE
+transitions compete in the same bounded FIFO execution domain; parked SSE
+sources consume no Roc worker. The number of active invocations and the amount
+of queued work are explicit server resources with finite limits and documented
+saturation behaviour; an executor's implicit worker or blocking pool limits
+are not the server's capacity policy.
 
 There is no implicit ordering between handlers. Any ordering or atomicity
 required for domain state comes from a SQLite transaction or an external
@@ -183,18 +191,21 @@ documented contract.
 ### Shutdown
 
 Graceful shutdown is a lifecycle concern, not application state management.
-The host stops accepting work, drains active native transfers and Roc handlers
-within finite deadlines, calls `shutdown!` once when it is safe to do so, and
-then releases the context and subsystems.
+The host stops accepting work, cancels parked and queued SSE work, drains active
+native transfers and Roc invocations within finite deadlines, calls
+`shutdown!` once when it is safe to do so, and then releases the context and
+subsystems.
 
 Subsystems required by `shutdown!` remain available until the hook completes.
 Once draining begins, operations that cannot safely start during shutdown
 return a stopping error.
 
-The platform does not promise that arbitrary Roc computation or a blocking
-effect can be safely preempted. If work exceeds a hard drain deadline, process
-termination is preferable to concurrently destroying resources that the work
-may still use.
+The platform does not promise that arbitrary Roc computation, a blocking
+effect, or an already-running SSE transition can be safely preempted. Transport
+cancellation prevents future work but an executing invocation remains
+request- and handler-accounted until it returns. If work exceeds a hard drain
+deadline, process termination is preferable to concurrently destroying
+resources that the work may still use.
 
 Applications that need no shutdown action should be able to use a trivial
 platform-provided implementation.
@@ -309,10 +320,18 @@ Network-controlled lengths are validated before they cause proportional host
 or Roc allocation. Chunk sizes and buffered-chunk counts bound streaming
 memory independently of total body or file size.
 
-Ordinary Roc responses and materialized effect results are for bounded data.
-Large files, downloads, uploads, and other transport-oriented byte flows
-remain in native host streams under protocol backpressure. Outbound HTTP and
-command output enforce their byte limits before exposing results to Roc.
+Ordinary Roc responses, individual Roc-produced SSE events, and materialized
+effect results are for bounded data. Large files, downloads, uploads, and other
+transport-oriented byte flows remain in native host streams under protocol
+backpressure. Outbound HTTP and command output enforce their byte limits before
+exposing results to Roc.
+
+SSE configuration independently bounds admitted streams and the maximum framed
+event returned by one transition. Admitted streams bound host-owned source
+slots, timers, response-body state, and optional compression state. Arbitrary
+Roc values captured by a source remain trusted application memory, just like
+values allocated by an ordinary handler; the platform does not claim to trace
+or byte-quota their transitive graph.
 
 Pools and caches have finite capacities and explicit eviction or saturation
 behaviour. In particular, prepared-statement caches and metrics label sets do
@@ -391,9 +410,33 @@ transport, Roc execution domain, and host subsystems. Indicative measurements
 from ordinary developer machines guide investigation but do not define a
 portable performance guarantee.
 
+Controllable invariant validation and performance evaluation have different
+authority. An instrumented test host may replace the production TCP listener
+with a bounded accepted-stream transport before application initialization. A
+substituted host must still execute the compiled Roc application's real
+`init!`, `respond!`, SSE transition, and `shutdown!` callbacks through the same
+request, admission, response, and cleanup state machines as the production
+host. Its controllable peer is authoritative for lifecycle, ownership, failure
+mapping, and the resource-bound invariants explicitly asserted by its
+scenarios; its timings and process memory are not capacity evidence.
+
+Real-listener evaluation remains authoritative for throughput, tail latency,
+resident memory, operating-system limits, transport backpressure, and scheduler
+or compression contention. Machine-dependent measurements are compared only
+between explicitly recorded runs on a controlled machine. Ordinary CI may gate
+socketless semantic and cleanup invariants, but does not turn local timing or
+resident-memory observations into portable pass/fail thresholds.
+
+Test substitution is an internal host boundary, not a Roc capability. Normal
+release artifacts select the real operating-system implementations and do not
+expose a control protocol, fake resource, or general dependency container to
+applications. Operational metrics that are useful in production remain
+low-cardinality and low-overhead; detailed allocation epochs and test control
+exist only in explicitly instrumented hosts.
+
 ## Request path
 
-The request path has two possible destinations:
+The request path has two possible destinations and three Roc outcomes:
 
 ```text
 HTTP request
@@ -406,6 +449,10 @@ host limits, normalization, and route selection
     `-- Roc fallback route ----> respond!(request, context)
                                       |
                                       +-- ordinary response
+                                      +-- typed SSE source ----> bounded stream slot
+                                      |                                  |
+                                      |                                  v
+                                      |                         finite Roc transitions
                                       `-- typed native response plan
                                                    |
                                                    v
@@ -687,6 +734,48 @@ Large or transport-oriented responses are represented by a closed set of typed
 native response plans, such as serving a file. The host streams those responses
 without moving their contents through Roc.
 
+### Roc-produced server-sent events
+
+SSE is a narrow exception to the complete ordinary-response rule. An
+application may return a typed, retained functional source whose transitions
+produce canonical SSE events, wait for a host timer, end, or fail. The source
+forms one host-owned transition chain: while parked, the host owns the chain's
+current reference in a finite stream slot; while advancing, one synchronous
+Roc invocation owns it and returns the next source. Roc values remain normally
+duplicable inside trusted application code; the platform guarantees only that
+its own use of the returned source is single-owner and sequential. Applications
+do not receive a socket, response writer, compressor,
+task, arbitrary byte sink, or cancellation callback.
+
+The first source transition occurs before the `200 text/event-stream` response
+is committed. Stream admission failure, queue timeout, Roc panic, application
+error, or an oversized first event therefore becomes an ordinary bounded HTTP
+error. A successful first `Emit`, `Wait`, or `End` validates the source and may
+commit the response. After commitment, a transition or framing failure is
+logged and terminates only that response stream because its HTTP status can no
+longer change.
+
+Exactly one transition may run for a stream at a time. A returned event and its
+next source remain in a draining state until the event has transferred into
+host-owned transport or compression frames. Only then may the host park the
+next source and arm its declared timer. This acknowledgement means accepted by
+bounded host ownership, not delivered to the peer. Slow readers exert normal
+HTTP backpressure and cannot cause the source to run ahead.
+
+Disconnect and shutdown cancel parked and queued work immediately and prevent
+future transitions. A transition already executing synchronously is not
+preempted: it remains request- and handler-accounted, and its eventual result is
+dropped rather than published. Normal stream completion finishes the selected
+content coding; cancellation abandons it without pretending to produce a clean
+end.
+
+SSE sources are appropriate for finite event sequences, progressive feedback,
+and timer-driven views over durable state. Application code should retain small
+identifiers and cursors and re-query immutable context resources on each step.
+The platform bounds every host-owned resource associated with a stream, but—
+consistently with its trusted-application model—does not impose a transitive
+heap quota on the Roc closure captured by one source.
+
 ### Response validation and framing
 
 The application response contract is independent of the HTTP wire version.
@@ -694,8 +783,9 @@ Ordinary responses contain one status, a complete ordered header list, and a
 complete bounded representation body. The host validates the whole response
 before transmission and owns HTTP/1.1 and HTTP/2 message framing.
 
-Applications may select representation metadata, but they do not control
-connection state or transfer framing. Header names and values must use valid
+Applications may select ordinary representation metadata, but they do not
+control connection state or transfer framing. SSE status and representation
+headers are canonical and host-owned. Header names and values must use valid
 HTTP field syntax. `Connection`, `HTTP2-Settings`, `Keep-Alive`,
 `Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Trailer`, and fields
 nominated by `Connection` are rejected. `Content-Length` is host-owned: an
@@ -753,9 +843,16 @@ bound decoder memory and CPU, reject unsupported or stacked codings, and expose
 failures through the request-body contract. A compressed byte length alone is
 not a safe request resource bound.
 
-Roc-produced incremental response streams are not a goal. They require
-long-lived callbacks, cancellation, backpressure, and application scheduling
-semantics that would turn the platform into a broader asynchronous runtime.
+SSE compression uses the same negotiation rules and emits `Vary:
+Accept-Encoding` for every selected representation. It supports identity and
+streaming Brotli; if the request forbids both, the precommit response is `406`
+rather than silently selecting a forbidden representation. Compression work is
+bounded independently from transport polling and a logical event is flushed
+before the next source transition may begin.
+
+General Roc-produced incremental byte streams are not a goal. The closed SSE
+event/step vocabulary and host-owned scheduling are what keep this facility
+from becoming a broader asynchronous runtime or arbitrary response writer.
 
 ## HTTP protocols and upgraded connections
 
@@ -842,7 +939,8 @@ compelling cross-platform reason to move a specific part into this platform.
 
 - arbitrary mutable in-process Roc application state;
 - a general actor, reducer, cache, key-value store, or message bus;
-- application-defined WebSocket, upgraded-protocol, or SSE runtimes;
+- application-defined WebSocket, upgraded-protocol, arbitrary byte-stream, or
+  custom SSE runtimes beyond the platform's typed SSE source;
 - HTTP/2 server push;
 - arbitrary background Roc callbacks, schedulers, detached processes, daemon
   management, or worker supervision;
@@ -852,7 +950,7 @@ compelling cross-platform reason to move a specific part into this platform.
 - a universal database abstraction or built-in client for every database;
 - distributed state, clustering, deployment orchestration, or job execution;
 - unbounded request bodies, queues, response buffering, or concurrency;
-- large response streams incrementally generated by Roc;
+- large arbitrary response streams incrementally generated by Roc;
 - a complete application routing, middleware, templating, authentication, or
   frontend framework.
 

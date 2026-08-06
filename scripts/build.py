@@ -19,6 +19,13 @@ TARGETS = {
 ALL_TARGETS = tuple(TARGETS)
 ROC_TARGETS = (*ALL_TARGETS, "x64win")
 WINDOWS_TARGET = "x86_64-pc-windows-msvc"
+
+
+def display_path(path: Path) -> Path:
+    try:
+        return path.relative_to(ROOT)
+    except ValueError:
+        return path
 WINDOWS_SYSTEM_LIBRARIES = ("advapi32.lib", "bcrypt.lib", "ws2_32.lib")
 
 
@@ -54,11 +61,11 @@ def find_llvm_strip() -> Path:
     )
 
 
-def strip_linux_host(target_name: str) -> None:
+def strip_linux_host(target_name: str, platform_root: Path = ROOT / "platform") -> None:
     if not target_name.endswith("musl"):
         return
 
-    path = ROOT / "platform" / "targets" / target_name / "libhost.a"
+    path = platform_root / "targets" / target_name / "libhost.a"
     before = path.stat().st_size
     # Retain every symbol referenced by a relocation while dropping debug data
     # and unused archive symbols. This keeps the release below Roc's package
@@ -120,12 +127,32 @@ def install_rust_target(rust_target: str, *, required: bool = False) -> None:
     run("rustup", "target", "add", rust_target, check=required)
 
 
-def copy_unix_host(target_name: str, rust_target: str, *, native: bool) -> None:
-    output_dir = ROOT / "platform" / "targets" / target_name
+def cargo_feature_args(features: tuple[str, ...]) -> list[str]:
+    if not features:
+        return []
+    return ["--features", ",".join(features)]
+
+
+def copy_unix_host(
+    target_name: str,
+    rust_target: str,
+    *,
+    native: bool,
+    platform_root: Path = ROOT / "platform",
+    features: tuple[str, ...] = (),
+) -> None:
+    output_dir = platform_root / "targets" / target_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if native and target_name in {"x64mac", "arm64mac"}:
-        run("cargo", "build", "--locked", "--release", "--lib")
+        run(
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--lib",
+            *cargo_feature_args(features),
+        )
         source = ROOT / "target" / "release" / "libhost.a"
     else:
         run(
@@ -136,21 +163,34 @@ def copy_unix_host(target_name: str, rust_target: str, *, native: bool) -> None:
             "--lib",
             "--target",
             rust_target,
+            *cargo_feature_args(features),
             env=musl_build_env(rust_target),
         )
         source = ROOT / "target" / rust_target / "release" / "libhost.a"
 
     destination = output_dir / "libhost.a"
     shutil.copy2(source, destination)
-    print(f"  -> {destination.relative_to(ROOT)}")
+    print(f"  -> {display_path(destination)}")
 
 
-def build_unix_target(target_name: str, *, native: bool = False) -> None:
+def build_unix_target(
+    target_name: str,
+    *,
+    native: bool = False,
+    platform_root: Path = ROOT / "platform",
+    features: tuple[str, ...] = (),
+) -> None:
     rust_target = TARGETS[target_name]
     qualifier = "native" if native else rust_target
     print(f"Building for {target_name} ({qualifier})...")
-    copy_unix_host(target_name, rust_target, native=native)
-    strip_linux_host(target_name)
+    copy_unix_host(
+        target_name,
+        rust_target,
+        native=native,
+        platform_root=platform_root,
+        features=features,
+    )
+    strip_linux_host(target_name, platform_root)
 
 
 def find_windows_sdk_lib_dir() -> Path:
@@ -175,7 +215,11 @@ def find_windows_sdk_lib_dir() -> Path:
     return candidates[0]
 
 
-def build_windows() -> None:
+def build_windows(
+    *,
+    platform_root: Path = ROOT / "platform",
+    features: tuple[str, ...] = (),
+) -> None:
     print(f"Building for x64win ({WINDOWS_TARGET})...")
     install_rust_target(WINDOWS_TARGET, required=True)
     run(
@@ -186,16 +230,17 @@ def build_windows() -> None:
         "--lib",
         "--target",
         WINDOWS_TARGET,
+        *cargo_feature_args(features),
     )
 
-    output_dir = ROOT / "platform" / "targets" / "x64win"
+    output_dir = platform_root / "targets" / "x64win"
     output_dir.mkdir(parents=True, exist_ok=True)
     host_destination = output_dir / "host.lib"
     shutil.copy2(
         ROOT / "target" / WINDOWS_TARGET / "release" / "host.lib",
         host_destination,
     )
-    print(f"  -> {host_destination.relative_to(ROOT)}")
+    print(f"  -> {display_path(host_destination)}")
 
     sdk_lib_dir = find_windows_sdk_lib_dir()
     for name in WINDOWS_SYSTEM_LIBRARIES:
@@ -204,7 +249,7 @@ def build_windows() -> None:
             raise SystemExit(f"Could not find required Windows SDK library: {source}")
         destination = output_dir / name
         shutil.copy2(source, destination)
-        print(f"  -> {destination.relative_to(ROOT)}")
+        print(f"  -> {display_path(destination)}")
 
 
 def main() -> None:
@@ -221,7 +266,26 @@ def main() -> None:
         choices=ROC_TARGETS,
         help="build host inputs for one Roc platform target",
     )
+    parser.add_argument(
+        "--features",
+        default="",
+        help="comma-separated Cargo features for a non-production host build",
+    )
+    parser.add_argument(
+        "--output-platform",
+        type=Path,
+        help="copy the platform and place host outputs in this isolated directory",
+    )
     args = parser.parse_args()
+
+    features = tuple(filter(None, (item.strip() for item in args.features.split(","))))
+    platform_root = (
+        args.output_platform.resolve() if args.output_platform else ROOT / "platform"
+    )
+    if args.output_platform:
+        if platform_root == (ROOT / "platform").resolve():
+            parser.error("--output-platform must not resolve to the production platform directory")
+        shutil.copytree(ROOT / "platform", platform_root, dirs_exist_ok=True)
 
     if args.all and args.target:
         parser.error("--all and --target are mutually exclusive")
@@ -230,11 +294,14 @@ def main() -> None:
         if args.target == "x64win":
             if platform.system() != "Windows":
                 parser.error("x64win host inputs must be built on Windows")
-            build_windows()
+            build_windows(platform_root=platform_root, features=features)
         else:
             install_rust_target(TARGETS[args.target], required=True)
             build_unix_target(
-                args.target, native=args.target == detect_native_target()
+                args.target,
+                native=args.target == detect_native_target(),
+                platform_root=platform_root,
+                features=features,
             )
         print("\nBuild complete!")
         return
@@ -249,7 +316,9 @@ def main() -> None:
             install_rust_target(TARGETS[target_name])
         print()
         for target_name in targets:
-            build_unix_target(target_name)
+            build_unix_target(
+                target_name, platform_root=platform_root, features=features
+            )
             print()
         print("All targets built successfully!")
         return
@@ -257,11 +326,16 @@ def main() -> None:
     target_name = detect_native_target()
     print(f"Building for native target: {target_name}\n")
     if target_name == "x64win":
-        build_windows()
+        build_windows(platform_root=platform_root, features=features)
     else:
         if target_name in {"x64musl", "arm64musl"}:
             install_rust_target(TARGETS[target_name])
-        build_unix_target(target_name, native=True)
+        build_unix_target(
+            target_name,
+            native=True,
+            platform_root=platform_root,
+            features=features,
+        )
     print("\nBuild complete!")
 
 

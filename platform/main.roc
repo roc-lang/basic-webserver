@@ -26,6 +26,7 @@ platform "webserver"
 		OsStr,
 		Path,
 		Server,
+		Sse,
 		Sleep,
 		Sqlite,
 		Stderr,
@@ -43,6 +44,9 @@ platform "webserver"
 	provides {
 		"roc_init_for_host": init_for_host!,
 		"roc_respond_for_host": respond_for_host!,
+		"roc_sse_advance_for_host": sse_advance_for_host!,
+		"roc_sse_drop_source_for_host": sse_drop_source_for_host!,
+		"roc_sse_drop_step_for_host": sse_drop_step_for_host!,
 		"roc_shutdown_for_host": shutdown_for_host!,
 	}
 	hosted {
@@ -127,6 +131,7 @@ import IOErr
 import OsStr
 import Path
 import Server
+import Sse
 import Sleep
 import Sqlite
 import InternalSqlite
@@ -167,22 +172,23 @@ respond_for_host! = |request, boxed_context| {
 	}
 }
 
+sse_advance_for_host! : Sse.Source, U64 => Sse.StepToHost
+sse_advance_for_host! = |source, wake_generation| Sse.advance_for_host!(source, wake_generation)
+
+sse_drop_source_for_host! : Sse.Source => {}
+sse_drop_source_for_host! = |source| Sse.drop_source_for_host!(source)
+
+sse_drop_step_for_host! : Sse.StepToHost => {}
+sse_drop_step_for_host! = |step| Sse.drop_step_for_host!(step)
+
 internal_server_error : InternalServer.OutcomeToHost
-internal_server_error = {
+internal_server_error = Ordinary({
 	status: 500,
 	headers: [{ name: "Content-Type", value: "text/plain; charset=utf-8" }],
 	body: Str.to_utf8("Internal Server Error"),
 	stop: False,
 	exit_code: 0,
-	kind: 0,
-	file_root_id: "",
-	file_relative: "",
-	file_disposition: 0,
-	file_download_name: "",
-	file_cache_override: False,
-	file_cache_tag: 0,
-	file_cache_max_age_seconds: 0,
-}
+})
 
 shutdown_for_host! : InternalServer.ShutdownReasonFromHost, Box(Context) => Try({}, I64)
 shutdown_for_host! = |reason, boxed_context| {

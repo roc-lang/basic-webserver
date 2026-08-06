@@ -14,7 +14,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
-use tokio::net::TcpStream;
 
 const H2_PREFACE: &[u8; 24] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 const READING_HEAD: u8 = 0;
@@ -29,10 +28,13 @@ pub(crate) enum Protocol {
 
 /// Detect an HTTP/2 prior-knowledge preface without consuming bytes. The
 /// deadline is idle rather than total: every newly observed byte resets it.
-pub(crate) async fn detect_protocol(
-    mut stream: TcpStream,
+pub(crate) async fn detect_protocol<S>(
+    mut stream: S,
     header_idle_timeout: Duration,
-) -> io::Result<(Protocol, PrefixedStream)> {
+) -> io::Result<(Protocol, PrefixedStream<S>)>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let mut prefix = Vec::with_capacity(H2_PREFACE.len());
     while prefix.len() < H2_PREFACE.len() {
         let mut next = [0u8; 1];
@@ -54,13 +56,13 @@ pub(crate) async fn detect_protocol(
 }
 
 /// Replays bytes consumed during protocol detection before reading the socket.
-pub(crate) struct PrefixedStream {
-    stream: TcpStream,
+pub(crate) struct PrefixedStream<S> {
+    stream: S,
     prefix: Bytes,
 }
 
-impl PrefixedStream {
-    fn new(stream: TcpStream, prefix: Vec<u8>) -> Self {
+impl<S> PrefixedStream<S> {
+    fn new(stream: S, prefix: Vec<u8>) -> Self {
         Self {
             stream,
             prefix: Bytes::from(prefix),
@@ -68,7 +70,7 @@ impl PrefixedStream {
     }
 }
 
-impl AsyncRead for PrefixedStream {
+impl<S: AsyncRead + Unpin> AsyncRead for PrefixedStream<S> {
     fn poll_read(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -84,7 +86,7 @@ impl AsyncRead for PrefixedStream {
     }
 }
 
-impl AsyncWrite for PrefixedStream {
+impl<S: AsyncWrite + Unpin> AsyncWrite for PrefixedStream<S> {
     fn poll_write(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -179,8 +181,8 @@ impl Http1Activity {
 
 /// Tokio I/O wrapper with independent inbound-head, keep-alive, and outbound
 /// progress deadlines.
-pub(crate) struct Http1Io {
-    stream: PrefixedStream,
+pub(crate) struct Http1Io<S> {
+    stream: PrefixedStream<S>,
     activity: Http1Activity,
     header_idle_timeout: Duration,
     keep_alive_idle_timeout: Duration,
@@ -191,9 +193,9 @@ pub(crate) struct Http1Io {
     write_waiting: bool,
 }
 
-impl Http1Io {
+impl<S> Http1Io<S> {
     pub(crate) fn new(
-        stream: PrefixedStream,
+        stream: PrefixedStream<S>,
         activity: Http1Activity,
         header_idle_timeout: Duration,
         keep_alive_idle_timeout: Duration,
@@ -282,7 +284,7 @@ impl Http1Io {
     }
 }
 
-impl AsyncRead for Http1Io {
+impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for Http1Io<S> {
     fn poll_read(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -308,7 +310,7 @@ impl AsyncRead for Http1Io {
     }
 }
 
-impl AsyncWrite for Http1Io {
+impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Http1Io<S> {
     fn poll_write(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,

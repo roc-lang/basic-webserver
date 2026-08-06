@@ -22,8 +22,8 @@ jobs:
       - name: Install the latest Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
         with:
-          # Empty tag makes setup-roc resolve the latest nightly instead of our pin.
-          nightly-tag: ""
+          # This compatibility job deliberately tests beyond .roc-version.
+          use-latest: "true"
 
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate

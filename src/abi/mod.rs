@@ -122,7 +122,10 @@ pub(crate) type ServerWritableRoot = InitForHostOkConfigWritableRoots;
 pub(crate) type ServerNativeFileRoute = InitForHostOkConfigNativeFileRoutes;
 pub(crate) type ServerReadinessRoute = InitForHostOkConfigReadinessRoutes;
 pub(crate) type ServerRequest = RespondForHostArg0;
-pub(crate) type ServerResponse = RespondForHost;
+pub(crate) type ServerResponse = InternalServerOutcomeToHost;
+pub(crate) type ServerResponseTag = InternalServerOutcomeToHostTag;
+pub(crate) type ServerOrdinaryResponse = InternalServerOutcomeToHostOrdinary;
+pub(crate) type ServerFileResponse = InternalServerOutcomeToHostFile;
 pub(crate) type ServerHeader = RespondForHostArg0Headers;
 pub(crate) type ServerShutdownReason = ShutdownForHostArg0;
 
@@ -680,8 +683,11 @@ mod tests {
 
     #[test]
     fn lifecycle_result_constructors_match_generated_tags() {
-        let end = body_read_end();
+        let mut end = body_read_end();
         assert_eq!(end.tag, BodyReadResultTag::Ok);
-        assert_eq!(end.payload_ok().tag, BodyReadValueTag::End);
+        assert_eq!(
+            unsafe { end.take_payload_ok_unchecked() }.tag,
+            BodyReadValueTag::End
+        );
     }
 }

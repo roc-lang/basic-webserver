@@ -79,7 +79,7 @@ def main() -> None:
     if not bundle.is_file():
         raise SystemExit(f"Bundle does not exist: {bundle}")
 
-    sources = sorted((ROOT / "examples").glob("*.roc"))
+    sources = sorted((ROOT / "examples").rglob("*.roc"))
     sources.append(ROOT / "README.md")
     backups = {path: path.read_bytes() for path in sources}
     original_examples_sha256 = examples_hash()

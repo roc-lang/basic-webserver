@@ -20,17 +20,17 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = 
+	db_path =
 		match Env.var!("SQLITE_BENCH_DB") {
 			Ok(path) => Path.from_os_str(path)
 			Err(_) => Path.utf8("./target/perf-harness/sqlite-load.db")
 		}
-	pool_size = 
+	pool_size =
 		match Env.var_str!("SQLITE_BENCH_POOL") {
 			Ok(raw) => parse_pool_size(raw) ?? 8
 			Err(_) => 8
 		}
-	db = 
+	db =
 		Sqlite.open!({
 			path: db_path,
 			max_connections: pool_size,
@@ -41,7 +41,7 @@ init! = || {
 			synchronous: Normal,
 		})
 			? |_| Exit(2)
-	shared_point = 
+	shared_point =
 		Sqlite.prepare!({
 			db,
 			query: "SELECT id, category, body FROM records WHERE id = 125000;",
@@ -64,7 +64,7 @@ init! = || {
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |_, context| {
 	row : Record
-	row = 
+	row =
 		context.shared_point.query!({}, Sqlite.default_query_limits)
 			? |err| ServerErr(Str.inspect(err))
 	body = "${row.id.to_str()}:${row.category}:${row.body}"

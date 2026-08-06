@@ -6,8 +6,8 @@
 
 #[cfg(test)]
 use crate::response::empty_body;
-use crate::response::{full_body, ServerBody, ServerResponse};
-use bytes::Bytes;
+use crate::response::{full_body, ServerBody, ServerData, ServerResponse};
+use bytes::{Buf, Bytes};
 use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::header::{HeaderValue, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE};
@@ -343,6 +343,10 @@ pub(crate) struct Metrics {
     connections: Arc<ActiveGauge>,
     handlers_active: Arc<ActiveGauge>,
     handlers_queued: Arc<ActiveGauge>,
+    sse_streams: Arc<ActiveGauge>,
+    sse_brotli_lanes: Arc<ActiveGauge>,
+    sse_brotli_operations_queued: Arc<ActiveGauge>,
+    sse_brotli_operations_running: Arc<ActiveGauge>,
     file_transfers: Arc<ActiveGauge>,
     request_totals: Box<[AtomicU64]>,
     response_bytes: [AtomicU64; Destination::COUNT],
@@ -354,6 +358,29 @@ pub(crate) struct Metrics {
     access_log_write_failures: AtomicU64,
 }
 
+#[cfg(feature = "benchmark-simulation")]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub(crate) struct OperationalMetricsSnapshot {
+    pub(crate) requests_active: usize,
+    pub(crate) requests_high_water: usize,
+    pub(crate) connections_active: usize,
+    pub(crate) connections_high_water: usize,
+    pub(crate) handlers_active: usize,
+    pub(crate) handlers_high_water: usize,
+    pub(crate) handlers_queued: usize,
+    pub(crate) handlers_queued_high_water: usize,
+    pub(crate) sse_streams_active: usize,
+    pub(crate) sse_streams_high_water: usize,
+    pub(crate) sse_brotli_lanes_active: usize,
+    pub(crate) sse_brotli_lanes_high_water: usize,
+    pub(crate) sse_brotli_operations_queued: usize,
+    pub(crate) sse_brotli_operations_queued_high_water: usize,
+    pub(crate) sse_brotli_operations_running: usize,
+    pub(crate) sse_brotli_operations_running_high_water: usize,
+    pub(crate) file_transfers_active: usize,
+    pub(crate) file_transfers_high_water: usize,
+}
+
 impl Metrics {
     pub(crate) fn new() -> Arc<Self> {
         let request_series = Destination::COUNT * MethodClass::COUNT * Completion::COUNT;
@@ -362,6 +389,10 @@ impl Metrics {
             connections: Arc::new(ActiveGauge::default()),
             handlers_active: Arc::new(ActiveGauge::default()),
             handlers_queued: Arc::new(ActiveGauge::default()),
+            sse_streams: Arc::new(ActiveGauge::default()),
+            sse_brotli_lanes: Arc::new(ActiveGauge::default()),
+            sse_brotli_operations_queued: Arc::new(ActiveGauge::default()),
+            sse_brotli_operations_running: Arc::new(ActiveGauge::default()),
             file_transfers: Arc::new(ActiveGauge::default()),
             request_totals: (0..request_series).map(|_| AtomicU64::new(0)).collect(),
             response_bytes: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -374,6 +405,32 @@ impl Metrics {
         })
     }
 
+    #[cfg(feature = "benchmark-simulation")]
+    pub(crate) fn snapshot(&self) -> OperationalMetricsSnapshot {
+        OperationalMetricsSnapshot {
+            requests_active: self.requests.current(),
+            requests_high_water: self.requests.high_water(),
+            connections_active: self.connections.current(),
+            connections_high_water: self.connections.high_water(),
+            handlers_active: self.handlers_active.current(),
+            handlers_high_water: self.handlers_active.high_water(),
+            handlers_queued: self.handlers_queued.current(),
+            handlers_queued_high_water: self.handlers_queued.high_water(),
+            sse_streams_active: self.sse_streams.current(),
+            sse_streams_high_water: self.sse_streams.high_water(),
+            sse_brotli_lanes_active: self.sse_brotli_lanes.current(),
+            sse_brotli_lanes_high_water: self.sse_brotli_lanes.high_water(),
+            sse_brotli_operations_queued: self.sse_brotli_operations_queued.current(),
+            sse_brotli_operations_queued_high_water: self.sse_brotli_operations_queued.high_water(),
+            sse_brotli_operations_running: self.sse_brotli_operations_running.current(),
+            sse_brotli_operations_running_high_water: self
+                .sse_brotli_operations_running
+                .high_water(),
+            file_transfers_active: self.file_transfers.current(),
+            file_transfers_high_water: self.file_transfers.high_water(),
+        }
+    }
+
     pub(crate) fn connection_started(&self) -> ActiveGaugeGuard {
         self.connections.guard()
     }
@@ -384,6 +441,34 @@ impl Metrics {
 
     pub(crate) fn handler_queued(&self) -> ActiveGaugeGuard {
         self.handlers_queued.guard()
+    }
+
+    pub(crate) fn sse_stream_started(&self) -> ActiveGaugeGuard {
+        self.sse_streams.guard()
+    }
+
+    pub(crate) fn sse_brotli_lane_started(&self) {
+        self.sse_brotli_lanes.increment();
+    }
+
+    pub(crate) fn sse_brotli_lane_finished(&self) {
+        self.sse_brotli_lanes.decrement();
+    }
+
+    pub(crate) fn sse_brotli_operation_queued(&self) {
+        self.sse_brotli_operations_queued.increment();
+    }
+
+    pub(crate) fn sse_brotli_operation_dequeued(&self) {
+        self.sse_brotli_operations_queued.decrement();
+    }
+
+    pub(crate) fn sse_brotli_operation_started(&self) {
+        self.sse_brotli_operations_running.increment();
+    }
+
+    pub(crate) fn sse_brotli_operation_finished(&self) {
+        self.sse_brotli_operations_running.decrement();
     }
 
     pub(crate) fn file_transfer_started(&self) -> ActiveGaugeGuard {
@@ -458,6 +543,30 @@ impl Metrics {
             "basic_webserver_roc_handlers_queued",
             "Requests waiting for Roc handler admission.",
             &self.handlers_queued,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_streams_active",
+            "Admitted SSE response bodies that have not reached a terminal state.",
+            &self.sse_streams,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_lanes_active",
+            "Brotli encoder lanes leased by SSE response bodies.",
+            &self.sse_brotli_lanes,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_operations_queued",
+            "SSE Brotli operations admitted but not yet running.",
+            &self.sse_brotli_operations_queued,
+        );
+        render_gauge(
+            &mut output,
+            "basic_webserver_sse_brotli_operations_running",
+            "SSE Brotli operations currently executing.",
+            &self.sse_brotli_operations_running,
         );
         render_gauge(
             &mut output,
@@ -1039,7 +1148,7 @@ impl CompletionBody {
 }
 
 impl Body for CompletionBody {
-    type Data = Bytes;
+    type Data = ServerData;
     type Error = io::Error;
 
     fn poll_frame(
@@ -1051,7 +1160,7 @@ impl Body for CompletionBody {
                 if let Some(data) = frame.data_ref() {
                     self.response_bytes = self
                         .response_bytes
-                        .saturating_add(data.len().try_into().unwrap_or(u64::MAX));
+                        .saturating_add(data.remaining().try_into().unwrap_or(u64::MAX));
                 }
                 // Hyper is allowed to stop polling as soon as `is_end_stream`
                 // becomes true. A body such as `Full` reaches that state while
@@ -1136,9 +1245,9 @@ mod tests {
         let handle = telemetry.handle();
         let failed = handle.start_request(&Method::GET, "/failed");
         failed.set_destination(Destination::NativeFile);
-        let error_body = StreamBody::new(stream::iter([Err::<Frame<Bytes>, _>(io::Error::other(
-            "read failed",
-        ))]))
+        let error_body = StreamBody::new(stream::iter([Err::<Frame<ServerData>, _>(
+            io::Error::other("read failed"),
+        )]))
         .boxed_unsync();
         let response = failed.instrument(hyper::Response::new(error_body));
         assert!(response.into_body().frame().await.unwrap().is_err());
@@ -1297,6 +1406,33 @@ mod tests {
             .is_empty());
         drop(handle);
         telemetry.shutdown();
+    }
+
+    #[test]
+    fn sse_resource_metrics_expose_current_and_high_water_usage() {
+        let metrics = Metrics::new();
+        let stream = metrics.sse_stream_started();
+        metrics.sse_brotli_lane_started();
+        metrics.sse_brotli_operation_queued();
+        metrics.sse_brotli_operation_dequeued();
+        metrics.sse_brotli_operation_started();
+
+        let active = metrics.render_openmetrics();
+        assert!(active.contains("basic_webserver_sse_streams_active 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_lanes_active 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_queued 0"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_queued_high_water 1"));
+        assert!(active.contains("basic_webserver_sse_brotli_operations_running 1"));
+
+        metrics.sse_brotli_operation_finished();
+        metrics.sse_brotli_lane_finished();
+        drop(stream);
+        let idle = metrics.render_openmetrics();
+        assert!(idle.contains("basic_webserver_sse_streams_active 0"));
+        assert!(idle.contains("basic_webserver_sse_streams_active_high_water 1"));
+        assert!(idle.contains("basic_webserver_sse_brotli_lanes_active 0"));
+        assert!(idle.contains("basic_webserver_sse_brotli_lanes_active_high_water 1"));
+        assert!(idle.contains("basic_webserver_sse_brotli_operations_running 0"));
     }
 
     #[test]

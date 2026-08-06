@@ -3,15 +3,97 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import socket
+import sys
 import tempfile
+import threading
+import time
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 from scripts import test, update_app_platform_urls
 
 
+class RawExchangeTests(unittest.TestCase):
+    def test_raw_exchange_timeout_is_total_for_an_infinite_stream(self) -> None:
+        listener = socket.socket()
+        self.addCleanup(listener.close)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+
+        def stream_forever() -> None:
+            connection, _address = listener.accept()
+            with connection:
+                connection.recv(1024)
+                while True:
+                    try:
+                        connection.sendall(b"event: tick\n\n")
+                    except OSError:
+                        return
+                    time.sleep(0.005)
+
+        server = threading.Thread(target=stream_forever, daemon=True)
+        server.start()
+        started = time.monotonic()
+
+        test.run_raw_exchange(
+            port,
+            {
+                "data": "GET /events HTTP/1.1\r\nHost: localhost\r\n\r\n",
+                "half_close": False,
+                "timeout": 0.05,
+                "expect_response_before_ms": {
+                    "timeout_ms": 100,
+                    "contains": "event: tick",
+                },
+                "response_contains": ["event: tick"],
+            },
+            "infinite stream",
+        )
+
+        self.assertLess(time.monotonic() - started, 0.5)
+        server.join(timeout=0.5)
+        self.assertFalse(server.is_alive())
+
+
 class SpecValidationTests(unittest.TestCase):
+    def test_platform_url_update_ignores_local_type_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            examples = Path(raw_directory) / "examples"
+            components = examples / "components"
+            components.mkdir(parents=True)
+            app = examples / "main.roc"
+            app.write_text(
+                'app [main] { pf: platform "https://example.invalid/old" }\n',
+                encoding="utf-8",
+            )
+            component = components / "Component.roc"
+            component_source = "Component :: [].{}\n"
+            component.write_text(component_source, encoding="utf-8")
+
+            updated = update_app_platform_urls.update_apps(
+                [examples], "https://example.invalid/new"
+            )
+
+            self.assertEqual(updated, [app])
+            self.assertIn(
+                'platform "https://example.invalid/new"',
+                app.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(component.read_text(encoding="utf-8"), component_source)
+
+    def test_platform_url_update_rejects_an_app_without_a_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            app = Path(raw_directory) / "app.roc"
+            app.write_text("app [main] {}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(SystemExit, "found 0"):
+                update_app_platform_urls.update_apps(
+                    [app], "https://example.invalid/new"
+                )
+
     def test_local_bundle_rewrite_uses_a_copy(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             root = Path(raw_directory)
@@ -19,6 +101,10 @@ class SpecValidationTests(unittest.TestCase):
             source.parent.mkdir()
             original = 'app [main] { pf: platform "https://example.invalid/old" }\n'
             source.write_text(original, encoding="utf-8")
+            support = source.parent / "Support.roc"
+            support.write_text("Support :: [].{}\n", encoding="utf-8")
+            sibling_app = source.parent / "sibling.roc"
+            sibling_app.write_text("app [main] {}\n", encoding="utf-8")
 
             with (
                 mock.patch.object(test, "ROOT", root),
@@ -35,6 +121,54 @@ class SpecValidationTests(unittest.TestCase):
                 'platform "http://127.0.0.1:1234/platform.tar.zst"',
                 rewritten.read_text(encoding="utf-8"),
             )
+            self.assertEqual(
+                (rewritten.parent / "Support.roc").read_text(encoding="utf-8"),
+                "Support :: [].{}\n",
+            )
+            self.assertFalse((rewritten.parent / "sibling.roc").exists())
+
+    def test_active_sources_excludes_local_type_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            examples = root / "examples"
+            examples.mkdir()
+            (examples / "app.roc").write_text(
+                "## executable\napp [main] {}\n", encoding="utf-8"
+            )
+            (examples / "Component.roc").write_text(
+                "Component :: [].{}\n", encoding="utf-8"
+            )
+
+            with mock.patch.object(test, "ROOT", root):
+                self.assertEqual(test.active_sources(), {"examples/app.roc"})
+
+    def test_nested_example_application_root_must_be_main(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            example = root / "examples" / "componentized"
+            example.mkdir(parents=True)
+            (example / "showcase.roc").write_text(
+                "app [main] {}\n", encoding="utf-8"
+            )
+
+            with (
+                mock.patch.object(test, "ROOT", root),
+                self.assertRaisesRegex(test.TestFailure, "must be named main.roc"),
+            ):
+                test.active_sources()
+
+    def test_nested_example_artifact_preserves_its_directory(self) -> None:
+        source = test.ROOT / "examples" / "datastar" / "main.roc"
+        artifact_dir = test.ROOT / "dist" / "example-binaries"
+
+        self.assertEqual(
+            test.output_path(source, "x64musl", artifact_dir),
+            artifact_dir / "x64musl" / "datastar" / "main",
+        )
+        self.assertEqual(
+            test.output_path(source, "x64win", artifact_dir),
+            artifact_dir / "x64win" / "datastar" / "main.exe",
+        )
 
     def test_startup_failure_case_cannot_send_requests(self) -> None:
         case = {
@@ -141,6 +275,16 @@ class SpecValidationTests(unittest.TestCase):
         ):
             test.validate_case("examples/request-limits.roc", case, set())
 
+    def test_persistent_request_repetition_is_bounded(self) -> None:
+        case = {
+            "name": "persistent",
+            "persistent_requests": [{"target": "/"}],
+            "persistent_repeat": 100_001,
+        }
+
+        with self.assertRaisesRegex(test.TestFailure, "persistent_repeat"):
+            test.validate_case("examples/datastar/main.roc", case, set())
+
     def test_memcheck_log_requires_observed_allocations_and_no_errors(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:
             log = Path(raw_directory) / "memcheck.log"
@@ -190,6 +334,12 @@ class SpecValidationTests(unittest.TestCase):
                 ),
                 mock.call(
                     "custom-roc", "test", test.ROOT / "platform" / "main.roc"
+                ),
+                mock.call(
+                    sys.executable,
+                    test.ROOT / "scripts" / "test_datastar_markup_types.py",
+                    "--roc",
+                    "custom-roc",
                 ),
             ],
         )
@@ -295,6 +445,56 @@ class SpecValidationTests(unittest.TestCase):
             self.assertEqual(
                 test.portable_file_bytes(database), b"first\r\nsecond\r"
             )
+
+    def test_examples_hash_ignores_text_asset_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            root = Path(raw_directory)
+            examples = root / "examples"
+            scripts = root / "scripts"
+            examples.mkdir()
+            scripts.mkdir()
+            text_assets = [
+                examples / "app.roc",
+                examples / "README.md",
+                examples / "client.js",
+                examples / "page.html",
+                scripts / "command_helper.py",
+            ]
+            for path in text_assets:
+                path.write_bytes(b"first\nsecond\n")
+
+            with mock.patch.object(test, "ROOT", root):
+                unix_hash = test.examples_hash()
+                for path in text_assets:
+                    path.write_bytes(b"first\r\nsecond\r\n")
+                windows_hash = test.examples_hash()
+
+            self.assertEqual(windows_hash, unix_hash)
+
+    def test_portable_path_sort_preserves_case_on_windows(self) -> None:
+        root = PureWindowsPath("D:/repo")
+        paths = [
+            root / "examples" / "datastar" / "components" / "Page.roc",
+            root / "examples" / "datastar" / "README.md",
+            root / "examples" / "datastar" / "datastar.js",
+        ]
+        expected = [
+            "examples/datastar/README.md",
+            "examples/datastar/components/Page.roc",
+            "examples/datastar/datastar.js",
+        ]
+
+        with mock.patch.object(test, "ROOT", root):
+            actual = [
+                test.portable_relative_path(path)
+                for path in sorted(paths, key=test.portable_relative_path)
+            ]
+
+        self.assertNotEqual(
+            [path.relative_to(root).as_posix() for path in sorted(paths)],
+            expected,
+        )
+        self.assertEqual(actual, expected)
 
     def test_generated_fixtures_are_bounded_and_reproducible(self) -> None:
         case = {

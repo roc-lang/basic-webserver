@@ -44,7 +44,7 @@ STAGES = ("fmt", "check", "test", "build", "run")
 BUILD_OPTIMIZATIONS = {"speed", "dev"}
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
-PORTABLE_TEXT_SUFFIXES = {".html", ".json", ".py", ".roc"}
+PORTABLE_TEXT_SUFFIXES = {".html", ".js", ".json", ".md", ".py", ".roc"}
 TARGET_PLATFORMS = {
     "x64mac": "darwin",
     "arm64mac": "darwin",
@@ -54,6 +54,7 @@ TARGET_PLATFORMS = {
 }
 ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*$")
 PLATFORM_DEPENDENCY = re.compile(r'(?m)(\bplatform\s+)"[^"]+"')
+APPLICATION_HEADER = re.compile(r"(?m)^\s*app\s+\[")
 LISTENING = re.compile(r"Listening on <http://(?:\[.*\]|[^:]+):([0-9]+)>")
 HTTP2_CLIENT_PREFACE = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 HTTP2_FRAME_DATA = 0x0
@@ -133,11 +134,40 @@ def command(*args: str | Path, cwd: Path = ROOT) -> None:
 
 
 def active_sources() -> set[str]:
-    return {
-        str(path.relative_to(ROOT).as_posix())
+    sources = {
+        path
         for directory in (ROOT / "examples",)
-        for path in directory.glob("*.roc")
+        for path in directory.rglob("*.roc")
+        if APPLICATION_HEADER.search(path.read_text(encoding="utf-8")) is not None
     }
+    invalid_roots = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in sources
+        if path.parent != ROOT / "examples" and path.name != "main.roc"
+    )
+    if invalid_roots:
+        fail(
+            "Nested example application roots must be named main.roc: "
+            f"{invalid_roots}"
+        )
+    return {str(path.relative_to(ROOT).as_posix()) for path in sources}
+
+
+def copy_local_source_tree(source_path: Path, destination: Path) -> None:
+    """Copy an application's sibling assets and local Roc modules."""
+    for source in source_path.parent.rglob("*"):
+        if not source.is_file() or "__pycache__" in source.parts:
+            continue
+        if source == source_path:
+            continue
+        if source.suffix == ".roc" and APPLICATION_HEADER.search(
+            source.read_text(encoding="utf-8")
+        ) is not None:
+            continue
+        relative = source.relative_to(source_path.parent)
+        copied = destination.parent / relative
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, copied)
 
 
 def declared_targets() -> tuple[str, ...]:
@@ -286,6 +316,7 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
         for incompatible in (
             "requests",
             "concurrent_requests",
+            "persistent_requests",
             "http2_requests",
             "expect_exit",
             "wait_for_stdout",
@@ -333,6 +364,21 @@ def validate_case(app_path: str, case: object, names: set[str]) -> None:
             )
         if "mtime_unix" in fixture and not isinstance(fixture["mtime_unix"], int):
             fail(f"{owner}: fixture mtime_unix must be an integer")
+    persistent_requests = case.get("persistent_requests", [])
+    if not isinstance(persistent_requests, list):
+        fail(f"{owner}: persistent_requests must be an array")
+    for index, request in enumerate(persistent_requests, 1):
+        if not isinstance(request, dict):
+            fail(f"{owner}: persistent request {index} must be an object")
+        if request.get("raw", False):
+            fail(f"{owner}: raw persistent requests are not supported")
+    persistent_repeat = case.get("persistent_repeat", 1)
+    if (
+        not isinstance(persistent_repeat, int)
+        or isinstance(persistent_repeat, bool)
+        or not 1 <= persistent_repeat <= 100_000
+    ):
+        fail(f"{owner}: persistent_repeat must be an integer from 1 through 100000")
     http2_requests = case.get("http2_requests", [])
     if not isinstance(http2_requests, list):
         fail(f"{owner}: http2_requests must be an array")
@@ -466,8 +512,15 @@ def executable_suffix(target: str) -> str:
     return ".exe" if target == "x64win" else ""
 
 
+def output_relative_path(source: Path, target: str) -> Path:
+    relative = source.relative_to(ROOT / "examples").with_suffix("")
+    return relative.with_name(
+        f"{relative.name}{executable_suffix(target)}"
+    )
+
+
 def output_path(source: Path, target: str, artifact_dir: Path) -> Path:
-    return artifact_dir / target / f"{source.stem}{executable_suffix(target)}"
+    return artifact_dir / target / output_relative_path(source, target)
 
 
 def prepare_artifact_output(target: str, artifact_dir: Path) -> None:
@@ -514,10 +567,6 @@ def prepare_memcheck_binaries(
 
     for source in sorted((ROOT / "platform").glob("*.roc")):
         shutil.copy2(source, platform_dir / source.name)
-    for source in sorted((ROOT / "examples").iterdir()):
-        if source.is_file() and source.suffix != ".roc":
-            shutil.copy2(source, app_dir / source.name)
-
     # Validation processes bind an ephemeral port so the complete suite can run
     # alongside a developer's server and parallel CI jobs.
     server_path = platform_dir / "Server.roc"
@@ -565,11 +614,15 @@ def prepare_memcheck_binaries(
         if not stage_enabled(defaults, app, "build"):
             continue
         source = ROOT / str(app["path"])
-        copied_source = app_dir / source.name
+        copied_source = app_dir / source.relative_to(ROOT / "examples")
+        copy_local_source_tree(source, copied_source)
         app_source = source.read_text(encoding="utf-8")
+        platform_path = os.path.relpath(
+            platform_dir / "main.roc", copied_source.parent
+        ).replace(os.sep, "/")
         app_source, count = re.subn(
             r'(?m)(\bplatform\s+)"[^"]+"',
-            lambda match: f'{match.group(1)}"../platform/main.roc"',
+            lambda match: f'{match.group(1)}"{platform_path}"',
             app_source,
             count=1,
         )
@@ -577,7 +630,8 @@ def prepare_memcheck_binaries(
             fail(f"{source}: expected exactly one platform dependency")
         copied_source.write_text(app_source, encoding="utf-8", newline="\n")
 
-        binary = binary_dir / source.stem
+        binary = binary_dir / output_relative_path(source, "x64glibc")
+        binary.parent.mkdir(parents=True, exist_ok=True)
         print(f"==> memcheck build {app['path']} (x64glibc)", flush=True)
         # TODO: Investigate these Roc compiler bugs upstream, then restore the
         # LLVM speed backend without stripping debug information. The speed
@@ -615,9 +669,7 @@ def rewritten_app_source(app_path: str, platform_url: str | None) -> Path:
 
     destination = VALIDATION_ROOT / "sources" / app_path
     destination.parent.mkdir(parents=True, exist_ok=True)
-    for sibling in source_path.parent.iterdir():
-        if sibling.is_file() and sibling.suffix != ".roc":
-            shutil.copy2(sibling, destination.parent / sibling.name)
+    copy_local_source_tree(source_path, destination)
     destination.write_text(rewritten, encoding="utf-8", newline="\n")
     return destination
 
@@ -1290,24 +1342,28 @@ def run_http2_exchanges(
         )
 
 
-def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None:
+def run_http_exchange_on_connection(
+    connection: http.client.HTTPConnection,
+    request: dict[str, object],
+    owner: str,
+) -> None:
     body, headers = request_body(request)
     method = str(request.get("method", "GET"))
     target = str(request.get("target", "/"))
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=float(request.get("timeout", 5)))
-    try:
-        connection.putrequest(method, target)
-        names = {name.lower() for name, _ in headers}
-        if body and "content-length" not in names:
-            headers.append(("Content-Length", str(len(body))))
-        for name, value in headers:
-            connection.putheader(name, value)
-        connection.endheaders(body if body else None)
-        response = connection.getresponse()
-        response_body = response.read()
-        response_headers = response.getheaders()
-    finally:
-        connection.close()
+    names = {name.lower() for name, _ in headers}
+    connection.putrequest(
+        method,
+        target,
+        skip_accept_encoding="accept-encoding" in names,
+    )
+    if body and "content-length" not in names:
+        headers.append(("Content-Length", str(len(body))))
+    for name, value in headers:
+        connection.putheader(name, value)
+    connection.endheaders(body if body else None)
+    response = connection.getresponse()
+    response_body = response.read()
+    response_headers = response.getheaders()
 
     expected_status = int(request.get("status", 200))
     if response.status != expected_status:
@@ -1351,6 +1407,45 @@ def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None
             )
     body_text = response_body.decode("utf-8", errors="replace")
     assertion_text(owner, "response body", body_text, request, "body_")
+
+
+def run_http_exchange(port: int, request: dict[str, object], owner: str) -> None:
+    connection = http.client.HTTPConnection(
+        "127.0.0.1", port, timeout=float(request.get("timeout", 5))
+    )
+    try:
+        run_http_exchange_on_connection(connection, request, owner)
+    finally:
+        connection.close()
+
+
+def run_persistent_http_exchanges(
+    port: int,
+    requests: list[object],
+    repeat: int,
+    owner: str,
+) -> None:
+    if not requests:
+        return
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    socket: socket.socket | None = None
+    try:
+        for repetition in range(1, repeat + 1):
+            for index, request in enumerate(requests, 1):
+                if not isinstance(request, dict):
+                    fail(f"{owner}: persistent request {index} must be an object")
+                request_owner = (
+                    f"{owner} persistent repetition {repetition} request {index}"
+                )
+                run_http_exchange_on_connection(connection, request, request_owner)
+                if connection.sock is None:
+                    fail(f"{request_owner}: server closed the HTTP/1.1 connection")
+                if socket is None:
+                    socket = connection.sock
+                elif connection.sock is not socket:
+                    fail(f"{request_owner}: server did not preserve the HTTP/1.1 connection")
+    finally:
+        connection.close()
 
 
 def run_concurrent_http_exchanges(
@@ -1403,8 +1498,9 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
         fail(f"{owner}: raw fragments must be an array")
     received = bytearray()
     closed = False
-    with socket.create_connection(("127.0.0.1", port), timeout=float(request.get("timeout", 5))) as sock:
-        sock.settimeout(float(request.get("timeout", 5)))
+    timeout = float(request.get("timeout", 5))
+    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+        sock.settimeout(timeout)
         for fragment in fragments:
             if not isinstance(fragment, dict):
                 fail(f"{owner}: each raw fragment must be an object")
@@ -1417,7 +1513,43 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
                 time.sleep(float(fragment["delay_ms"]) / 1000)
         if request.get("half_close", True):
             sock.shutdown(socket.SHUT_WR)
+        early = request.get("expect_response_before_ms")
+        if early is not None:
+            if not isinstance(early, dict):
+                fail(f"{owner}: expect_response_before_ms must be an object")
+            timeout_ms = float(early.get("timeout_ms", 0))
+            expected = str(early.get("contains", "")).encode()
+            if timeout_ms <= 0 or not expected:
+                fail(
+                    f"{owner}: expect_response_before_ms needs positive timeout_ms and contains"
+                )
+            deadline = time.monotonic() + timeout_ms / 1000
+            while expected not in received:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    fail(
+                        f"{owner}: raw response did not contain {expected!r} within {timeout_ms}ms"
+                    )
+                sock.settimeout(remaining)
+                try:
+                    chunk = sock.recv(65536)
+                except TimeoutError:
+                    fail(
+                        f"{owner}: raw response did not contain {expected!r} within {timeout_ms}ms"
+                    )
+                if not chunk:
+                    fail(f"{owner}: raw connection closed before early response assertion")
+                received.extend(chunk)
+            forbidden = early.get("not_contains")
+            if forbidden is not None and str(forbidden).encode() in received:
+                fail(f"{owner}: raw early response unexpectedly contained {forbidden!r}")
+            sock.settimeout(timeout)
+        read_deadline = time.monotonic() + timeout
         while True:
+            remaining = read_deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            sock.settimeout(remaining)
             try:
                 chunk = sock.recv(65536)
             except TimeoutError:
@@ -1553,6 +1685,15 @@ def run_server_case(
                     if not isinstance(concurrent, list):
                         fail(f"{owner}: concurrent_requests must be an array")
                     run_concurrent_http_exchanges(port, concurrent, owner, timeout)
+                    persistent = case.get("persistent_requests", [])
+                    if not isinstance(persistent, list):
+                        fail(f"{owner}: persistent_requests must be an array")
+                    run_persistent_http_exchanges(
+                        port,
+                        persistent,
+                        int(case.get("persistent_repeat", 1)),
+                        owner,
+                    )
                     http2_requests = case.get("http2_requests", [])
                     http2_completion_order = case.get("http2_completion_order", [])
                     if not isinstance(http2_requests, list):
@@ -1751,16 +1892,22 @@ def spec_hash() -> str:
     return hashlib.sha256(portable_text_bytes(SPEC_PATH)).hexdigest()
 
 
+def portable_relative_path(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
 def examples_hash() -> str:
     digest = hashlib.sha256()
     paths = [
         item
-        for item in (ROOT / "examples").iterdir()
-        if item.is_file() and item.suffix != ".todoroc"
+        for item in (ROOT / "examples").rglob("*")
+        if item.is_file()
+        and item.suffix not in {".pyc", ".todoroc"}
+        and "__pycache__" not in item.parts
     ]
     paths.append(ROOT / "scripts" / "command_helper.py")
-    for path in sorted(paths):
-        digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
+    for path in sorted(paths, key=portable_relative_path):
+        digest.update(portable_relative_path(path).encode("utf-8"))
         digest.update(b"\0")
         digest.update(portable_file_bytes(path))
         digest.update(b"\0")
@@ -1886,6 +2033,13 @@ def validate_platform_sources(roc: str) -> None:
     command(roc, "fmt", "--check", ROOT / "platform")
     print("==> test platform", flush=True)
     command(roc, "test", ROOT / "platform" / "main.roc")
+    print("==> test Datastar markup type failures", flush=True)
+    command(
+        sys.executable,
+        ROOT / "scripts" / "test_datastar_markup_types.py",
+        "--roc",
+        roc,
+    )
 
 
 def validate_sources(
@@ -1935,6 +2089,7 @@ def build_artifacts(
         app_path = str(app["path"])
         source = rewritten_app_source(app_path, platform_url)
         binary = output_path(ROOT / app_path, target, artifact_dir)
+        binary.parent.mkdir(parents=True, exist_ok=True)
         print(f"==> build {app['path']} ({target})", flush=True)
         command(
             roc,

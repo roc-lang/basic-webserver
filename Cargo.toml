@@ -13,12 +13,14 @@ name = "host"
 crate-type = ["staticlib"]
 
 [features]
-local-load-test = []
+benchmark-driver = []
+benchmark-instrumentation = []
+benchmark-simulation = ["benchmark-instrumentation"]
 
 [[bin]]
-name = "local-load"
-path = "scripts/perf/load.rs"
-required-features = ["local-load-test"]
+name = "benchmark-driver"
+path = "scripts/perf/benchmark_driver.rs"
+required-features = ["benchmark-driver"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(no_roc_std_helpers)"] }

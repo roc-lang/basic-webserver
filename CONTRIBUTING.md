@@ -34,8 +34,11 @@ for a distinct reusable workflow.
 - Native build tools for your operating system. Windows host builds require
   MSVC and the Windows SDK.
 
-The CI action in [`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml)
-records the exact Roc nightly used by the repository.
+The exact Roc nightly used for development, CI, and releases is recorded in
+[`.roc-version`](.roc-version). The CI action in
+[`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml) installs
+that version. A separate scheduled workflow checks compatibility with the
+latest nightly without changing the release pin.
 
 ## Build and run locally
 
@@ -130,24 +133,22 @@ Open the local URL printed by Roc. The default output directory without
 
 ## Benchmarking
 
-The repository includes a representative server and a load client that support
-HTTP/1.1 and HTTP/2:
+Use the unified benchmark entrypoint for substituted-transport server invariants,
+allocation reports, real HTTP/SSE/SQLite load, process measurements, and
+before/after comparisons:
 
 ```sh
-roc build scripts/perf/app.roc --opt=speed --output=target/perf-server
-./target/perf-server
+python scripts/benchmark.py check
+python scripts/benchmark.py measure \
+  --suite http \
+  --label before \
+  --output target/benchmarks/before.jsonl
 ```
 
-In another terminal:
-
-```sh
-cargo run --locked --release --features local-load-test --bin local-load -- --protocol http1 --duration 30
-```
-
-Use `--help` to see concurrency, connection, route-mix, and HTTP/2 options.
-Prefer separate machines for the server and load generator. Record server
-limits, protocol, concurrency, throughput, errors, and tail latency so results
-are explainable and reproducible.
+See [docs/benchmarking.md](docs/benchmarking.md) for the real-versus-simulated
+evidence boundary, thousand-stream SSE runs, scenario controls, recorded
+metrics, and comparison workflow. Local timing and memory values are indicative
+and are never CI thresholds.
 
 ## Release validation
 
