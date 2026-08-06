@@ -34,8 +34,11 @@ for a distinct reusable workflow.
 - Native build tools for your operating system. Windows host builds require
   MSVC and the Windows SDK.
 
-The CI action in [`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml)
-records the exact Roc nightly used by the repository.
+The exact Roc nightly used for development, CI, and releases is recorded in
+[`.roc-version`](.roc-version). The CI action in
+[`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml) installs
+that version. A separate scheduled workflow checks compatibility with the
+latest nightly without changing the release pin.
 
 ## Build and run locally
 
