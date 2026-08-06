@@ -167,5 +167,6 @@ Neither changes the application API or is required for bounded, correct SSE.
 They should be reconsidered only with evidence that parked-stream memory or the
 remaining Roc event allocation matters for a target workload.
 
-The reproducible Roc/Go methodology and results live in
-[`research/datastar-e2e`](../research/datastar-e2e/README.md).
+The maintained SSE capacity, fairness, timing, memory, and allocation scenarios
+are described in [the benchmarking guide](benchmarking.md). The earlier Roc/Go
+comparison remains available in repository history.

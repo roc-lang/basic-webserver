@@ -44,7 +44,7 @@ STAGES = ("fmt", "check", "test", "build", "run")
 BUILD_OPTIMIZATIONS = {"speed", "dev"}
 PLATFORMS = {"linux", "darwin", "windows"}
 TARGETS = ("x64mac", "arm64mac", "x64musl", "arm64musl", "x64win")
-PORTABLE_TEXT_SUFFIXES = {".html", ".json", ".py", ".roc"}
+PORTABLE_TEXT_SUFFIXES = {".html", ".js", ".json", ".md", ".py", ".roc"}
 TARGET_PLATFORMS = {
     "x64mac": "darwin",
     "arm64mac": "darwin",
@@ -1892,6 +1892,10 @@ def spec_hash() -> str:
     return hashlib.sha256(portable_text_bytes(SPEC_PATH)).hexdigest()
 
 
+def portable_relative_path(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
 def examples_hash() -> str:
     digest = hashlib.sha256()
     paths = [
@@ -1902,8 +1906,8 @@ def examples_hash() -> str:
         and "__pycache__" not in item.parts
     ]
     paths.append(ROOT / "scripts" / "command_helper.py")
-    for path in sorted(paths):
-        digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
+    for path in sorted(paths, key=portable_relative_path):
+        digest.update(portable_relative_path(path).encode("utf-8"))
         digest.update(b"\0")
         digest.update(portable_file_bytes(path))
         digest.update(b"\0")

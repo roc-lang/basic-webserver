@@ -33,6 +33,8 @@ jobs:
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
+        with:
+          with-source: "true"
 
       - name: Install Zig
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
@@ -55,6 +57,9 @@ jobs:
 
       - name: Run Rust unit tests
         run: cargo test --locked
+
+      - name: Run substituted-transport server invariants
+        run: python scripts/benchmark.py check
 
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate

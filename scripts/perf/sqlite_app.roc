@@ -10,7 +10,7 @@ import pf.Sqlite
 import http.Response
 
 # Local-only performance application. The fixture is created by
-# scripts/sqlite_benchmark.py and is never part of release validation.
+# scripts/benchmark.py and is never part of release validation.
 
 Context : { db : Sqlite.Db }
 
@@ -121,9 +121,7 @@ blob_read! = |db, id| {
 		Sqlite.query!({
 			db,
 			query: "SELECT payload FROM payloads WHERE id = :id;",
-			params: {
-				id
-			},
+			params: { id },
 			limits: Sqlite.default_query_limits,
 		})
 			? |err| ServerErr(Str.inspect(err))

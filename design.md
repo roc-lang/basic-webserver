@@ -410,6 +410,30 @@ transport, Roc execution domain, and host subsystems. Indicative measurements
 from ordinary developer machines guide investigation but do not define a
 portable performance guarantee.
 
+Controllable invariant validation and performance evaluation have different
+authority. An instrumented test host may replace the production TCP listener
+with a bounded accepted-stream transport before application initialization. A
+substituted host must still execute the compiled Roc application's real
+`init!`, `respond!`, SSE transition, and `shutdown!` callbacks through the same
+request, admission, response, and cleanup state machines as the production
+host. Its controllable peer is authoritative for lifecycle, ownership, failure
+mapping, and the resource-bound invariants explicitly asserted by its
+scenarios; its timings and process memory are not capacity evidence.
+
+Real-listener evaluation remains authoritative for throughput, tail latency,
+resident memory, operating-system limits, transport backpressure, and scheduler
+or compression contention. Machine-dependent measurements are compared only
+between explicitly recorded runs on a controlled machine. Ordinary CI may gate
+socketless semantic and cleanup invariants, but does not turn local timing or
+resident-memory observations into portable pass/fail thresholds.
+
+Test substitution is an internal host boundary, not a Roc capability. Normal
+release artifacts select the real operating-system implementations and do not
+expose a control protocol, fake resource, or general dependency container to
+applications. Operational metrics that are useful in production remain
+low-cardinality and low-overhead; detailed allocation epochs and test control
+exist only in explicitly instrumented hosts.
+
 ## Request path
 
 The request path has two possible destinations and three Roc outcomes:

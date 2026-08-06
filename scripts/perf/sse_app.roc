@@ -8,9 +8,9 @@ import pf.Server
 import pf.Sse
 import http.Response
 
-# This application is intentionally fixed-shape. The Go reference server uses
-# the same route matrix, payload generator, event counts, and timer schedule so
-# the external driver does not benchmark request parsing or configuration.
+# Fixed-shape engineering fixture for repeatable SSE lifecycle, allocation,
+# compression, fairness, and capacity measurements. Scenario configuration
+# stays outside the request path so it does not contaminate measured work.
 
 Context : {}
 
@@ -33,13 +33,13 @@ init! = ||
 			Server.with_limits(
 				Server.default_config,
 				{
-					max_connections: 512,
+					max_connections: 8192,
 					max_handlers: 64,
 					max_queued_handlers: 64,
 				},
 			),
 			{
-				max_streams: 128,
+				max_streams: 4096,
 				max_event_bytes: 1024 * 1024,
 			},
 		),
@@ -83,6 +83,10 @@ respond! = |request, _context| {
 			"/transport-65536" => prepared_state(200, 65536)
 			"/idle" => dynamic_state(1000000, 256, 60000)
 			"/wake-100" => dynamic_state(2, 256, 100)
+			# A fixed-shape proxy for a page that re-renders roughly 2,500
+			# elements at 5 Hz. It intentionally measures server-side event
+			# production and transport, not browser DOM work.
+			"/demo-2500-elements" => dynamic_state(25, 125000, 200)
 			_ => dynamic_state(1, 256, 0)
 		}
 
