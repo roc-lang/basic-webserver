@@ -1,8 +1,8 @@
-import Attribute
-import DatastarMarkup.PatchTarget
-import Html
-import InternalDatastarName
-import Selector
+import pf.Attribute
+import ./DatastarMarkup
+import pf.Html
+import ./InternalDatastarName
+import ./Selector
 
 ## An HTML element ID restricted to a directly selectable ASCII subset.
 ##
@@ -31,12 +31,12 @@ ElementId :: Str.{
 	attribute : ElementId -> Attribute
 	attribute = |ElementId.(value)| Attribute.id(value)
 
-	patch_target : ElementId -> PatchTarget
-	patch_target = |ElementId.(value)| PatchTarget.css(selector_from_parts("#${value}"))
+	patch_target : ElementId -> DatastarMarkup.PatchTarget
+	patch_target = |ElementId.(value)| DatastarMarkup.PatchTarget.css(selector_from_parts("#${value}"))
 
-	descendant : ElementId, Selector -> PatchTarget
+	descendant : ElementId, Selector -> DatastarMarkup.PatchTarget
 	descendant = |ElementId.(value), selector|
-		PatchTarget.css(selector_from_parts("#${value} ${selector.to_str()}"))
+		DatastarMarkup.PatchTarget.css(selector_from_parts("#${value} ${selector.to_str()}"))
 }
 
 selector_from_parts : Str -> Selector

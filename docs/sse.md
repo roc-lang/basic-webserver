@@ -1,4 +1,4 @@
-# Typed SSE and Datastar
+# Typed SSE
 
 `basic-webserver` supports first-class server-sent event responses through a
 typed functional source. Roc owns application state and event construction;
@@ -20,7 +20,7 @@ respond! = |request, context| {
 		view = load_view!(context.db, state.user_id)?
 
 		Ok(Emit({
-			event: Datastar.patch_elements(render(view)),
+			event: Sse.Event.keyed("view-update", "html", render(view)),
 			state: { ..state, revision: view.revision },
 			wake: After(500),
 		}))
@@ -129,7 +129,7 @@ is flushed. Normal end writes a valid Brotli finish; disconnect abandons the
 encoder without pretending the response ended cleanly. The same contract is
 used over HTTP/1.1 and HTTP/2.
 
-## Event and Datastar constructors
+## Event constructors
 
 `Sse.Event.data` constructs a generic data event. `Sse.Event.named` constructs
 a named event from data values. Use `Sse.Event.named_with` with
@@ -137,22 +137,10 @@ a named event from data values. Use `Sse.Event.named_with` with
 that an ID contains no NUL or line ending, `Sse.clear_event_id` emits an empty
 `id:`, and `Sse.retry_after` supplies the retry delay.
 
-`Datastar` owns the two stable Datastar wire event names and their data keys:
-
-- `patch_elements` and `patch_elements_with`;
-- `remove_elements` and `remove_elements_with`; and
-- `patch_signals` and `patch_signals_with`.
-
-The option records cover selectors, all patch modes, HTML/SVG/MathML
-namespaces, view-transition targets, `onlyIfMissing`, event ID, and retry. Start
-from the matching `default_*_options` record so later compatible fields do not
-force manual record construction. Signal values remain JSON strings because
-the platform does not choose an application JSON model.
-
-The experimental `DatastarMarkup` companion adds typed signals, expressions,
-actions, request targets, and patch targets over this wire API. Its current
-guarantees and deliberate limits are recorded in the
-[typed markup feasibility report](research/datastar-typed-markup-spike.md).
+`Sse.Event.keyed` is a convenience for protocols that encode a key and value
+inside a named event. These constructors only implement SSE framing; event
+names, data-field conventions, and client behavior remain application or
+package policy.
 
 ## Deliberately deferred optimizations
 

@@ -12,7 +12,7 @@ import ./components/BrowserExamples
 import ./components/CrudExamples
 import ./components/LoadingExamples
 import ./components/TodoMvc
-import pf.Datastar
+import ./Datastar
 import pf.Attribute
 import pf.Html
 import pf.Server
@@ -251,7 +251,7 @@ index_page : Str
 index_page = page(
 	"Examples",
 	\\<h1>Roc + Datastar examples</h1>
-	\\<p>Executable reproductions used to evaluate basic-webserver's Datastar API.</p>
+	\\<p>Executable reproductions used to evaluate one Roc Datastar integration.</p>
 	\\<ol>
 	\\    <li><a href="/examples/active_search">Active Search</a></li>
 	\\    <li><a href="/examples/animations">Animations</a></li>

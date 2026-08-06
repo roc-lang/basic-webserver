@@ -1,6 +1,6 @@
 import ./Page
 import pf.Attribute
-import pf.Datastar
+import ../Datastar
 import pf.Html
 import pf.Server
 

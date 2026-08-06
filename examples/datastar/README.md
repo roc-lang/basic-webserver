@@ -8,16 +8,35 @@ Its entrypoint is `main.roc`, allowing Roc tooling opened from any component to
 discover the application root.
 
 Each reproduction is an executable API probe. Server-driven examples use the
-first-party `Datastar` and `Sse` APIs; browser-only examples remain ordinary
-HTML so they do not invent server state or platform facilities.
+example-local Datastar helpers together with the platform's generic `Sse` API;
+browser-only examples remain ordinary HTML so they do not invent server state
+or platform facilities.
+
+## Example-local helpers
+
+This directory owns an intentionally opinionated Datastar integration:
+
+- `Datastar.roc` decodes signals and constructs Datastar wire events;
+- `DatastarMarkup.roc` and `DatastarSignals.roc` provide the typed markup and
+  signal-building approach used by these examples; and
+- `ElementId.roc`, `Selector.roc`, `SignalName.roc`, and `RoutePath.roc` provide
+  the validated values that support that approach.
+
+These modules are part of the example, not the platform API. They demonstrate
+one possible integration and are not intended to constrain a future reusable
+Datastar package, which may choose different abstractions or tradeoffs. The
+platform owns only generic SSE construction, scheduling, framing,
+backpressure, compression, cancellation, and resource limits.
 
 ## Validation standard
 
 The catalog uses layered coverage instead of repeating protocol edge cases in
 every example:
 
-- shared platform coverage owns signal transports and limits, exact Datastar
-  event framing, finite-response headers, and SSE identity/Brotli negotiation;
+- the Datastar example coverage owns signal transport, exact Datastar event
+  framing, and finite-action response semantics;
+- shared platform coverage owns generic SSE limits, framing, and
+  identity/Brotli negotiation;
 - every example's listener case checks its initial HTML, each server action,
   the resulting event semantics, and meaningful application error branches;
 - retained-stream examples also check event order, completion or cancellation,
@@ -51,20 +70,18 @@ example pages are adaptations, not copies of the Datastar site's surrounding
 navigation or visual design.
 
 Unlike released examples, `main.roc` deliberately imports the repository's
-local platform. Its first-party Datastar API is under development on this
-branch and is not present in the 0.15.0 release bundle. From the repository
-root, `roc examples/datastar/main.roc` therefore exercises exactly the code
-being evaluated.
+local platform. Its Datastar helpers are local Roc modules in this directory,
+so from the repository root `roc examples/datastar/main.roc` exercises both
+the current generic platform and this example's integration.
 
-Click To Load, Bulk Update, Click To Edit, and Animations are typed-markup
-feasibility probes. They use nominal signals, expressions, actions, request and
-patch targets, compile-time literal validation, composable signal record
+Click To Load, Bulk Update, Click To Edit, and Animations exercise the local
+typed-markup approach. They use nominal signals, expressions, actions, request
+and patch targets, compile-time literal validation, composable signal record
 builders, validated domain values, element-owning text bindings,
 component-owned dispatch, closed timer state machines, and a captured component
 inside retained SSE sources while retaining deliberate escape hatches at the
-boundary. The guarantees, limits, compile-failure cases, and performance
-evidence are in the [typed Datastar markup
-report](../../docs/research/datastar-typed-markup-spike.md).
+boundary. `scripts/test_datastar_markup_types.py` maintains the corresponding
+compile-failure contract.
 
 ## Catalog progress
 

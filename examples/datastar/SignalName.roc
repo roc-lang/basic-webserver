@@ -1,4 +1,4 @@
-import InternalDatastarName
+import ./InternalDatastarName
 
 ## A validated canonical Datastar signal name and its attribute spelling.
 SignalName :: { attribute : Str, canonical : Str }.{

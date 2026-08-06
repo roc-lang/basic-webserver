@@ -1,5 +1,5 @@
 import ./Page
-import pf.Datastar
+import ../Datastar
 import pf.Html
 import pf.Server
 import pf.Sse

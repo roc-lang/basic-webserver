@@ -17,10 +17,6 @@ platform "webserver"
 	exposes [
 		Attribute,
 		Cmd,
-		Datastar,
-		DatastarMarkup,
-		DatastarSignals,
-		ElementId,
 		Env,
 		File,
 		Html,
@@ -29,10 +25,7 @@ platform "webserver"
 		MultipartFormData,
 		OsStr,
 		Path,
-		RoutePath,
 		Server,
-		Selector,
-		SignalName,
 		Sse,
 		Sleep,
 		Sqlite,
@@ -128,10 +121,6 @@ platform "webserver"
 	}
 
 import Cmd
-import Datastar
-import DatastarMarkup
-import DatastarSignals
-import ElementId
 import Env
 import File
 import Host
@@ -141,10 +130,7 @@ import Http
 import IOErr
 import OsStr
 import Path
-import RoutePath
 import Server
-import Selector
-import SignalName
 import Sse
 import Sleep
 import Sqlite

@@ -3,7 +3,6 @@ app [Context, program] {
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import pf.Datastar
 import pf.Server
 import pf.Sse
 import http.Response
@@ -116,7 +115,7 @@ transition! = |state|
 			} else {
 				After(state.delay_millis)
 			}
-		Ok(Emit({ event: Datastar.patch_elements(html), state: next_state, wake }))
+		Ok(Emit({ event: Sse.Event.keyed("benchmark-event", "payload", html), state: next_state, wake }))
 	}
 
 dynamic_state : U64, U64, U64 -> StreamState

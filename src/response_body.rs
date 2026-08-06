@@ -1292,7 +1292,7 @@ mod tests {
     fn sse_body_resumes_identity_and_brotli_through_one_tiny_frame() {
         let event = Bytes::from(
             [
-                b"event: datastar-patch-elements\n".as_slice(),
+                b"event: test-event\n".as_slice(),
                 b"data: selector #todos\n",
                 b"data: elements <ul>",
                 "<li>bounded stream</li>".repeat(2048).as_bytes(),

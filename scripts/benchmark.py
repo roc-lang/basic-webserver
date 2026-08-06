@@ -374,7 +374,7 @@ def simulation_scenarios() -> list[tuple[Path, dict[str, Any]]]:
                             "accept": "text/event-stream",
                             "accept-encoding": "identity",
                         },
-                        "body_contains": ["event: datastar-patch-elements"],
+                        "body_contains": ["event: benchmark-event"],
                         "expect_sse_events": 100,
                     }
                 ],
@@ -402,7 +402,7 @@ def simulation_scenarios() -> list[tuple[Path, dict[str, Any]]]:
                             "accept-encoding": "br",
                         },
                         "expect_headers": {"content-encoding": "br"},
-                        "body_contains": ["event: datastar-patch-elements"],
+                        "body_contains": ["event: benchmark-event"],
                         "expect_sse_events": 100,
                     }
                 ],

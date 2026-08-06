@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_DIR = ROOT / "target" / "datastar-markup-type-tests"
+EXAMPLE_DIR = ROOT / "examples" / "datastar"
 HTTP_PACKAGE = (
     "https://github.com/roc-lang/http/releases/download/1.0.0/"
     "6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst"
@@ -98,8 +97,8 @@ def source_for(probe: str) -> str:
     http: "{HTTP_PACKAGE}",
 }}
 
-import pf.DatastarMarkup
-import pf.ElementId
+import ./DatastarMarkup
+import ./ElementId
 import pf.Server
 import http.Response
 
@@ -125,23 +124,22 @@ def main() -> None:
     parser.add_argument("--roc", default="roc")
     args = parser.parse_args()
 
-    if FIXTURE_DIR.exists():
-        shutil.rmtree(FIXTURE_DIR)
-    FIXTURE_DIR.mkdir(parents=True)
-
     failures: list[str] = []
     for name, probe, expected in CASES:
-        source = FIXTURE_DIR / f"{name}.roc"
-        source.write_text(source_for(probe), encoding="utf-8", newline="\n")
-        command = [args.roc, "check", str(source)]
-        print("+ !", " ".join(command), flush=True)
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
+        source = EXAMPLE_DIR / f".markup-type-test-{name}.roc"
+        try:
+            source.write_text(source_for(probe), encoding="utf-8", newline="\n")
+            command = [args.roc, "check", str(source)]
+            print("+ !", " ".join(command), flush=True)
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+        finally:
+            source.unlink(missing_ok=True)
         output = result.stdout
         if result.returncode == 0:
             failures.append(f"{name}: unexpectedly compiled")

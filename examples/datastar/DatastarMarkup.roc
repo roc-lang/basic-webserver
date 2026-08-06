@@ -1,10 +1,10 @@
-import Attribute
-import Datastar
-import Html
-import RoutePath
-import Selector
-import SignalName
-import Sse
+import pf.Attribute
+import ./Datastar
+import pf.Html
+import ./RoutePath
+import ./Selector
+import ./SignalName
+import pf.Sse
 import http.Method
 
 ## Typed, receiver-oriented Datastar markup constructors.

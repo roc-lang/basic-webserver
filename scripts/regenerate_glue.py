@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 
-# Glue provenance: the Datastar experiment requires consuming tagged-union
+# Glue provenance: retained SSE sources require consuming tagged-union
 # projections and erased-callable reuse from roc-lang/roc#10530, plus local
 # type-module imports from roc-lang/roc#10602. The committed Rust glue is
 # generated with that compiler and its matching RustGlue.roc. Compiler and

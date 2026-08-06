@@ -29,7 +29,7 @@ Sse :: [].{
 			Ok(SetEventId(value))
 		}
 
-	## Emit an empty `id:` field, clearing Datastar's retained reconnect ID.
+	## Emit an empty `id:` field, clearing the client's retained reconnect ID.
 	clear_event_id : EventId
 	clear_event_id = ClearEventId
 
@@ -40,8 +40,8 @@ Sse :: [].{
 	Event := [Event(List(U8))].{
 
 		## Return the canonical framed bytes for a finite response. Applications
-		## normally pass events to a Datastar or SSE response helper instead of
-		## inspecting this representation directly.
+		## normally pass events to an SSE response helper instead of inspecting
+		## this representation directly.
 		to_bytes : Event -> List(U8)
 		to_bytes = |Event(bytes)| bytes
 

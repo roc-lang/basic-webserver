@@ -3212,7 +3212,7 @@ mod tests {
     fn large_sse_item() -> Bytes {
         Bytes::from(
             [
-                b"event: datastar-patch-elements\n".as_slice(),
+                b"event: test-event\n".as_slice(),
                 b"data: selector #todos\n",
                 b"data: elements <ul>",
                 "<li>bounded listener transaction</li>"

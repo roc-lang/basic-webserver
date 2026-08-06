@@ -620,7 +620,7 @@ async fn validate_response<B>(
     if let Some(expected) = template.expect_sse_events {
         let events = text
             .lines()
-            .filter(|line| line.trim_end_matches('\r') == "event: datastar-patch-elements")
+            .filter(|line| line.trim_end_matches('\r') == "event: benchmark-event")
             .count();
         if events != expected {
             result.failure(format!(
@@ -698,7 +698,7 @@ mod tests {
 
     #[test]
     fn simulated_brotli_body_is_fully_decoded_and_bounded() {
-        let plain = b"event: datastar-patch-elements\ndata: ok\n\n";
+        let plain = b"event: benchmark-event\ndata: ok\n\n";
         let encoded =
             crate::compression::encode_bytes(crate::compression::ContentCoding::Brotli, plain)
                 .unwrap();

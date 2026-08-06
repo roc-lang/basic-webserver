@@ -24,7 +24,7 @@ It is intended to be especially good for:
 - JSON and HTML APIs;
 - CRUD applications backed by SQLite;
 - server-rendered pages and form handling;
-- Datastar actions, progressive feedback, and timer-driven server-sent events;
+- progressive feedback and timer-driven server-sent events;
 - webhooks and integrations with other HTTP services;
 - bounded uploads;
 - public static assets and authorized file downloads handled by the host;
@@ -769,7 +769,7 @@ dropped rather than published. Normal stream completion finishes the selected
 content coding; cancellation abandons it without pretending to produce a clean
 end.
 
-SSE sources are appropriate for finite Datastar actions, progressive feedback,
+SSE sources are appropriate for finite event sequences, progressive feedback,
 and timer-driven views over durable state. Application code should retain small
 identifiers and cursors and re-query immutable context resources on each step.
 The platform bounds every host-owned resource associated with a stream, but—

@@ -1,17 +1,15 @@
-import Attribute
-import DatastarMarkup
-import DatastarMarkup.Signal
-import DatastarMarkup.SignalDef
-import SignalName
+import pf.Attribute
+import ./DatastarMarkup
+import ./SignalName
 
 ## A composable collection of checked Datastar signal definitions.
 ##
 ## Roc record-builder syntax uses `map2` to retain a typed record of signal
 ## handles while accumulating the initial definitions rendered on an element.
-DatastarSignals(a) :: { definitions : List(SignalDef), handles : a }.{
+DatastarSignals(a) :: { definitions : List(DatastarMarkup.SignalDef), handles : a }.{
 
 	## Add an existing boolean handle and its checked initial value.
-	define_bool : Signal(Bool), Bool -> DatastarSignals(Signal(Bool))
+	define_bool : DatastarMarkup.Signal(Bool), Bool -> DatastarSignals(DatastarMarkup.Signal(Bool))
 	define_bool = |signal, initial| DatastarSignals.(
 		{
 			definitions: [signal.definition(initial)],
@@ -20,7 +18,7 @@ DatastarSignals(a) :: { definitions : List(SignalDef), handles : a }.{
 	)
 
 	## Add an existing string handle and its checked initial value.
-	define_str : Signal(Str), Str -> DatastarSignals(Signal(Str))
+	define_str : DatastarMarkup.Signal(Str), Str -> DatastarSignals(DatastarMarkup.Signal(Str))
 	define_str = |signal, initial| DatastarSignals.(
 		{
 			definitions: [signal.definition(initial)],
@@ -29,7 +27,7 @@ DatastarSignals(a) :: { definitions : List(SignalDef), handles : a }.{
 	)
 
 	## Add an existing U64 handle and its checked initial value.
-	define_u64 : Signal(U64), U64 -> DatastarSignals(Signal(U64))
+	define_u64 : DatastarMarkup.Signal(U64), U64 -> DatastarSignals(DatastarMarkup.Signal(U64))
 	define_u64 = |signal, initial| DatastarSignals.(
 		{
 			definitions: [signal.definition(initial)],
@@ -38,7 +36,7 @@ DatastarSignals(a) :: { definitions : List(SignalDef), handles : a }.{
 	)
 
 	## Add an existing list-of-booleans handle and its checked initial value.
-	define_bool_list : Signal(List(Bool)), List(Bool) -> DatastarSignals(Signal(List(Bool)))
+	define_bool_list : DatastarMarkup.Signal(List(Bool)), List(Bool) -> DatastarSignals(DatastarMarkup.Signal(List(Bool)))
 	define_bool_list = |signal, initial| DatastarSignals.(
 		{
 			definitions: [signal.definition(initial)],
@@ -47,24 +45,24 @@ DatastarSignals(a) :: { definitions : List(SignalDef), handles : a }.{
 	)
 
 	## Define and collect a boolean signal.
-	bool : SignalName, Bool -> DatastarSignals(Signal(Bool))
-	bool = |name, initial| DatastarSignals.define_bool(Signal.bool(name), initial)
+	bool : SignalName, Bool -> DatastarSignals(DatastarMarkup.Signal(Bool))
+	bool = |name, initial| DatastarSignals.define_bool(DatastarMarkup.Signal.bool(name), initial)
 
 	## Define and collect a string signal.
-	str : SignalName, Str -> DatastarSignals(Signal(Str))
-	str = |name, initial| DatastarSignals.define_str(Signal.str(name), initial)
+	str : SignalName, Str -> DatastarSignals(DatastarMarkup.Signal(Str))
+	str = |name, initial| DatastarSignals.define_str(DatastarMarkup.Signal.str(name), initial)
 
 	## Define and collect a U64 signal.
-	u64 : SignalName, U64 -> DatastarSignals(Signal(U64))
-	u64 = |name, initial| DatastarSignals.define_u64(Signal.u64(name), initial)
+	u64 : SignalName, U64 -> DatastarSignals(DatastarMarkup.Signal(U64))
+	u64 = |name, initial| DatastarSignals.define_u64(DatastarMarkup.Signal.u64(name), initial)
 
 	## Define and collect a list-of-booleans signal.
-	bool_list : SignalName, List(Bool) -> DatastarSignals(Signal(List(Bool)))
-	bool_list = |name, initial| DatastarSignals.define_bool_list(Signal.bool_list(name), initial)
+	bool_list : SignalName, List(Bool) -> DatastarSignals(DatastarMarkup.Signal(List(Bool)))
+	bool_list = |name, initial| DatastarSignals.define_bool_list(DatastarMarkup.Signal.bool_list(name), initial)
 
 	## Define and collect an underscore-prefixed boolean signal.
-	excluded_bool : SignalName, Bool -> DatastarSignals(Signal(Bool))
-	excluded_bool = |name, initial| DatastarSignals.define_bool(Signal.excluded_bool(name), initial)
+	excluded_bool : SignalName, Bool -> DatastarSignals(DatastarMarkup.Signal(Bool))
+	excluded_bool = |name, initial| DatastarSignals.define_bool(DatastarMarkup.Signal.excluded_bool(name), initial)
 
 	## Transform the retained handle value without changing definitions.
 	map : DatastarSignals(a), (a -> b) -> DatastarSignals(b)

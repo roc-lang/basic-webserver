@@ -1,13 +1,11 @@
 import ./Page
 import pf.Attribute
-import pf.Datastar
-import pf.DatastarMarkup
-import pf.DatastarMarkup.RequestTarget
-import pf.DatastarMarkup.Signal
-import pf.DatastarSignals as Signals
-import pf.ElementId
+import ../Datastar
+import ../DatastarMarkup exposing [RequestTarget, Signal]
+import ../DatastarSignals as Signals
+import ../ElementId
 import pf.Html
-import pf.RoutePath
+import ../RoutePath
 import pf.Server
 
 ClickToEditSignals : {

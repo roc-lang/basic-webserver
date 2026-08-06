@@ -2055,10 +2055,10 @@
           "requests": [
             {
               "body_contains": [
-                "event: datastar-patch-elements\ndata: elements <div id=\"stage\">A</div>\n\n",
-                "event: datastar-patch-signals\ndata: signals {\"stage\":\"B\"}\n\n",
-                "data: elements <pre id=\"large\">xxxxxxxx",
-                "data: elements <div id=\"stage\">done</div>\n\n"
+                "event: view-update\ndata: html <div id=\"stage\">A</div>\n\n",
+                "event: state-update\ndata: json {\"stage\":\"B\"}\n\n",
+                "data: html <pre id=\"large\">xxxxxxxx",
+                "data: html <div id=\"stage\">done</div>\n\n"
               ],
               "response_headers": {
                 "Content-Type": "text/event-stream",
@@ -2133,9 +2133,9 @@
             {
               "target": "/options",
               "body_contains": [
-                "event: datastar-patch-elements\nid: event0\nretry: 2000\ndata: selector div\ndata: mode append\ndata: namespace svg\ndata: useViewTransition true\ndata: viewTransitionSelector #transition\ndata: elements <svg>Merge</svg>\n\n",
-                "event: datastar-patch-signals\ndata: onlyIfMissing true\ndata: signals {\"one\":1}\n\n",
-                "event: datastar-patch-elements\ndata: mode remove\ndata: selector #target\ndata: useViewTransition true\ndata: viewTransitionSelector #removed-transition\n\n"
+                "event: view-update\nid: event0\nretry: 2000\ndata: target div\ndata: namespace svg\ndata: payload <svg>Merge</svg>\n\n",
+                "event: state-update\ndata: only-if-missing true\ndata: payload {\"one\":1}\n\n",
+                "event: remove-view\ndata: target #target\n\n"
               ]
             }
           ],
@@ -2144,8 +2144,8 @@
               "name": "typed-sse-precommit",
               "target": "/options",
               "body_contains": [
-                "event: datastar-patch-elements",
-                "data: viewTransitionSelector #removed-transition"
+                "event: view-update",
+                "data: target #target"
               ]
             }
           ],

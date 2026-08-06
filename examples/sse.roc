@@ -5,7 +5,6 @@ app [Context, program] {
 }
 
 import pf.Server
-import pf.Datastar
 import pf.Sse
 
 Context : {}
@@ -48,16 +47,10 @@ options_transition! = |state| {
 	match state {
 		0 => Ok(
 			Emit({
-				event: Datastar.patch_elements_with(
-					"<svg>Merge</svg>",
-					{
-						..Datastar.default_patch_elements_options,
-						event: event_options,
-						mode: Append,
-						namespace: Svg,
-						selector: Select("div"),
-						view_transition: ViewTransition(TransitionTarget("#transition")),
-					},
+				event: Sse.Event.named_with(
+					"view-update",
+					["target div", "namespace svg", "payload <svg>Merge</svg>"],
+					event_options,
 				),
 				state: 1,
 				wake: Immediately,
@@ -65,9 +58,9 @@ options_transition! = |state| {
 		)
 		1 => Ok(
 			Emit({
-				event: Datastar.patch_signals_with(
-					"{\"one\":1}",
-					{ ..Datastar.default_patch_signals_options, only_if_missing: Bool.True },
+				event: Sse.Event.named(
+					"state-update",
+					["only-if-missing true", "payload {\"one\":1}"],
 				),
 				state: 2,
 				wake: Immediately,
@@ -75,10 +68,7 @@ options_transition! = |state| {
 		)
 		2 => Ok(
 			Emit({
-				event: Datastar.remove_elements_with(
-					"#target",
-					{ ..Datastar.default_remove_elements_options, view_transition: ViewTransition(TransitionTarget("#removed-transition")) },
-				),
+				event: Sse.Event.named("remove-view", ["target #target"]),
 				state: 3,
 				wake: Immediately,
 			}),
@@ -106,11 +96,11 @@ long_wait_first_transition! = |state|
 transition! : U64 => Try(Sse.Step(U64), [StreamFailed(Str)])
 transition! = |state|
 	match state {
-		0 => Ok(Emit({ event: Datastar.patch_elements("<div id=\"stage\">A</div>"), state: 1, wake: After(50) }))
-		1 => Ok(Emit({ event: Datastar.patch_signals("{\"stage\":\"B\"}"), state: 2, wake: Immediately }))
+		0 => Ok(Emit({ event: Sse.Event.keyed("view-update", "html", "<div id=\"stage\">A</div>"), state: 1, wake: After(50) }))
+		1 => Ok(Emit({ event: Sse.Event.keyed("state-update", "json", "{\"stage\":\"B\"}"), state: 2, wake: Immediately }))
 		2 => Ok(Wait({ state: 3, wake: After(20) }))
-		3 => Ok(Emit({ event: Datastar.patch_elements("<pre id=\"large\">${Str.repeat("x", 20000)}</pre>"), state: 4, wake: Immediately }))
-		4 => Ok(Emit({ event: Datastar.patch_elements("<div id=\"stage\">done</div>"), state: 5, wake: Immediately }))
+		3 => Ok(Emit({ event: Sse.Event.keyed("view-update", "html", "<pre id=\"large\">${Str.repeat("x", 20000)}</pre>"), state: 4, wake: Immediately }))
+		4 => Ok(Emit({ event: Sse.Event.keyed("view-update", "html", "<div id=\"stage\">done</div>"), state: 5, wake: Immediately }))
 		5 => Ok(End)
 		_ => Err(StreamFailed("invalid retained source state"))
 	}

@@ -28,7 +28,7 @@ HtmlNode := [
 ## ```
 Html := [].{
 
-	## Rendered sibling HTML nodes suitable for a Datastar element patch.
+	## Rendered sibling HTML nodes for APIs that require an HTML fragment.
 	##
 	## This nominal boundary distinguishes rendered markup from ordinary text.
 	## It does not claim that the fragment has particular IDs or matches a DOM
@@ -82,7 +82,7 @@ Html := [].{
 	render : HtmlNode -> Str
 	render = |node| Str.concat("<!DOCTYPE html>", render_without_doc_type(node))
 
-	## Render sibling nodes as one patchable HTML fragment.
+	## Render sibling nodes as one HTML fragment.
 	render_fragment : List(HtmlNode) -> Fragment
 	render_fragment = |nodes| Fragment(render_children(nodes))
 

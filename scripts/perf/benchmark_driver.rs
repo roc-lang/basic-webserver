@@ -854,7 +854,7 @@ fn validate_sse_frame(bytes: &[u8]) -> Result<bool, io::Error> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     let has_event = text
         .lines()
-        .any(|line| line.trim_end_matches('\r') == "event: datastar-patch-elements");
+        .any(|line| line.trim_end_matches('\r') == "event: benchmark-event");
     let has_data = text
         .lines()
         .any(|line| line.trim_end_matches('\r').starts_with("data: "));
@@ -1677,10 +1677,10 @@ mod tests {
     fn sse_parser_accepts_crlf_and_lf_frames() {
         let mut counter = SseEventCounter::new(Instant::now());
         counter
-            .write_all(b"event: datastar-patch-elements\r\ndata: one\r")
+            .write_all(b"event: benchmark-event\r\ndata: one\r")
             .unwrap();
         counter
-            .write_all(b"\n\r\nevent: datastar-patch-elements\ndata: two\n\n")
+            .write_all(b"\n\r\nevent: benchmark-event\ndata: two\n\n")
             .unwrap();
         assert_eq!(counter.finish().unwrap().events, 2);
     }
