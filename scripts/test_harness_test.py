@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 from scripts import test, update_app_platform_urls
@@ -470,6 +470,31 @@ class SpecValidationTests(unittest.TestCase):
                 windows_hash = test.examples_hash()
 
             self.assertEqual(windows_hash, unix_hash)
+
+    def test_portable_path_sort_preserves_case_on_windows(self) -> None:
+        root = PureWindowsPath("D:/repo")
+        paths = [
+            root / "examples" / "datastar" / "components" / "Page.roc",
+            root / "examples" / "datastar" / "README.md",
+            root / "examples" / "datastar" / "datastar.js",
+        ]
+        expected = [
+            "examples/datastar/README.md",
+            "examples/datastar/components/Page.roc",
+            "examples/datastar/datastar.js",
+        ]
+
+        with mock.patch.object(test, "ROOT", root):
+            actual = [
+                test.portable_relative_path(path)
+                for path in sorted(paths, key=test.portable_relative_path)
+            ]
+
+        self.assertNotEqual(
+            [path.relative_to(root).as_posix() for path in sorted(paths)],
+            expected,
+        )
+        self.assertEqual(actual, expected)
 
     def test_generated_fixtures_are_bounded_and_reproducible(self) -> None:
         case = {
