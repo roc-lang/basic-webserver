@@ -6,6 +6,10 @@ inputs:
     description: Install the latest nightly instead of the version in .roc-version
     required: false
     default: "false"
+  with-source:
+    description: Download the matching Roc source tree for glue validation
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -48,3 +52,32 @@ runs:
       with:
         version: nightly-new-compiler
         nightly-tag: ${{ steps.roc-version.outputs.nightly-tag }}
+
+    - name: Download the matching Roc source
+      if: inputs.with-source == 'true'
+      shell: bash
+      env:
+        NIGHTLY_TAG: ${{ steps.roc-version.outputs.nightly-tag }}
+        TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+
+        auth_header=()
+        if [[ -n "$TOKEN" ]]; then
+          auth_header=(-H "Authorization: Bearer $TOKEN")
+        fi
+        if [[ -n "$NIGHTLY_TAG" ]]; then
+          release_api="https://api.github.com/repos/roc-lang/nightlies/releases/tags/$NIGHTLY_TAG"
+        else
+          release_api="https://api.github.com/repos/roc-lang/nightlies/releases/latest"
+        fi
+        source_url="$(
+          curl -fsSL "${auth_header[@]}" "$release_api" |
+            jq -er '.assets[] | select(.name | startswith("roc_nightly-source-")) | select(.name | endswith(".tar.gz")) | .browser_download_url'
+        )"
+
+        source_dir="$GITHUB_WORKSPACE/target/roc-source"
+        mkdir -p "$source_dir"
+        curl -fsSL "${auth_header[@]}" "$source_url" |
+          tar -xzf - --strip-components=1 -C "$source_dir"
+        test -f "$source_dir/src/glue/src/RustGlue.roc"
