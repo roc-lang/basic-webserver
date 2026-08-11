@@ -111,7 +111,12 @@ def musl_build_env(rust_target: str) -> dict[str, str]:
         "aarch64-unknown-linux-musl": "aarch64-linux-musl",
     }
     zig_target = zig_targets.get(rust_target)
-    if zig_target is None or shutil.which("zig") is None:
+    if zig_target is None:
+        return env
+    if shutil.which("zig") is None:
+        # Cargo then needs a musl cross compiler such as x86_64-linux-musl-gcc,
+        # which most machines do not have; say so before the C build fails.
+        print(f"  (zig was not found; {rust_target} needs a musl C cross compiler)")
         return env
 
     key = rust_target.replace("-", "_")
