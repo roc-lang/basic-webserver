@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "0 11 * * *"
   workflow_dispatch:
+  # TEMPORARY: run on PRs to verify this job's setup. Remove before merging.
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}
@@ -24,6 +26,20 @@ jobs:
         with:
           # This compatibility job deliberately tests beyond .roc-version.
           use-latest: "true"
+
+      # build.py cross-compiles the musl host with `zig cc`; without Zig the
+      # build falls back to a musl gcc that the runner image does not have.
+      - name: Install Zig
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
+        with:
+          version: 0.16.0
+
+      - name: Install Rust toolchain
+        run: |
+          version=$(sed -n 's/^channel = "\(.*\)".*/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$version" --profile minimal
+          rustup default "$version"
+          rustup component add llvm-tools-preview
 
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate
