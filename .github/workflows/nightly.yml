@@ -4,8 +4,6 @@ on:
   schedule:
     - cron: "0 11 * * *"
   workflow_dispatch:
-  # TEMPORARY: run on PRs to verify this job's setup. Remove before merging.
-  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}

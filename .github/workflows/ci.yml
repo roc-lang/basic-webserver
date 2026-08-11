@@ -1,9 +1,7 @@
 name: CI
 
 on:
-  # TEMPORARY: disabled on PRs while the nightly job is being verified.
-  # Restore before merging.
-  # pull_request:
+  pull_request:
   workflow_dispatch:
 
 concurrency:
