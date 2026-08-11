@@ -1,9 +1,27 @@
 name: Validate with latest nightly Roc
 
+# Driven by roc-lang/nightlies: its notify-downstream job sends this
+# repository_dispatch once a nightly is published *and* its archives pass the
+# test matrix, so a failure here means our platform broke, not that the
+# compiler release was broken. A cron would either race that publish or waste a
+# run on the days no nightly ships (nightlies skips when roc's main has nothing
+# newer that landed green).
+#
+# It arrives as a workflow_dispatch rather than a repository_dispatch on
+# purpose: repository_dispatch can only be sent by a token with Contents:
+# write, which is also enough to push commits here, while this endpoint needs
+# only Actions: write, which cannot modify anything in the repo.
 on:
-  schedule:
-    - cron: "0 11 * * *"
   workflow_dispatch:
+    inputs:
+      nightly-tag:
+        description: Nightly release tag to validate against; empty means the latest nightly
+        required: false
+        default: ""
+
+run-name: >-
+  Validate against
+  ${{ inputs.nightly-tag != '' && inputs.nightly-tag || 'the latest nightly' }}
 
 concurrency:
   group: ${{ github.workflow }}
@@ -22,8 +40,10 @@ jobs:
       - name: Install the latest Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
         with:
-          # Empty tag makes setup-roc resolve the latest nightly instead of our pin.
-          nightly-tag: ""
+          # The dispatch names the nightly that triggered us, so we validate
+          # against that exact release rather than whatever "latest" resolves to
+          # by the time this runs. Empty (the manual default) means latest.
+          nightly-tag: ${{ inputs.nightly-tag }}
 
       - name: Format, check, and test Roc examples
         run: python scripts/test.py --operation validate
