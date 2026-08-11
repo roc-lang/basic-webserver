@@ -8,8 +8,13 @@
 #![allow(improper_ctypes_definitions)]
 
 mod abi;
+#[cfg(feature = "benchmark-instrumentation")]
+mod allocation_benchmark;
+#[cfg(feature = "benchmark-simulation")]
+mod benchmark_simulation;
 mod body_sink;
 mod bounded_gate;
+mod brotli_executor;
 mod capability;
 mod cmd;
 mod compression;
@@ -30,7 +35,9 @@ mod request_limits;
 mod request_parts;
 mod request_target;
 mod response;
+mod response_body;
 mod roc_alloc;
+mod roc_executor;
 mod roc_platform_abi;
 mod server_transport;
 mod shutdown;
@@ -49,6 +56,9 @@ pub extern "C" fn main(_argc: i32, _argv: *const *const std::ffi::c_char) -> i32
 pub fn rust_main() -> i32 {
     env::initialize_launch_dir();
     abi::initialize_roc_host();
+    #[cfg(feature = "benchmark-simulation")]
+    let exit_code = benchmark_simulation::start();
+    #[cfg(not(feature = "benchmark-simulation"))]
     let exit_code = http_server::start();
     let live_resources = sqlite::active_resources()
         + file::active_resources()
@@ -57,7 +67,7 @@ pub fn rust_main() -> i32 {
         + request_body::metrics().active_bodies
         + request_body::metrics().active_backings
         + readiness::active_resources();
-    if live_resources != 0 {
+    let result = if live_resources != 0 {
         eprintln!(
             "host resource lifecycle error: {live_resources} native resources remained after \
              shutdown (high-water marks: sqlite={}, file_readers={}, tcp_streams={}, \
@@ -73,5 +83,8 @@ pub fn rust_main() -> i32 {
         1
     } else {
         exit_code
-    }
+    };
+    #[cfg(feature = "benchmark-instrumentation")]
+    allocation_benchmark::report();
+    result
 }

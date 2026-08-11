@@ -1,4 +1,5 @@
 import Host
+import Sse
 import Path
 import http.Header
 import http.Method
@@ -85,6 +86,16 @@ Server :: [].{
 	## Default finite queue capacity for handlers waiting to execute.
 	default_max_queued_handlers : U16
 	default_max_queued_handlers = 64
+
+	## Default maximum number of admitted SSE responses. Parked streams do not
+	## consume Roc handler workers; this independently bounds their host-owned
+	## source slots, timers, body state, and optional compression state.
+	default_max_sse_streams : U16
+	default_max_sse_streams = 256
+
+	## Default maximum size of one completely framed SSE event: 1 MiB.
+	default_max_sse_event_bytes : U32
+	default_max_sse_event_bytes = 1024 * 1024
 
 	## Default maximum idle time for completing each request head: 10 seconds.
 	default_header_timeout_ms : U64
@@ -637,6 +648,10 @@ Server :: [].{
 					max_concurrent : U16,
 					timeout_ms : U64,
 				},
+				sse : {
+					max_streams : U16,
+					max_event_bytes : U32,
+				},
 				operations : {
 					access_log : AccessLog,
 					metrics : Metrics,
@@ -704,6 +719,8 @@ Server :: [].{
 			file_chunk_bytes : U32,
 			body_sink_max_concurrent : U16,
 			body_sink_timeout_ms : U64,
+			sse_max_streams : U16,
+			sse_max_event_bytes : U32,
 			access_log_enabled : Bool,
 			access_log_target : U8,
 			access_log_buffer_events : U16,
@@ -741,6 +758,8 @@ Server :: [].{
 				file_chunk_bytes: config.file_transfers.chunk_bytes,
 				body_sink_max_concurrent: config.body_sinks.max_concurrent,
 				body_sink_timeout_ms: config.body_sinks.timeout_ms,
+				sse_max_streams: config.sse.max_streams,
+				sse_max_event_bytes: config.sse.max_event_bytes,
 				access_log_enabled: access_log.enabled,
 				access_log_target: access_log.target,
 				access_log_buffer_events: access_log.buffer_events,
@@ -806,6 +825,10 @@ Server :: [].{
 		body_sinks: {
 			max_concurrent: default_max_body_sinks,
 			timeout_ms: default_body_sink_timeout_ms,
+		},
+		sse: {
+			max_streams: default_max_sse_streams,
+			max_event_bytes: default_max_sse_event_bytes,
 		},
 		operations: {
 			access_log: AccessLogOff,
@@ -879,6 +902,12 @@ Server :: [].{
 	## host-managed request-body sinks. Saturation is typed and does not queue.
 	with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
 	with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
+
+	## Set independent admitted-stream and per-event bounds for typed SSE
+	## responses. Both values must be non-zero; events above 16 MiB fail startup.
+	## Saturated stream admission returns 503 before response commitment.
+	with_sse_limits : Config, { max_streams : U16, max_event_bytes : U32 } -> Config
+	with_sse_limits = |Config(config), sse| Config({ ..config, sse })
 
 	## Configure host-owned structured request-completion logging.
 	with_access_log : Config, AccessLog -> Config
@@ -1166,6 +1195,7 @@ Server :: [].{
 	## beginning graceful shutdown, and preserves the first shutdown cause.
 	Outcome := [
 		Respond(Response.Response),
+		Stream(Sse.Source),
 		ServeFile(
 			{
 				files : FileRoot,
@@ -1178,34 +1208,29 @@ Server :: [].{
 	].{
 
 		## Platform ABI conversion hook; not an application API.
-		to_host : Outcome -> {
-			kind : U8,
-			response : Response.Response,
-			stop : Bool,
-			exit_code : I64,
-			file_root_id : Str,
-			file_relative : Str,
-			file_disposition : U8,
-			file_download_name : Str,
-			file_cache_override : Bool,
-			file_cache_tag : U8,
-			file_cache_max_age_seconds : U32,
-		}
+		to_host : Outcome -> [
+			OrdinaryToHost({ response : Response.Response, stop : Bool, exit_code : I64 }),
+			FileToHost(
+				{
+					file_root_id : Str,
+					file_relative : Str,
+					file_disposition : U8,
+					file_download_name : Str,
+					file_cache_override : Bool,
+					file_cache_tag : U8,
+					file_cache_max_age_seconds : U32,
+				},
+			),
+			StreamToHost(Sse.Source),
+		]
 		to_host = |outcome|
 			match outcome {
-				Respond(response) => {
-					kind: 0,
+				Respond(response) => OrdinaryToHost({
 					response,
 					stop: Bool.False,
 					exit_code: 0,
-					file_root_id: "",
-					file_relative: "",
-					file_disposition: 0,
-					file_download_name: "",
-					file_cache_override: Bool.False,
-					file_cache_tag: 0,
-					file_cache_max_age_seconds: 0,
-				}
+				})
+				Stream(source) => StreamToHost(source)
 				ServeFile({ files, relative, disposition, cache }) => {
 					FileRoot(root) = files
 					raw_cache = CacheChoice.to_host(cache)
@@ -1214,11 +1239,7 @@ Server :: [].{
 							Inline => (0, "")
 							Attachment(name) => (1, name)
 						}
-					{
-						kind: 1,
-						response: Response.from_status(500),
-						stop: Bool.False,
-						exit_code: 0,
+					FileToHost({
 						file_root_id: root.id,
 						file_relative: RelativeFile.to_host(relative),
 						file_disposition: disposition_tag,
@@ -1226,23 +1247,20 @@ Server :: [].{
 						file_cache_override: raw_cache.override,
 						file_cache_tag: raw_cache.tag,
 						file_cache_max_age_seconds: raw_cache.max_age_seconds,
-					}
+					})
 				}
-				StopAfter({ response, exit_code }) => {
-					kind: 0,
+				StopAfter({ response, exit_code }) => OrdinaryToHost({
 					response,
 					stop: Bool.True,
 					exit_code,
-					file_root_id: "",
-					file_relative: "",
-					file_disposition: 0,
-					file_download_name: "",
-					file_cache_override: Bool.False,
-					file_cache_tag: 0,
-					file_cache_max_age_seconds: 0,
-				}
+				})
 			}
 	}
+
+	## Return a dynamic server-sent event response. The host supplies canonical
+	## SSE response headers and owns transport framing and content coding.
+	stream : Sse.Source -> Outcome
+	stream = |source| Stream(source)
 
 	## Return a response and keep serving requests.
 	respond : Response.Response -> Outcome

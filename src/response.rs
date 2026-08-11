@@ -5,6 +5,7 @@
 //! file responses and host-generated errors. Keeping the rules here makes the
 //! HTTP/1.1 and HTTP/2 contracts independent of encoder-specific cleanup.
 
+pub(crate) use crate::response_body::ServerData;
 use bytes::Bytes;
 use http_body_util::{combinators::UnsyncBoxBody, BodyExt, Empty, Full};
 use hyper::body::Body;
@@ -13,7 +14,7 @@ use hyper::{HeaderMap, Method, StatusCode, Version};
 use std::fmt;
 use std::io;
 
-pub(crate) type ServerBody = UnsyncBoxBody<Bytes, io::Error>;
+pub(crate) type ServerBody = UnsyncBoxBody<ServerData, io::Error>;
 pub(crate) type ServerResponse = hyper::Response<ServerBody>;
 
 const CONNECTION_SPECIFIC_FIELDS: &[&str] = &[
@@ -66,13 +67,13 @@ impl fmt::Display for ResponseError {
 }
 
 pub(crate) fn full_body(bytes: Bytes) -> ServerBody {
-    Full::new(bytes)
+    Full::new(ServerData::from(bytes))
         .map_err(|never| match never {})
         .boxed_unsync()
 }
 
 pub(crate) fn empty_body() -> ServerBody {
-    Empty::<Bytes>::new()
+    Empty::<ServerData>::new()
         .map_err(|never| match never {})
         .boxed_unsync()
 }
@@ -721,7 +722,7 @@ mod tests {
     struct UnknownLengthBody;
 
     impl Body for UnknownLengthBody {
-        type Data = Bytes;
+        type Data = ServerData;
         type Error = io::Error;
 
         fn poll_frame(

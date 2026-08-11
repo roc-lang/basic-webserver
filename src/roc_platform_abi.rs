@@ -177,7 +177,13 @@ fn shifted_capacity(capacity: usize) -> usize {
 }
 
 /// Uniform ABI function pointer stored in `RocErasedCallablePayload`.
-pub type RocErasedCallableFn = extern "C" fn(*mut RocHost, *mut u8, *const u8, *mut u8);
+///
+/// The final `reuse` pointer is nullable. Non-null must be the callable data
+/// pointer whose inline capture begins at `capture`; it transfers one owned
+/// reference to the callee. The caller must not use or decref that ownership
+/// unit after the call. The callee consumes it exactly once, whether or not the
+/// result can reuse the allocation.
+pub type RocErasedCallableFn = extern "C" fn(*mut RocHost, *mut u8, *const u8, *mut u8, *mut u8, *mut *const c_void);
 
 /// Final-drop callback for inline erased-callable captures.
 pub type RocErasedCallableOnDrop = extern "C" fn(*mut u8, *mut RocHost);
@@ -592,7 +598,7 @@ impl RocStr {
         }
         let rc = unsafe { (alloc_ptr as *mut AtomicIsize).sub(1) };
         if unsafe { (*rc).load(Ordering::Relaxed) } == 0 {
-            return; // REFCOUNT_STATIC_DATA — bytes are in read-only memory
+            return; // REFCOUNT_STATIC_DATA—bytes are in read-only memory
         }
         let prev = unsafe { (*rc).fetch_sub(1, Ordering::Release) };
         if prev == 1 {
@@ -833,7 +839,7 @@ impl<T, const ELEMENTS_REFCOUNTED: bool> RocListWith<T, ELEMENTS_REFCOUNTED> {
         let header_bytes = Self::header_bytes();
         let rc = unsafe { (alloc_ptr as *mut AtomicIsize).sub(1) };
         if unsafe { (*rc).load(Ordering::Relaxed) } == 0 {
-            return; // REFCOUNT_STATIC_DATA — elements are in read-only memory
+            return; // REFCOUNT_STATIC_DATA—elements are in read-only memory
         }
         let prev = unsafe { (*rc).fetch_sub(1, Ordering::Release) };
         if prev == 1 {
@@ -1419,38 +1425,38 @@ const _: () = assert!(core::mem::size_of::<AnonStruct1f12a65955b54fe1>() == 12, 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct1f12a65955b54fe1>() == 4, "AnonStruct1f12a65955b54fe1 alignment mismatch");
 
-/// Element type for __AnonStruct_52d80daf3d40fc9f
+/// Element type for __AnonStruct_60bc4208e250c775
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct52d80daf3d40fc9f {
-    pub config: AnonStruct91e3ec6515967e3a,
+pub struct AnonStruct60bc4208e250c775 {
+    pub config: AnonStruct1ff4122d63c5f5fd,
     pub context: RocBox,
 }
 
-/// Element type for __AnonStruct_52d80daf3d40fc9f
+/// Element type for __AnonStruct_60bc4208e250c775
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct52d80daf3d40fc9f {
-    pub config: AnonStruct91e3ec6515967e3a,
+pub struct AnonStruct60bc4208e250c775 {
+    pub config: AnonStruct1ff4122d63c5f5fd,
     pub context: RocBox,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct52d80daf3d40fc9f>() == 288, "AnonStruct52d80daf3d40fc9f size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct60bc4208e250c775>() == 296, "AnonStruct60bc4208e250c775 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct52d80daf3d40fc9f>() == 8, "AnonStruct52d80daf3d40fc9f alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct60bc4208e250c775>() == 8, "AnonStruct60bc4208e250c775 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct52d80daf3d40fc9f>() == 208, "AnonStruct52d80daf3d40fc9f size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct60bc4208e250c775>() == 216, "AnonStruct60bc4208e250c775 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct52d80daf3d40fc9f>() == 8, "AnonStruct52d80daf3d40fc9f alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct60bc4208e250c775>() == 8, "AnonStruct60bc4208e250c775 alignment mismatch");
 
-/// Element type for __AnonStruct_91e3ec6515967e3a
+/// Element type for __AnonStruct_1ff4122d63c5f5fd
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct91e3ec6515967e3a {
+pub struct AnonStruct1ff4122d63c5f5fd {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub body_sink_timeout_ms: u64,
@@ -1472,6 +1478,7 @@ pub struct AnonStruct91e3ec6515967e3a {
     pub max_connections: u32,
     pub request_header_max_bytes: u32,
     pub request_target_max_bytes: u32,
+    pub sse_max_event_bytes: u32,
     pub access_log_buffer_events: u16,
     pub body_buffered_chunks: u16,
     pub body_sink_max_concurrent: u16,
@@ -1480,16 +1487,17 @@ pub struct AnonStruct91e3ec6515967e3a {
     pub max_queued_handlers: u16,
     pub port: u16,
     pub request_header_max_fields: u16,
+    pub sse_max_streams: u16,
     pub access_log_enabled: bool,
     pub access_log_target: u8,
     pub metrics_enabled: bool,
 }
 
-/// Element type for __AnonStruct_91e3ec6515967e3a
+/// Element type for __AnonStruct_1ff4122d63c5f5fd
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStruct91e3ec6515967e3a {
+pub struct AnonStruct1ff4122d63c5f5fd {
     pub body_idle_timeout_ms: u64,
     pub body_max_bytes: u64,
     pub body_sink_timeout_ms: u64,
@@ -1511,6 +1519,7 @@ pub struct AnonStruct91e3ec6515967e3a {
     pub max_connections: u32,
     pub request_header_max_bytes: u32,
     pub request_target_max_bytes: u32,
+    pub sse_max_event_bytes: u32,
     pub access_log_buffer_events: u16,
     pub body_buffered_chunks: u16,
     pub body_sink_max_concurrent: u16,
@@ -1519,19 +1528,20 @@ pub struct AnonStruct91e3ec6515967e3a {
     pub max_queued_handlers: u16,
     pub port: u16,
     pub request_header_max_fields: u16,
+    pub sse_max_streams: u16,
     pub access_log_enabled: bool,
     pub access_log_target: u8,
     pub metrics_enabled: bool,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStruct91e3ec6515967e3a>() == 280, "AnonStruct91e3ec6515967e3a size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1ff4122d63c5f5fd>() == 288, "AnonStruct1ff4122d63c5f5fd size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStruct91e3ec6515967e3a>() == 8, "AnonStruct91e3ec6515967e3a alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1ff4122d63c5f5fd>() == 8, "AnonStruct1ff4122d63c5f5fd alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStruct91e3ec6515967e3a>() == 200, "AnonStruct91e3ec6515967e3a size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct1ff4122d63c5f5fd>() == 208, "AnonStruct1ff4122d63c5f5fd size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStruct91e3ec6515967e3a>() == 8, "AnonStruct91e3ec6515967e3a alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct1ff4122d63c5f5fd>() == 8, "AnonStruct1ff4122d63c5f5fd alignment mismatch");
 
 /// Element type for __AnonStruct_3b01e35488cb00dc
 #[cfg(target_pointer_width = "32")]
@@ -1726,54 +1736,131 @@ const _: () = assert!(core::mem::size_of::<AnonStruct66bd3eb5a5fde7bc>() == 104,
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct66bd3eb5a5fde7bc>() == 8, "AnonStruct66bd3eb5a5fde7bc alignment mismatch");
 
-/// Element type for __AnonStruct_aeceb9ea017a78f4
+/// Element type for __AnonStruct_49a217fc2950a160
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructAeceb9ea017a78f4 {
-    pub exit_code: i64,
-    pub body: RocListWith<u8, false>,
+pub struct AnonStruct49a217fc2950a160 {
     pub file_download_name: RocStr,
     pub file_relative: RocStr,
     pub file_root_id: RocStr,
-    pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub file_cache_max_age_seconds: u32,
-    pub status: u16,
     pub file_cache_override: bool,
     pub file_cache_tag: u8,
     pub file_disposition: u8,
-    pub kind: u8,
-    pub stop: bool,
 }
 
-/// Element type for __AnonStruct_aeceb9ea017a78f4
+/// Element type for __AnonStruct_49a217fc2950a160
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct AnonStructAeceb9ea017a78f4 {
-    pub exit_code: i64,
-    pub body: RocListWith<u8, false>,
+pub struct AnonStruct49a217fc2950a160 {
     pub file_download_name: RocStr,
     pub file_relative: RocStr,
     pub file_root_id: RocStr,
-    pub headers: RocList<AnonStruct82a96c5d55d63488>,
     pub file_cache_max_age_seconds: u32,
-    pub status: u16,
     pub file_cache_override: bool,
     pub file_cache_tag: u8,
     pub file_disposition: u8,
-    pub kind: u8,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct49a217fc2950a160>() == 80, "AnonStruct49a217fc2950a160 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct49a217fc2950a160>() == 8, "AnonStruct49a217fc2950a160 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct49a217fc2950a160>() == 44, "AnonStruct49a217fc2950a160 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct49a217fc2950a160>() == 4, "AnonStruct49a217fc2950a160 alignment mismatch");
+
+/// Element type for __AnonStruct_6f3dea2f169284fc
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct6f3dea2f169284fc {
+    pub exit_code: i64,
+    pub body: RocListWith<u8, false>,
+    pub headers: RocList<AnonStruct82a96c5d55d63488>,
+    pub status: u16,
+    pub stop: bool,
+}
+
+/// Element type for __AnonStruct_6f3dea2f169284fc
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct6f3dea2f169284fc {
+    pub exit_code: i64,
+    pub body: RocListWith<u8, false>,
+    pub headers: RocList<AnonStruct82a96c5d55d63488>,
+    pub status: u16,
     pub stop: bool,
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<AnonStructAeceb9ea017a78f4>() == 144, "AnonStructAeceb9ea017a78f4 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct6f3dea2f169284fc>() == 64, "AnonStruct6f3dea2f169284fc size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<AnonStructAeceb9ea017a78f4>() == 8, "AnonStructAeceb9ea017a78f4 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct6f3dea2f169284fc>() == 8, "AnonStruct6f3dea2f169284fc alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<AnonStructAeceb9ea017a78f4>() == 80, "AnonStructAeceb9ea017a78f4 size mismatch");
+const _: () = assert!(core::mem::size_of::<AnonStruct6f3dea2f169284fc>() == 40, "AnonStruct6f3dea2f169284fc size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<AnonStructAeceb9ea017a78f4>() == 8, "AnonStructAeceb9ea017a78f4 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<AnonStruct6f3dea2f169284fc>() == 8, "AnonStruct6f3dea2f169284fc alignment mismatch");
+
+/// Element type for __AnonStruct_9b1cf2b6babfaece
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct9b1cf2b6babfaece {
+    pub wait_millis: u64,
+    pub item: RocListWith<u8, false>,
+    pub source: RocErasedCallable,
+}
+
+/// Element type for __AnonStruct_9b1cf2b6babfaece
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStruct9b1cf2b6babfaece {
+    pub wait_millis: u64,
+    pub item: RocListWith<u8, false>,
+    pub source: RocErasedCallable,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStruct9b1cf2b6babfaece>() == 40, "AnonStruct9b1cf2b6babfaece size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStruct9b1cf2b6babfaece>() == 8, "AnonStruct9b1cf2b6babfaece alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStruct9b1cf2b6babfaece>() == 24, "AnonStruct9b1cf2b6babfaece size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStruct9b1cf2b6babfaece>() == 8, "AnonStruct9b1cf2b6babfaece alignment mismatch");
+
+/// Element type for __AnonStruct_f3b0d79455c5462
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructF3b0d79455c5462 {
+    pub wait_millis: u64,
+    pub source: RocErasedCallable,
+}
+
+/// Element type for __AnonStruct_f3b0d79455c5462
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructF3b0d79455c5462 {
+    pub wait_millis: u64,
+    pub source: RocErasedCallable,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStructF3b0d79455c5462>() == 16, "AnonStructF3b0d79455c5462 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStructF3b0d79455c5462>() == 8, "AnonStructF3b0d79455c5462 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStructF3b0d79455c5462>() == 16, "AnonStructF3b0d79455c5462 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStructF3b0d79455c5462>() == 8, "AnonStructF3b0d79455c5462 alignment mismatch");
 
 /// Element type for __AnonStruct_628b43fd33b27733
 #[cfg(target_pointer_width = "32")]
@@ -1842,24 +1929,76 @@ pub struct HostCmdExecExitCodeResult {
 }
 
 impl HostCmdExecExitCodeResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &FailedToGetExitCodeOrSaturatedOrTimeout {
+        unsafe { &*(self.payload.as_ptr() as *const FailedToGetExitCodeOrSaturatedOrTimeout) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &FailedToGetExitCodeOrSaturatedOrTimeout {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<FailedToGetExitCodeOrSaturatedOrTimeout> as *const FailedToGetExitCodeOrSaturatedOrTimeout) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const FailedToGetExitCodeOrSaturatedOrTimeout) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> FailedToGetExitCodeOrSaturatedOrTimeout {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> i32 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &i32 {
+        unsafe { &*(self.payload.as_ptr() as *const i32) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &i32 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<i32> as *const i32) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> i32 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i32) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecExitCodeResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> i32 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> i32 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -1919,14 +2058,40 @@ pub struct FailedToGetExitCodeOrSaturatedOrTimeout {
 }
 
 impl FailedToGetExitCodeOrSaturatedOrTimeout {
+    /// Borrow the `FailedToGetExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_failed_to_get_exit_code(&self) -> HostIOErr {
+    pub unsafe fn borrow_payload_failed_to_get_exit_code_unchecked(&self) -> &HostIOErr {
+        unsafe { &*(self.payload.as_ptr() as *const HostIOErr) }
+    }
+
+    /// Borrow the `FailedToGetExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_failed_to_get_exit_code_unchecked(&self) -> &HostIOErr {
+        unsafe { &*(&self.payload.failed_to_get_exit_code as *const core::mem::ManuallyDrop<HostIOErr> as *const HostIOErr) }
+    }
+
+    /// Move the `FailedToGetExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_failed_to_get_exit_code_unchecked(&mut self) -> HostIOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const HostIOErr) }
     }
 
+    /// Move the `FailedToGetExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_failed_to_get_exit_code(&self) -> HostIOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.failed_to_get_exit_code) }
+    pub unsafe fn take_payload_failed_to_get_exit_code_unchecked(&mut self) -> HostIOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.failed_to_get_exit_code) }
     }
 
 }
@@ -1996,14 +2161,40 @@ pub struct HostIOErr {
 }
 
 impl HostIOErr {
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostIOErrTag::Other` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_other(&self) -> RocStr {
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostIOErrTag::Other` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.other as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostIOErrTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostIOErrTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_other(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.other) }
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.other) }
     }
 
 }
@@ -2063,34 +2254,112 @@ pub struct UnixBytesOrUtf8OrWindowsU16s {
 }
 
 impl UnixBytesOrUtf8OrWindowsU16s {
+    /// Borrow the `UnixBytes` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_unix_bytes(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_unix_bytes_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `UnixBytes` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_unix_bytes_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.unix_bytes as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `UnixBytes` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_unix_bytes_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `UnixBytes` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_unix_bytes(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.unix_bytes) }
+    pub unsafe fn take_payload_unix_bytes_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.unix_bytes) }
     }
 
+    /// Borrow the `Utf8` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::Utf8` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_utf8(&self) -> RocStr {
+    pub unsafe fn borrow_payload_utf8_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Utf8` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::Utf8` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_utf8_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.utf8 as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Utf8` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::Utf8`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_utf8_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Utf8` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::Utf8`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_utf8(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.utf8) }
+    pub unsafe fn take_payload_utf8_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.utf8) }
     }
 
+    /// Borrow the `WindowsU16s` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_windows_u16s(&self) -> RocListWith<u16, false> {
+    pub unsafe fn borrow_payload_windows_u16s_unchecked(&self) -> &RocListWith<u16, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u16, false>) }
+    }
+
+    /// Borrow the `WindowsU16s` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_windows_u16s_unchecked(&self) -> &RocListWith<u16, false> {
+        unsafe { &*(&self.payload.windows_u16s as *const core::mem::ManuallyDrop<RocListWith<u16, false>> as *const RocListWith<u16, false>) }
+    }
+
+    /// Move the `WindowsU16s` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_windows_u16s_unchecked(&mut self) -> RocListWith<u16, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u16, false>) }
     }
 
+    /// Move the `WindowsU16s` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_windows_u16s(&self) -> RocListWith<u16, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.windows_u16s) }
+    pub unsafe fn take_payload_windows_u16s_unchecked(&mut self) -> RocListWith<u16, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.windows_u16s) }
     }
 
 }
@@ -2148,14 +2417,40 @@ pub struct InheritOrSet {
 }
 
 impl InheritOrSet {
+    /// Borrow the `Set` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InheritOrSetTag::Set` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_set(&self) -> UnixBytesOrUtf8OrWindowsU16s {
+    pub unsafe fn borrow_payload_set_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Borrow the `Set` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InheritOrSetTag::Set` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_set_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(&self.payload.set as *const core::mem::ManuallyDrop<UnixBytesOrUtf8OrWindowsU16s> as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Move the `Set` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InheritOrSetTag::Set`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_set_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
     }
 
+    /// Move the `Set` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InheritOrSetTag::Set`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_set(&self) -> UnixBytesOrUtf8OrWindowsU16s {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.set) }
+    pub unsafe fn take_payload_set_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.set) }
     }
 
 }
@@ -2213,24 +2508,76 @@ pub struct HostCmdExecOutputResult {
 }
 
 impl HostCmdExecOutputResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+        unsafe { &*(self.payload.as_ptr() as *const FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout> as *const FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct3e7554e024207e25 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct3e7554e024207e25 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3e7554e024207e25) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct3e7554e024207e25 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<AnonStruct3e7554e024207e25> as *const AnonStruct3e7554e024207e25) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct3e7554e024207e25 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3e7554e024207e25) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostCmdExecOutputResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct3e7554e024207e25 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct3e7554e024207e25 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2296,44 +2643,148 @@ pub struct FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdo
 }
 
 impl FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeout {
+    /// Borrow the `FailedToGetExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_failed_to_get_exit_code(&self) -> IOErr {
+    pub unsafe fn borrow_payload_failed_to_get_exit_code_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `FailedToGetExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_failed_to_get_exit_code_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.failed_to_get_exit_code as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `FailedToGetExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_failed_to_get_exit_code_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `FailedToGetExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_failed_to_get_exit_code(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.failed_to_get_exit_code) }
+    pub unsafe fn take_payload_failed_to_get_exit_code_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.failed_to_get_exit_code) }
     }
 
+    /// Borrow the `NonZeroExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_non_zero_exit_code(&self) -> AnonStruct3f89ee1e14924626 {
+    pub unsafe fn borrow_payload_non_zero_exit_code_unchecked(&self) -> &AnonStruct3f89ee1e14924626 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3f89ee1e14924626) }
+    }
+
+    /// Borrow the `NonZeroExitCode` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_non_zero_exit_code_unchecked(&self) -> &AnonStruct3f89ee1e14924626 {
+        unsafe { &*(&self.payload.non_zero_exit_code as *const core::mem::ManuallyDrop<AnonStruct3f89ee1e14924626> as *const AnonStruct3f89ee1e14924626) }
+    }
+
+    /// Move the `NonZeroExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_non_zero_exit_code_unchecked(&mut self) -> AnonStruct3f89ee1e14924626 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3f89ee1e14924626) }
     }
 
+    /// Move the `NonZeroExitCode` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_non_zero_exit_code(&self) -> AnonStruct3f89ee1e14924626 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.non_zero_exit_code) }
+    pub unsafe fn take_payload_non_zero_exit_code_unchecked(&mut self) -> AnonStruct3f89ee1e14924626 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.non_zero_exit_code) }
     }
 
+    /// Borrow the `StderrTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_stderr_too_large(&self) -> AnonStruct3c19acd0e825703f {
+    pub unsafe fn borrow_payload_stderr_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Borrow the `StderrTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_stderr_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(&self.payload.stderr_too_large as *const core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f> as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Move the `StderrTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_stderr_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
     }
 
+    /// Move the `StderrTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_stderr_too_large(&self) -> AnonStruct3c19acd0e825703f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.stderr_too_large) }
+    pub unsafe fn take_payload_stderr_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.stderr_too_large) }
     }
 
+    /// Borrow the `StdoutTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_stdout_too_large(&self) -> AnonStruct3c19acd0e825703f {
+    pub unsafe fn borrow_payload_stdout_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Borrow the `StdoutTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_stdout_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(&self.payload.stdout_too_large as *const core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f> as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Move the `StdoutTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_stdout_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
     }
 
+    /// Move the `StdoutTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_stdout_too_large(&self) -> AnonStruct3c19acd0e825703f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.stdout_too_large) }
+    pub unsafe fn take_payload_stdout_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.stdout_too_large) }
     }
 
 }
@@ -2403,14 +2854,40 @@ pub struct IOErr {
 }
 
 impl IOErr {
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `IOErrTag::Other` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_other(&self) -> RocStr {
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `IOErrTag::Other` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.other as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `IOErrTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `IOErrTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_other(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.other) }
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.other) }
     }
 
 }
@@ -2468,14 +2945,40 @@ pub struct HostDirCreateResult {
 }
 
 impl HostDirCreateResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirCreateResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirCreateResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirCreateResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirCreateResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -2533,24 +3036,76 @@ pub struct HostDirListResult {
 }
 
 impl HostDirListResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocList<AnonStruct2e21b53659f79626> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocList<AnonStruct2e21b53659f79626> {
+        unsafe { &*(self.payload.as_ptr() as *const RocList<AnonStruct2e21b53659f79626>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocList<AnonStruct2e21b53659f79626> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocList<AnonStruct2e21b53659f79626>> as *const RocList<AnonStruct2e21b53659f79626>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocList<AnonStruct2e21b53659f79626> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocList<AnonStruct2e21b53659f79626>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostDirListResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocList<AnonStruct2e21b53659f79626> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocList<AnonStruct2e21b53659f79626> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2608,24 +3163,76 @@ pub struct HostEnvVarResult {
 }
 
 impl HostEnvVarResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> EnvErrOrVarNotFound {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &EnvErrOrVarNotFound {
+        unsafe { &*(self.payload.as_ptr() as *const EnvErrOrVarNotFound) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &EnvErrOrVarNotFound {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<EnvErrOrVarNotFound> as *const EnvErrOrVarNotFound) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> EnvErrOrVarNotFound {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const EnvErrOrVarNotFound) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> EnvErrOrVarNotFound {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> EnvErrOrVarNotFound {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> UnixBytesOrUtf8OrWindowsU16s {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<UnixBytesOrUtf8OrWindowsU16s> as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvVarResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> UnixBytesOrUtf8OrWindowsU16s {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2683,24 +3290,76 @@ pub struct EnvErrOrVarNotFound {
 }
 
 impl EnvErrOrVarNotFound {
+    /// Borrow the `EnvErr` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::EnvErr` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_env_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_env_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `EnvErr` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::EnvErr` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_env_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.env_err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `EnvErr` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::EnvErr`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_env_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `EnvErr` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::EnvErr`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_env_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.env_err) }
+    pub unsafe fn take_payload_env_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.env_err) }
     }
 
+    /// Borrow the `VarNotFound` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::VarNotFound` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_var_not_found(&self) -> UnixBytesOrUtf8OrWindowsU16s {
+    pub unsafe fn borrow_payload_var_not_found_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Borrow the `VarNotFound` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::VarNotFound` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_var_not_found_unchecked(&self) -> &UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { &*(&self.payload.var_not_found as *const core::mem::ManuallyDrop<UnixBytesOrUtf8OrWindowsU16s> as *const UnixBytesOrUtf8OrWindowsU16s) }
+    }
+
+    /// Move the `VarNotFound` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::VarNotFound`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_var_not_found_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const UnixBytesOrUtf8OrWindowsU16s) }
     }
 
+    /// Move the `VarNotFound` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `EnvErrOrVarNotFoundTag::VarNotFound`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_var_not_found(&self) -> UnixBytesOrUtf8OrWindowsU16s {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.var_not_found) }
+    pub unsafe fn take_payload_var_not_found_unchecked(&mut self) -> UnixBytesOrUtf8OrWindowsU16s {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.var_not_found) }
     }
 
 }
@@ -2758,24 +3417,76 @@ pub struct HostEnvCwdUnixResult {
 }
 
 impl HostEnvCwdUnixResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdUnixResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2833,24 +3544,76 @@ pub struct HostEnvCwdWindowsResult {
 }
 
 impl HostEnvCwdWindowsResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocListWith<u16, false> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u16, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u16, false>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u16, false> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocListWith<u16, false>> as *const RocListWith<u16, false>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u16, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u16, false>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostEnvCwdWindowsResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocListWith<u16, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u16, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2908,24 +3671,76 @@ pub struct HostFileReadBytesResult {
 }
 
 impl HostFileReadBytesResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadBytesResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -2983,14 +3798,40 @@ pub struct HostFileDeleteResult {
 }
 
 impl HostFileDeleteResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileDeleteResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileDeleteResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileDeleteResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileDeleteResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -3048,24 +3889,76 @@ pub struct HostFileReadUtf8Result {
 }
 
 impl HostFileReadUtf8Result {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocStr {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileReadUtf8ResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3123,24 +4016,76 @@ pub struct HostFileOpenReaderResult {
 }
 
 impl HostFileOpenReaderResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileOpenReaderResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3198,24 +4143,76 @@ pub struct HostFileSizeInBytesResult {
 }
 
 impl HostFileSizeInBytesResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &u64 {
+        unsafe { &*(self.payload.as_ptr() as *const u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<u64> as *const u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileSizeInBytesResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3273,24 +4270,76 @@ pub struct HostFileIsExecutableResult {
 }
 
 impl HostFileIsExecutableResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> bool {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &bool {
+        unsafe { &*(self.payload.as_ptr() as *const bool) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &bool {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<bool> as *const bool) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> bool {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const bool) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileIsExecutableResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> bool {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> bool {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3348,24 +4397,76 @@ pub struct HostFileTimeAccessedResult {
 }
 
 impl HostFileTimeAccessedResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> i128 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &i128 {
+        unsafe { &*(self.payload.as_ptr() as *const i128) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &i128 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<i128> as *const i128) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> i128 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i128) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostFileTimeAccessedResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> i128 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> i128 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3423,24 +4524,76 @@ pub struct HostHttpSendRequestResult {
 }
 
 impl HostHttpSendRequestResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> InvalidRequestOrTransport {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &InvalidRequestOrTransport {
+        unsafe { &*(self.payload.as_ptr() as *const InvalidRequestOrTransport) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &InvalidRequestOrTransport {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<InvalidRequestOrTransport> as *const InvalidRequestOrTransport) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> InvalidRequestOrTransport {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const InvalidRequestOrTransport) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> InvalidRequestOrTransport {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> InvalidRequestOrTransport {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStructA14cd3b7d5755441 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStructA14cd3b7d5755441 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStructA14cd3b7d5755441) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStructA14cd3b7d5755441 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<AnonStructA14cd3b7d5755441> as *const AnonStructA14cd3b7d5755441) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStructA14cd3b7d5755441 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructA14cd3b7d5755441) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostHttpSendRequestResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStructA14cd3b7d5755441 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStructA14cd3b7d5755441 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3498,24 +4651,76 @@ pub struct InvalidRequestOrTransport {
 }
 
 impl InvalidRequestOrTransport {
+    /// Borrow the `InvalidRequest` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::InvalidRequest` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_invalid_request(&self) -> RocStr {
+    pub unsafe fn borrow_payload_invalid_request_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `InvalidRequest` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::InvalidRequest` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_invalid_request_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.invalid_request as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `InvalidRequest` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::InvalidRequest`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_invalid_request_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `InvalidRequest` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::InvalidRequest`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_invalid_request(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.invalid_request) }
+    pub unsafe fn take_payload_invalid_request_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.invalid_request) }
     }
 
+    /// Borrow the `Transport` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::Transport` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+    pub unsafe fn borrow_payload_transport_unchecked(&self) -> &CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+        unsafe { &*(self.payload.as_ptr() as *const CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed) }
+    }
+
+    /// Borrow the `Transport` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::Transport` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_transport_unchecked(&self) -> &CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+        unsafe { &*(&self.payload.transport as *const core::mem::ManuallyDrop<CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed> as *const CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed) }
+    }
+
+    /// Move the `Transport` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::Transport`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_transport_unchecked(&mut self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed) }
     }
 
+    /// Move the `Transport` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InvalidRequestOrTransportTag::Transport`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_transport(&self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.transport) }
+    pub unsafe fn take_payload_transport_unchecked(&mut self) -> CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.transport) }
     }
 
 }
@@ -3593,84 +4798,292 @@ pub struct CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailed
 }
 
 impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailed {
+    /// Borrow the `ConnectFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_connect_failed(&self) -> AnonStructFfdd5953388e390f {
+    pub unsafe fn borrow_payload_connect_failed_unchecked(&self) -> &AnonStructFfdd5953388e390f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStructFfdd5953388e390f) }
+    }
+
+    /// Borrow the `ConnectFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_connect_failed_unchecked(&self) -> &AnonStructFfdd5953388e390f {
+        unsafe { &*(&self.payload.connect_failed as *const core::mem::ManuallyDrop<AnonStructFfdd5953388e390f> as *const AnonStructFfdd5953388e390f) }
+    }
+
+    /// Move the `ConnectFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_connect_failed_unchecked(&mut self) -> AnonStructFfdd5953388e390f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructFfdd5953388e390f) }
     }
 
+    /// Move the `ConnectFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_connect_failed(&self) -> AnonStructFfdd5953388e390f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.connect_failed) }
+    pub unsafe fn take_payload_connect_failed_unchecked(&mut self) -> AnonStructFfdd5953388e390f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.connect_failed) }
     }
 
+    /// Borrow the `DnsFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_dns_failed(&self) -> AnonStruct773d55204b824e5d {
+    pub unsafe fn borrow_payload_dns_failed_unchecked(&self) -> &AnonStruct773d55204b824e5d {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct773d55204b824e5d) }
+    }
+
+    /// Borrow the `DnsFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_dns_failed_unchecked(&self) -> &AnonStruct773d55204b824e5d {
+        unsafe { &*(&self.payload.dns_failed as *const core::mem::ManuallyDrop<AnonStruct773d55204b824e5d> as *const AnonStruct773d55204b824e5d) }
+    }
+
+    /// Move the `DnsFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_dns_failed_unchecked(&mut self) -> AnonStruct773d55204b824e5d {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct773d55204b824e5d) }
     }
 
+    /// Move the `DnsFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_dns_failed(&self) -> AnonStruct773d55204b824e5d {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.dns_failed) }
+    pub unsafe fn take_payload_dns_failed_unchecked(&mut self) -> AnonStruct773d55204b824e5d {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.dns_failed) }
     }
 
+    /// Borrow the `ExchangeFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_exchange_failed(&self) -> RocStr {
+    pub unsafe fn borrow_payload_exchange_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `ExchangeFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_exchange_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.exchange_failed as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `ExchangeFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_exchange_failed_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `ExchangeFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_exchange_failed(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.exchange_failed) }
+    pub unsafe fn take_payload_exchange_failed_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.exchange_failed) }
     }
 
+    /// Borrow the `InvalidResponse` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_invalid_response(&self) -> RocStr {
+    pub unsafe fn borrow_payload_invalid_response_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `InvalidResponse` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_invalid_response_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.invalid_response as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `InvalidResponse` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_invalid_response_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `InvalidResponse` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_invalid_response(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.invalid_response) }
+    pub unsafe fn take_payload_invalid_response_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.invalid_response) }
     }
 
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_other(&self) -> RocStr {
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Other` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_other_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.other as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Other` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_other(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.other) }
+    pub unsafe fn take_payload_other_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.other) }
     }
 
+    /// Borrow the `ResponseBodyFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_response_body_failed(&self) -> RocStr {
+    pub unsafe fn borrow_payload_response_body_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `ResponseBodyFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_response_body_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.response_body_failed as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `ResponseBodyFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_response_body_failed_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `ResponseBodyFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_response_body_failed(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.response_body_failed) }
+    pub unsafe fn take_payload_response_body_failed_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.response_body_failed) }
     }
 
+    /// Borrow the `ResponseTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_response_too_large(&self) -> AnonStruct3c19acd0e825703f {
+    pub unsafe fn borrow_payload_response_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Borrow the `ResponseTooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_response_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(&self.payload.response_too_large as *const core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f> as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Move the `ResponseTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_response_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
     }
 
+    /// Move the `ResponseTooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_response_too_large(&self) -> AnonStruct3c19acd0e825703f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.response_too_large) }
+    pub unsafe fn take_payload_response_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.response_too_large) }
     }
 
+    /// Borrow the `TlsFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_tls_failed(&self) -> AnonStruct773d55204b824e5d {
+    pub unsafe fn borrow_payload_tls_failed_unchecked(&self) -> &AnonStruct773d55204b824e5d {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct773d55204b824e5d) }
+    }
+
+    /// Borrow the `TlsFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_tls_failed_unchecked(&self) -> &AnonStruct773d55204b824e5d {
+        unsafe { &*(&self.payload.tls_failed as *const core::mem::ManuallyDrop<AnonStruct773d55204b824e5d> as *const AnonStruct773d55204b824e5d) }
+    }
+
+    /// Move the `TlsFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_tls_failed_unchecked(&mut self) -> AnonStruct773d55204b824e5d {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct773d55204b824e5d) }
     }
 
+    /// Move the `TlsFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_tls_failed(&self) -> AnonStruct773d55204b824e5d {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.tls_failed) }
+    pub unsafe fn take_payload_tls_failed_unchecked(&mut self) -> AnonStruct773d55204b824e5d {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.tls_failed) }
     }
 
 }
@@ -3752,24 +5165,76 @@ pub struct HostRequestBodyReadResult {
 }
 
 impl HostRequestBodyReadResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { &*(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge> as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> ChunkOrEnd {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &ChunkOrEnd {
+        unsafe { &*(self.payload.as_ptr() as *const ChunkOrEnd) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &ChunkOrEnd {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<ChunkOrEnd> as *const ChunkOrEnd) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> ChunkOrEnd {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const ChunkOrEnd) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> ChunkOrEnd {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> ChunkOrEnd {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -3839,24 +5304,76 @@ pub struct CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFi
 }
 
 impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+    /// Borrow the `InvalidBody` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_invalid_body(&self) -> RocStr {
+    pub unsafe fn borrow_payload_invalid_body_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `InvalidBody` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_invalid_body_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.invalid_body as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `InvalidBody` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_invalid_body_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `InvalidBody` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_invalid_body(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.invalid_body) }
+    pub unsafe fn take_payload_invalid_body_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.invalid_body) }
     }
 
+    /// Borrow the `TooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
+    pub unsafe fn borrow_payload_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Borrow the `TooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(&self.payload.too_large as *const core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f> as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Move the `TooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
     }
 
+    /// Move the `TooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.too_large) }
+    pub unsafe fn take_payload_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.too_large) }
     }
 
 }
@@ -3914,14 +5431,40 @@ pub struct ChunkOrEnd {
 }
 
 impl ChunkOrEnd {
+    /// Borrow the `Chunk` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ChunkOrEndTag::Chunk` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_chunk(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_chunk_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Chunk` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ChunkOrEndTag::Chunk` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_chunk_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.chunk as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Chunk` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ChunkOrEndTag::Chunk`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_chunk_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Chunk` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ChunkOrEndTag::Chunk`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_chunk(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.chunk) }
+    pub unsafe fn take_payload_chunk_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.chunk) }
     }
 
 }
@@ -3979,24 +5522,76 @@ pub struct HostRequestBodyReadAllResult {
 }
 
 impl HostRequestBodyReadAllResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { &*(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge> as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLarge {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyReadAllResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4054,24 +5649,76 @@ pub struct HostRequestBodyWriteFileResult {
 }
 
 impl HostRequestBodyWriteFileResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+        unsafe { &*(self.payload.as_ptr() as *const CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge> as *const CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct247809673488181b {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct247809673488181b {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct247809673488181b) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct247809673488181b {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<AnonStruct247809673488181b> as *const AnonStruct247809673488181b) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct247809673488181b {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct247809673488181b) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostRequestBodyWriteFileResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct247809673488181b {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct247809673488181b {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4159,54 +5806,184 @@ pub struct CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestina
 }
 
 impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLarge {
+    /// Borrow the `CleanupFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_cleanup_failed(&self) -> RocStr {
+    pub unsafe fn borrow_payload_cleanup_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `CleanupFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_cleanup_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.cleanup_failed as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `CleanupFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_cleanup_failed_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `CleanupFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_cleanup_failed(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.cleanup_failed) }
+    pub unsafe fn take_payload_cleanup_failed_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.cleanup_failed) }
     }
 
+    /// Borrow the `Filesystem` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_filesystem(&self) -> RocStr {
+    pub unsafe fn borrow_payload_filesystem_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Filesystem` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_filesystem_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.filesystem as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Filesystem` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_filesystem_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Filesystem` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_filesystem(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.filesystem) }
+    pub unsafe fn take_payload_filesystem_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.filesystem) }
     }
 
+    /// Borrow the `InvalidBody` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_invalid_body(&self) -> RocStr {
+    pub unsafe fn borrow_payload_invalid_body_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `InvalidBody` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_invalid_body_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.invalid_body as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `InvalidBody` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_invalid_body_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `InvalidBody` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_invalid_body(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.invalid_body) }
+    pub unsafe fn take_payload_invalid_body_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.invalid_body) }
     }
 
+    /// Borrow the `PublishFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_publish_failed(&self) -> RocStr {
+    pub unsafe fn borrow_payload_publish_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `PublishFailed` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_publish_failed_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.publish_failed as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `PublishFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_publish_failed_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `PublishFailed` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_publish_failed(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.publish_failed) }
+    pub unsafe fn take_payload_publish_failed_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.publish_failed) }
     }
 
+    /// Borrow the `TooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
+    pub unsafe fn borrow_payload_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Borrow the `TooLarge` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_too_large_unchecked(&self) -> &AnonStruct3c19acd0e825703f {
+        unsafe { &*(&self.payload.too_large as *const core::mem::ManuallyDrop<AnonStruct3c19acd0e825703f> as *const AnonStruct3c19acd0e825703f) }
+    }
+
+    /// Move the `TooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct3c19acd0e825703f) }
     }
 
+    /// Move the `TooLarge` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_too_large(&self) -> AnonStruct3c19acd0e825703f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.too_large) }
+    pub unsafe fn take_payload_too_large_unchecked(&mut self) -> AnonStruct3c19acd0e825703f {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.too_large) }
     }
 
 }
@@ -4264,14 +6041,40 @@ pub struct NotComputedOrSha256Digest {
 }
 
 impl NotComputedOrSha256Digest {
+    /// Borrow the `Sha256Digest` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `NotComputedOrSha256DigestTag::Sha256Digest` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_sha256digest(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_sha256digest_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Sha256Digest` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `NotComputedOrSha256DigestTag::Sha256Digest` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_sha256digest_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.sha256digest as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Sha256Digest` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `NotComputedOrSha256DigestTag::Sha256Digest`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_sha256digest_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Sha256Digest` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `NotComputedOrSha256DigestTag::Sha256Digest`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_sha256digest(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.sha256digest) }
+    pub unsafe fn take_payload_sha256digest_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.sha256digest) }
     }
 
 }
@@ -4329,14 +6132,40 @@ pub struct HostReadinessCreateResult {
 }
 
 impl HostReadinessCreateResult {
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessCreateResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessCreateResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessCreateResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessCreateResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4394,14 +6223,40 @@ pub struct HostReadinessSetResult {
 }
 
 impl HostReadinessSetResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessSetResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> InvalidReadinessOrServerStoppingOrStaleReadiness {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &InvalidReadinessOrServerStoppingOrStaleReadiness {
+        unsafe { &*(self.payload.as_ptr() as *const InvalidReadinessOrServerStoppingOrStaleReadiness) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessSetResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &InvalidReadinessOrServerStoppingOrStaleReadiness {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<InvalidReadinessOrServerStoppingOrStaleReadiness> as *const InvalidReadinessOrServerStoppingOrStaleReadiness) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessSetResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> InvalidReadinessOrServerStoppingOrStaleReadiness {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const InvalidReadinessOrServerStoppingOrStaleReadiness) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostReadinessSetResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> InvalidReadinessOrServerStoppingOrStaleReadiness {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> InvalidReadinessOrServerStoppingOrStaleReadiness {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -4477,24 +6332,76 @@ pub struct HostPathTypeResult {
 }
 
 impl HostPathTypeResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct8dfa7f17f2083a52 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct8dfa7f17f2083a52 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct8dfa7f17f2083a52) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct8dfa7f17f2083a52 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<AnonStruct8dfa7f17f2083a52> as *const AnonStruct8dfa7f17f2083a52) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct8dfa7f17f2083a52 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct8dfa7f17f2083a52) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostPathTypeResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct8dfa7f17f2083a52 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct8dfa7f17f2083a52 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4552,24 +6459,76 @@ pub struct HostSqliteOpenResult {
 }
 
 impl HostSqliteOpenResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteOpenResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4627,24 +6586,76 @@ pub struct HostSqlitePrepareResult {
 }
 
 impl HostSqlitePrepareResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqlitePrepareResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4702,24 +6713,76 @@ pub struct HostSqliteStartResult {
 }
 
 impl HostSqliteStartResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteStartResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4783,44 +6846,148 @@ pub struct BytesOrIntegerOrNullOrRealOrString {
 }
 
 impl BytesOrIntegerOrNullOrRealOrString {
+    /// Borrow the `Bytes` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Bytes` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_bytes(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_bytes_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Bytes` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Bytes` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_bytes_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.bytes as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Bytes` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Bytes`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_bytes_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Bytes` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Bytes`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_bytes(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.bytes) }
+    pub unsafe fn take_payload_bytes_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.bytes) }
     }
 
+    /// Borrow the `Integer` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Integer` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_integer(&self) -> i64 {
+    pub unsafe fn borrow_payload_integer_unchecked(&self) -> &i64 {
+        unsafe { &*(self.payload.as_ptr() as *const i64) }
+    }
+
+    /// Borrow the `Integer` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Integer` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_integer_unchecked(&self) -> &i64 {
+        unsafe { &*(&self.payload.integer as *const core::mem::ManuallyDrop<i64> as *const i64) }
+    }
+
+    /// Move the `Integer` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Integer`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_integer_unchecked(&mut self) -> i64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i64) }
     }
 
+    /// Move the `Integer` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Integer`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_integer(&self) -> i64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.integer) }
+    pub unsafe fn take_payload_integer_unchecked(&mut self) -> i64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.integer) }
     }
 
+    /// Borrow the `Real` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Real` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_real(&self) -> f64 {
+    pub unsafe fn borrow_payload_real_unchecked(&self) -> &f64 {
+        unsafe { &*(self.payload.as_ptr() as *const f64) }
+    }
+
+    /// Borrow the `Real` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Real` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_real_unchecked(&self) -> &f64 {
+        unsafe { &*(&self.payload.real as *const core::mem::ManuallyDrop<f64> as *const f64) }
+    }
+
+    /// Move the `Real` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Real`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_real_unchecked(&mut self) -> f64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const f64) }
     }
 
+    /// Move the `Real` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::Real`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_real(&self) -> f64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.real) }
+    pub unsafe fn take_payload_real_unchecked(&mut self) -> f64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.real) }
     }
 
+    /// Borrow the `String` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::String` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_string(&self) -> RocStr {
+    pub unsafe fn borrow_payload_string_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `String` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::String` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_string_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.string as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `String` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::String`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_string_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `String` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `BytesOrIntegerOrNullOrRealOrStringTag::String`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_string(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.string) }
+    pub unsafe fn take_payload_string_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.string) }
     }
 
 }
@@ -4878,24 +7045,76 @@ pub struct HostSqliteColumnsResult {
 }
 
 impl HostSqliteColumnsResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocList<RocStr> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocList<RocStr> {
+        unsafe { &*(self.payload.as_ptr() as *const RocList<RocStr>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocList<RocStr> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocList<RocStr>> as *const RocList<RocStr>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocList<RocStr> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocList<RocStr>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteColumnsResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocList<RocStr> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocList<RocStr> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -4953,24 +7172,76 @@ pub struct HostSqliteNextRowResult {
 }
 
 impl HostSqliteNextRowResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+        unsafe { &*(self.payload.as_ptr() as *const DoneOrResultTooLargeOrRowOrRowLimitExceeded) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<DoneOrResultTooLargeOrRowOrRowLimitExceeded> as *const DoneOrResultTooLargeOrRowOrRowLimitExceeded) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const DoneOrResultTooLargeOrRowOrRowLimitExceeded) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteNextRowResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -5032,14 +7303,40 @@ pub struct DoneOrResultTooLargeOrRowOrRowLimitExceeded {
 }
 
 impl DoneOrResultTooLargeOrRowOrRowLimitExceeded {
+    /// Borrow the `Row` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_row(&self) -> AnonStruct6020798da82f3849 {
+    pub unsafe fn borrow_payload_row_unchecked(&self) -> &AnonStruct6020798da82f3849 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct6020798da82f3849) }
+    }
+
+    /// Borrow the `Row` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_row_unchecked(&self) -> &AnonStruct6020798da82f3849 {
+        unsafe { &*(&self.payload.row as *const core::mem::ManuallyDrop<AnonStruct6020798da82f3849> as *const AnonStruct6020798da82f3849) }
+    }
+
+    /// Move the `Row` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_row_unchecked(&mut self) -> AnonStruct6020798da82f3849 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct6020798da82f3849) }
     }
 
+    /// Move the `Row` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_row(&self) -> AnonStruct6020798da82f3849 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.row) }
+    pub unsafe fn take_payload_row_unchecked(&mut self) -> AnonStruct6020798da82f3849 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.row) }
     }
 
 }
@@ -5097,24 +7394,76 @@ pub struct HostSqliteBeginResult {
 }
 
 impl HostSqliteBeginResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteBeginResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -5172,14 +7521,40 @@ pub struct HostSqliteTxnFinishResult {
 }
 
 impl HostSqliteTxnFinishResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteTxnFinishResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteTxnFinishResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &AnonStruct22cf486058afc711 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<AnonStruct22cf486058afc711> as *const AnonStruct22cf486058afc711) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteTxnFinishResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct22cf486058afc711) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostSqliteTxnFinishResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> AnonStruct22cf486058afc711 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> AnonStruct22cf486058afc711 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -5237,14 +7612,40 @@ pub struct HostStdoutLineResult {
 }
 
 impl HostStdoutLineResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStdoutLineResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStdoutLineResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStdoutLineResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStdoutLineResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -5302,14 +7703,40 @@ pub struct HostStderrLineResult {
 }
 
 impl HostStderrLineResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStderrLineResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> IOErr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStderrLineResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &IOErr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<IOErr> as *const IOErr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStderrLineResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostStderrLineResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> IOErr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -5367,24 +7794,76 @@ pub struct HostTcpConnectResult {
 }
 
 impl HostTcpConnectResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> RocStr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> *mut u64 {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(self.payload.as_ptr() as *const *mut u64) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &*mut u64 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<*mut u64> as *const *mut u64) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const *mut u64) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpConnectResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> *mut u64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> *mut u64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -5442,24 +7921,76 @@ pub struct HostTcpReadExactlyResult {
 }
 
 impl HostTcpReadExactlyResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> RocStr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(self.payload.as_ptr() as *const RocListWith<u8, false>) }
+    }
+
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Ok` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &RocListWith<u8, false> {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<RocListWith<u8, false>> as *const RocListWith<u8, false>) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocListWith<u8, false>) }
     }
 
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpReadExactlyResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> RocListWith<u8, false> {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> RocListWith<u8, false> {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
@@ -5517,14 +8048,40 @@ pub struct HostTcpWriteResult {
 }
 
 impl HostTcpWriteResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpWriteResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> RocStr {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpWriteResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpWriteResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `HostTcpWriteResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> RocStr {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -5554,7 +8111,7 @@ pub enum InitForHostResultTag {
 #[derive(Clone, Copy)]
 pub union InitForHostResultPayload {
     pub err: core::mem::ManuallyDrop<i64>,
-    pub ok: core::mem::ManuallyDrop<AnonStruct52d80daf3d40fc9f>,
+    pub ok: core::mem::ManuallyDrop<AnonStruct60bc4208e250c775>,
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -5568,7 +8125,7 @@ pub struct InitForHostResultPayloadAlignment;
 #[derive(Clone, Copy)]
 pub struct InitForHostResult {
     pub _payload_alignment: [InitForHostResultPayloadAlignment; 0],
-    pub payload: [u8; 208],
+    pub payload: [u8; 216],
     pub tag: InitForHostResultTag,
 }
 
@@ -5582,40 +8139,424 @@ pub struct InitForHostResult {
 }
 
 impl InitForHostResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> i64 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &i64 {
+        unsafe { &*(self.payload.as_ptr() as *const i64) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &i64 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<i64> as *const i64) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> i64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i64) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> i64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> i64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Ok` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_ok(&self) -> AnonStruct52d80daf3d40fc9f {
-        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct52d80daf3d40fc9f) }
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct60bc4208e250c775 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct60bc4208e250c775) }
     }
 
+    /// Borrow the `Ok` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Ok` and the payload must still be initialized.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_ok(&self) -> AnonStruct52d80daf3d40fc9f {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    pub unsafe fn borrow_payload_ok_unchecked(&self) -> &AnonStruct60bc4208e250c775 {
+        unsafe { &*(&self.payload.ok as *const core::mem::ManuallyDrop<AnonStruct60bc4208e250c775> as *const AnonStruct60bc4208e250c775) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct60bc4208e250c775 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct60bc4208e250c775) }
+    }
+
+    /// Move the `Ok` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InitForHostResultTag::Ok`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_ok_unchecked(&mut self) -> AnonStruct60bc4208e250c775 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ok) }
     }
 
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 296, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 304, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 288, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 296, "InitForHostResult tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 216, "InitForHostResult size mismatch");
+const _: () = assert!(core::mem::size_of::<InitForHostResult>() == 224, "InitForHostResult size mismatch");
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<InitForHostResult>() == 8, "InitForHostResult alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 208, "InitForHostResult tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(InitForHostResult, tag) == 216, "InitForHostResult tag offset mismatch");
+
+/// Tag discriminant for InternalServer.OutcomeToHost.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InternalServerOutcomeToHostTag {
+    File = 0,
+    Ordinary = 1,
+    Stream = 2,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union InternalServerOutcomeToHostPayload {
+    pub file: core::mem::ManuallyDrop<AnonStruct49a217fc2950a160>,
+    pub ordinary: core::mem::ManuallyDrop<AnonStruct6f3dea2f169284fc>,
+    pub stream: core::mem::ManuallyDrop<RocErasedCallable>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct InternalServerOutcomeToHostPayloadAlignment;
+
+/// Tag union: InternalServer.OutcomeToHost
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct InternalServerOutcomeToHost {
+    pub _payload_alignment: [InternalServerOutcomeToHostPayloadAlignment; 0],
+    pub payload: [u8; 44],
+    pub tag: InternalServerOutcomeToHostTag,
+}
+
+/// Tag union: InternalServer.OutcomeToHost
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct InternalServerOutcomeToHost {
+    pub payload: InternalServerOutcomeToHostPayload,
+    pub tag: InternalServerOutcomeToHostTag,
+}
+
+impl InternalServerOutcomeToHost {
+    /// Borrow the `File` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::File` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_file_unchecked(&self) -> &AnonStruct49a217fc2950a160 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct49a217fc2950a160) }
+    }
+
+    /// Borrow the `File` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::File` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_file_unchecked(&self) -> &AnonStruct49a217fc2950a160 {
+        unsafe { &*(&self.payload.file as *const core::mem::ManuallyDrop<AnonStruct49a217fc2950a160> as *const AnonStruct49a217fc2950a160) }
+    }
+
+    /// Move the `File` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::File`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_file_unchecked(&mut self) -> AnonStruct49a217fc2950a160 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct49a217fc2950a160) }
+    }
+
+    /// Move the `File` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::File`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_file_unchecked(&mut self) -> AnonStruct49a217fc2950a160 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.file) }
+    }
+
+    /// Borrow the `Ordinary` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Ordinary` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_ordinary_unchecked(&self) -> &AnonStruct6f3dea2f169284fc {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct6f3dea2f169284fc) }
+    }
+
+    /// Borrow the `Ordinary` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Ordinary` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_ordinary_unchecked(&self) -> &AnonStruct6f3dea2f169284fc {
+        unsafe { &*(&self.payload.ordinary as *const core::mem::ManuallyDrop<AnonStruct6f3dea2f169284fc> as *const AnonStruct6f3dea2f169284fc) }
+    }
+
+    /// Move the `Ordinary` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Ordinary`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_ordinary_unchecked(&mut self) -> AnonStruct6f3dea2f169284fc {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct6f3dea2f169284fc) }
+    }
+
+    /// Move the `Ordinary` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Ordinary`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_ordinary_unchecked(&mut self) -> AnonStruct6f3dea2f169284fc {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.ordinary) }
+    }
+
+    /// Borrow the `Stream` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Stream` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_stream_unchecked(&self) -> &RocErasedCallable {
+        unsafe { &*(self.payload.as_ptr() as *const RocErasedCallable) }
+    }
+
+    /// Borrow the `Stream` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Stream` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_stream_unchecked(&self) -> &RocErasedCallable {
+        unsafe { &*(&self.payload.stream as *const core::mem::ManuallyDrop<RocErasedCallable> as *const RocErasedCallable) }
+    }
+
+    /// Move the `Stream` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Stream`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_stream_unchecked(&mut self) -> RocErasedCallable {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocErasedCallable) }
+    }
+
+    /// Move the `Stream` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `InternalServerOutcomeToHostTag::Stream`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_stream_unchecked(&mut self) -> RocErasedCallable {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.stream) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<InternalServerOutcomeToHost>() == 88, "InternalServerOutcomeToHost size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<InternalServerOutcomeToHost>() == 8, "InternalServerOutcomeToHost alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(InternalServerOutcomeToHost, tag) == 80, "InternalServerOutcomeToHost tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<InternalServerOutcomeToHost>() == 48, "InternalServerOutcomeToHost size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<InternalServerOutcomeToHost>() == 8, "InternalServerOutcomeToHost alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(InternalServerOutcomeToHost, tag) == 44, "InternalServerOutcomeToHost tag offset mismatch");
+
+/// Tag discriminant for Sse.StepToHost.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SseStepToHostTag {
+    EmitToHost = 0,
+    EndToHost = 1,
+    ErrorToHost = 2,
+    WaitToHost = 3,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union SseStepToHostPayload {
+    pub emit_to_host: core::mem::ManuallyDrop<AnonStruct9b1cf2b6babfaece>,
+    pub end_to_host: [u8; 0],
+    pub error_to_host: core::mem::ManuallyDrop<RocStr>,
+    pub wait_to_host: core::mem::ManuallyDrop<AnonStructF3b0d79455c5462>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(8))]
+#[derive(Clone, Copy)]
+pub struct SseStepToHostPayloadAlignment;
+
+/// Tag union: Sse.StepToHost
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SseStepToHost {
+    pub _payload_alignment: [SseStepToHostPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: SseStepToHostTag,
+}
+
+/// Tag union: Sse.StepToHost
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SseStepToHost {
+    pub payload: SseStepToHostPayload,
+    pub tag: SseStepToHostTag,
+}
+
+impl SseStepToHost {
+    /// Borrow the `EmitToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::EmitToHost` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_emit_to_host_unchecked(&self) -> &AnonStruct9b1cf2b6babfaece {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStruct9b1cf2b6babfaece) }
+    }
+
+    /// Borrow the `EmitToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::EmitToHost` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_emit_to_host_unchecked(&self) -> &AnonStruct9b1cf2b6babfaece {
+        unsafe { &*(&self.payload.emit_to_host as *const core::mem::ManuallyDrop<AnonStruct9b1cf2b6babfaece> as *const AnonStruct9b1cf2b6babfaece) }
+    }
+
+    /// Move the `EmitToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::EmitToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_emit_to_host_unchecked(&mut self) -> AnonStruct9b1cf2b6babfaece {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStruct9b1cf2b6babfaece) }
+    }
+
+    /// Move the `EmitToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::EmitToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_emit_to_host_unchecked(&mut self) -> AnonStruct9b1cf2b6babfaece {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.emit_to_host) }
+    }
+
+    /// Borrow the `ErrorToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::ErrorToHost` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_error_to_host_unchecked(&self) -> &RocStr {
+        unsafe { &*(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Borrow the `ErrorToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::ErrorToHost` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_error_to_host_unchecked(&self) -> &RocStr {
+        unsafe { &*(&self.payload.error_to_host as *const core::mem::ManuallyDrop<RocStr> as *const RocStr) }
+    }
+
+    /// Move the `ErrorToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::ErrorToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_error_to_host_unchecked(&mut self) -> RocStr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const RocStr) }
+    }
+
+    /// Move the `ErrorToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::ErrorToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_error_to_host_unchecked(&mut self) -> RocStr {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.error_to_host) }
+    }
+
+    /// Borrow the `WaitToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::WaitToHost` and the payload must still be initialized.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn borrow_payload_wait_to_host_unchecked(&self) -> &AnonStructF3b0d79455c5462 {
+        unsafe { &*(self.payload.as_ptr() as *const AnonStructF3b0d79455c5462) }
+    }
+
+    /// Borrow the `WaitToHost` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::WaitToHost` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_wait_to_host_unchecked(&self) -> &AnonStructF3b0d79455c5462 {
+        unsafe { &*(&self.payload.wait_to_host as *const core::mem::ManuallyDrop<AnonStructF3b0d79455c5462> as *const AnonStructF3b0d79455c5462) }
+    }
+
+    /// Move the `WaitToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::WaitToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_wait_to_host_unchecked(&mut self) -> AnonStructF3b0d79455c5462 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructF3b0d79455c5462) }
+    }
+
+    /// Move the `WaitToHost` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `SseStepToHostTag::WaitToHost`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn take_payload_wait_to_host_unchecked(&mut self) -> AnonStructF3b0d79455c5462 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.wait_to_host) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<SseStepToHost>() == 48, "SseStepToHost size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<SseStepToHost>() == 8, "SseStepToHost alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(SseStepToHost, tag) == 40, "SseStepToHost tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<SseStepToHost>() == 32, "SseStepToHost size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<SseStepToHost>() == 8, "SseStepToHost alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(SseStepToHost, tag) == 24, "SseStepToHost tag offset mismatch");
 
 /// Tag discriminant for Try.
 #[repr(u8)]
@@ -5657,14 +8598,40 @@ pub struct ShutdownForHostResult {
 }
 
 impl ShutdownForHostResult {
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ShutdownForHostResultTag::Err` and the payload must still be initialized.
     #[cfg(target_pointer_width = "32")]
-    pub fn payload_err(&self) -> i64 {
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &i64 {
+        unsafe { &*(self.payload.as_ptr() as *const i64) }
+    }
+
+    /// Borrow the `Err` payload without creating another owner.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ShutdownForHostResultTag::Err` and the payload must still be initialized.
+    #[cfg(not(target_pointer_width = "32"))]
+    pub unsafe fn borrow_payload_err_unchecked(&self) -> &i64 {
+        unsafe { &*(&self.payload.err as *const core::mem::ManuallyDrop<i64> as *const i64) }
+    }
+
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ShutdownForHostResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> i64 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i64) }
     }
 
+    /// Move the `Err` payload out of one owned tag-union shell.
+    ///
+    /// # Safety
+    /// `self.tag` must be `ShutdownForHostResultTag::Err`. After this call, `self` is logically uninitialized and must not be read or destroyed.
     #[cfg(not(target_pointer_width = "32"))]
-    pub fn payload_err(&self) -> i64 {
-        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    pub unsafe fn take_payload_err_unchecked(&mut self) -> i64 {
+        unsafe { core::mem::ManuallyDrop::take(&mut self.payload.err) }
     }
 
 }
@@ -6906,16 +9873,19 @@ pub type HostTcpReadUntilResultTag = HostTcpReadExactlyResultTag;
 pub type HostTcpReadUpToResult = HostTcpReadExactlyResult;
 pub type HostTcpReadUpToResultPayload = HostTcpReadExactlyResultPayload;
 pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
-pub type InitForHostOk = AnonStruct52d80daf3d40fc9f;
-pub type InitForHostOkConfig = AnonStruct91e3ec6515967e3a;
+pub type InitForHostOk = AnonStruct60bc4208e250c775;
+pub type InitForHostOkConfig = AnonStruct1ff4122d63c5f5fd;
 pub type InitForHostOkConfigFileRoots = AnonStruct3b01e35488cb00dc;
 pub type InitForHostOkConfigNativeFileRoutes = AnonStructFf6f93028827ced0;
 pub type InitForHostOkConfigReadinessRoutes = AnonStruct88f5430c7a4d7d9d;
 pub type InitForHostOkConfigWritableRoots = AnonStruct164d87d4a7b4f044;
 pub type RespondForHostArg0 = AnonStruct66bd3eb5a5fde7bc;
 pub type RespondForHostArg0Headers = AnonStruct82a96c5d55d63488;
-pub type RespondForHost = AnonStructAeceb9ea017a78f4;
-pub type RespondForHostHeaders = AnonStruct82a96c5d55d63488;
+pub type InternalServerOutcomeToHostFile = AnonStruct49a217fc2950a160;
+pub type InternalServerOutcomeToHostOrdinary = AnonStruct6f3dea2f169284fc;
+pub type InternalServerOutcomeToHostOrdinaryHeaders = AnonStruct82a96c5d55d63488;
+pub type SseStepToHostEmitToHost = AnonStruct9b1cf2b6babfaece;
+pub type SseStepToHostWaitToHost = AnonStructF3b0d79455c5462;
 pub type ShutdownForHostArg0 = AnonStruct628b43fd33b27733;
 
 // Generated Refcount Helpers
@@ -6926,11 +9896,11 @@ impl HostCmdExecExitCodeResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostCmdExecExitCodeResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostCmdExecExitCodeResultTag::Ok => {},
@@ -6947,7 +9917,7 @@ impl HostCmdExecExitCodeResult {
         let _ = amount;
         match value.tag {
             HostCmdExecExitCodeResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostCmdExecExitCodeResultTag::Ok => {},
@@ -6961,11 +9931,11 @@ impl FailedToGetExitCodeOrSaturatedOrTimeout {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode => {
-                let payload = value.payload_failed_to_get_exit_code();
+                let payload = unsafe { value.take_payload_failed_to_get_exit_code_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             FailedToGetExitCodeOrSaturatedOrTimeoutTag::Saturated => {},
@@ -6983,7 +9953,7 @@ impl FailedToGetExitCodeOrSaturatedOrTimeout {
         let _ = amount;
         match value.tag {
             FailedToGetExitCodeOrSaturatedOrTimeoutTag::FailedToGetExitCode => {
-                let payload = value.payload_failed_to_get_exit_code();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_failed_to_get_exit_code_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             FailedToGetExitCodeOrSaturatedOrTimeoutTag::Saturated => {},
@@ -6998,7 +9968,7 @@ impl HostIOErr {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostIOErrTag::AlreadyExists => {},
@@ -7006,7 +9976,7 @@ impl HostIOErr {
             HostIOErrTag::Interrupted => {},
             HostIOErrTag::NotFound => {},
             HostIOErrTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { value.take_payload_other_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostIOErrTag::OutOfMemory => {},
@@ -7029,7 +9999,7 @@ impl HostIOErr {
             HostIOErrTag::Interrupted => {},
             HostIOErrTag::NotFound => {},
             HostIOErrTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_other_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostIOErrTag::OutOfMemory => {},
@@ -7088,19 +10058,19 @@ impl UnixBytesOrUtf8OrWindowsU16s {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes => {
-                let payload = value.payload_unix_bytes();
+                let payload = unsafe { value.take_payload_unix_bytes_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             UnixBytesOrUtf8OrWindowsU16sTag::Utf8 => {
-                let payload = value.payload_utf8();
+                let payload = unsafe { value.take_payload_utf8_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s => {
-                let payload = value.payload_windows_u16s();
+                let payload = unsafe { value.take_payload_windows_u16s_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7116,15 +10086,15 @@ impl UnixBytesOrUtf8OrWindowsU16s {
         let _ = amount;
         match value.tag {
             UnixBytesOrUtf8OrWindowsU16sTag::UnixBytes => {
-                let payload = value.payload_unix_bytes();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_unix_bytes_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             UnixBytesOrUtf8OrWindowsU16sTag::Utf8 => {
-                let payload = value.payload_utf8();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_utf8_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             UnixBytesOrUtf8OrWindowsU16sTag::WindowsU16s => {
-                let payload = value.payload_windows_u16s();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_windows_u16s_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7160,12 +10130,12 @@ impl InheritOrSet {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             InheritOrSetTag::Inherit => {},
             InheritOrSetTag::Set => {
-                let payload = value.payload_set();
+                let payload = unsafe { value.take_payload_set_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7182,7 +10152,7 @@ impl InheritOrSet {
         match value.tag {
             InheritOrSetTag::Inherit => {},
             InheritOrSetTag::Set => {
-                let payload = value.payload_set();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_set_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7195,15 +10165,15 @@ impl HostCmdExecOutputResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostCmdExecOutputResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostCmdExecOutputResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7219,11 +10189,11 @@ impl HostCmdExecOutputResult {
         let _ = amount;
         match value.tag {
             HostCmdExecOutputResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostCmdExecOutputResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7236,24 +10206,24 @@ impl FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooL
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode => {
-                let payload = value.payload_failed_to_get_exit_code();
+                let payload = unsafe { value.take_payload_failed_to_get_exit_code_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode => {
-                let payload = value.payload_non_zero_exit_code();
+                let payload = unsafe { value.take_payload_non_zero_exit_code_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Saturated => {},
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge => {
-                let payload = value.payload_stderr_too_large();
+                let payload = unsafe { value.take_payload_stderr_too_large_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge => {
-                let payload = value.payload_stdout_too_large();
+                let payload = unsafe { value.take_payload_stdout_too_large_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Timeout => {},
@@ -7270,20 +10240,20 @@ impl FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooL
         let _ = amount;
         match value.tag {
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::FailedToGetExitCode => {
-                let payload = value.payload_failed_to_get_exit_code();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_failed_to_get_exit_code_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::NonZeroExitCode => {
-                let payload = value.payload_non_zero_exit_code();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_non_zero_exit_code_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Saturated => {},
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StderrTooLarge => {
-                let payload = value.payload_stderr_too_large();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_stderr_too_large_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::StdoutTooLarge => {
-                let payload = value.payload_stdout_too_large();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_stdout_too_large_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             FailedToGetExitCodeOrNonZeroExitCodeOrSaturatedOrStderrTooLargeOrStdoutTooLargeOrTimeoutTag::Timeout => {},
@@ -7297,7 +10267,7 @@ impl IOErr {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             IOErrTag::AlreadyExists => {},
@@ -7305,7 +10275,7 @@ impl IOErr {
             IOErrTag::Interrupted => {},
             IOErrTag::NotFound => {},
             IOErrTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { value.take_payload_other_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             IOErrTag::OutOfMemory => {},
@@ -7328,7 +10298,7 @@ impl IOErr {
             IOErrTag::Interrupted => {},
             IOErrTag::NotFound => {},
             IOErrTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_other_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             IOErrTag::OutOfMemory => {},
@@ -7413,11 +10383,11 @@ impl HostDirCreateResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostDirCreateResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostDirCreateResultTag::Ok => {},
@@ -7434,7 +10404,7 @@ impl HostDirCreateResult {
         let _ = amount;
         match value.tag {
             HostDirCreateResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostDirCreateResultTag::Ok => {},
@@ -7471,15 +10441,15 @@ impl HostDirListResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostDirListResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostDirListResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 {
                     let list = payload;
                     if list.has_one_ref() {
@@ -7504,11 +10474,11 @@ impl HostDirListResult {
         let _ = amount;
         match value.tag {
             HostDirListResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostDirListResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7521,15 +10491,15 @@ impl HostEnvVarResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostEnvVarResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostEnvVarResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7545,11 +10515,11 @@ impl HostEnvVarResult {
         let _ = amount;
         match value.tag {
             HostEnvVarResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostEnvVarResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7562,15 +10532,15 @@ impl EnvErrOrVarNotFound {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             EnvErrOrVarNotFoundTag::EnvErr => {
-                let payload = value.payload_env_err();
+                let payload = unsafe { value.take_payload_env_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             EnvErrOrVarNotFoundTag::VarNotFound => {
-                let payload = value.payload_var_not_found();
+                let payload = unsafe { value.take_payload_var_not_found_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7586,11 +10556,11 @@ impl EnvErrOrVarNotFound {
         let _ = amount;
         match value.tag {
             EnvErrOrVarNotFoundTag::EnvErr => {
-                let payload = value.payload_env_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_env_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             EnvErrOrVarNotFoundTag::VarNotFound => {
-                let payload = value.payload_var_not_found();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_var_not_found_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7603,15 +10573,15 @@ impl HostEnvCwdUnixResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostEnvCwdUnixResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostEnvCwdUnixResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7627,11 +10597,11 @@ impl HostEnvCwdUnixResult {
         let _ = amount;
         match value.tag {
             HostEnvCwdUnixResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostEnvCwdUnixResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7644,15 +10614,15 @@ impl HostEnvCwdWindowsResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostEnvCwdWindowsResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostEnvCwdWindowsResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7668,11 +10638,11 @@ impl HostEnvCwdWindowsResult {
         let _ = amount;
         match value.tag {
             HostEnvCwdWindowsResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostEnvCwdWindowsResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7708,15 +10678,15 @@ impl HostFileReadBytesResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileReadBytesResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileReadBytesResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7732,11 +10702,11 @@ impl HostFileReadBytesResult {
         let _ = amount;
         match value.tag {
             HostFileReadBytesResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileReadBytesResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7749,11 +10719,11 @@ impl HostFileDeleteResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileDeleteResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileDeleteResultTag::Ok => {},
@@ -7770,7 +10740,7 @@ impl HostFileDeleteResult {
         let _ = amount;
         match value.tag {
             HostFileDeleteResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileDeleteResultTag::Ok => {},
@@ -7784,15 +10754,15 @@ impl HostFileReadUtf8Result {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileReadUtf8ResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileReadUtf8ResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7808,11 +10778,11 @@ impl HostFileReadUtf8Result {
         let _ = amount;
         match value.tag {
             HostFileReadUtf8ResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileReadUtf8ResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -7825,15 +10795,15 @@ impl HostFileOpenReaderResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileOpenReaderResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileOpenReaderResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -7849,11 +10819,11 @@ impl HostFileOpenReaderResult {
         let _ = amount;
         match value.tag {
             HostFileOpenReaderResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileOpenReaderResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -7866,11 +10836,11 @@ impl HostFileSizeInBytesResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileSizeInBytesResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileSizeInBytesResultTag::Ok => {},
@@ -7887,7 +10857,7 @@ impl HostFileSizeInBytesResult {
         let _ = amount;
         match value.tag {
             HostFileSizeInBytesResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileSizeInBytesResultTag::Ok => {},
@@ -7901,11 +10871,11 @@ impl HostFileIsExecutableResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileIsExecutableResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileIsExecutableResultTag::Ok => {},
@@ -7922,7 +10892,7 @@ impl HostFileIsExecutableResult {
         let _ = amount;
         match value.tag {
             HostFileIsExecutableResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileIsExecutableResultTag::Ok => {},
@@ -7936,11 +10906,11 @@ impl HostFileTimeAccessedResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostFileTimeAccessedResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostFileTimeAccessedResultTag::Ok => {},
@@ -7957,7 +10927,7 @@ impl HostFileTimeAccessedResult {
         let _ = amount;
         match value.tag {
             HostFileTimeAccessedResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostFileTimeAccessedResultTag::Ok => {},
@@ -7971,15 +10941,15 @@ impl HostHttpSendRequestResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostHttpSendRequestResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostHttpSendRequestResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -7995,11 +10965,11 @@ impl HostHttpSendRequestResult {
         let _ = amount;
         match value.tag {
             HostHttpSendRequestResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostHttpSendRequestResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8012,15 +10982,15 @@ impl InvalidRequestOrTransport {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             InvalidRequestOrTransportTag::InvalidRequest => {
-                let payload = value.payload_invalid_request();
+                let payload = unsafe { value.take_payload_invalid_request_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             InvalidRequestOrTransportTag::Transport => {
-                let payload = value.payload_transport();
+                let payload = unsafe { value.take_payload_transport_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8036,11 +11006,11 @@ impl InvalidRequestOrTransport {
         let _ = amount;
         match value.tag {
             InvalidRequestOrTransportTag::InvalidRequest => {
-                let payload = value.payload_invalid_request();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_invalid_request_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             InvalidRequestOrTransportTag::Transport => {
-                let payload = value.payload_transport();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_transport_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8053,43 +11023,43 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Cancelled => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed => {
-                let payload = value.payload_connect_failed();
+                let payload = unsafe { value.take_payload_connect_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed => {
-                let payload = value.payload_dns_failed();
+                let payload = unsafe { value.take_payload_dns_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
-                let payload = value.payload_exchange_failed();
+                let payload = unsafe { value.take_payload_exchange_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse => {
-                let payload = value.payload_invalid_response();
+                let payload = unsafe { value.take_payload_invalid_response_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { value.take_payload_other_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
-                let payload = value.payload_response_body_failed();
+                let payload = unsafe { value.take_payload_response_body_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge => {
-                let payload = value.payload_response_too_large();
+                let payload = unsafe { value.take_payload_response_too_large_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Saturated => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Timeout => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed => {
-                let payload = value.payload_tls_failed();
+                let payload = unsafe { value.take_payload_tls_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8106,38 +11076,38 @@ impl CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInva
         match value.tag {
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Cancelled => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectFailed => {
-                let payload = value.payload_connect_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_connect_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ConnectionClosed => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::DnsFailed => {
-                let payload = value.payload_dns_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_dns_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ExchangeFailed => {
-                let payload = value.payload_exchange_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_exchange_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::InvalidResponse => {
-                let payload = value.payload_invalid_response();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_invalid_response_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Other => {
-                let payload = value.payload_other();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_other_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseBodyFailed => {
-                let payload = value.payload_response_body_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_response_body_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::ResponseTooLarge => {
-                let payload = value.payload_response_too_large();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_response_too_large_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Saturated => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::Timeout => {},
             CancelledOrConnectFailedOrConnectionClosedOrDnsFailedOrExchangeFailedOrInvalidResponseOrOtherOrResponseBodyFailedOrResponseTooLargeOrSaturatedOrTimeoutOrTlsFailedTag::TlsFailed => {
-                let payload = value.payload_tls_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_tls_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8310,15 +11280,15 @@ impl HostRequestBodyReadResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostRequestBodyReadResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostRequestBodyReadResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8334,11 +11304,11 @@ impl HostRequestBodyReadResult {
         let _ = amount;
         match value.tag {
             HostRequestBodyReadResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostRequestBodyReadResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8351,21 +11321,21 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Cancelled => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ClientDisconnected => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ConcurrentRead => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody => {
-                let payload = value.payload_invalid_body();
+                let payload = unsafe { value.take_payload_invalid_body_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::RequestFinished => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Stopping => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Timeout => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge => {
-                let payload = value.payload_too_large();
+                let payload = unsafe { value.take_payload_too_large_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8384,14 +11354,14 @@ impl CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinished
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ClientDisconnected => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::ConcurrentRead => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::InvalidBody => {
-                let payload = value.payload_invalid_body();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_invalid_body_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::RequestFinished => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Stopping => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::Timeout => {},
             CancelledOrClientDisconnectedOrConcurrentReadOrInvalidBodyOrRequestFinishedOrStoppingOrTimeoutOrTooLargeTag::TooLarge => {
-                let payload = value.payload_too_large();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_too_large_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8404,11 +11374,11 @@ impl ChunkOrEnd {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             ChunkOrEndTag::Chunk => {
-                let payload = value.payload_chunk();
+                let payload = unsafe { value.take_payload_chunk_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             ChunkOrEndTag::End => {},
@@ -8425,7 +11395,7 @@ impl ChunkOrEnd {
         let _ = amount;
         match value.tag {
             ChunkOrEndTag::Chunk => {
-                let payload = value.payload_chunk();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_chunk_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             ChunkOrEndTag::End => {},
@@ -8439,15 +11409,15 @@ impl HostRequestBodyReadAllResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostRequestBodyReadAllResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostRequestBodyReadAllResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8463,11 +11433,11 @@ impl HostRequestBodyReadAllResult {
         let _ = amount;
         match value.tag {
             HostRequestBodyReadAllResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostRequestBodyReadAllResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8480,15 +11450,15 @@ impl HostRequestBodyWriteFileResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostRequestBodyWriteFileResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostRequestBodyWriteFileResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8504,11 +11474,11 @@ impl HostRequestBodyWriteFileResult {
         let _ = amount;
         match value.tag {
             HostRequestBodyWriteFileResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostRequestBodyWriteFileResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8521,30 +11491,30 @@ impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationEx
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Cancelled => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed => {
-                let payload = value.payload_cleanup_failed();
+                let payload = unsafe { value.take_payload_cleanup_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ClientDisconnected => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ConcurrentRead => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::DestinationExists => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem => {
-                let payload = value.payload_filesystem();
+                let payload = unsafe { value.take_payload_filesystem_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody => {
-                let payload = value.payload_invalid_body();
+                let payload = unsafe { value.take_payload_invalid_body_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRelativeFile => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRoot => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PermissionDenied => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed => {
-                let payload = value.payload_publish_failed();
+                let payload = unsafe { value.take_payload_publish_failed_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::RequestFinished => {},
@@ -8553,7 +11523,7 @@ impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationEx
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::StorageFull => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Timeout => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge => {
-                let payload = value.payload_too_large();
+                let payload = unsafe { value.take_payload_too_large_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8570,25 +11540,25 @@ impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationEx
         match value.tag {
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Cancelled => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::CleanupFailed => {
-                let payload = value.payload_cleanup_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_cleanup_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ClientDisconnected => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::ConcurrentRead => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::DestinationExists => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Filesystem => {
-                let payload = value.payload_filesystem();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_filesystem_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidBody => {
-                let payload = value.payload_invalid_body();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_invalid_body_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRelativeFile => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::InvalidRoot => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PermissionDenied => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::PublishFailed => {
-                let payload = value.payload_publish_failed();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_publish_failed_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::RequestFinished => {},
@@ -8597,7 +11567,7 @@ impl CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationEx
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::StorageFull => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::Timeout => {},
             CancelledOrCleanupFailedOrClientDisconnectedOrConcurrentReadOrDestinationExistsOrFilesystemOrInvalidBodyOrInvalidRelativeFileOrInvalidRootOrPermissionDeniedOrPublishFailedOrRequestFinishedOrSaturatedOrStoppingOrStorageFullOrTimeoutOrTooLargeTag::TooLarge => {
-                let payload = value.payload_too_large();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_too_large_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8631,12 +11601,12 @@ impl NotComputedOrSha256Digest {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             NotComputedOrSha256DigestTag::NotComputed => {},
             NotComputedOrSha256DigestTag::Sha256Digest => {
-                let payload = value.payload_sha256digest();
+                let payload = unsafe { value.take_payload_sha256digest_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8653,7 +11623,7 @@ impl NotComputedOrSha256Digest {
         match value.tag {
             NotComputedOrSha256DigestTag::NotComputed => {},
             NotComputedOrSha256DigestTag::Sha256Digest => {
-                let payload = value.payload_sha256digest();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_sha256digest_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8666,12 +11636,12 @@ impl HostReadinessCreateResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostReadinessCreateResultTag::Err => {},
             HostReadinessCreateResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -8688,7 +11658,7 @@ impl HostReadinessCreateResult {
         match value.tag {
             HostReadinessCreateResultTag::Err => {},
             HostReadinessCreateResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -8701,11 +11671,11 @@ impl HostReadinessSetResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostReadinessSetResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostReadinessSetResultTag::Ok => {},
@@ -8722,7 +11692,7 @@ impl HostReadinessSetResult {
         let _ = amount;
         match value.tag {
             HostReadinessSetResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostReadinessSetResultTag::Ok => {},
@@ -8757,15 +11727,15 @@ impl HostPathTypeResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostPathTypeResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostPathTypeResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -8781,11 +11751,11 @@ impl HostPathTypeResult {
         let _ = amount;
         match value.tag {
             HostPathTypeResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostPathTypeResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -8821,15 +11791,15 @@ impl HostSqliteOpenResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteOpenResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteOpenResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -8845,11 +11815,11 @@ impl HostSqliteOpenResult {
         let _ = amount;
         match value.tag {
             HostSqliteOpenResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteOpenResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -8883,15 +11853,15 @@ impl HostSqlitePrepareResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqlitePrepareResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqlitePrepareResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -8907,11 +11877,11 @@ impl HostSqlitePrepareResult {
         let _ = amount;
         match value.tag {
             HostSqlitePrepareResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqlitePrepareResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -8924,15 +11894,15 @@ impl HostSqliteStartResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteStartResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteStartResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -8948,11 +11918,11 @@ impl HostSqliteStartResult {
         let _ = amount;
         match value.tag {
             HostSqliteStartResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteStartResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -8988,18 +11958,18 @@ impl BytesOrIntegerOrNullOrRealOrString {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             BytesOrIntegerOrNullOrRealOrStringTag::Bytes => {
-                let payload = value.payload_bytes();
+                let payload = unsafe { value.take_payload_bytes_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             BytesOrIntegerOrNullOrRealOrStringTag::Integer => {},
             BytesOrIntegerOrNullOrRealOrStringTag::Null => {},
             BytesOrIntegerOrNullOrRealOrStringTag::Real => {},
             BytesOrIntegerOrNullOrRealOrStringTag::String => {
-                let payload = value.payload_string();
+                let payload = unsafe { value.take_payload_string_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -9015,14 +11985,14 @@ impl BytesOrIntegerOrNullOrRealOrString {
         let _ = amount;
         match value.tag {
             BytesOrIntegerOrNullOrRealOrStringTag::Bytes => {
-                let payload = value.payload_bytes();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_bytes_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             BytesOrIntegerOrNullOrRealOrStringTag::Integer => {},
             BytesOrIntegerOrNullOrRealOrStringTag::Null => {},
             BytesOrIntegerOrNullOrRealOrStringTag::Real => {},
             BytesOrIntegerOrNullOrRealOrStringTag::String => {
-                let payload = value.payload_string();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_string_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -9035,15 +12005,15 @@ impl HostSqliteColumnsResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteColumnsResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteColumnsResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 {
                     let list = payload;
                     if list.has_one_ref() {
@@ -9068,11 +12038,11 @@ impl HostSqliteColumnsResult {
         let _ = amount;
         match value.tag {
             HostSqliteColumnsResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteColumnsResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -9085,15 +12055,15 @@ impl HostSqliteNextRowResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteNextRowResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteNextRowResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -9109,11 +12079,11 @@ impl HostSqliteNextRowResult {
         let _ = amount;
         match value.tag {
             HostSqliteNextRowResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteNextRowResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -9126,13 +12096,13 @@ impl DoneOrResultTooLargeOrRowOrRowLimitExceeded {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Done => {},
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::ResultTooLarge => {},
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row => {
-                let payload = value.payload_row();
+                let payload = unsafe { value.take_payload_row_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::RowLimitExceeded => {},
@@ -9151,7 +12121,7 @@ impl DoneOrResultTooLargeOrRowOrRowLimitExceeded {
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Done => {},
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::ResultTooLarge => {},
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::Row => {
-                let payload = value.payload_row();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_row_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             DoneOrResultTooLargeOrRowOrRowLimitExceededTag::RowLimitExceeded => {},
@@ -9195,15 +12165,15 @@ impl HostSqliteBeginResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteBeginResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteBeginResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -9219,11 +12189,11 @@ impl HostSqliteBeginResult {
         let _ = amount;
         match value.tag {
             HostSqliteBeginResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteBeginResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -9236,11 +12206,11 @@ impl HostSqliteTxnFinishResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostSqliteTxnFinishResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostSqliteTxnFinishResultTag::Ok => {},
@@ -9257,7 +12227,7 @@ impl HostSqliteTxnFinishResult {
         let _ = amount;
         match value.tag {
             HostSqliteTxnFinishResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostSqliteTxnFinishResultTag::Ok => {},
@@ -9271,11 +12241,11 @@ impl HostStdoutLineResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostStdoutLineResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostStdoutLineResultTag::Ok => {},
@@ -9292,7 +12262,7 @@ impl HostStdoutLineResult {
         let _ = amount;
         match value.tag {
             HostStdoutLineResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostStdoutLineResultTag::Ok => {},
@@ -9306,11 +12276,11 @@ impl HostStderrLineResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostStderrLineResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostStderrLineResultTag::Ok => {},
@@ -9327,7 +12297,7 @@ impl HostStderrLineResult {
         let _ = amount;
         match value.tag {
             HostStderrLineResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostStderrLineResultTag::Ok => {},
@@ -9341,15 +12311,15 @@ impl HostTcpConnectResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostTcpConnectResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostTcpConnectResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { decref_box_with(payload as RocBox, core::mem::align_of::<u64>(), false, None, roc_host); }
             },
         }
@@ -9365,11 +12335,11 @@ impl HostTcpConnectResult {
         let _ = amount;
         match value.tag {
             HostTcpConnectResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostTcpConnectResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { incref_box(payload as RocBox, amount); }
             },
         }
@@ -9382,15 +12352,15 @@ impl HostTcpReadExactlyResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostTcpReadExactlyResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostTcpReadExactlyResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -9406,11 +12376,11 @@ impl HostTcpReadExactlyResult {
         let _ = amount;
         match value.tag {
             HostTcpReadExactlyResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostTcpReadExactlyResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
@@ -9423,11 +12393,11 @@ impl HostTcpWriteResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             HostTcpWriteResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { value.take_payload_err_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
             HostTcpWriteResultTag::Ok => {},
@@ -9444,7 +12414,7 @@ impl HostTcpWriteResult {
         let _ = amount;
         match value.tag {
             HostTcpWriteResultTag::Err => {
-                let payload = value.payload_err();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_err_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
             HostTcpWriteResultTag::Ok => {},
@@ -9481,12 +12451,12 @@ impl InitForHostResult {
     /// # Safety
     /// `self` must own one live Roc reference for each refcounted payload.
     pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
+        let mut value = self;
         let _ = roc_host;
         match value.tag {
             InitForHostResultTag::Err => {},
             InitForHostResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { value.take_payload_ok_unchecked() };
                 unsafe { payload.decref(roc_host); }
             },
         }
@@ -9503,14 +12473,14 @@ impl InitForHostResult {
         match value.tag {
             InitForHostResultTag::Err => {},
             InitForHostResultTag::Ok => {
-                let payload = value.payload_ok();
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ok_unchecked()) };
                 unsafe { payload.incref(amount); }
             },
         }
     }
 }
 
-impl AnonStruct52d80daf3d40fc9f {
+impl AnonStruct60bc4208e250c775 {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -9533,7 +12503,7 @@ impl AnonStruct52d80daf3d40fc9f {
     }
 }
 
-impl AnonStruct91e3ec6515967e3a {
+impl AnonStruct1ff4122d63c5f5fd {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -9755,7 +12725,81 @@ impl AnonStruct66bd3eb5a5fde7bc {
     }
 }
 
-impl AnonStructAeceb9ea017a78f4 {
+impl InternalServerOutcomeToHost {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let mut value = self;
+        let _ = roc_host;
+        match value.tag {
+            InternalServerOutcomeToHostTag::File => {
+                let payload = unsafe { value.take_payload_file_unchecked() };
+                unsafe { payload.decref(roc_host); }
+            },
+            InternalServerOutcomeToHostTag::Ordinary => {
+                let payload = unsafe { value.take_payload_ordinary_unchecked() };
+                unsafe { payload.decref(roc_host); }
+            },
+            InternalServerOutcomeToHostTag::Stream => {
+                let payload = unsafe { value.take_payload_stream_unchecked() };
+                unsafe { decref_erased_callable(payload, roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            InternalServerOutcomeToHostTag::File => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_file_unchecked()) };
+                unsafe { payload.incref(amount); }
+            },
+            InternalServerOutcomeToHostTag::Ordinary => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_ordinary_unchecked()) };
+                unsafe { payload.incref(amount); }
+            },
+            InternalServerOutcomeToHostTag::Stream => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_stream_unchecked()) };
+                unsafe { incref_erased_callable(payload, amount); }
+            },
+        }
+    }
+}
+
+impl AnonStruct49a217fc2950a160 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.file_download_name.decref(roc_host); }
+        unsafe { value.file_relative.decref(roc_host); }
+        unsafe { value.file_root_id.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.file_download_name.incref(amount); }
+        unsafe { value.file_relative.incref(amount); }
+        unsafe { value.file_root_id.incref(amount); }
+    }
+}
+
+impl AnonStruct6f3dea2f169284fc {
     /// Recursively decrement Roc-owned fields.
     ///
     /// # Safety
@@ -9763,9 +12807,6 @@ impl AnonStructAeceb9ea017a78f4 {
     pub unsafe fn decref(self, roc_host: &RocHost) {
         let value = self;
         unsafe { value.body.decref(roc_host); }
-        unsafe { value.file_download_name.decref(roc_host); }
-        unsafe { value.file_relative.decref(roc_host); }
-        unsafe { value.file_root_id.decref(roc_host); }
         {
             let list = value.headers;
             if list.has_one_ref() {
@@ -9786,10 +12827,102 @@ impl AnonStructAeceb9ea017a78f4 {
     pub unsafe fn incref(self, amount: isize) {
         let value = self;
         unsafe { value.body.incref(amount); }
-        unsafe { value.file_download_name.incref(amount); }
-        unsafe { value.file_relative.incref(amount); }
-        unsafe { value.file_root_id.incref(amount); }
         unsafe { value.headers.incref(amount); }
+    }
+}
+
+impl SseStepToHost {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let mut value = self;
+        let _ = roc_host;
+        match value.tag {
+            SseStepToHostTag::EmitToHost => {
+                let payload = unsafe { value.take_payload_emit_to_host_unchecked() };
+                unsafe { payload.decref(roc_host); }
+            },
+            SseStepToHostTag::EndToHost => {},
+            SseStepToHostTag::ErrorToHost => {
+                let payload = unsafe { value.take_payload_error_to_host_unchecked() };
+                unsafe { payload.decref(roc_host); }
+            },
+            SseStepToHostTag::WaitToHost => {
+                let payload = unsafe { value.take_payload_wait_to_host_unchecked() };
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            SseStepToHostTag::EmitToHost => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_emit_to_host_unchecked()) };
+                unsafe { payload.incref(amount); }
+            },
+            SseStepToHostTag::EndToHost => {},
+            SseStepToHostTag::ErrorToHost => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_error_to_host_unchecked()) };
+                unsafe { payload.incref(amount); }
+            },
+            SseStepToHostTag::WaitToHost => {
+                let payload = unsafe { core::ptr::read(value.borrow_payload_wait_to_host_unchecked()) };
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl AnonStruct9b1cf2b6babfaece {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.item.decref(roc_host); }
+        unsafe { decref_erased_callable(value.source, roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.item.incref(amount); }
+        unsafe { incref_erased_callable(value.source, amount); }
+    }
+}
+
+impl AnonStructF3b0d79455c5462 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { decref_erased_callable(value.source, roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { incref_erased_callable(value.source, amount); }
     }
 }
 
@@ -10243,7 +13376,16 @@ unsafe extern "C" {
     pub fn roc_init_for_host() -> InitForHostResult;
 
     /// Entrypoint: respond_for_host!
-    pub fn roc_respond_for_host(arg0: AnonStruct66bd3eb5a5fde7bc, arg1: RocBox) -> AnonStructAeceb9ea017a78f4;
+    pub fn roc_respond_for_host(arg0: AnonStruct66bd3eb5a5fde7bc, arg1: RocBox) -> InternalServerOutcomeToHost;
+
+    /// Entrypoint: sse_advance_for_host!
+    pub fn roc_sse_advance_for_host(arg0: RocErasedCallable, arg1: u64) -> SseStepToHost;
+
+    /// Entrypoint: sse_drop_source_for_host!
+    pub fn roc_sse_drop_source_for_host(arg0: RocErasedCallable);
+
+    /// Entrypoint: sse_drop_step_for_host!
+    pub fn roc_sse_drop_step_for_host(arg0: SseStepToHost);
 
     /// Entrypoint: shutdown_for_host!
     pub fn roc_shutdown_for_host(arg0: AnonStruct628b43fd33b27733, arg1: RocBox) -> ShutdownForHostResult;

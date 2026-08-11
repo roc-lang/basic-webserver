@@ -4,7 +4,7 @@ use crate::compression::{
     apply_content_coding, encoded_etag, response_is_compressible, vary_on_accept_encoding,
     AcceptedEncodings, ContentCoding, ContentEncoder,
 };
-use crate::response::{empty_body, full_body, ServerResponse};
+use crate::response::{empty_body, full_body, ServerData, ServerResponse};
 use crate::shutdown::ActiveRequest;
 use crate::telemetry::{ActiveGaugeGuard, Metrics};
 use bytes::Bytes;
@@ -332,7 +332,7 @@ struct FileBody {
 }
 
 impl Body for FileBody {
-    type Data = Bytes;
+    type Data = ServerData;
     type Error = io::Error;
 
     fn poll_frame(
@@ -344,7 +344,7 @@ impl Body for FileBody {
                 if let Some(remaining) = &mut self.remaining {
                     *remaining = remaining.saturating_sub(bytes.len() as u64);
                 }
-                Poll::Ready(Some(Ok(Frame::data(bytes))))
+                Poll::Ready(Some(Ok(Frame::data(ServerData::from(bytes)))))
             }
             Poll::Ready(Some(Err(error))) => {
                 self.lease.take();

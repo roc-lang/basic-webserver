@@ -21,7 +21,7 @@ init! = ||
 		config: Server.with_limits(
 			Server.default_config,
 			{
-				max_connections: 512,
+				max_connections: 2048,
 				max_handlers: 64,
 				max_queued_handlers: 64,
 			},

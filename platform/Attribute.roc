@@ -89,4 +89,9 @@ Attribute := [Attribute(Str, Str)].{
 	## Set the HTML `hidden` attribute.
 	hidden : Str -> Attribute
 	hidden = |val| attribute("hidden", val)
+
+	## Disable a form control. HTML boolean attributes are enabled by their
+	## presence, so the canonical value is the empty string.
+	disabled : Attribute
+	disabled = attribute("disabled", "")
 }
