@@ -7,6 +7,8 @@ on:
     paths:
       - ".github/workflows/deploy-docs.yml"
       - "platform/**"
+      - "scripts/restore_release_docs.py"
+      # Legacy committed docs; drop with the `www` directory itself.
       - "www/**"
   workflow_dispatch:
 
@@ -25,6 +27,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     permissions:
+      contents: read
       pages: write
       id-token: write
 
@@ -38,10 +41,20 @@ jobs:
       - name: Install Roc
         uses: ./.github/actions/setup-roc
 
-      - name: Create Pages tree
+      # Releases up to 0.16.0 predate the `docs.tar.gz` release asset, and
+      # published releases are immutable, so their docs stay committed under
+      # `www`. Delete `www` and this step once 0.20.0 is released.
+      - name: Copy legacy committed docs
         run: |
           mkdir -p temp_docs
-          cp -R www/. temp_docs/
+          if [ -d www ]; then
+            cp -R www/. temp_docs/
+          fi
+
+      - name: Restore docs published with each release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/restore_release_docs.py temp_docs
 
       - name: Generate main branch docs
         env:

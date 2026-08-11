@@ -131,6 +131,21 @@ roc docs platform/main.roc --serve
 Open the local URL printed by Roc. The default output directory without
 `--serve` is `generated-docs/`.
 
+Generated documentation is not committed. Each release attaches a `docs.tar.gz`
+asset holding the documentation for that version, and the published site is
+rebuilt from those assets plus freshly generated `main` documentation:
+
+```sh
+python scripts/restore_release_docs.py temp_docs
+```
+
+This needs an authenticated GitHub CLI (`gh auth login`).
+
+The `www` directory holds documentation for releases up to 0.16.0, which
+predate the release asset and cannot be changed retroactively. It is copied
+into the published site alongside the restored archives, and is scheduled for
+deletion once 0.20.0 is released.
+
 ## Benchmarking
 
 Use the unified benchmark entrypoint for substituted-transport server invariants,
