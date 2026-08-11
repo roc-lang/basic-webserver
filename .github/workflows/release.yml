@@ -303,7 +303,7 @@ jobs:
         run: python scripts/test.py --operation compare --results-dir target/spec-results
 
   build-docs:
-    name: Validate release docs
+    name: Build docs archive
     needs: build
     runs-on: ubuntu-latest
 
@@ -337,6 +337,21 @@ jobs:
           docs_root: docs-site
           docs_version: ${{ needs.build.outputs.docs_version }}
 
+      # Published as a release asset so GitHub Pages can be rebuilt from the
+      # releases themselves instead of from docs committed to this repository.
+      - name: Archive versioned docs
+        env:
+          DOCS_VERSION: ${{ needs.build.outputs.docs_version }}
+        run: tar -czf docs.tar.gz -C docs-site "$DOCS_VERSION"
+
+      - name: Upload docs archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-docs
+          path: docs.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   publish-release:
     name: Publish GitHub release
     needs:
@@ -366,6 +381,11 @@ jobs:
           name: release-metadata
           path: .release
 
+      - name: Download docs archive
+        uses: actions/download-artifact@v8
+        with:
+          name: platform-docs
+
       - name: Make release notes
         uses: roc-lang/release-package/actions/make-release-notes@d2560ead9f724bfaabfbc8134b8895e120171064
         with:
@@ -377,6 +397,7 @@ jobs:
         uses: roc-lang/release-package/actions/publish-release@48ccc909bd8f6ba60feb1d33d8b6ac1dc1c7af36
         with:
           release_version: ${{ needs.build.outputs.release_version }}
+          additional_assets: docs.tar.gz
           github_token: ${{ github.token }}
 
   publish-docs:
@@ -422,55 +443,60 @@ jobs:
           --operation validate
           --platform-dependency declared
 
-      - name: Snapshot existing docs
-        uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064
-        with:
-          docs_root: www
-
-      - name: Generate release docs
-        env:
-          DOCS_URL_ROOT: /basic-webserver/${{ needs.build.outputs.docs_version }}
-          DOCS_VERSION: ${{ needs.build.outputs.docs_version }}
-        run: |
-          rm -rf "www/$DOCS_VERSION"
-          ROC_DOCS_URL_ROOT="$DOCS_URL_ROOT" roc docs \
-            --output="www/$DOCS_VERSION" \
-            platform/main.roc
-
-      - name: Update docs index
-        uses: roc-lang/release-package/actions/docs-index@d2560ead9f724bfaabfbc8134b8895e120171064
-        with:
-          docs_root: www
-          docs_version: ${{ needs.build.outputs.docs_version }}
-
-      - name: Validate docs
-        uses: roc-lang/release-package/actions/docs-validate@d2560ead9f724bfaabfbc8134b8895e120171064
-        with:
-          docs_root: www
-          docs_version: ${{ needs.build.outputs.docs_version }}
-
       - name: Open release follow-up PR
         uses: roc-lang/release-package/actions/create-followup-pr@d2560ead9f724bfaabfbc8134b8895e120171064
         with:
           release_version: ${{ needs.build.outputs.release_version }}
           paths: |
             examples
-            www
           branch_prefix: release-followup
           base_branch: ${{ github.event.repository.default_branch }}
-          commit_message: Update docs and examples for ${{ needs.build.outputs.release_version }}
-          pr_title: Update docs and examples for ${{ needs.build.outputs.release_version }}
+          commit_message: Update examples for ${{ needs.build.outputs.release_version }}
+          pr_title: Update examples for ${{ needs.build.outputs.release_version }}
           pr_body: |
             Release follow-up for ${{ needs.build.outputs.release_version }}.
 
-            Updates checked-in examples and versioned docs for the published
-            platform bundle.
+            Updates checked-in examples for the published platform bundle.
+            Versioned docs are published as a release asset, not committed.
           github_token: ${{ github.token }}
+
+      # Releases up to 0.16.0 predate the `docs.tar.gz` release asset, and
+      # published releases are immutable, so their docs stay committed under
+      # `www`. Delete `www` and this step once 0.20.0 is released.
+      - name: Copy legacy committed docs
+        run: |
+          mkdir -p docs-site
+          if [ -d www ]; then
+            cp -R www/. docs-site/
+          fi
+
+      - name: Snapshot existing docs
+        uses: roc-lang/release-package/actions/docs-snapshot@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: docs-site
+
+      - name: Restore docs published with each release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/restore_release_docs.py docs-site
+
+      - name: Update docs index
+        uses: roc-lang/release-package/actions/docs-index@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: docs-site
+          docs_version: ${{ needs.build.outputs.docs_version }}
+
+      # Also confirms this release's docs archive was published and restored.
+      - name: Validate docs
+        uses: roc-lang/release-package/actions/docs-validate@d2560ead9f724bfaabfbc8134b8895e120171064
+        with:
+          docs_root: docs-site
+          docs_version: ${{ needs.build.outputs.docs_version }}
 
       - name: Create Pages tree
         run: |
           mkdir -p temp_docs
-          cp -R www/. temp_docs/
+          cp -R docs-site/. temp_docs/
 
           # Keep /main live without committing a generated main snapshot.
           ROC_DOCS_URL_ROOT=/basic-webserver/main roc docs \
