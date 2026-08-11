@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROC_VERSION_FILE = ROOT / ".roc-version"
 NIGHTLY_TAG = re.compile(
-    r"^nightly-[0-9]{4}-[A-Za-z]+-[0-9]{2}-([0-9a-f]{7})$"
+    r"^nightly-[0-9]{4}-(?:[A-Za-z]+|[0-9]{2})-[0-9]{2}-([0-9a-f]{7})$"
 )
 
 

@@ -183,7 +183,7 @@ fn shifted_capacity(capacity: usize) -> usize {
 /// reference to the callee. The caller must not use or decref that ownership
 /// unit after the call. The callee consumes it exactly once, whether or not the
 /// result can reuse the allocation.
-pub type RocErasedCallableFn = extern "C" fn(*mut RocHost, *mut u8, *const u8, *mut u8, *mut u8);
+pub type RocErasedCallableFn = extern "C" fn(*mut RocHost, *mut u8, *const u8, *mut u8, *mut u8, *mut *const c_void);
 
 /// Final-drop callback for inline erased-callable captures.
 pub type RocErasedCallableOnDrop = extern "C" fn(*mut u8, *mut RocHost);
@@ -598,7 +598,7 @@ impl RocStr {
         }
         let rc = unsafe { (alloc_ptr as *mut AtomicIsize).sub(1) };
         if unsafe { (*rc).load(Ordering::Relaxed) } == 0 {
-            return; // REFCOUNT_STATIC_DATA — bytes are in read-only memory
+            return; // REFCOUNT_STATIC_DATA—bytes are in read-only memory
         }
         let prev = unsafe { (*rc).fetch_sub(1, Ordering::Release) };
         if prev == 1 {
@@ -839,7 +839,7 @@ impl<T, const ELEMENTS_REFCOUNTED: bool> RocListWith<T, ELEMENTS_REFCOUNTED> {
         let header_bytes = Self::header_bytes();
         let rc = unsafe { (alloc_ptr as *mut AtomicIsize).sub(1) };
         if unsafe { (*rc).load(Ordering::Relaxed) } == 0 {
-            return; // REFCOUNT_STATIC_DATA — elements are in read-only memory
+            return; // REFCOUNT_STATIC_DATA—elements are in read-only memory
         }
         let prev = unsafe { (*rc).fetch_sub(1, Ordering::Release) };
         if prev == 1 {

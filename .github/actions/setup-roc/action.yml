@@ -34,7 +34,7 @@ runs:
               exit 1
             fi
             nightly_tag="$(sed 's/\r$//' "$version_file")"
-            if [[ ! "$nightly_tag" =~ ^nightly-[0-9]{4}-[A-Za-z]+-[0-9]{2}-[0-9a-f]{7}$ ]]; then
+            if [[ ! "$nightly_tag" =~ ^nightly-[0-9]{4}-([A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$ ]]; then
               echo "Invalid Roc nightly tag in $version_file: $nightly_tag"
               exit 1
             fi
