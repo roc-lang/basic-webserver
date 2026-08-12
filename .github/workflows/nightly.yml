@@ -25,6 +25,8 @@ jobs:
           # This compatibility job deliberately tests beyond .roc-version.
           use-latest: "true"
 
+      - run: roc version
+
       # build.py cross-compiles the musl host with `zig cc`; without Zig the
       # build falls back to a musl gcc that the runner image does not have.
       - name: Install Zig
