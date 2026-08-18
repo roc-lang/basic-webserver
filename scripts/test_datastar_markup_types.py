@@ -16,36 +16,38 @@ HTTP_PACKAGE = (
 )
 
 
+# Each case pairs a probe expression with substrings its compiler output must
+# contain. Roc renders diagnostic titles lowercased, so title needles are too.
 CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "toggle-string-signal",
         'probe = DatastarMarkup.Signal.str("name").toggle()',
-        ("TYPE MISMATCH", "Signal(Str)", "toggle"),
+        ("type mismatch", "Signal(Str)", "toggle"),
     ),
     (
         "update-bool-with-string",
         'probe = DatastarMarkup.Signal.bool("enabled").update("yes")',
-        ("TYPE MISMATCH", "string literal", "Bool"),
+        ("type mismatch", "string literal", "Bool"),
     ),
     (
         "disable-with-string-expression",
         'probe = DatastarMarkup.Expr.str("enabled").disabled_when_true()',
-        ("TYPE MISMATCH", "Expr(Str)", "disabled_when_true"),
+        ("type mismatch", "Expr(Str)", "disabled_when_true"),
     ),
     (
         "bind-bool-to-text-input",
         'probe = DatastarMarkup.Signal.bool("enabled").text_input([])',
-        ("TYPE MISMATCH", "Signal(Bool)", "Signal(Str)", "text_input"),
+        ("type mismatch", "Signal(Bool)", "Signal(Str)", "text_input"),
     ),
     (
         "compare-different-expression-types",
         'probe = DatastarMarkup.Expr.str("one").equals(DatastarMarkup.Expr.bool(Bool.True))',
-        ("TYPE MISMATCH", "Expr(Str)", "Expr(Bool)"),
+        ("type mismatch", "Expr(Str)", "Expr(Bool)"),
     ),
     (
         "invalid-literal-route",
         'probe = DatastarMarkup.RequestTarget.get("relative/path")',
-        ("INVALID STRING", "absolute application paths"),
+        ("invalid string", "absolute application paths"),
     ),
     (
         "dynamic-unparsed-route",
@@ -56,17 +58,17 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
                 'probe = DatastarMarkup.RequestTarget.get(dynamic_path)',
             )
         ),
-        ("TYPE MISMATCH", "RoutePath", "Str"),
+        ("type mismatch", "RoutePath", "Str"),
     ),
     (
         "invalid-literal-signal-name",
         'probe = DatastarMarkup.Signal.bool("not-valid")',
-        ("INVALID STRING", "signal names must start"),
+        ("invalid string", "signal names must start"),
     ),
     (
         "invalid-literal-selector",
         'probe = DatastarMarkup.PatchTarget.css("")',
-        ("INVALID STRING", "selectors must be non-empty"),
+        ("invalid string", "selectors must be non-empty"),
     ),
     (
         "invalid-literal-element-id",
@@ -76,17 +78,17 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
                 'probe = "9 agents"',
             )
         ),
-        ("INVALID STRING", "element IDs must start"),
+        ("invalid string", "element IDs must start"),
     ),
     (
         "opaque-element-id-constructor",
         'probe = ElementId.("agents")',
-        ("OPAQUE", "ElementId"),
+        ("cannot use opaque nominal type", "ElementId"),
     ),
     (
         "view-transition-requires-fragment",
         'probe = DatastarMarkup.PatchTarget.css("#swap").replace_with_view_transition("<button></button>")',
-        ("TYPE MISMATCH", "Html.Fragment", "string literal"),
+        ("type mismatch", "Html.Fragment", "string literal"),
     ),
 )
 
