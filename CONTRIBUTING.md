@@ -47,8 +47,9 @@ python scripts/update_roc_version.py nightly-2026-08-13-2fdd90e
 
 A scheduled workflow,
 [`update_roc_nightly.yml`](.github/workflows/update_roc_nightly.yml), runs that
-script for the latest nightly on the `update-roc-nightly` branch, runs CI
-against it, and opens a pull request reporting whether that nightly passed.
+script for the latest nightly, pushes the result to the `update-roc-nightly`
+branch, runs CI with that nightly, and opens a pull request reporting whether
+it passed.
 
 ## Build and run locally
 

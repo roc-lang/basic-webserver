@@ -26,7 +26,6 @@ jobs:
     outputs:
       nightly-tag: ${{ steps.latest.outputs.nightly-tag }}
       changed: ${{ steps.bump.outputs.changed }}
-      branch: ${{ steps.bump.outputs.branch }}
     steps:
       - uses: actions/checkout@v7
 
@@ -44,8 +43,6 @@ jobs:
         env:
           NIGHTLY_TAG: ${{ steps.latest.outputs.nightly-tag }}
         run: |
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
           if [ "$NIGHTLY_TAG" = "$(<.roc-version)" ]; then
             echo "already pinned to $NIGHTLY_TAG, nothing to do"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -66,6 +63,8 @@ jobs:
           git commit --all --message "Update Roc nightly pin to $NIGHTLY_TAG"
           git push --force origin "$BRANCH"
 
+  # CI runs from the default branch and applies the same pin the bump job
+  # pushed, so this scheduled run never checks out code from another ref.
   test:
     needs: bump
     if: needs.bump.outputs.changed == 'true'
@@ -73,7 +72,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
     with:
-      ref: ${{ needs.bump.outputs.branch }}
+      roc-nightly: ${{ needs.bump.outputs.nightly-tag }}
 
   pull-request:
     name: open or update the pull request
