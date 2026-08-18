@@ -2,10 +2,6 @@ name: Install the pinned Roc compiler
 description: Install the exact new-compiler nightly selected by this repository
 
 inputs:
-  use-latest:
-    description: Install the latest nightly instead of the version in .roc-version
-    required: false
-    default: "false"
   with-source:
     description: Download the matching Roc source tree for glue validation
     required: false
@@ -17,34 +13,20 @@ runs:
     - name: Resolve the Roc nightly
       id: roc-version
       shell: bash
-      env:
-        USE_LATEST: ${{ inputs.use-latest }}
       run: |
         set -euo pipefail
 
-        case "$USE_LATEST" in
-          true)
-            nightly_tag=""
-            echo "Installing the latest Roc nightly"
-            ;;
-          false)
-            version_file="$GITHUB_WORKSPACE/.roc-version"
-            if [[ ! -f "$version_file" ]]; then
-              echo "Missing Roc version file: $version_file"
-              exit 1
-            fi
-            nightly_tag="$(sed 's/\r$//' "$version_file")"
-            if [[ ! "$nightly_tag" =~ ^nightly-[0-9]{4}-([A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$ ]]; then
-              echo "Invalid Roc nightly tag in $version_file: $nightly_tag"
-              exit 1
-            fi
-            echo "Installing Roc $nightly_tag from .roc-version"
-            ;;
-          *)
-            echo "use-latest must be true or false, got: $USE_LATEST"
-            exit 1
-            ;;
-        esac
+        version_file="$GITHUB_WORKSPACE/.roc-version"
+        if [[ ! -f "$version_file" ]]; then
+          echo "Missing Roc version file: $version_file"
+          exit 1
+        fi
+        nightly_tag="$(sed 's/\r$//' "$version_file")"
+        if [[ ! "$nightly_tag" =~ ^nightly-[0-9]{4}-([A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$ ]]; then
+          echo "Invalid Roc nightly tag in $version_file: $nightly_tag"
+          exit 1
+        fi
+        echo "Installing Roc $nightly_tag from .roc-version"
 
         printf 'nightly-tag=%s\n' "$nightly_tag" >> "$GITHUB_OUTPUT"
 
@@ -66,11 +48,7 @@ runs:
         if [[ -n "$TOKEN" ]]; then
           auth_header=(-H "Authorization: Bearer $TOKEN")
         fi
-        if [[ -n "$NIGHTLY_TAG" ]]; then
-          release_api="https://api.github.com/repos/roc-lang/nightlies/releases/tags/$NIGHTLY_TAG"
-        else
-          release_api="https://api.github.com/repos/roc-lang/nightlies/releases/latest"
-        fi
+        release_api="https://api.github.com/repos/roc-lang/nightlies/releases/tags/$NIGHTLY_TAG"
         source_url="$(
           curl -fsSL "${auth_header[@]}" "$release_api" |
             jq -er '.assets[] | select(.name | startswith("roc_nightly-source-")) | select(.name | endswith(".tar.gz")) | .browser_download_url'

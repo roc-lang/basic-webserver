@@ -58,6 +58,14 @@ python scripts/test_bundle.py --operation build-all --bundle-path BUNDLE --build
 python scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
 ```
 
+Pin a different Roc nightly in `.roc-version` and every example manifest
+(`--check` fails when they disagree, and runs as part of `test.py --operation
+validate`):
+```
+python scripts/update_roc_version.py nightly-2026-08-13-2fdd90e
+python scripts/update_roc_version.py --check
+```
+
 Regenerate the committed Rust glue after changing `platform/main.roc`'s
 `hosted`/`provides` blocks (needs a roc source checkout for `RustGlue.roc`):
 ```

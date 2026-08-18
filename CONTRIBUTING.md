@@ -35,10 +35,20 @@ for a distinct reusable workflow.
   MSVC and the Windows SDK.
 
 The exact Roc nightly used for development, CI, and releases is recorded in
-[`.roc-version`](.roc-version). The CI action in
+[`.roc-version`](.roc-version), and every `examples/` manifest repeats it in
+its `roc:` entry. The CI action in
 [`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml) installs
-that version. A separate scheduled workflow checks compatibility with the
-latest nightly without changing the release pin.
+that version, and `python scripts/test.py --operation validate` fails when a
+manifest drifts from it. Move both to another nightly with:
+
+```sh
+python scripts/update_roc_version.py nightly-2026-08-13-2fdd90e
+```
+
+A scheduled workflow,
+[`update_roc_nightly.yml`](.github/workflows/update_roc_nightly.yml), runs that
+script for the latest nightly on the `update-roc-nightly` branch, runs CI
+against it, and opens a pull request reporting whether that nightly passed.
 
 ## Build and run locally
 

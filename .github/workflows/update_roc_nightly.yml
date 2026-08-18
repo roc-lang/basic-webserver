@@ -1,0 +1,114 @@
+name: Update Roc nightly
+
+on:
+  schedule:
+    # Nightlies are published around 10:30 UTC, run after that.
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+# only one update run at a time, they all push to the same branch
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+# Do not add permissions here! Configure them at the job level!
+permissions: {}
+
+env:
+  BRANCH: update-roc-nightly
+
+jobs:
+  bump:
+    name: pin the latest nightly
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      nightly-tag: ${{ steps.latest.outputs.nightly-tag }}
+      changed: ${{ steps.bump.outputs.changed }}
+      branch: ${{ steps.bump.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get the latest nightly tag
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          nightly_tag="$(gh release view --repo roc-lang/nightlies --json tagName --jq .tagName)"
+          echo "latest nightly is $nightly_tag"
+          echo "nightly-tag=$nightly_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Update the pinned version
+        id: bump
+        env:
+          NIGHTLY_TAG: ${{ steps.latest.outputs.nightly-tag }}
+        run: |
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          if [ "$NIGHTLY_TAG" = "$(<.roc-version)" ]; then
+            echo "already pinned to $NIGHTLY_TAG, nothing to do"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python scripts/update_roc_version.py "$NIGHTLY_TAG"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push the branch
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          NIGHTLY_TAG: ${{ steps.latest.outputs.nightly-tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --create "$BRANCH"
+          git commit --all --message "Update Roc nightly pin to $NIGHTLY_TAG"
+          git push --force origin "$BRANCH"
+
+  test:
+    needs: bump
+    if: needs.bump.outputs.changed == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.bump.outputs.branch }}
+
+  pull-request:
+    name: open or update the pull request
+    needs: [bump, test]
+    if: always() && needs.bump.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_TAG: ${{ needs.bump.outputs.nightly-tag }}
+          TEST_RESULT: ${{ needs.test.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$TEST_RESULT" = "success" ]; then
+            status=":white_check_mark: CI passed with this nightly."
+          else
+            status=":x: CI did not pass with this nightly (\`$TEST_RESULT\`), this needs a look before merging."
+          fi
+
+          title="Update Roc nightly pin to $NIGHTLY_TAG"
+          body="$(printf '%s\n\n%s\n\n%s\n' \
+            "Updates \`.roc-version\` and all example manifests to [\`$NIGHTLY_TAG\`](https://github.com/roc-lang/nightlies/releases/tag/$NIGHTLY_TAG)." \
+            "$status See the [workflow run]($RUN_URL) for details." \
+            "This PR was created automatically by the \`Update Roc nightly\` workflow.")"
+
+          pr="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+
+          if [ -z "$pr" ]; then
+            gh pr create --head "$BRANCH" --title "$title" --body "$body"
+          else
+            gh pr edit "$pr" --title "$title" --body "$body"
+          fi

@@ -3,9 +3,16 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to test. Defaults to the usual checkout for this event.'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 # Do not add permissions here! Configure them at the job level!
@@ -19,6 +26,8 @@ jobs:
       version: ${{ steps.read.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - id: read
         run: |
           version=$(sed -n 's/^channel = "\(.*\)".*/\1/p' rust-toolchain.toml)
@@ -30,6 +39,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
@@ -71,6 +82,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
