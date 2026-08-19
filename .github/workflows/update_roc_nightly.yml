@@ -52,6 +52,21 @@ jobs:
           python scripts/update_roc_version.py "$NIGHTLY_TAG"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
+      # The generated Rust glue must be produced by the pinned compiler and its
+      # matching RustGlue.roc, so regenerate it here rather than leaving CI to
+      # fail the `--check` on a stale file.
+      - name: Install the Zig-based Roc compiler
+        if: steps.bump.outputs.changed == 'true'
+        uses: ./.github/actions/setup-roc
+        with:
+          with-source: "true"
+
+      - name: Regenerate the Rust glue
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          ROC_GLUE_SPEC: target/roc-source/src/glue/src/RustGlue.roc
+        run: python scripts/regenerate_glue.py
+
       - name: Push the branch
         if: steps.bump.outputs.changed == 'true'
         env:
@@ -100,7 +115,7 @@ jobs:
 
           title="Update Roc nightly pin to $NIGHTLY_TAG"
           body="$(printf '%s\n\n%s\n\n%s\n' \
-            "Updates \`.roc-version\` and all example manifests to [\`$NIGHTLY_TAG\`](https://github.com/roc-lang/nightlies/releases/tag/$NIGHTLY_TAG)." \
+            "Updates \`.roc-version\` and all example manifests to [\`$NIGHTLY_TAG\`](https://github.com/roc-lang/nightlies/releases/tag/$NIGHTLY_TAG), and regenerates \`src/roc_platform_abi.rs\` with that nightly's \`RustGlue.roc\`." \
             "$status See the [workflow run]($RUN_URL) for details." \
             "This PR was created automatically by the \`Update Roc nightly\` workflow.")"
 
