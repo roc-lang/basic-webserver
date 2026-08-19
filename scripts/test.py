@@ -2052,6 +2052,9 @@ def validate_sources(
     if VALIDATION_ROOT.exists():
         shutil.rmtree(VALIDATION_ROOT)
 
+    print("==> check the Roc version pinned by example manifests", flush=True)
+    command(sys.executable, ROOT / "scripts" / "update_roc_version.py", "--check")
+
     validate_platform_sources(roc)
 
     for stage in ("fmt", "check", "test"):
