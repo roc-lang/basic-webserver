@@ -32,6 +32,13 @@ PLATFORM_LINK_SUPPORT = (
 )
 
 
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
+
+
 def relative_platform_path(path: Path) -> str:
     return path.relative_to(PLATFORM_DIR).as_posix()
 
@@ -175,7 +182,7 @@ def generate_rust_dependency_licenses(
                 ]
             )
 
-    output.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    write_text(output, "\n".join(lines))
 
 
 def main() -> None:

@@ -93,6 +93,13 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
+
+
 def source_for(probe: str) -> str:
     return f'''app [Context, program] {{
     pf: platform "../../platform/main.roc",
@@ -130,7 +137,7 @@ def main() -> None:
     for name, probe, expected in CASES:
         source = EXAMPLE_DIR / f".markup-type-test-{name}.roc"
         try:
-            source.write_text(source_for(probe), encoding="utf-8", newline="\n")
+            write_text(source, source_for(probe))
             command = [args.roc, "check", str(source)]
             print("+ !", " ".join(command), flush=True)
             result = subprocess.run(

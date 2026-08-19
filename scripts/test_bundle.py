@@ -15,6 +15,13 @@ from test import BundleServer, declared_targets, examples_hash
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
+
+
 def update_readme(platform_url: str) -> None:
     readme = ROOT / "README.md"
     source = readme.read_text(encoding="utf-8")
@@ -26,7 +33,7 @@ def update_readme(platform_url: str) -> None:
     )
     if count != 1:
         raise SystemExit(f"Expected exactly one README platform URL, found {count}")
-    readme.write_text(rewritten, encoding="utf-8", newline="\n")
+    write_text(readme, rewritten)
 
 
 def main() -> None:

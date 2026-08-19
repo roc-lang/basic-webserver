@@ -35,6 +35,10 @@ from pathlib import Path
 from typing import Iterator
 
 
+# socket.timeout only became an alias of TimeoutError in Python 3.10; on older
+# interpreters it is a plain OSError subclass, so catch both spellings.
+SOCKET_TIMEOUT = (TimeoutError, socket.timeout)
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "scripts" / "test_spec.json"
 VALIDATION_ROOT = ROOT / "target" / "spec"
@@ -75,6 +79,13 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
 
 
 class TestFailure(RuntimeError):
@@ -579,7 +590,7 @@ def prepare_memcheck_binaries(
     )
     if count != 1:
         fail("could not set the validation-only listener to an ephemeral port")
-    server_path.write_text(server_source, encoding="utf-8", newline="\n")
+    write_text(server_path, server_source)
 
     runtime_inputs = (
         "Scrt1.o",
@@ -607,7 +618,7 @@ def prepare_memcheck_binaries(
     )
     if count != 1:
         fail("could not add the validation-only x64glibc platform target")
-    main_path.write_text(main_source, encoding="utf-8", newline="\n")
+    write_text(main_path, main_source)
 
     binaries: dict[str, Path] = {}
     for app in apps:
@@ -628,7 +639,7 @@ def prepare_memcheck_binaries(
         )
         if count != 1:
             fail(f"{source}: expected exactly one platform dependency")
-        copied_source.write_text(app_source, encoding="utf-8", newline="\n")
+        write_text(copied_source, app_source)
 
         binary = binary_dir / output_relative_path(source, "x64glibc")
         binary.parent.mkdir(parents=True, exist_ok=True)
@@ -670,7 +681,7 @@ def rewritten_app_source(app_path: str, platform_url: str | None) -> Path:
     destination = VALIDATION_ROOT / "sources" / app_path
     destination.parent.mkdir(parents=True, exist_ok=True)
     copy_local_source_tree(source_path, destination)
-    destination.write_text(rewritten, encoding="utf-8", newline="\n")
+    write_text(destination, rewritten)
     return destination
 
 
@@ -691,7 +702,7 @@ def readme_example(*, platform_url: str | None = None) -> Path:
         if count != 1:
             fail("README example check failed: expected one platform dependency")
     path = directory / "readme.roc"
-    path.write_text(rewritten, encoding="utf-8", newline="\n")
+    write_text(path, rewritten)
     return path
 
 
@@ -767,7 +778,7 @@ def install_fixtures(case: dict[str, object], source: Path, temp: Path) -> None:
             src = Path(expanded(str(fixture["source"]), source, temp))
             shutil.copy2(src, dest)
         elif "text" in fixture:
-            dest.write_text(str(fixture["text"]), encoding="utf-8", newline="")
+            write_text(dest, str(fixture["text"]), "")
         elif "hex" in fixture:
             dest.write_bytes(bytes.fromhex(str(fixture["hex"])))
         else:
@@ -851,7 +862,7 @@ class TcpEchoServer:
         while not self.stop.is_set():
             try:
                 connection, _ = self.socket.accept()
-            except TimeoutError:
+            except SOCKET_TIMEOUT:
                 continue
             except OSError:
                 if self.stop.is_set():
@@ -1166,7 +1177,7 @@ def receive_exact(sock: socket.socket, length: int, deadline: float) -> bytes:
         sock.settimeout(remaining)
         try:
             chunk = sock.recv(length - len(data))
-        except TimeoutError:
+        except SOCKET_TIMEOUT:
             fail("timed out waiting for an HTTP/2 frame")
         if not chunk:
             fail("HTTP/2 connection closed before every stream completed")
@@ -1533,7 +1544,7 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
                 sock.settimeout(remaining)
                 try:
                     chunk = sock.recv(65536)
-                except TimeoutError:
+                except SOCKET_TIMEOUT:
                     fail(
                         f"{owner}: raw response did not contain {expected!r} within {timeout_ms}ms"
                     )
@@ -1552,7 +1563,7 @@ def run_raw_exchange(port: int, request: dict[str, object], owner: str) -> None:
             sock.settimeout(remaining)
             try:
                 chunk = sock.recv(65536)
-            except TimeoutError:
+            except SOCKET_TIMEOUT:
                 break
             if not chunk:
                 closed = True
@@ -1802,7 +1813,8 @@ def write_results(
         fail(f"Invalid build identity {build_id!r}")
     VALIDATION_ROOT.mkdir(parents=True, exist_ok=True)
     path = VALIDATION_ROOT / f"results-{target}-{build_id}.json"
-    path.write_text(
+    write_text(
+        path,
         json.dumps(
             {
                 "platform": current_platform(),
@@ -1813,8 +1825,6 @@ def write_results(
             indent=2,
         )
         + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
     print(f"Results: {path.relative_to(ROOT)}")
 
@@ -1935,9 +1945,7 @@ def write_manifest(
         },
     }
     path = target_dir / "manifest.json"
-    path.write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
-    )
+    write_text(path, json.dumps(manifest, indent=2) + "\n")
 
 
 def load_artifact_manifest(
