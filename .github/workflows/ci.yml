@@ -3,6 +3,13 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      roc-nightly:
+        description: 'Roc nightly tag to pin before running, for example nightly-2026-08-13-2fdd90e. Defaults to the pin committed on this ref.'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,6 +37,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+
+      - name: Pin the requested Roc nightly
+        if: inputs.roc-nightly != ''
+        env:
+          ROC_NIGHTLY: ${{ inputs.roc-nightly }}
+        run: python scripts/update_roc_version.py "$ROC_NIGHTLY"
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
@@ -71,6 +84,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+
+      - name: Pin the requested Roc nightly
+        if: inputs.roc-nightly != ''
+        env:
+          ROC_NIGHTLY: ${{ inputs.roc-nightly }}
+        run: python scripts/update_roc_version.py "$ROC_NIGHTLY"
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
