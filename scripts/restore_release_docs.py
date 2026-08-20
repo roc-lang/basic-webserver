@@ -23,6 +23,13 @@ from pathlib import Path
 DOCS_ASSET = "docs.tar.gz"
 
 
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
+
+
 def run_gh(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["gh", *arguments],
@@ -127,7 +134,8 @@ def write_index(docs_root: Path, repository: str, docs_version: str) -> None:
     target = html.escape(f"/{repository_name}/{docs_version}/", quote=True)
     escaped_version = html.escape(docs_version)
     docs_root.mkdir(parents=True, exist_ok=True)
-    (docs_root / "index.html").write_text(
+    write_text(
+        docs_root / "index.html",
         "<!doctype html>\n"
         '<html lang="en">\n'
         "<head>\n"
@@ -140,8 +148,6 @@ def write_index(docs_root: Path, repository: str, docs_version: str) -> None:
         f'  <p><a href="{target}">Redirecting to {escaped_version}</a></p>\n'
         "</body>\n"
         "</html>\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 

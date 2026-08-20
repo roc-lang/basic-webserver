@@ -13,6 +13,13 @@ PLATFORM_RE = re.compile(r'(?m)(\bplatform\s+)"[^"]+"')
 APPLICATION_HEADER = re.compile(r"(?m)^\s*app\s+\[")
 
 
+def write_text(path: Path, text: str, newline: str = "\n") -> None:
+    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
+    ``newline`` argument before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline=newline) as handle:
+        handle.write(text)
+
+
 def update_apps(paths: list[Path], platform_url: str) -> list[Path]:
     roc_files: list[Path] = []
     for path in paths:
@@ -44,7 +51,7 @@ def update_apps(paths: list[Path], platform_url: str) -> list[Path]:
                 f"Expected exactly one platform URL in {roc_file}, found {count}"
             )
         if rewritten != source:
-            roc_file.write_text(rewritten, encoding="utf-8", newline="\n")
+            write_text(roc_file, rewritten)
             updated.append(roc_file)
 
     return updated
