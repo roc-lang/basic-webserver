@@ -70,9 +70,9 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |req, { python, helper, examples_dir, scripts_dir }|
 	match req.target() {
 		Resource({ raw_path: "/cwd-examples", .. }) =>
-			command_cwd_response(python, helper, examples_dir)
+			command_cwd_response!(python, helper, examples_dir)
 		Resource({ raw_path: "/cwd-scripts", .. }) =>
-			command_cwd_response(python, helper, scripts_dir)
+			command_cwd_response!(python, helper, scripts_dir)
 		Resource({ raw_path: "/timeout", .. }) => {
 			cmd = Cmd.new_str(python)
 				.args_str([helper, "sleep", "5"])
@@ -104,8 +104,8 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 		}
 	}
 
-command_cwd_response : Str, Str, Path.Path => Try(Server.Outcome, [ServerErr(Str), ..])
-command_cwd_response = |python, helper, working_dir| {
+command_cwd_response! : Str, Str, Path.Path => Try(Server.Outcome, [ServerErr(Str), ..])
+command_cwd_response! = |python, helper, working_dir| {
 	output = Cmd.new_str(python)
 		.args_str([helper, "cwd", "0.2"])
 		.with_working_dir(working_dir)
