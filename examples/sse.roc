@@ -2,7 +2,7 @@
 ## callback admission, timer scheduling, output framing, and cancellation.
 app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
-	roc: "nightly-2026-09-19-d025939",
+	roc: "nightly-2026-09-26-d6267b4",
 }
 
 import pf.Server
