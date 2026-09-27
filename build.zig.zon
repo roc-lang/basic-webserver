@@ -1,0 +1,11 @@
+.{
+    .name = .basic_webserver,
+    .version = "0.0.0",
+    .fingerprint = 0xe41adbbf54d0b48e,
+    .minimum_zig_version = "0.16.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "tools",
+    },
+}

@@ -77,3 +77,7 @@ dist/
 # Python helper caches
 __pycache__/
 *.pyc
+
+# zig build
+/zig-out/
+/.zig-cache/
