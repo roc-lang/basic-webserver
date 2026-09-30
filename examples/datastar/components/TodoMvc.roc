@@ -19,7 +19,7 @@ TodoSignals : {
 ## stable application-root patch.
 TodoMvc :: [].{
 
-	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |request, path| {
 		parts = Str.split_on(path, "/")
 		match (request.method(), parts) {
@@ -291,7 +291,7 @@ respond_state = |state|
 
 ParsedState : [Parsed(TodoSignals), Rejected(Server.Outcome)]
 
-read_state! : Server.Request => Try(ParsedState, [ServerErr(Str), ..])
+read_state! : Server.Request => Try(ParsedState, [ServerErr(Str)])
 read_state! = |request| {
 	parsed : Try(TodoSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
@@ -303,14 +303,14 @@ read_state! = |request| {
 	)
 }
 
-mutate! : Server.Request, (TodoSignals -> TodoSignals) => Try(Server.Outcome, [ServerErr(Str), ..])
+mutate! : Server.Request, (TodoSignals -> TodoSignals) => Try(Server.Outcome, [ServerErr(Str)])
 mutate! = |request, transform|
 	match read_state!(request)? {
 		Rejected(outcome) => Ok(outcome)
 		Parsed(state) => Ok(respond_state(transform(state)))
 	}
 
-add! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+add! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 add! = |request|
 	match read_state!(request)? {
 		Rejected(outcome) => Ok(outcome)
@@ -333,7 +333,7 @@ add! = |request|
 		}
 	}
 
-toggle_all! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+toggle_all! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 toggle_all! = |request|
 	mutate!(
 		request,
@@ -343,20 +343,20 @@ toggle_all! = |request|
 		},
 	)
 
-set_mode! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+set_mode! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 set_mode! = |request, mode| mutate!(request, |state| { ..state, mode })
 
-delete_completed! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+delete_completed! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 delete_completed! = |request|
 	mutate!(request, |state| { ..state, todos: state.todos.keep_if(|todo| Bool.not(todo.completed)) })
 
-cancel_edit! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+cancel_edit! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 cancel_edit! = |request| mutate!(request, |state| { ..state, editTitle: "", editingId: -1 })
 
-reset! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+reset! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 reset! = |request| mutate!(request, |_state| default_state)
 
-route_id_action! : Server.Request, Str, TodoAction => Try(Server.Outcome, [ServerErr(Str), ..])
+route_id_action! : Server.Request, Str, TodoAction => Try(Server.Outcome, [ServerErr(Str)])
 route_id_action! = |request, raw_id, action|
 	match parse_id(raw_id) {
 		Err(_) => Ok(not_found)
@@ -369,7 +369,7 @@ route_id_action! = |request, raw_id, action|
 			}
 		}
 
-toggle! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+toggle! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 toggle! = |request, id|
 	mutate!(
 		request,
@@ -385,7 +385,7 @@ toggle! = |request, id|
 		},
 	)
 
-start_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+start_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 start_edit! = |request, id|
 	match read_state!(request)? {
 		Rejected(outcome) => Ok(outcome)
@@ -406,7 +406,7 @@ start_edit! = |request, id|
 		}
 	}
 
-save_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+save_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 save_edit! = |request, id|
 	match read_state!(request)? {
 		Rejected(outcome) => Ok(outcome)
@@ -428,7 +428,7 @@ save_edit! = |request, id|
 		}
 	}
 
-delete! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+delete! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 delete! = |request, id|
 	mutate!(request, |state| { ..state, todos: state.todos.keep_if(|todo| todo.id != id) })
 

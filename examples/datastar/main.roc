@@ -2,7 +2,7 @@
 app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-	roc: "nightly-2026-09-19-d025939",
+	roc: "nightly-2026-09-27-a3ce7f1",
 }
 
 import ./components/ClickToLoad
@@ -41,10 +41,10 @@ animations = Animations.default
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = || Ok({ config: Server.with_request_body_limit(Server.default_config, 2 * 1024 * 1024), context: {} })
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |request, _context| {
 	path =
 		match request.target() {
@@ -110,7 +110,7 @@ respond! = |request, _context| {
 	}
 }
 
-active_search! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+active_search! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 active_search! = |request| {
 	signals_result : Try(ActiveSearchSignals, Datastar.SignalsError)
 	signals_result = Datastar.read_signals!(request)
@@ -344,5 +344,5 @@ text_response = |status, body|
 		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
 		.with_body(Str.to_utf8(body))
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_reason, _context| Ok({})

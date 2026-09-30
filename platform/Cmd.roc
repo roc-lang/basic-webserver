@@ -45,7 +45,7 @@ Cmd := [
 	default_output_limit_bytes = 1024 * 1024
 
 	## Execute a program with native arguments, inheriting standard streams.
-	exec! : OsStr, List(OsStr) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
+	exec! : OsStr, List(OsStr) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str })])
 	exec! = |program, arguments| {
 		command = "${OsStr.display(program)} ${Str.join_with(arguments.map(OsStr.display), " ")}"
 		exit_code = new(program).args(arguments).exec_exit_code!()?
@@ -58,12 +58,12 @@ Cmd := [
 	}
 
 	## Execute a UTF-8 program with UTF-8 arguments.
-	exec_str! : Str, List(Str) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
+	exec_str! : Str, List(Str) => Try({}, [ExecFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str })])
 	exec_str! = |program, arguments|
 		exec!(OsStr.from_str(program), arguments.map(OsStr.from_str))
 
 	## Execute a configured command, inheriting standard streams.
-	exec_cmd! : Cmd => Try({}, [ExecCmdFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
+	exec_cmd! : Cmd => Try({}, [ExecCmdFailed({ command : Str, exit_code : I32 }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str })])
 	exec_cmd! = |cmd| {
 		command = to_str(cmd)
 		exit_code = exec_exit_code!(cmd)?
@@ -77,7 +77,7 @@ Cmd := [
 
 	## Execute a command and capture stdout as UTF-8 and stderr lossily.
 	## Use [exec_output_bytes!] when either stream must be preserved exactly.
-	exec_output! : Cmd => Try({ stdout_utf8 : Str, stderr_utf8_lossy : Str }, [StdoutContainsInvalidUtf8({ cmd_str : Str, err : [BadUtf8({ problem : _, index : U64 })] }), NonZeroExitCode({ command : Str, exit_code : I32, stdout_utf8_lossy : Str, stderr_utf8_lossy : Str }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), StdoutLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 }), StderrLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 }), ..])
+	exec_output! : Cmd => Try({ stdout_utf8 : Str, stderr_utf8_lossy : Str }, [StdoutContainsInvalidUtf8({ cmd_str : Str, err : [BadUtf8({ problem : _, index : U64 })] }), NonZeroExitCode({ command : Str, exit_code : I32, stdout_utf8_lossy : Str, stderr_utf8_lossy : Str }), FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), StdoutLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 }), StderrLimitExceeded({ command : Str, limit_bytes : U64, received_at_least : U64 })])
 	exec_output! = |Cmd(cmd)| {
 		command = Cmd(cmd)
 		cmd_str = to_str(command)
@@ -107,7 +107,7 @@ Cmd := [
 	}
 
 	## Execute a command and capture stdout and stderr without text conversion.
-	exec_output_bytes! : Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [NonZeroExitCodeB({ exit_code : I32, stdout_bytes : List(U8), stderr_bytes : List(U8) }), FailedToGetExitCodeB(IOErr), CommandTimedOutB(U64), CommandSaturatedB, StdoutLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), StderrLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), ..])
+	exec_output_bytes! : Cmd => Try({ stderr_bytes : List(U8), stdout_bytes : List(U8) }, [NonZeroExitCodeB({ exit_code : I32, stdout_bytes : List(U8), stderr_bytes : List(U8) }), FailedToGetExitCodeB(IOErr), CommandTimedOutB(U64), CommandSaturatedB, StdoutLimitExceededB({ limit_bytes : U64, received_at_least : U64 }), StderrLimitExceededB({ limit_bytes : U64, received_at_least : U64 })])
 	exec_output_bytes! = |Cmd(cmd)|
 		match Host.cmd_exec_output!(to_host_cmd(Cmd(cmd)), to_host_working_dir(Cmd(cmd))) {
 			Ok({ stderr_bytes, stdout_bytes }) => Ok({ stdout_bytes, stderr_bytes })
@@ -121,7 +121,7 @@ Cmd := [
 		}
 
 	## Execute a command and return its exit code.
-	exec_exit_code! : Cmd => Try(I32, [FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str }), ..])
+	exec_exit_code! : Cmd => Try(I32, [FailedToGetExitCode({ command : Str, err : IOErr }), CommandTimedOut({ command : Str, timeout_ms : U64 }), CommandSaturated({ command : Str })])
 	exec_exit_code! = |Cmd(cmd)| {
 		command = to_str(Cmd(cmd))
 

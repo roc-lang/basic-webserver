@@ -20,7 +20,7 @@ FileUploadSignals : { files : List(UploadedFile) }
 ## process-local storage.
 CrudExamples :: [].{
 
-	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |request, path|
 		match (request.method(), path) {
 			(GET, "/examples/delete_row") => Ok(Handled(page("Delete Row", "Delete table rows after confirmation, then restore the original rows.", delete_row_demo, "DELETE responses remove one selected row; reset returns the complete table body.")))
@@ -216,7 +216,7 @@ edit_row = |index| {
 cancel_edit : U64 -> Server.Outcome
 cancel_edit = |index| Datastar.respond([Datastar.patch_elements(Html.render_without_doc_type(display_edit_row(index)))])
 
-save_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str), ..])
+save_edit! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 save_edit! = |request, index| {
 	parsed : Try(EditSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
@@ -240,7 +240,7 @@ file_upload_demo =
 	\\    <div id="file-upload" hidden></div>
 	\\</div>
 
-upload_files! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+upload_files! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 upload_files! = |request| {
 	parsed : Try(FileUploadSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals_with_limit!(request, 2 * 1024 * 1024)
@@ -272,7 +272,7 @@ form_data_demo =
 	\\    <div id="form-data-result"></div>
 	\\</div>
 
-form_data! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+form_data! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 form_data! = |request| {
 	bytes =
 		match request.method() {
@@ -303,7 +303,7 @@ inline_validation_demo =
 	\\    <div id="inline-validation-status"><p>Enter test@test.com and both names.</p><button id="validation-submit" aria-disabled="true">Sign Up</button></div>
 	\\</div>
 
-validate_inline! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+validate_inline! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 validate_inline! = |request| {
 	parsed : Try(ValidationSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)

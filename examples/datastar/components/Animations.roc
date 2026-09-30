@@ -78,7 +78,7 @@ Animations :: {
 
 	## Handle the page, finite view transition, and three retained timer stream
 	## routes owned by this component.
-	respond! : Animations, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : Animations, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |component, request, raw_path| {
 		method = request.method()
 		if component.page_target.matches(method, raw_path) {
@@ -117,7 +117,7 @@ Animations :: {
 		)
 }
 
-view_transition! : Animations, Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+view_transition! : Animations, Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 view_transition! = |component, request| {
 	parsed : Try(AnimationsSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)

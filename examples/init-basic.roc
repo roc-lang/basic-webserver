@@ -3,7 +3,7 @@ app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.3/3R8EMBQy6rYy3vbLY3u4CLcT8qwAPAyxaaGTA18Gknbe.tar.zst",
-	roc: "nightly-2026-09-19-d025939",
+	roc: "nightly-2026-09-27-a3ce7f1",
 }
 
 import pf.Stdout
@@ -19,10 +19,10 @@ program = { init!, respond!, shutdown! }
 
 # `init!` can validate configuration, run migrations, or prepare immutable
 # startup data. Here it stores a gift string in the context.
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = || Ok({ config: Server.default_config, context: "🎁" })
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |req, gift| {
 	datetime = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
 
@@ -32,5 +32,5 @@ respond! = |req, gift| {
 	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>init gave me ${gift}</b>"))))
 }
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_reason, _context| Ok({})

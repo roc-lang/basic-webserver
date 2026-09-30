@@ -82,7 +82,7 @@ BulkUpdate :: {
 	## Handle this component's page and action routes. The transition is selected
 	## only after its corresponding target matches, so callers cannot pair an
 	## activate request with deactivation behavior or vice versa.
-	respond! : BulkUpdate, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : BulkUpdate, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |component, request, raw_path| {
 		method = request.method()
 		if component.page_target.matches(method, raw_path) {
@@ -147,7 +147,7 @@ BulkUpdate :: {
 	}
 }
 
-apply_status! : BulkUpdate, Server.Request, Bool => Try(Server.Outcome, [ServerErr(Str), ..])
+apply_status! : BulkUpdate, Server.Request, Bool => Try(Server.Outcome, [ServerErr(Str)])
 apply_status! = |component, request, next_status| {
 	parsed : Try(BulkUpdateSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)

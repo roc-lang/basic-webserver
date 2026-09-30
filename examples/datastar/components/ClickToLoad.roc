@@ -125,7 +125,7 @@ ClickToLoad :: {
 		)
 	}
 
-	more! : ClickToLoad, Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+	more! : ClickToLoad, Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 	more! = |component, request| {
 		parsed : Try(ClickToLoadSignals, Datastar.SignalsError)
 		parsed = Datastar.read_signals!(request)

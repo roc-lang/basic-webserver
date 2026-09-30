@@ -833,7 +833,7 @@ find_field = |fields, name| {
 	}
 }
 
-validate_unique_columns : List(Str) -> Try({}, [DuplicateColumn(Str), ..])
+validate_unique_columns : List(Str) -> Try({}, [DuplicateColumn(Str)])
 validate_unique_columns = |columns| {
 	var $index = 0
 	while $index < columns.len() {

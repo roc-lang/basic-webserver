@@ -78,7 +78,7 @@ ClickToEdit :: {
 	}
 
 	## Handle every page and action route owned by this component.
-	respond! : ClickToEdit, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : ClickToEdit, Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |component, request, raw_path| {
 		method = request.method()
 		if component.page_target.matches(method, raw_path) {
@@ -212,7 +212,7 @@ definitions_for = |contact| {
 	}.Signals
 }
 
-save! : ClickToEdit, Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+save! : ClickToEdit, Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 save! = |component, request| {
 	parsed = read_signals!(request)
 	signals =
@@ -236,7 +236,7 @@ save! = |component, request| {
 	)
 }
 
-cancel! : ClickToEdit, Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+cancel! : ClickToEdit, Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 cancel! = |component, request| {
 	parsed = read_signals!(request)
 	signals =

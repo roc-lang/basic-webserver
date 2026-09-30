@@ -155,7 +155,7 @@ parse_all_headers = |bytes| {
 }
 
 ## Parses the body of a multipart/form-data request.
-parse_form_data : { body : List(U8), boundary : List(U8) } -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart, ..])
+parse_form_data : { body : List(U8), boundary : List(U8) } -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart])
 parse_form_data = |{ body, boundary }| {
 	start_marker = List.concat(doubledash, boundary)
 	end_marker = List.concat(List.concat(List.concat(List.concat(newline, doubledash), boundary), doubledash), newline)
@@ -173,7 +173,7 @@ parse_form_data = |{ body, boundary }| {
 	}
 }
 
-parse_parts : List(List(U8)), List(ParsedFormData) -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart, ..])
+parse_parts : List(List(U8)), List(ParsedFormData) -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart])
 parse_parts = |parts, parsed|
 	match parts {
 		[] => Ok(parsed)
@@ -184,7 +184,7 @@ parse_parts = |parts, parsed|
 			}
 		}
 
-multipart_data_error : [Boundary, Part] -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart, ..])
+multipart_data_error : [Boundary, Part] -> Try(List(ParsedFormData), [ExpectedEnclosedByBoundary, InvalidPart])
 multipart_data_error = |kind|
 	match kind {
 		Boundary => Err(ExpectedEnclosedByBoundary)
