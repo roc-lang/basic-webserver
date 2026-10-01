@@ -15,7 +15,7 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = ||
 	Ok({
 		config: Server.with_limits(
@@ -29,7 +29,7 @@ init! = ||
 		context: {},
 	})
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |request, _context| {
 	raw_path =
 		match request.target() {
@@ -50,5 +50,5 @@ respond! = |request, _context| {
 	}
 }
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_, _| Ok({})
