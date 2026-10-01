@@ -1,3 +1,7 @@
+# TODO: Restore this .roc example and its scripts/test_spec.json cases after
+# roc-gregorian publishes a release without redundant return-position `..` unions.
+# The pinned compiler rejects five such unions in 1.0.0-rc.3/Util.roc.
+# Upstream: https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian
 ## Demonstrates typed error handling while fetching content from a configured URL.
 app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",

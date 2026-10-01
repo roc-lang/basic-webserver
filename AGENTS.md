@@ -87,7 +87,7 @@ incomplete skips and platform-specific expected results.
 
 Build an individual example (the server binary lands in the repo root):
 ```
-roc build examples/hello-web.roc
+roc build examples/health.roc
 ```
 
 Files with a `.todoroc` extension are intentionally skipped migration backlog.
