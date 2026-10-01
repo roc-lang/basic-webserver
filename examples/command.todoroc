@@ -1,9 +1,13 @@
+# TODO: Restore this .roc example and its scripts/test_spec.json cases after
+# roc-gregorian publishes a release without redundant return-position `..` unions.
+# The pinned compiler rejects five such unions in 1.0.0-rc.3/Util.roc.
+# Upstream: https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian
 ## Demonstrates command execution, captured output, environment variables, timeouts, and output limits.
 app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.3/3R8EMBQy6rYy3vbLY3u4CLcT8qwAPAyxaaGTA18Gknbe.tar.zst",
-	roc: "nightly-2026-09-19-d025939",
+	roc: "nightly-2026-09-27-a3ce7f1",
 }
 
 import pf.Server
@@ -66,7 +70,7 @@ init! = || {
 	Ok({ config: Server.default_config, context: { python, helper, examples_dir, scripts_dir } })
 }
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |req, { python, helper, examples_dir, scripts_dir }|
 	match req.target() {
 		Resource({ raw_path: "/cwd-examples", .. }) =>
@@ -104,7 +108,7 @@ respond! = |req, { python, helper, examples_dir, scripts_dir }|
 		}
 	}
 
-command_cwd_response! : Str, Str, Path.Path => Try(Server.Outcome, [ServerErr(Str), ..])
+command_cwd_response! : Str, Str, Path.Path => Try(Server.Outcome, [ServerErr(Str)])
 command_cwd_response! = |python, helper, working_dir| {
 	output = Cmd.new_str(python)
 		.args_str([helper, "cwd", "0.2"])
@@ -120,5 +124,5 @@ command_cwd_response! = |python, helper, working_dir| {
 text_response : Str -> Server.Outcome
 text_response = |body| Server.respond(Response.from_status(200).with_body(Str.to_utf8(body)))
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_reason, _context| Ok({})

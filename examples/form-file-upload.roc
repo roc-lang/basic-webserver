@@ -2,7 +2,7 @@
 app [Context, program] {
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-	roc: "nightly-2026-09-19-d025939",
+	roc: "nightly-2026-09-27-a3ce7f1",
 }
 
 import pf.Server
@@ -13,7 +13,7 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = || {
 	config = Server.with_request_body_limit(Server.default_config, 10 * 1024 * 1024)
 	Ok({ config, context: {} })
@@ -43,7 +43,7 @@ upload_form =
 			),
 		)
 
-display_uploaded_image! : Server.Request => Try(Response, [ServerErr(Str), ..])
+display_uploaded_image! : Server.Request => Try(Response, [ServerErr(Str)])
 display_uploaded_image! = |req| {
 	body = req.body().with_limit(10 * 1024 * 1024).read_all!()
 		? |err| ServerErr("Failed to read multipart form-data: ${Str.inspect(err)}")
@@ -95,7 +95,7 @@ display_uploaded_image! = |req| {
 		}
 }
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |req, _context|
 	match req.method() {
 		GET => Ok(Server.respond(upload_form))
@@ -103,7 +103,7 @@ respond! = |req, _context|
 		_ => Ok(Server.respond(Response.from_status(405)))
 	}
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_reason, _context| Ok({})
 
 png_signature : List(U8)

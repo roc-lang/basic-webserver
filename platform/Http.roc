@@ -71,12 +71,12 @@ Http :: [].{
 	## request = Request.from_method(GET).with_uri("https://www.roc-lang.org")
 	## response = Http.send!(request)?
 	## ```
-	send! : Request => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send! : Request => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr)])
 	send! = |request| send_with!(request, default_config)
 
 	## Send using an explicit finite resource policy. A timeout attached to the
 	## shared http Request takes precedence; NoTimeout uses this config.
-	send_with! : Request, Config => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send_with! : Request, Config => Try(Response, [InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr)])
 	send_with! = |request, config| {
 		url = Url.parse(Request.uri(request)) ? InvalidUrl
 		canonical_url = Url.without_fragment(url)
@@ -89,7 +89,7 @@ Http :: [].{
 	##
 	## This uses Roc's builtin JSON encoder, so the value's type determines the
 	## encoder through static dispatch.
-	with_json_body : Request, _ => Try(Request, [JsonErr(_), ..])
+	with_json_body : Request, _ => Try(Request, [JsonErr(_)])
 	with_json_body = |request, value| {
 		body = Json.to_str_try(value) ? JsonErr
 
@@ -101,7 +101,7 @@ Http :: [].{
 	}
 
 	## Encode a value as JSON, attach it to the request body, and send it.
-	send_json! : Request, _ => Try(Response, [JsonErr(_), InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	send_json! : Request, _ => Try(Response, [JsonErr(_), InvalidUrl(Url.ParseErr), InvalidRequest(Str), HttpErr(TransportErr)])
 	send_json! = |request, value| {
 		json_request = with_json_body(request, value)?
 
@@ -116,7 +116,7 @@ Http :: [].{
 	## ```roc
 	## hello_str = Http.get_utf8!("http://localhost:8000")?
 	## ```
-	get_utf8! : Url.Url => Try(Str, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), ..])
+	get_utf8! : Url.Url => Try(Str, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr)])
 	get_utf8! = |url| {
 		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)), default_config)?
 		body = Str.from_utf8(Response.body(response)) ? |_| BadBody("get_utf8!: response body was not valid UTF-8")
@@ -128,7 +128,7 @@ Http :: [].{
 	##
 	## This uses Roc's builtin JSON parser, so the expected result type
 	## determines the parser through static dispatch.
-	decode_json_response : Response => Try(_, [BadBody(Str), JsonErr(_), ..])
+	decode_json_response : Response => Try(_, [BadBody(Str), JsonErr(_)])
 	decode_json_response = |response| {
 		body = Str.from_utf8(Response.body(response)) ? |_| BadBody("decode_json_response: response body was not valid UTF-8")
 		decoded = Json.parse(body) ? JsonErr
@@ -145,7 +145,7 @@ Http :: [].{
 	## payload : Try({ foo : Str }, _)
 	## payload = Http.get!("http://localhost:8000")
 	## ```
-	get! : Url.Url => Try(_, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), JsonErr(_), ..])
+	get! : Url.Url => Try(_, [BadBody(Str), InvalidRequest(Str), HttpErr(TransportErr), JsonErr(_)])
 	get! = |url| {
 		response = send_validated!(Request.from_method(GET).with_uri(Url.to_str(url)), default_config)?
 
@@ -155,7 +155,7 @@ Http :: [].{
 
 # Send a request whose URI was constructed from a validated Url. Keeping this
 # private prevents get!/get_utf8! from exposing an impossible InvalidUrl error.
-send_validated! : Request.Request, Http.Config => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr), ..])
+send_validated! : Request.Request, Http.Config => Try(Response.Response, [InvalidRequest(Str), HttpErr(InternalHttp.TransportErr)])
 send_validated! = |request, config| {
 	host_response =
 		match Host.http_send_request!(

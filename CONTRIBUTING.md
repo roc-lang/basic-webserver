@@ -62,7 +62,7 @@ python scripts/build.py
 Then run an example:
 
 ```sh
-roc examples/hello-web.roc
+roc examples/health.roc
 ```
 
 The server listens on <http://127.0.0.1:8000> by default. Build one explicit
@@ -97,7 +97,7 @@ Active `.roc` examples must pass the suite on every supported operating system.
 For a focused application build after building the host:
 
 ```sh
-roc build examples/hello-web.roc
+roc build examples/health.roc
 ```
 
 CI also checks every Linux example under Valgrind Memcheck. On x86-64 Linux

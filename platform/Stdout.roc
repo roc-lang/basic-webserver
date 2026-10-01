@@ -8,7 +8,7 @@ Stdout := [].{
 	## followed by a newline.
 	##
 	## > To write to `stdout` without the newline, see [Stdout.write!].
-	line! : Str => Try({}, [StdoutErr(IOErr), ..])
+	line! : Str => Try({}, [StdoutErr(IOErr)])
 	line! = |message|
 		match Host.stdout_line!(message) {
 			Ok(done) => Ok(done)
@@ -21,7 +21,7 @@ Stdout := [].{
 	## so this may appear to do nothing until you write a newline!
 	##
 	## > To write to `stdout` with a newline at the end, see [Stdout.line!].
-	write! : Str => Try({}, [StdoutErr(IOErr), ..])
+	write! : Str => Try({}, [StdoutErr(IOErr)])
 	write! = |message|
 		match Host.stdout_write!(message) {
 			Ok(done) => Ok(done)
@@ -32,7 +32,7 @@ Stdout := [].{
 	##
 	## Note that many terminals will not actually display content that is written to them until they receive a newline,
 	## so this may appear to do nothing until you write a newline!
-	write_bytes! : List(U8) => Try({}, [StdoutErr(IOErr), ..])
+	write_bytes! : List(U8) => Try({}, [StdoutErr(IOErr)])
 	write_bytes! = |bytes|
 		match Host.stdout_write_bytes!(bytes) {
 			Ok(done) => Ok(done)

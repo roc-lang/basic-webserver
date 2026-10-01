@@ -370,7 +370,7 @@ validate_host = |raw_host| {
 	}
 }
 
-validate_dns_name : Str -> Try(Str, [InvalidHost(Str), ..])
+validate_dns_name : Str -> Try(Str, [InvalidHost(Str)])
 validate_dns_name = |raw_host| {
 	host = ascii_lower(raw_host)
 	labels = Str.split_on(host, ".")
@@ -393,7 +393,7 @@ validate_dns_name = |raw_host| {
 	}
 }
 
-validate_ipv4 : Str -> Try(Str, [InvalidIpv4(Str), ..])
+validate_ipv4 : Str -> Try(Str, [InvalidIpv4(Str)])
 validate_ipv4 = |raw_host| {
 	parts = Str.split_on(raw_host, ".")
 	if parts.len() != 4 {
@@ -429,7 +429,7 @@ parse_ipv4_parts = |parts, out|
 		}
 	}
 
-parse_port : Str, [Http, Https] -> Try([None, Some(U16)], [InvalidPort(Str), PortOutOfRange(U64), ..])
+parse_port : Str, [Http, Https] -> Try([None, Some(U16)], [InvalidPort(Str), PortOutOfRange(U64)])
 parse_port = |raw, scheme| {
 	# A valid U16 port has at most five decimal digits. Reject longer input
 	# before parsing so decimal accumulation cannot overflow U64.
@@ -475,7 +475,7 @@ parse_decimal = |raw| {
 # Addresses are validated as eight hexadecimal groups, with at most one ::
 # elision. IPv4-in-IPv6 syntax is outside this module's deliberately small
 # subset. Serialization expands elided groups and removes leading zeroes.
-validate_ipv6 : Str -> Try(Str, [InvalidIpv6(Str), ..])
+validate_ipv6 : Str -> Try(Str, [InvalidIpv6(Str)])
 validate_ipv6 = |raw| {
 	pieces = Str.split_on(raw, "::")
 	if pieces.len() > 2 {
@@ -500,7 +500,7 @@ validate_ipv6 = |raw| {
 	}
 }
 
-parse_ipv6_side : Str -> Try(List(U16), [InvalidIpv6(Str), ..])
+parse_ipv6_side : Str -> Try(List(U16), [InvalidIpv6(Str)])
 parse_ipv6_side = |raw|
 	if Str.is_empty(raw) {
 		Ok([])
@@ -508,7 +508,7 @@ parse_ipv6_side = |raw|
 		parse_hex_groups(Str.split_on(raw, ":"), [])
 	}
 
-parse_hex_groups : List(Str), List(U16) -> Try(List(U16), [InvalidIpv6(Str), ..])
+parse_hex_groups : List(Str), List(U16) -> Try(List(U16), [InvalidIpv6(Str)])
 parse_hex_groups = |parts, out|
 	match parts {
 		[] => Ok(out)

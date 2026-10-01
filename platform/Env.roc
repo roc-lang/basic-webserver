@@ -14,7 +14,7 @@ Env := [].{
 	OS : [LINUX, MACOS, WINDOWS, OTHER(Str)]
 
 	## Read an environment variable using an exact native name and value.
-	var! : OsStr => Try(OsStr, [VarNotFound(OsStr), EnvErr(IOErr), ..])
+	var! : OsStr => Try(OsStr, [VarNotFound(OsStr), EnvErr(IOErr)])
 	var! = |name|
 		match Host.env_var!(OsStr.to_raw(name)) {
 			Ok(raw) => Ok(OsStr.from_raw(raw))
@@ -24,7 +24,7 @@ Env := [].{
 
 	## Read an environment variable whose value must be valid Unicode text.
 	## The name remains native-safe; quoted names work through OsStr.from_quote.
-	var_str! : OsStr => Try(Str, [VarNotFound(OsStr), EnvErr(IOErr), InvalidStr(U64), ..])
+	var_str! : OsStr => Try(Str, [VarNotFound(OsStr), EnvErr(IOErr), InvalidStr(U64)])
 	var_str! = |name|
 		match var!(name) {
 			Ok(value) =>
@@ -38,7 +38,7 @@ Env := [].{
 
 	## Read the byte-preserving directory inherited when the platform launched.
 	## The platform never changes this process-global directory.
-	cwd! : () => Try(Path, [CwdUnavailable, ..])
+	cwd! : () => Try(Path, [CwdUnavailable])
 	cwd! = || {
 		if Host.env_is_windows!("") {
 			match Host.env_cwd_windows!("") {
@@ -54,7 +54,7 @@ Env := [].{
 	}
 
 	## Return the path to the currently running executable.
-	exe_path! : () => Try(Path, [ExePathUnavailable, ..])
+	exe_path! : () => Try(Path, [ExePathUnavailable])
 	exe_path! = || {
 		if Host.env_is_windows!("") {
 			match Host.env_exe_path_windows!("") {

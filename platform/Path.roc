@@ -46,7 +46,7 @@ Path := [
 	## This function does not traverse symbolic links; symbolic links (including
 	## broken ones) return `Bool.False`.
 	## Sockets, FIFOs, devices, and other special filesystem objects also return `Bool.False`.
-	is_file! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_file! : Path => Try(Bool, [PathErr(IOErr)])
 	is_file! = |path|
 		match type!(path) {
 			Ok(IsFile) => Ok(Bool.True)
@@ -60,7 +60,7 @@ Path := [
 	## This function does not traverse symbolic links; symbolic links (including
 	## broken ones) return `Bool.False`.
 	## Sockets, FIFOs, devices, and other special filesystem objects also return `Bool.False`.
-	is_dir! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_dir! : Path => Try(Bool, [PathErr(IOErr)])
 	is_dir! = |path|
 		match type!(path) {
 			Ok(IsDir) => Ok(Bool.True)
@@ -74,7 +74,7 @@ Path := [
 	## This function will not traverse symbolic links - it checks whether the path
 	## itself is a symlink.
 	## Sockets, FIFOs, devices, and other special filesystem objects return `Bool.False`.
-	is_sym_link! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_sym_link! : Path => Try(Bool, [PathErr(IOErr)])
 	is_sym_link! = |path|
 		match type!(path) {
 			Ok(IsSymLink) => Ok(Bool.True)
@@ -84,7 +84,7 @@ Path := [
 		}
 
 	## Returns `True` if the path exists on disk.
-	exists! : Path => Try(Bool, [PathErr(IOErr), ..])
+	exists! : Path => Try(Bool, [PathErr(IOErr)])
 	exists! = |path|
 		match type!(path) {
 			Ok(_) => Ok(Bool.True)
@@ -97,7 +97,7 @@ Path := [
 	## `IsOther` represents sockets, FIFOs, block and character devices, and any
 	## platform-specific object that is not a regular file, directory, or symbolic
 	## link. On Windows this includes unrecognized reparse-point types.
-	type! : Path => Try([IsFile, IsDir, IsSymLink, IsOther], [PathErr(IOErr), ..])
+	type! : Path => Try([IsFile, IsDir, IsSymLink, IsOther], [PathErr(IOErr)])
 	type! = |path| {
 		Host.path_type!(to_host_raw!(path))
 			.map_err(|err| PathErr(err))
@@ -105,86 +105,86 @@ Path := [
 	}
 
 	## Read all bytes from a file at this path.
-	read_bytes! : Path => Try(List(U8), [PathErr(IOErr), ..])
+	read_bytes! : Path => Try(List(U8), [PathErr(IOErr)])
 	read_bytes! = |path| map_file_result(Host.file_read_bytes!(to_host_raw!(path)))
 
 	## Write bytes to a file at this path, replacing any existing contents.
-	write_bytes! : Path, List(U8) => Try({}, [PathErr(IOErr), ..])
+	write_bytes! : Path, List(U8) => Try({}, [PathErr(IOErr)])
 	write_bytes! = |path, bytes| map_file_result(Host.file_write_bytes!(to_host_raw!(path), bytes))
 
 	## Read a UTF-8 file at this path.
-	read_utf8! : Path => Try(Str, [PathErr(IOErr), ..])
+	read_utf8! : Path => Try(Str, [PathErr(IOErr)])
 	read_utf8! = |path| map_file_result(Host.file_read_utf8!(to_host_raw!(path)))
 
 	## Write a UTF-8 file at this path, replacing any existing contents.
-	write_utf8! : Path, Str => Try({}, [PathErr(IOErr), ..])
+	write_utf8! : Path, Str => Try({}, [PathErr(IOErr)])
 	write_utf8! = |path, content| map_file_result(Host.file_write_utf8!(to_host_raw!(path), content))
 
 	## Delete a file at this path.
-	delete! : Path => Try({}, [PathErr(IOErr), ..])
+	delete! : Path => Try({}, [PathErr(IOErr)])
 	delete! = |path| map_file_result(Host.file_delete!(to_host_raw!(path)))
 
 	## Return the size of the file at this path in bytes.
-	size_in_bytes! : Path => Try(U64, [PathErr(IOErr), ..])
+	size_in_bytes! : Path => Try(U64, [PathErr(IOErr)])
 	size_in_bytes! = |path| map_file_result(Host.file_size_in_bytes!(to_host_raw!(path)))
 
 	## Check whether the file is executable under the native platform's file
 	## conventions.
-	is_executable! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_executable! : Path => Try(Bool, [PathErr(IOErr)])
 	is_executable! = |path| map_file_result(Host.file_is_executable!(to_host_raw!(path)))
 
 	## Check whether the current process can open the file for reading.
-	is_readable! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_readable! : Path => Try(Bool, [PathErr(IOErr)])
 	is_readable! = |path| map_file_result(Host.file_is_readable!(to_host_raw!(path)))
 
 	## Check whether the current process can open the file for writing. The file
 	## is not modified.
-	is_writable! : Path => Try(Bool, [PathErr(IOErr), ..])
+	is_writable! : Path => Try(Bool, [PathErr(IOErr)])
 	is_writable! = |path| map_file_result(Host.file_is_writable!(to_host_raw!(path)))
 
 	## Return the last accessed time as a POSIX timestamp.
-	time_accessed! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_accessed! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr)])
 	time_accessed! = |path|
 		map_file_result(Host.file_time_accessed!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
 	## Return the last modified time as a POSIX timestamp.
-	time_modified! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_modified! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr)])
 	time_modified! = |path|
 		map_file_result(Host.file_time_modified!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
 	## Return the creation time as a POSIX timestamp.
-	time_created! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr), ..])
+	time_created! : Path => Try(UnixTime.Timestamp, [PathErr(IOErr)])
 	time_created! = |path|
 		map_file_result(Host.file_time_created!(to_host_raw!(path))).map_ok(timestamp_from_host)
 
 	## Create a hard link at `link` pointing to `original`.
-	hard_link! : Path, Path => Try({}, [PathErr(IOErr), ..])
+	hard_link! : Path, Path => Try({}, [PathErr(IOErr)])
 	hard_link! = |original, link|
 		map_file_result(Host.file_hard_link!(to_host_raw!(original), to_host_raw!(link)))
 
 	## Rename a file from `from` to `to`.
-	rename! : Path, Path => Try({}, [PathErr(IOErr), ..])
+	rename! : Path, Path => Try({}, [PathErr(IOErr)])
 	rename! = |from, to|
 		map_file_result(Host.file_rename!(to_host_raw!(from), to_host_raw!(to)))
 
 	## Create a directory at this path.
-	create_dir! : Path => Try({}, [PathErr(IOErr), ..])
+	create_dir! : Path => Try({}, [PathErr(IOErr)])
 	create_dir! = |path| map_dir_result(Host.dir_create!(to_host_raw!(path)))
 
 	## Create a directory and any missing parent directories at this path.
-	create_all! : Path => Try({}, [PathErr(IOErr), ..])
+	create_all! : Path => Try({}, [PathErr(IOErr)])
 	create_all! = |path| map_dir_result(Host.dir_create_all!(to_host_raw!(path)))
 
 	## Delete an empty directory at this path.
-	delete_empty! : Path => Try({}, [PathErr(IOErr), ..])
+	delete_empty! : Path => Try({}, [PathErr(IOErr)])
 	delete_empty! = |path| map_dir_result(Host.dir_delete_empty!(to_host_raw!(path)))
 
 	## Delete a directory and all contents at this path.
-	delete_all! : Path => Try({}, [PathErr(IOErr), ..])
+	delete_all! : Path => Try({}, [PathErr(IOErr)])
 	delete_all! = |path| map_dir_result(Host.dir_delete_all!(to_host_raw!(path)))
 
 	## List the entries in the directory at this path.
-	list! : Path => Try(List(Path), [PathErr(IOErr), ..])
+	list! : Path => Try(List(Path), [PathErr(IOErr)])
 	list! = |path|
 		match Host.dir_list!(to_host_raw!(path)) {
 			Ok(paths) => Ok(paths.map(from_host_raw))
@@ -385,14 +385,14 @@ from_host_raw = |raw|
 		Path.unix_bytes(raw.unix_bytes)
 	}
 
-map_file_result : Try(a, [FileErr(IOErr)]) -> Try(a, [PathErr(IOErr), ..])
+map_file_result : Try(a, [FileErr(IOErr)]) -> Try(a, [PathErr(IOErr)])
 map_file_result = |result|
 	match result {
 		Ok(value) => Ok(value)
 		Err(FileErr(err)) => Err(PathErr(err))
 	}
 
-map_dir_result : Try(a, [DirErr(IOErr)]) -> Try(a, [PathErr(IOErr), ..])
+map_dir_result : Try(a, [DirErr(IOErr)]) -> Try(a, [PathErr(IOErr)])
 map_dir_result = |result|
 	match result {
 		Ok(value) => Ok(value)

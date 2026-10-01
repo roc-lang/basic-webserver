@@ -360,7 +360,7 @@ class SpecValidationTests(unittest.TestCase):
             "dev",
         )
         self.assertEqual(
-            test.build_optimization(by_path["examples/hello-web.roc"]),
+            test.build_optimization(by_path["examples/health.roc"]),
             "speed",
         )
 

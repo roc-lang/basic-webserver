@@ -15,7 +15,7 @@ CounterSignals : { globalCount : U64, userCount : U64 }
 ## Server-driven loading, pagination, progress, morphing, and counter probes.
 LoadingExamples :: [].{
 
-	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str), ..])
+	respond! : Server.Request, Str => Try([Handled(Server.Outcome), NotHandled], [ServerErr(Str)])
 	respond! = |request, path|
 		match (request.method(), path) {
 			(GET, "/examples/dbmon") => Ok(Handled(page("DBmon", "Render a rapidly changing database activity table.", dbmon_demo, "A finite retained stream updates stable table and timing elements without retaining application state.")))
@@ -109,7 +109,7 @@ dbmon_transition! = |frame| {
 	Ok(Emit({ event: Datastar.patch_elements(elements), state: next, wake: After(40) }))
 }
 
-dbmon_inputs! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+dbmon_inputs! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 dbmon_inputs! = |request| {
 	parsed : Try(DbmonSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
@@ -137,7 +137,7 @@ agent_rows = |start, count|
 		"<tr data-infinite-agent=\"${start_str}\"><td>Agent Smith ${start_str}</td><td>void${start_str}@null.org</td><td>agent-${start_str}</td></tr>${agent_rows(start + 1, count - 1)}"
 	}
 
-infinite_scroll_more! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+infinite_scroll_more! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 infinite_scroll_more! = |request| {
 	parsed : Try(InfiniteScrollSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
@@ -223,7 +223,7 @@ svg_morphing_demo : Str
 svg_morphing_demo =
 	\\<div id="svg-morphing-demo" data-signals:circle-blue="false"><svg viewBox="0 0 100 100" width="160" height="160"><circle id="morph-circle" cx="50" cy="50" r="40" fill="red"></circle></svg><button data-action="morph-circle" data-on:click="@get('/examples/svg_morphing/circle_color')">Change Color</button></div>
 
-svg_color! : Server.Request => Try(Server.Outcome, [ServerErr(Str), ..])
+svg_color! : Server.Request => Try(Server.Outcome, [ServerErr(Str)])
 svg_color! = |request| {
 	parsed : Try(SvgSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
@@ -251,7 +251,7 @@ templ_counter_demo =
 
 CounterKind := [Global, User]
 
-increment_counter! : Server.Request, CounterKind => Try(Server.Outcome, [ServerErr(Str), ..])
+increment_counter! : Server.Request, CounterKind => Try(Server.Outcome, [ServerErr(Str)])
 increment_counter! = |request, kind| {
 	parsed : Try(CounterSignals, Datastar.SignalsError)
 	parsed = Datastar.read_signals!(request)
