@@ -358,7 +358,7 @@ Sqlite :: [].{
 								values: rest.values,
 							}),
 						)
-					}
+				}
 			}
 
 		parse_record_after_field : RowEncoding, RowState -> Try([Continue(RowState), Done(RowState)], QueryError)
@@ -658,7 +658,7 @@ set_param_value = |state, value|
 				})
 				Encoded(_) => Err(MultipleValuesForParameter)
 			}
-		}
+	}
 
 encode_params : params -> Try(List({ name : Str, value : [Null, Real(F64), Integer(I64), String(Str), Bytes(List(U8))] }), _)
 	where [
@@ -791,7 +791,7 @@ peek_row_value = |state|
 			} else {
 				Err(ExpectedSingleColumn({ actual: state.columns.len() }))
 			}
-		}
+	}
 
 take_row_value = |state| {
 	peeked = peek_row_value(state)?

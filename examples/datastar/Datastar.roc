@@ -267,7 +267,7 @@ has_datastar_header = |headers|
 			} else {
 				has_datastar_header(rest)
 			}
-		}
+	}
 
 ascii_lower : Str -> Str
 ascii_lower = |value|

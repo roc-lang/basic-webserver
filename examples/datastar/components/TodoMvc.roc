@@ -367,7 +367,7 @@ route_id_action! = |request, raw_id, action|
 				SaveEdit => save_edit!(request, id)
 				Delete => delete!(request, id)
 			}
-		}
+	}
 
 toggle! : Server.Request, U64 => Try(Server.Outcome, [ServerErr(Str)])
 toggle! = |request, id|

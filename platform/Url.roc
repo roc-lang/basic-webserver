@@ -225,7 +225,7 @@ Url :: {
 							NotFound => (form_decode(pair), "")
 						},
 				)
-			}
+		}
 
 	## Replace or remove the query.
 	##
@@ -241,7 +241,7 @@ Url :: {
 						Ok(value) => Ok(Some(value))
 						Err(err) => Err(err)
 					}
-				}?
+			}?
 		Ok(
 			Url.{
 				scheme: url.scheme,
@@ -267,7 +267,7 @@ Url :: {
 						Ok(value) => Ok(Some(value))
 						Err(err) => Err(err)
 					}
-				}?
+			}?
 		Ok(
 			Url.{
 				scheme: url.scheme,
@@ -294,7 +294,7 @@ parse_absolute = |input| {
 				} else {
 					Err(MissingScheme)
 				}
-			}?
+		}?
 	scheme =
 		match ascii_lower(scheme_parts.before) {
 			"http" => Ok(Http)
@@ -456,7 +456,7 @@ parse_port = |raw, scheme| {
 						},
 					)
 				}
-			}
+		}
 	}
 }
 
@@ -581,7 +581,7 @@ validate_optional = |option, kind|
 				Ok(value) => Ok(Some(value))
 				Err(err) => Err(err)
 			}
-		}
+	}
 
 validate_component : Str, [Fragment, Path, Query] -> Try(Str, Url.ParseErr)
 validate_component = |raw, kind|
@@ -1155,7 +1155,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/c?new=2#fresh"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Query-only resolution preserves the base path.
 expect
@@ -1166,7 +1166,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?new=2"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Fragment-only resolution preserves the base path and query.
 expect
@@ -1177,7 +1177,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?old=1#fresh"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Absolute-path resolution removes dot segments.
 expect
@@ -1188,7 +1188,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/root/y"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Removing a fragment preserves the remaining URL components.
 expect
@@ -1351,7 +1351,7 @@ expect
 				Ok(changed) => Url.to_str(changed) == "https://example.com/path#frag"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Setting a query percent-encodes Unicode while preserving query syntax.
 expect
@@ -1362,7 +1362,7 @@ expect
 				Ok(changed) => Url.to_str(changed) == "https://example.com/path?term=caf%C3%A9&empty="
 				Err(_) => False
 			}
-		}
+	}
 
 ## Setting a query rejects fragment delimiters.
 expect
@@ -1380,7 +1380,7 @@ expect
 				Ok(changed) => Url.to_str(changed) == "https://example.com/path"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Setting a fragment percent-encodes Unicode while preserving fragment syntax.
 expect
@@ -1391,7 +1391,7 @@ expect
 				Ok(changed) => Url.to_str(changed) == "https://example.com/path#r%C3%A9sum%C3%A9/?"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Setting a fragment rejects backslashes.
 expect
@@ -1409,7 +1409,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/a/b?old=1"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Relative resolution cannot traverse above the URL root.
 expect
@@ -1420,7 +1420,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "https://example.com/root"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Absolute URL resolution canonicalizes the replacement URL.
 expect
@@ -1431,7 +1431,7 @@ expect
 				Ok(resolved) => Url.to_str(resolved) == "http://other.example/x"
 				Err(_) => False
 			}
-		}
+	}
 
 ## Resolution rejects scheme-relative references.
 expect

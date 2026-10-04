@@ -1,5 +1,5 @@
 import Host
-import Path exposing [Path]
+import Path
 
 InternalPath := [].{
 	from_host_raw : Host.RawPath -> Path

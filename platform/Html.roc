@@ -107,7 +107,7 @@ Html := [].{
 				"<${tag}${render_attributes(attrs)}>${render_children(children)}</${tag}>"
 			VoidElement(tag, attrs) =>
 				"<${tag}${render_attributes(attrs)}>"
-			}
+		}
 
 	## Construct an `html` element.
 	html = |attrs, children| element("html", attrs, children)

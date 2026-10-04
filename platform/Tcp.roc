@@ -49,8 +49,8 @@ Tcp :: [].{
 		## If found, the newline is included as the last character.
 		read_line! : Stream => Try(Str, _)
 		read_line! = |stream|
-		# NB: use `match` rather than `?` here — `read_until!` yields a
-		# single-variant error union and `?` currently miscompiles (roc#9826).
+			# NB: use `match` rather than `?` here — `read_until!` yields a
+			# single-variant error union and `?` currently miscompiles (roc#9826).
 			match read_until!(stream, 10) {
 				Ok(bytes) => Str.from_utf8(bytes).map_err(|err| TcpReadBadUtf8(err))
 				Err(err) => Err(err)
@@ -69,7 +69,6 @@ Tcp :: [].{
 
 	## Represents errors that can occur when connecting to a remote host.
 	ConnectErr(a) : [
-
 		## The host already retains its maximum of 64 TCP streams.
 		CapacityExhausted,
 		PermissionDenied,

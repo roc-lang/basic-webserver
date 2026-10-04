@@ -1,8 +1,8 @@
 ## Parses a bounded multipart form upload and previews an uploaded PNG image.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-	roc: "nightly-2026-09-27-a3ce7f1",
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
+	roc: "nightly-2026-10-03-c507926",
 }
 
 import pf.Server
@@ -92,7 +92,7 @@ display_uploaded_image! = |req| {
 
 				Err(_) => Ok(text_response(400, "Expected a PNG in the fileToUpload field."))
 			}
-		}
+	}
 }
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
@@ -144,7 +144,7 @@ base64_bytes = |remaining, out|
 
 		[a, b, c, ..] =>
 			base64_bytes(remaining.drop_first(3), out.concat(base64_quad(a, b, c, 3)))
-		}
+	}
 
 base64_quad : U8, U8, U8, U64 -> List(U8)
 base64_quad = |a, b, c, byte_count| {

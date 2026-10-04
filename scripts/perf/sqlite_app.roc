@@ -1,6 +1,6 @@
 app [Context, program] {
-	pf: platform "../../platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	pf: platform "../../platform/main.roc",
 }
 
 import pf.Env
@@ -20,7 +20,7 @@ ValueRow : { value : I64 }
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = || {
 	db_path =
 		match Env.var!("SQLITE_BENCH_DB") {
@@ -56,7 +56,7 @@ init! = || {
 	})
 }
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |request, context|
 	match request.target() {
 		Resource({ raw_path: "/point", .. }) => point_read!(context.db)
@@ -114,7 +114,7 @@ range_read! = |db, limit| {
 	Ok(text_outcome(200, rows.len().to_str()))
 }
 
-blob_read! : Sqlite.Db, I64 => Try(Server.Outcome, [ServerErr(Str), ..])
+blob_read! : Sqlite.Db, I64 => Try(Server.Outcome, [ServerErr(Str)])
 blob_read! = |db, id| {
 	payload : Sqlite.Blob
 	payload =
@@ -200,5 +200,5 @@ parse_pool_size = |raw| {
 text_outcome = |status, body|
 	Server.respond(Response.from_status(status).with_body(Str.to_utf8(body)))
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
 shutdown! = |_, _| Ok({})
