@@ -1,8 +1,8 @@
 ## Reproduces the public non-Rocket Datastar examples as executable Roc API probes.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-	roc: "nightly-2026-09-27-a3ce7f1",
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
+	roc: "nightly-2026-10-04-130536d",
 }
 
 import ./components/ClickToLoad
@@ -174,7 +174,7 @@ bad_apple_frame = |frame_index|
 			\\████              ████
 			\\██████████████████████
 			\\██████████████████████
-		}
+	}
 
 contacts : List(Contact)
 contacts = [

@@ -593,7 +593,6 @@ Server :: [].{
 			{
 				listen : { host : Str, port : U16 },
 				limits : {
-
 					## The listener applies TCP accept backpressure while this many
 					## connections are active.
 					max_connections : U32,
@@ -619,7 +618,6 @@ Server :: [].{
 					response_idle_ms : U64,
 				},
 				request_metadata : {
-
 					## Inclusive byte limit for the normalized request target,
 					## including its query string.
 					max_target_bytes : U32,

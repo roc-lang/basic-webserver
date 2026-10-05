@@ -661,18 +661,21 @@ pub(crate) extern "C" fn roc_alloc(
     _roc_host: *mut RocHost,
     length: usize,
     alignment: usize,
-) -> *mut c_void {
+) -> NonNull<c_void> {
     #[cfg(feature = "benchmark-instrumentation")]
     {
         let operation_epoch = benchmark_current_epoch();
         benchmark_allocated(length, operation_epoch);
         return with_benchmark_roc_allocation(operation_epoch, || unsafe {
-            allocate(length, alignment, AllocationKind::Ordinary, None).cast()
+            NonNull::new_unchecked(
+                allocate(length, alignment, AllocationKind::Ordinary, None).cast(),
+            )
         });
     }
     #[cfg(not(feature = "benchmark-instrumentation"))]
     unsafe {
-        allocate(length, alignment, AllocationKind::Ordinary, None).cast()
+        // `allocate` aborts on OOM and never returns null.
+        NonNull::new_unchecked(allocate(length, alignment, AllocationKind::Ordinary, None).cast())
     }
 }
 
@@ -721,7 +724,7 @@ pub(crate) extern "C" fn roc_realloc(
     ptr: *mut c_void,
     new_length: usize,
     alignment: usize,
-) -> *mut c_void {
+) -> NonNull<c_void> {
     #[cfg(feature = "benchmark-instrumentation")]
     let operation_epoch = benchmark_current_epoch();
     let old_user_ptr = ptr.cast::<u8>();
@@ -779,7 +782,7 @@ pub(crate) extern "C" fn roc_realloc(
             new_length,
             requested_alignment,
         );
-        new_user_ptr.cast()
+        NonNull::new_unchecked(new_user_ptr.cast())
     }
 }
 
@@ -798,9 +801,11 @@ mod tests {
     #[test]
     fn ordinary_allocation_reallocates_and_preserves_bytes() {
         unsafe {
-            let ptr = roc_alloc(core::ptr::null_mut(), 4, 4).cast::<u8>();
+            let ptr = roc_alloc(core::ptr::null_mut(), 4, 4).as_ptr().cast::<u8>();
             ptr.copy_from_nonoverlapping([1, 2, 3, 4].as_ptr(), 4);
-            let ptr = roc_realloc(core::ptr::null_mut(), ptr.cast(), 12, 4).cast::<u8>();
+            let ptr = roc_realloc(core::ptr::null_mut(), ptr.cast(), 12, 4)
+                .as_ptr()
+                .cast::<u8>();
             assert_eq!(core::slice::from_raw_parts(ptr, 4), &[1, 2, 3, 4]);
             roc_dealloc(core::ptr::null_mut(), ptr.cast(), 4);
         }

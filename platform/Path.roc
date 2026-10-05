@@ -1,7 +1,7 @@
-import IOErr exposing [IOErr]
+import IOErr
 import Host
-import OsStr exposing [OsStr]
-import UnixTime exposing [UnixTime]
+import OsStr
+import UnixTime
 
 path_type_from_host : Host.PathType -> [IsFile, IsDir, IsSymLink, IsOther]
 path_type_from_host = |path_type|
@@ -267,7 +267,7 @@ Path := [
 					Ok(str) => "Path.windows(${Json.to_str(str)})"
 					Err(_) => "Path.windows_u16s(${Str.inspect(u16s)})"
 				}
-			}
+		}
 
 	## Compare paths by their exact tagged representation.
 	is_eq : Path, Path -> Bool
@@ -324,7 +324,7 @@ Path := [
 						Err(NotFound) => Ok(path)
 					}
 				}
-			}
+		}
 
 	## Returns the filename extension without the leading dot.
 	ext : Path -> Try(Path, [IsDirPath, EndsInDots])
@@ -484,7 +484,7 @@ utf16_to_utf8 = |remaining, out, index|
 
 		[unit, .. as rest] =>
 			utf16_to_utf8(rest, append_code_point_utf8(out, U16.to_u32(unit)), index + 1)
-		}
+	}
 
 utf16_to_utf8_lossy : List(U16) -> List(U8)
 utf16_to_utf8_lossy = |u16s| utf16_to_utf8_lossy_help(u16s, [])
@@ -507,7 +507,7 @@ utf16_to_utf8_lossy_help = |remaining, out|
 
 		[unit, .. as rest] =>
 			utf16_to_utf8_lossy_help(rest, append_code_point_utf8(out, U16.to_u32(unit)))
-		}
+	}
 
 append_code_point_utf8 : List(U8), U32 -> List(U8)
 append_code_point_utf8 = |out, code_point|
