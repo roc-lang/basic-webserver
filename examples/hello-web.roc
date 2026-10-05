@@ -1,20 +1,14 @@
-# TODO: Restore this .roc example and its scripts/test_spec.json cases after
-# roc-gregorian publishes a release without redundant return-position `..` unions.
-# The pinned compiler rejects five such unions in 1.0.0-rc.3/Util.roc.
-# Upstream: https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian
 ## Uses host-owned operational telemetry and responds with a simple HTML greeting.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.16.0/42jC1JT3auhHSmv2Ah8mW5F2MXiAakq1UQQ4NQceQjXw.tar.zst",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.3/3R8EMBQy6rYy3vbLY3u4CLcT8qwAPAyxaaGTA18Gknbe.tar.zst",
-	roc: "nightly-2026-10-03-c507926",
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.17.0/AC9goxhsjJJdrQtnc2ga3eTiESyh6ZLraZJsCVdEfeZT.tar.zst",
+	roc: "nightly-2026-10-04-130536d",
 }
 
 import pf.Server
 import pf.Stdout
 import pf.UnixTime
 import http.Response
-import gregorian.Time
 
 # `init!` produces this immutable context once, and every request receives it.
 Context : {}
@@ -38,9 +32,9 @@ init! = || {
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |request, _context| {
-	datetime = (Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
+	seconds = UnixTime.now!().seconds_since_epoch()
 
-	Stdout.line!("${datetime} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
+	Stdout.line!("${seconds.to_str()} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
 		? |err| ServerErr("Failed to log request: ${Str.inspect(err)}")
 
 	Ok(Server.respond(Response.from_status(200).with_body(Str.to_utf8("<b>Hello from server</b><br>"))))

@@ -685,27 +685,6 @@ def rewritten_app_source(app_path: str, platform_url: str | None) -> Path:
     return destination
 
 
-def readme_example(*, platform_url: str | None = None) -> Path:
-    source = (ROOT / "README.md").read_text(encoding="utf-8")
-    match = re.search(r"(?ms)^```roc\n(.*?)^```$", source)
-    if match is None:
-        fail("README example check failed: no Roc code block found")
-    directory = VALIDATION_ROOT / "readme"
-    directory.mkdir(parents=True, exist_ok=True)
-    rewritten = match.group(1)
-    if platform_url is not None:
-        rewritten, count = PLATFORM_DEPENDENCY.subn(
-            lambda dependency: f'{dependency.group(1)}"{platform_url}"',
-            rewritten,
-            count=1,
-        )
-        if count != 1:
-            fail("README example check failed: expected one platform dependency")
-    path = directory / "readme.roc"
-    write_text(path, rewritten)
-    return path
-
-
 class Capture:
     def __init__(self, pipe: object) -> None:
         self.pipe = pipe
@@ -2076,10 +2055,6 @@ def validate_sources(
             else:
                 command(roc, stage, source)
 
-    readme = readme_example(platform_url=platform_url)
-    command(roc, "check", readme)
-    command(roc, "test", readme)
-
 
 def build_artifacts(
     roc: str,
@@ -2112,14 +2087,6 @@ def build_artifacts(
         )
         binaries[str(app["path"])] = binary
 
-    readme = readme_example(platform_url=platform_url)
-    command(
-        roc,
-        "build",
-        readme,
-        f"--target={target}",
-        f"--output={artifact_dir / target / ('readme' + executable_suffix(target))}",
-    )
     write_manifest(
         target,
         binaries,

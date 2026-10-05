@@ -3,9 +3,9 @@
 [roc_badge]: https://img.shields.io/endpoint?url=https%3A%2F%2Froc-lang.org%2Fbadge%2Froc.json
 [roc_link]: https://github.com/roc-lang/roc
 
-Documentation: [0.14.0-rc1](https://roc-lang.github.io/basic-webserver/0.14.0-rc1/), [main](https://roc-lang.github.io/basic-webserver/main/)
-
-Examples: [0.14.0-rc1](https://github.com/roc-lang/basic-webserver/tree/0.14.0-rc1/examples), [main](https://github.com/roc-lang/basic-webserver/tree/main/examples)
+[Latest release](https://github.com/roc-lang/basic-webserver/releases/latest) ·
+[Documentation](https://roc-lang.github.io/basic-webserver/) ·
+[Examples](https://github.com/roc-lang/basic-webserver/tree/main/examples)
 
 # Basic Web Server for Roc
 
@@ -28,43 +28,11 @@ Applications provide three functions:
 Durable mutable state belongs in SQLite or an external service. The platform
 does not route requests through a global mutable application model.
 
-> `main` and the 0.14 release candidates target Roc's new Zig-based compiler.
-> The old Rust-based compiler is not supported.
-
 ## Quick start
 
-Save the following as `hello.roc`, then run `roc hello.roc` and open
-<http://127.0.0.1:8000>.
-
-```roc
-app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.17.0/AC9goxhsjJJdrQtnc2ga3eTiESyh6ZLraZJsCVdEfeZT.tar.zst",
-	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
-}
-
-import pf.Server
-import http.Response
-
-Context : {}
-
-program = { init!, respond!, shutdown! }
-
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
-init! = || Ok({ config: Server.default_config, context: {} })
-
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
-respond! = |_request, _context|
-	Ok(
-		Server.respond(
-			Response.from_status(200)
-				.with_headers([{ name: "Content-Type", value: "text/html; charset=utf-8" }])
-				.with_body(Str.to_utf8("<b>Hello from Roc!</b>")),
-		),
-	)
-
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64)])
-shutdown! = |_reason, _context| Ok({})
-```
+Start from [`examples/hello-web.roc`](examples/hello-web.roc): download it,
+run `roc hello-web.roc`, and open <http://127.0.0.1:8000>. Every example's
+header pins the platform release and Roc nightly it was tested with.
 
 `Server.default_config` listens only on `127.0.0.1:8000`. Use
 `Server.Config.with_listen` to choose another address. See
@@ -74,23 +42,11 @@ error handling.
 
 ## Runtime contract
 
-The defaults are finite so overload has deliberate behavior:
-
-| Resource | Default |
-| --- | ---: |
-| Active connections | 256 |
-| Concurrent Roc handlers | 32 |
-| Queued handlers | 64 |
-| Admitted SSE responses | 256 |
-| Framed SSE event | 1 MiB |
-| Request target | 8 KiB |
-| Decoded request headers | 32 KiB |
-| Request header fields | 100 |
-| Request body | 1 MiB |
-| Request body chunk | 64 KiB |
-| Buffered body chunks per request | 1 |
-| Graceful request drain | 30 seconds |
-| Shutdown hook | 10 seconds |
+Every resource has a finite default limit (connections, concurrent and queued
+handlers, SSE responses, request target, headers, and body size, drain and
+shutdown deadlines) so overload has deliberate behavior. The
+[API documentation](https://roc-lang.github.io/basic-webserver/) for
+`Server.Config` lists the current values.
 
 When every handler and queue slot is occupied, new requests receive HTTP 503.
 Applications can change these limits with the `Server.Config` builders and can
@@ -180,9 +136,6 @@ systems, time zones, and text formatting are deliberately left to the Roc
 package ecosystem. The time-using examples demonstrate converting
 `UnixTime.Timestamp` values with
 [`roc-gregorian`](https://git.sr.ht/~jwoudenberg/roc/tree/main/item/gregorian).
-Those six examples are temporarily kept as `.todoroc` files until the package
-publishes a release compatible with the pinned compiler; each records a TODO
-to restore the example and its HTTP specification cases.
 
 Outbound HTTP calls default to a 30-second total deadline and an 8 MiB response
 body. At most 64 calls run and 256 wait for admission. The shared client pools

@@ -436,7 +436,6 @@ jobs:
           python scripts/update_app_platform_urls.py
           --release-manifest .release/release-bundles.json
           examples
-          README.md
 
       - name: Validate updated examples
         run: >-
@@ -450,7 +449,6 @@ jobs:
           release_version: ${{ needs.build.outputs.release_version }}
           paths: |
             examples
-            README.md
           branch_prefix: release-followup
           base_branch: ${{ github.event.repository.default_branch }}
           commit_message: Update examples for ${{ needs.build.outputs.release_version }}
