@@ -22,19 +22,24 @@ def write_text(path: Path, text: str, newline: str = "\n") -> None:
 
 def update_apps(paths: list[Path], platform_url: str) -> list[Path]:
     roc_files: list[Path] = []
+    # Markdown files (e.g. README.md) embed one app whose platform URL must
+    # track the release just like the examples.
+    markdown_files: list[Path] = []
     for path in paths:
         if path.is_dir():
             roc_files.extend(sorted(path.rglob("*.roc")))
         elif path.suffix == ".roc":
             roc_files.append(path)
+        elif path.suffix == ".md":
+            markdown_files.append(path)
         else:
-            raise SystemExit(f"Expected a Roc app or directory: {path}")
+            raise SystemExit(f"Expected a Roc app, Markdown file, or directory: {path}")
 
     app_files = [
         path
         for path in roc_files
         if APPLICATION_HEADER.search(path.read_text(encoding="utf-8")) is not None
-    ]
+    ] + markdown_files
     if not app_files:
         raise SystemExit("No Roc apps found")
 
