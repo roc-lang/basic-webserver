@@ -440,16 +440,24 @@ Server :: [].{
 		## Create one readiness gate with an explicit initial state. The host has
 		## finite capacity and reports exhaustion instead of growing a registry.
 		create! : ReadinessState => Try(Readiness, [ReadinessCapacityExhausted])
-		create! = |state| {
-			host = Host.readiness_create!(state == Ready)?
-			Ok(Readiness.{ host })
-		}
+		# Reconstruct hosted errors so callers can combine them with other errors.
+		create! = |state|
+			match Host.readiness_create!(state == Ready) {
+				Ok(host) => Ok(Readiness.{ host })
+				Err(ReadinessCapacityExhausted) => Err(ReadinessCapacityExhausted)
+			}
 
 		## Atomically replace the readiness state. Once graceful drain begins,
 		## every update returns ServerStopping and the state remains NotReady.
 		set! : Readiness, ReadinessState => Try({}, [InvalidReadiness, StaleReadiness, ServerStopping])
+		# Forwarding the host result directly would keep its error union closed.
 		set! = |readiness, state|
-			Host.readiness_set!(to_host(readiness), state == Ready)
+			match Host.readiness_set!(to_host(readiness), state == Ready) {
+				Ok(value) => Ok(value)
+				Err(InvalidReadiness) => Err(InvalidReadiness)
+				Err(StaleReadiness) => Err(StaleReadiness)
+				Err(ServerStopping) => Err(ServerStopping)
+			}
 
 		## Render without exposing the host lifecycle token.
 		to_inspect : Readiness -> Str
