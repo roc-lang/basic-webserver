@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,27 +12,6 @@ from test import BundleServer, declared_targets, examples_hash
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def write_text(path: Path, text: str, newline: str = "\n") -> None:
-    """Write ``text`` to ``path`` with fixed line endings (Path.write_text has no
-    ``newline`` argument before Python 3.10)."""
-    with path.open("w", encoding="utf-8", newline=newline) as handle:
-        handle.write(text)
-
-
-def update_readme(platform_url: str) -> None:
-    readme = ROOT / "README.md"
-    source = readme.read_text(encoding="utf-8")
-    rewritten, count = re.subn(
-        r'(?m)(\bplatform\s+)"[^"]+"',
-        lambda match: f'{match.group(1)}"{platform_url}"',
-        source,
-        count=1,
-    )
-    if count != 1:
-        raise SystemExit(f"Expected exactly one README platform URL, found {count}")
-    write_text(readme, rewritten)
 
 
 def main() -> None:
@@ -87,7 +65,6 @@ def main() -> None:
         raise SystemExit(f"Bundle does not exist: {bundle}")
 
     sources = sorted((ROOT / "examples").rglob("*.roc"))
-    sources.append(ROOT / "README.md")
     backups = {path: path.read_bytes() for path in sources}
     original_examples_sha256 = examples_hash()
 
@@ -95,7 +72,6 @@ def main() -> None:
         with BundleServer(bundle) as bundle_url:
             print(f"Testing bundle: {bundle_url}")
             update_apps([ROOT / "examples"], bundle_url)
-            update_readme(bundle_url)
             command = [
                 sys.executable,
                 str(ROOT / "scripts" / "test.py"),
