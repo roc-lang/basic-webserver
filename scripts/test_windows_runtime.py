@@ -317,13 +317,16 @@ class WindowsRuntimeTests(unittest.TestCase):
         scratch = runtime.ROOT / "target/windows-host-fixture"
         scratch.mkdir(parents=True, exist_ok=True)
         source = scratch / "app.c"
-        # The host runs its startup, then calls init first; exiting there
-        # proves that the host initialized without calling into Roc code.
+        # Stub every Roc entrypoint from the glue. The host runs its startup,
+        # then calls init first; exiting there proves that the host
+        # initialized without calling into Roc code.
+        glue = (runtime.ROOT / "src/roc_platform_abi.rs").read_text(encoding="utf-8")
+        entrypoints = re.findall(r"/// Entrypoint: .*\n\s*pub fn (roc_\w+)\(", glue)
+        self.assertIn("roc_init_for_host", entrypoints)
         source.write_text(
             "__declspec(dllimport) void __stdcall ExitProcess(unsigned int);\n"
-            "void roc_init_for_host(void) { ExitProcess(37); }\n"
-            "void roc_respond_for_host(void) { ExitProcess(1); }\n"
-            "void roc_shutdown_for_host(void) { ExitProcess(1); }\n")
+            + "".join(f"void {name}(void) {{ ExitProcess({37 if name == 'roc_init_for_host' else 1}); }}\n"
+                      for name in entrypoints))
         obj, exe = scratch / "app.obj", scratch / "app.exe"
         subprocess.run([zig, "cc", "-target", "x86_64-windows-msvc", "-c", str(source), "-o", str(obj)], check=True)
         imports = link_windows_executable(zig, exe, obj, inputs / "host.lib",
