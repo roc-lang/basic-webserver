@@ -58,7 +58,12 @@ jobs:
         run: |
           rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal
           rustup default "${{ needs.rust-version.outputs.version }}"
-          rustup component add rustfmt llvm-tools-preview
+          rustup component add rustfmt llvm-tools-preview rust-docs
+
+      - name: Check third-party notices
+        run: |
+          python -m unittest scripts.test_third_party_notices
+          python scripts/third_party_notices.py --check
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
