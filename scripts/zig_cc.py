@@ -23,7 +23,10 @@ def compiler_args(target: str, args: list[str]) -> list[str]:
             result.append(arg)
     # Match /MD: use the DLL CRT declarations, without changing the MSVC ABI.
     runtime = ["-fms-runtime-lib=dll"] if target.endswith("-windows-msvc") else []
-    return ["cc", "-target", target, *runtime, *result]
+    # Unlike other C compilers, zig cc emits debug info unless told not to.
+    # Keep it only when cc-rs asks for it (a profile with debug info).
+    debug = [] if any(arg.startswith("-g") for arg in result) else ["-g0"]
+    return ["cc", "-target", target, *runtime, *debug, *result]
 
 
 if __name__ == "__main__":

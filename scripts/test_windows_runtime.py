@@ -137,10 +137,12 @@ assert "x64win" in build.ROC_TARGETS
         args = adapter["compiler_args"]("x86_64-windows-msvc", [
             "--target=x86_64-pc-windows-msvc", "-target", "x86_64-pc-windows-msvc",
             "-I", "directory with spaces", "-O2"])
-        self.assertEqual(args, ["cc", "-target", "x86_64-windows-msvc", "-fms-runtime-lib=dll",
+        self.assertEqual(args, ["cc", "-target", "x86_64-windows-msvc", "-fms-runtime-lib=dll", "-g0",
                                 "-I", "directory with spaces", "-O2"])
         args = adapter["compiler_args"]("x86_64-linux-musl", ["--target=x86_64-unknown-linux-musl", "-O2"])
-        self.assertEqual(args, ["cc", "-target", "x86_64-linux-musl", "-O2"])
+        self.assertEqual(args, ["cc", "-target", "x86_64-linux-musl", "-g0", "-O2"])
+        args = adapter["compiler_args"]("x86_64-linux-musl", ["-gdwarf-4", "-O2"])
+        self.assertEqual(args, ["cc", "-target", "x86_64-linux-musl", "-gdwarf-4", "-O2"])
 
     def test_inherited_rust_flags_preserved_and_dynamic_crt_selected(self):
         with patch.dict(os.environ, {"CARGO_ENCODED_RUSTFLAGS": "-Ctarget-feature=+crt-static\x1f-Cdebuginfo=1"}), \
