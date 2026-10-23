@@ -2,7 +2,7 @@
 app [Context, program] {
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.17.0/AC9goxhsjJJdrQtnc2ga3eTiESyh6ZLraZJsCVdEfeZT.tar.zst",
-	roc: "nightly-2026-10-09-258ab27",
+	roc: "nightly-2026-10-23-18478ff",
 }
 
 import ./components/ClickToLoad
@@ -283,7 +283,6 @@ index_page = page(
 	\\    <li><a href="/examples/web_component">Web Component</a></li>
 	\\    <li><a href="/examples/match_media">Match Media</a></li>
 	\\</ol>
-	,
 )
 
 active_search_page : Str
@@ -294,7 +293,6 @@ active_search_page = page(
 	\\<fieldset><legend>Demo</legend>${active_search_demo("")}</fieldset>
 	\\<h2>What this validates</h2>
 	\\<p><code>Datastar.read_signals!</code> decodes GET query signals and <code>Datastar.respond</code> returns a finite typed patch without occupying a retained-stream slot.</p>
-	,
 )
 
 bad_apple_page : Str
@@ -310,7 +308,6 @@ bad_apple_page = page(
 	\\</fieldset>
 	\\<h2>What this validates</h2>
 	\\<p>A bounded retained source emits 60 typed signal patches at roughly 30fps; the browser updates existing elements without server-rendering HTML for each frame.</p>
-	,
 )
 
 ascii_lower : Str -> Str

@@ -165,7 +165,6 @@ lazy_graph = Datastar.respond([
 		\\    <svg id="lazy-graph" viewBox="0 0 300 120" role="img" aria-label="Loaded line graph"><polyline points="0,100 50,80 100,90 150,35 200,55 250,20 300,30" fill="none" stroke="currentColor" stroke-width="4"></polyline></svg>
 		\\    <p>Graph loaded.</p>
 		\\</div>
-		,
 	),
 ])
 
