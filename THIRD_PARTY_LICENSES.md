@@ -2,6 +2,31 @@
 
 This project bundles third-party link inputs for its supported targets.
 
+## Windows MSVC inputs
+
+`platform/targets/x64win/PROVENANCE.json` records every shipped Windows
+library's SHA-256, source revision or source-package checksum, build commands,
+toolchain, license, and redistribution basis. Its `documents` inventory hashes
+the original license and copyright notices in
+`platform/targets/x64win/licenses/`. These files are included in release
+bundles; retain them when redistributing the libraries.
+
+The startup, initializer, and TLS sources in `native/windows/` come from Roc
+commit `7d256b954603e1170ee0d6df229c795aba6dc70d` under UPL-1.0. The
+additional stack-cookie and type-info support is original basic-cli code under
+UPL-1.0. Zig 0.17.0 supplies compiler-rt under MIT and mingw-w64 import
+definitions under ZPL-2.1. The import libraries refer to Windows DLLs supplied
+by the operating system. These archives are combined into
+`windows_support.lib`, kept after the application in the platform inputs for
+lazy linking; `host.lib` remains separate.
+
+The MSVC Rust host embeds Rust, ring, SQLite, zstd, and its other Cargo
+dependencies. The Windows producer collects the resolved dependencies' original
+license files, source copyright headers, crate checksums, and Rust's
+`COPYRIGHT-library.html`. An unreviewed license expression or missing notice
+stops the build. The producer uses the dynamic CRT configuration and does not
+copy Microsoft SDK or CRT archives into the platform.
+
 ## Roc macOS system-library stub
 
 File: `platform/targets/macos-sysroot/usr/lib/libSystem.tbd`

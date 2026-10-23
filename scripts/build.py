@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import platform
 import shutil
 import subprocess
 from pathlib import Path
+
+try:
+    from . import windows_runtime
+except ImportError:
+    import windows_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +32,6 @@ def display_path(path: Path) -> Path:
         return path.relative_to(ROOT)
     except ValueError:
         return path
-WINDOWS_SYSTEM_LIBRARIES = ("advapi32.lib", "bcrypt.lib", "ws2_32.lib")
 
 
 def run(*args: str, env: dict[str, str] | None = None, check: bool = True) -> None:
@@ -49,8 +54,9 @@ def find_llvm_strip() -> Path:
     sysroot = Path(
         subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip()
     )
+    suffix = ".exe" if platform.system() == "Windows" else ""
     executable = (
-        sysroot / "lib" / "rustlib" / rust_host_target() / "bin" / "llvm-strip"
+        sysroot / "lib" / "rustlib" / rust_host_target() / "bin" / ("llvm-strip" + suffix)
     )
     if executable.is_file():
         return executable
@@ -198,26 +204,43 @@ def build_unix_target(
     strip_linux_host(target_name, platform_root)
 
 
-def find_windows_sdk_lib_dir() -> Path:
-    program_files = os.environ.get("ProgramFiles(x86)")
-    if not program_files:
-        raise SystemExit("ProgramFiles(x86) is not set; cannot locate the Windows SDK")
-
-    sdk_root = Path(program_files) / "Windows Kits" / "10" / "Lib"
-    if not sdk_root.is_dir():
-        raise SystemExit(f"Could not find Windows SDK library directory: {sdk_root}")
-    candidates = sorted(
-        (
-            directory / "um" / "x64"
-            for directory in sdk_root.iterdir()
-            if directory.is_dir()
-            and (directory / "um" / "x64" / "ws2_32.lib").is_file()
-        ),
-        reverse=True,
+def windows_compiler(zig: str) -> str:
+    # cc-rs tracks CC's value, but not the contents of a wrapper or its hidden
+    # environment. Snapshot both adapter files under an identity that changes
+    # with the selected compiler, so cached ring/SQLite/zstd builds rerun.
+    adapters = [ROOT / "scripts" / name for name in ("zig_cc.cmd", "zig_cc.py")]
+    identity = "\n".join(
+        [zig, windows_runtime.digest(Path(zig)), *(windows_runtime.digest(p) for p in adapters)]
     )
-    if not candidates:
-        raise SystemExit(f"Could not find x64 Windows SDK libraries under {sdk_root}")
-    return candidates[0]
+    fingerprint = hashlib.sha256(identity.encode()).hexdigest()
+    directory = ROOT / "target" / "windows-compiler" / fingerprint
+    directory.mkdir(parents=True, exist_ok=True)
+    for source in adapters:
+        destination = directory / source.name
+        if not destination.exists():
+            shutil.copy2(source, destination)
+        elif destination.read_bytes() != source.read_bytes():
+            raise SystemExit(f"Compiler adapter snapshot was modified: {destination}")
+    return str(directory / adapters[0].name)
+
+
+def windows_build_env() -> tuple[dict[str, str], str]:
+    zig = windows_runtime.resolve_zig()
+    compiler = windows_compiler(zig)
+    env = os.environ.copy()
+    env["ZIG"] = zig
+    env["ZIG_CC_TARGET"] = "x86_64-windows-msvc"
+    env["CC_x86_64_pc_windows_msvc"] = compiler
+    # System UCRT import inputs match the standard dynamic CRT configuration.
+    # Preserve other flags, but ensure an inherited +crt-static does not bundle
+    # Microsoft CRT archives into host.lib.
+    existing = env.get("CARGO_ENCODED_RUSTFLAGS")
+    if existing is None:
+        existing = "\x1f".join(env.get("RUSTFLAGS", "").split())
+    env["CARGO_ENCODED_RUSTFLAGS"] = (
+        existing + ("\x1f" if existing else "") + "-Ctarget-feature=-crt-static"
+    )
+    return env, compiler
 
 
 def build_windows(
@@ -227,7 +250,8 @@ def build_windows(
 ) -> None:
     print(f"Building for x64win ({WINDOWS_TARGET})...")
     install_rust_target(WINDOWS_TARGET, required=True)
-    run(
+    env, compiler = windows_build_env()
+    build_command = [
         "cargo",
         "build",
         "--locked",
@@ -236,10 +260,11 @@ def build_windows(
         "--target",
         WINDOWS_TARGET,
         *cargo_feature_args(features),
-    )
+    ]
+    run(*build_command, env=env)
 
     output_dir = platform_root / "targets" / "x64win"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    windows_runtime.build(output_dir, zig=env["ZIG"])
     host_destination = output_dir / "host.lib"
     shutil.copy2(
         ROOT / "target" / WINDOWS_TARGET / "release" / "host.lib",
@@ -247,14 +272,21 @@ def build_windows(
     )
     print(f"  -> {display_path(host_destination)}")
 
-    sdk_lib_dir = find_windows_sdk_lib_dir()
-    for name in WINDOWS_SYSTEM_LIBRARIES:
-        source = sdk_lib_dir / name
-        if not source.is_file():
-            raise SystemExit(f"Could not find required Windows SDK library: {source}")
-        destination = output_dir / name
-        shutil.copy2(source, destination)
-        print(f"  -> {display_path(destination)}")
+    windows_runtime.record_host(
+        output_dir,
+        [build_command],
+        {
+            "c_compiler": "zig cc\n"
+            + subprocess.check_output(
+                [env["ZIG"], "cc", "-target", "x86_64-windows-msvc", "--version"],
+                text=True,
+            ).strip(),
+            "zig_executable_sha256": windows_runtime.digest(Path(env["ZIG"])),
+            "c_runtime_flags": "-fms-runtime-lib=dll",
+            "rust_flags": env["CARGO_ENCODED_RUSTFLAGS"],
+            "c_compiler_env": "CC_x86_64_pc_windows_msvc=" + compiler,
+        },
+    )
 
 
 def main() -> None:

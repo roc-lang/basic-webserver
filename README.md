@@ -160,7 +160,11 @@ The platform builds and runs these targets in CI:
 | `arm64musl` | Linux (musl) | ARM64 |
 | `x64win` | Windows | x86-64 |
 
-Other targets are not currently supported.
+Other targets are not currently supported. Windows support uses the UCRT
+supplied with Windows 10 and 11; applications do not require a separate Visual
+C++ runtime installation. Windows library sources, build commands, hashes, and
+licenses accompany the platform bundle in `targets/x64win/PROVENANCE.json` and
+`targets/x64win/licenses/`.
 
 ## Contributing
 
