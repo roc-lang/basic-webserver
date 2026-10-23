@@ -66,6 +66,45 @@ def resolve_zig() -> str:
     return executable
 
 
+def llvm_tool(name: str) -> Path:
+    executable = shutil.which(name)
+    if executable:
+        return Path(executable)
+    sysroot = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
+    host = next(line.removeprefix("host: ") for line in
+                subprocess.check_output(["rustc", "-vV"], text=True).splitlines()
+                if line.startswith("host: "))
+    suffix = ".exe" if os.name == "nt" else ""
+    executable = sysroot / "lib" / "rustlib" / host / "bin" / (name + suffix)
+    if executable.is_file():
+        return executable
+    raise SystemExit(f"{name} was not found; install it with `rustup component add llvm-tools-preview`")
+
+
+def defined_symbols(archive: Path, kinds: str) -> set[str]:
+    output = subprocess.check_output([str(llvm_tool("llvm-nm")), "--defined-only", "--extern-only",
+                                      "--no-sort", str(archive)], text=True)
+    return {fields[2] for fields in map(str.split, output.splitlines())
+            if len(fields) == 3 and fields[1] in kinds}
+
+
+def shadow_host_builtins(runtime: Path, host: Path, scratch: Path) -> dict[str, object]:
+    """Rename Zig compiler-rt builtins that the host already defines.
+
+    Rust's compiler-builtins and Zig's compiler-rt both define builtins as COFF
+    weak externals, and lld-link rejects two weak definitions of one name once
+    both objects are loaded (for example, when the host converts i128 to f64).
+    Leaving one exported provider per builtin keeps every link unambiguous.
+    """
+    overlap = sorted(defined_symbols(runtime, "Ww") & defined_symbols(host, "TtWwDdRrBb"))
+    renames = scratch / "compiler_rt_renames.txt"
+    renames.write_text("".join(f"{name} __zig_compiler_rt_shadowed{name}\n" for name in overlap),
+                       encoding="utf-8")
+    args = [str(llvm_tool("llvm-objcopy")), f"--redefine-syms={renames}", str(runtime)]
+    command(args)
+    return {"host_sha256": digest(host), "renamed_symbols": overlap, "build_command": args}
+
+
 def zig_lib_dir(zig: str) -> Path:
     # Zig 0.17 prints its environment as ZON, including on Windows.
     output = subprocess.check_output([zig, "env"], text=True)
@@ -352,7 +391,7 @@ def record_host(output: Path, build_commands: list[list[str]], toolchain: dict[s
     validate(output)
 
 
-def build(output: Path, *, zig: str | None = None) -> None:
+def build(output: Path, *, zig: str | None = None, host: Path | None = None) -> None:
     zig = zig or resolve_zig()
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -363,6 +402,14 @@ def build(output: Path, *, zig: str | None = None) -> None:
     parts.mkdir(parents=True, exist_ok=True)
     components = {"runtime": build_runtime(parts, scratch, zig_lib, zig),
                   "imports": build_imports(parts, scratch, zig_lib, zig)}
+    if host is not None:
+        shadowed = shadow_host_builtins(parts / RUNTIME_LIBRARIES[0], host, scratch)
+        runtime = components["runtime"]
+        runtime["build_commands"].append(shadowed.pop("build_command"))
+        runtime["host_builtins"] = shadowed
+        runtime["modifications"].append(
+            "Renamed the compiler-rt builtins that host.lib's Rust compiler-builtins also defines, "
+            "so each builtin has one exported provider.")
     license_files = sorted({relative for component in components.values()
                             for relative in component["license_files"]})
     for relative in license_files:

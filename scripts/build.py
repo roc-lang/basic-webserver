@@ -38,33 +38,8 @@ def run(*args: str, env: dict[str, str] | None = None, check: bool = True) -> No
     subprocess.run(args, cwd=ROOT, env=env, check=check)
 
 
-def rust_host_target() -> str:
-    output = subprocess.check_output(["rustc", "-vV"], text=True)
-    for line in output.splitlines():
-        if line.startswith("host: "):
-            return line.removeprefix("host: ")
-    raise SystemExit("Could not determine the Rust host target")
-
-
 def find_llvm_strip() -> Path:
-    executable = shutil.which("llvm-strip")
-    if executable:
-        return Path(executable)
-
-    sysroot = Path(
-        subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip()
-    )
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    executable = (
-        sysroot / "lib" / "rustlib" / rust_host_target() / "bin" / ("llvm-strip" + suffix)
-    )
-    if executable.is_file():
-        return executable
-
-    raise SystemExit(
-        "llvm-strip was not found; install it with "
-        "`rustup component add llvm-tools-preview`"
-    )
+    return windows_runtime.llvm_tool("llvm-strip")
 
 
 def strip_linux_host(target_name: str, platform_root: Path = ROOT / "platform") -> None:
@@ -264,12 +239,10 @@ def build_windows(
     run(*build_command, env=env)
 
     output_dir = platform_root / "targets" / "x64win"
-    windows_runtime.build(output_dir, zig=env["ZIG"])
+    host_source = ROOT / "target" / WINDOWS_TARGET / "release" / "host.lib"
+    windows_runtime.build(output_dir, zig=env["ZIG"], host=host_source)
     host_destination = output_dir / "host.lib"
-    shutil.copy2(
-        ROOT / "target" / WINDOWS_TARGET / "release" / "host.lib",
-        host_destination,
-    )
+    shutil.copy2(host_source, host_destination)
     print(f"  -> {display_path(host_destination)}")
 
     windows_runtime.record_host(

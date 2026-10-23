@@ -190,6 +190,54 @@ assert "x64win" in build.ROC_TARGETS
         self.assertEqual(set(bundle.TARGET_INPUTS["x64win"]), set(runtime.LIBRARIES) | {"host.lib"})
 
 
+class BuiltinShadowTests(unittest.TestCase):
+    def test_host_builtins_shadow_weak_compiler_rt_duplicates(self):
+        zig = runtime.resolve_zig()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            def archive(name: str, source: str) -> Path:
+                (root / f"{name}.zig").write_text(source)
+                subprocess.run([zig, "build-obj", str(root / f"{name}.zig"), "-target", "x86_64-windows-msvc",
+                                "-O", "ReleaseFast", f"-femit-bin={root / name}.obj"], check=True)
+                subprocess.run([zig, "ar", "rcs", str(root / f"{name}.lib"), str(root / f"{name}.obj")],
+                               check=True)
+                return root / f"{name}.lib"
+
+            # Both sides export the builtin weakly, as Rust's compiler-builtins
+            # and Zig's compiler-rt do, and each is loaded for another symbol.
+            exports = '''fn floattidf(a: i128) callconv(.c) f64 {{ return @floatFromInt(a); }}
+fn other() callconv(.c) i32 {{ return {value}; }}
+comptime {{
+    @export(&floattidf, .{{ .name = "__floattidf", .linkage = .weak }});
+    @export(&other, .{{ .name = "{other}" }});
+}}
+'''
+            host = archive("host", exports.format(value=1, other="host_only"))
+            compiler_rt = archive("compiler_rt", exports.format(value=2, other="rt_only"))
+            (root / "app.zig").write_text('''extern fn __floattidf(i128) callconv(.c) f64;
+extern fn host_only() callconv(.c) i32;
+extern fn rt_only() callconv(.c) i32;
+export var _fltused: c_int = 0;
+export fn mainCRTStartup() callconv(.c) i32 {
+    var value: i128 = 3;
+    _ = &value;
+    return @as(i32, @intFromFloat(__floattidf(value))) + host_only() + rt_only();
+}
+''')
+            subprocess.run([zig, "build-obj", str(root / "app.zig"), "-target", "x86_64-windows-msvc",
+                            "-O", "ReleaseFast", f"-femit-bin={root / 'app.obj'}"], check=True)
+            link = [zig, "lld-link", "/nodefaultlib", "/subsystem:console", "/entry:mainCRTStartup",
+                    "/machine:x64", f"/out:{root / 'app.exe'}", str(root / "app.obj"),
+                    str(host), str(compiler_rt)]
+            duplicate = subprocess.run(link, capture_output=True, text=True)
+            self.assertIn("duplicate symbol: __floattidf", duplicate.stdout + duplicate.stderr)
+
+            shadowed = runtime.shadow_host_builtins(compiler_rt, host, root)
+            self.assertEqual(shadowed["renamed_symbols"], ["__floattidf"])
+            subprocess.run(link, check=True)
+
+
 class CompilerCacheTests(unittest.TestCase):
     def test_cargo_rebuilds_when_compiler_or_adapter_changes(self):
         zig = runtime.resolve_zig()
