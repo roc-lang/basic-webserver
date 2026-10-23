@@ -52,7 +52,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f
         with:
-          version: 0.16.0
+          version: 0.17.0
 
       - name: Install Rust toolchain
         run: |
@@ -70,6 +70,9 @@ jobs:
 
       - name: Run Rust unit tests
         run: cargo test --locked
+
+      - name: Test Windows runtime provenance tooling
+        run: python -m unittest scripts.test_windows_runtime
 
       - name: Run substituted-transport server invariants
         run: python scripts/benchmark.py check
