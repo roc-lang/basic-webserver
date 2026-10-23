@@ -29,7 +29,8 @@ for a distinct reusable workflow.
 - A recent Zig-based `roc` compiler on `PATH`. Build it from a Roc source
   checkout with `zig build roc`. The old Rust-based compiler is unsupported.
 - The Rust toolchain declared in [`rust-toolchain.toml`](rust-toolchain.toml).
-  Rustup selects it automatically.
+  Rustup selects it automatically. Bundling also needs its `rust-docs`
+  component, which provides the standard library notices.
 - Python 3. Repository automation uses only the Python standard library.
 - Native build tools for your operating system. Windows host builds require
   MSVC and the Windows SDK.
@@ -131,6 +132,32 @@ ROC_SRC=/path/to/roc python scripts/regenerate_glue.py --check
 
 `ROC_GLUE_SPEC=/path/to/RustGlue.roc` can be used instead of `ROC_SRC`.
 
+## Third-party notices
+
+`THIRD_PARTY_LICENSES.md` ships in every bundle. Everything after its marker
+comment is generated, so do not edit that part by hand. Regenerate it after
+changing `Cargo.lock`, `rust-toolchain.toml` or a prebuilt input under
+`platform/targets/`:
+
+```sh
+python scripts/third_party_notices.py
+```
+
+The script runs `cargo metadata` for every Roc target and follows normal
+dependencies, which excludes build and dev dependencies. For each linked package
+it reproduces every license file in the package source, along with the copyright
+comments at the top of its source files. A license expression outside the
+reviewed set in the script stops it, as does a package with no license file
+unless the script maps it to another package from the same repository. CI and
+the release workflow run it with `--check` and fail when the committed file is
+stale.
+
+Prebuilt inputs such as musl's `libc.a` and `crt1.o`, LLVM's `libunwind.a` and
+Roc's `libSystem.tbd` are recorded in `licenses/native-inputs.json` with their
+SHA-256, origin and license text in `licenses/`. Every committed file under
+`platform/targets/` must be recorded there. When replacing one, record where the
+new file came from and its license before regenerating.
+
 ## Generate API documentation
 
 Generate and serve the same platform API documentation published for `main`:
@@ -196,6 +223,7 @@ python scripts/bundle.py --output-dir dist
 ```
 
 The bundler validates target completeness and Roc's transitive dependency size
-limit, then includes the required notices and exact Rust dependency licenses.
+limit, then includes `LICENSE`, `THIRD_PARTY_LICENSES.md` and the Rust standard
+library notices.
 The release workflow assembles Windows, macOS, and Linux inputs before invoking
 it.
