@@ -7,17 +7,22 @@ import shutil
 import subprocess
 from pathlib import Path
 
+try:
+    from . import windows_runtime
+except ImportError:
+    import windows_runtime
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORM_DIR = ROOT / "platform"
-LIBRARY_EXTENSIONS = {".a", ".o", ".lib", ".obj"}
+LIBRARY_EXTENSIONS = windows_runtime.BINARY_EXTENSIONS
 MAX_PLATFORM_BYTES = 100 * 1024 * 1024
 TARGET_INPUTS = {
     "x64mac": ("libhost.a",),
     "arm64mac": ("libhost.a",),
     "x64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
     "arm64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
-    "x64win": ("host.lib", "ws2_32.lib", "bcrypt.lib", "advapi32.lib"),
+    "x64win": ("host.lib", *windows_runtime.LIBRARIES),
 }
 RUST_TARGETS = {
     "x64mac": "x86_64-apple-darwin",
@@ -118,13 +123,23 @@ def main() -> None:
             "Missing release target inputs; build all Unix targets and the "
             f"Windows host before bundling:\n{formatted}"
         )
-    unexpected = [path for path in library_files if path.suffix not in LIBRARY_EXTENSIONS]
+    unexpected = [
+        path for path in library_files if path.suffix.lower() not in LIBRARY_EXTENSIONS
+    ]
     if unexpected:
         raise SystemExit(f"Unexpected target input extension: {unexpected[0]}")
+    # Windows libraries travel with their provenance manifest and original
+    # license notices; validation rejects unrecorded or altered inputs.
+    metadata_files = (
+        windows_runtime.validate(PLATFORM_DIR / "targets" / "x64win")
+        if "x64win" in selected_targets
+        else []
+    )
 
     bundle_files = [
         *(relative_platform_path(path) for path in roc_files),
         *(relative_platform_path(path) for path in link_input_files),
+        *(relative_platform_path(path) for path in metadata_files),
     ]
     license_sources = {
         "LICENSE": ROOT / "LICENSE",
@@ -133,7 +148,7 @@ def main() -> None:
     }
     unpacked_size = sum(
         path.stat().st_size
-        for path in (*roc_files, *link_input_files, *license_sources.values())
+        for path in (*roc_files, *link_input_files, *metadata_files, *license_sources.values())
     )
     if unpacked_size > MAX_PLATFORM_BYTES:
         raise SystemExit(

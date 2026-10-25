@@ -311,18 +311,18 @@ Server :: [].{
 		valid =
 			Bool.not(relative.is_empty())
 				and relative_bytes.len() <= 4 * 1024
-					and segments.all(
-						|segment| {
-							bytes = Str.to_utf8(segment)
-							Bool.not(bytes.is_empty())
-								and segment != "."
-									and segment != ".."
-										and match bytes {
-											[46, ..] => Bool.False
-											_ => bytes.all(|byte| byte != 0 and byte != 58 and byte != 92)
-										}
-						},
-					)
+				and segments.all(
+					|segment| {
+						bytes = Str.to_utf8(segment)
+						Bool.not(bytes.is_empty())
+							and segment != "."
+							and segment != ".."
+							and match bytes {
+								[46, ..] => Bool.False
+								_ => bytes.all(|byte| byte != 0 and byte != 58 and byte != 92)
+							}
+					},
+				)
 		if valid {
 			Ok(RelativeFile(relative))
 		} else {

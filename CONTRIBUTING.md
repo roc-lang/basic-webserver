@@ -32,8 +32,10 @@ for a distinct reusable workflow.
   Rustup selects it automatically. Bundling also needs its `rust-docs`
   component, which provides the standard library notices.
 - Python 3. Repository automation uses only the Python standard library.
-- Native build tools for your operating system. Windows host builds require
-  MSVC and the Windows SDK.
+- Native build tools for your operating system. Cross-compiling the musl
+  hosts uses Zig 0.17.0. Windows host builds require Python 3.11 or newer,
+  Zig 0.17.0, the Windows SDK, and the MSVC build tools used by Rust's MSVC
+  target; see [Windows host inputs](#windows-host-inputs).
 
 The exact Roc nightly used for development, CI, and releases is recorded in
 [`.roc-version`](.roc-version), and every `examples/` manifest repeats it in
@@ -107,6 +109,33 @@ with Valgrind installed, run the same lane with:
 ```sh
 python scripts/test.py --operation memcheck
 ```
+
+### Windows host inputs
+
+Build the Windows host on Windows x64 with Zig 0.17.0 on `PATH` (or selected
+with `ZIG`) and Rust's notices and LLVM tools installed with
+`rustup component add rust-docs llvm-tools-preview`. The Rust target remains
+`x86_64-pc-windows-msvc`; `zig cc` builds ring, SQLite, and zstd with that ABI
+and the SDK headers through `scripts/zig_cc.py`, so a separate clang-cl
+installation is unnecessary. All Windows build steps use the same
+version-checked Zig. The compiler adapter is copied to a path derived from the
+compiler's path and SHA-256 and both adapter files' hashes, so changing these
+inputs invalidates Cargo's cached native builds.
+
+Run `python scripts/build.py --target x64win`, followed by
+`python -m unittest scripts.test_windows_runtime`. The build generates the
+MSVC startup archive and UCRT/Win32 import libraries, combines them into
+`windows_support.lib`, then collects the actual Cargo and Rust notices.
+`python scripts/windows_runtime.py --check` verifies the library and notice
+inventories, and bundling repeats that check. Release artifacts must transfer
+the entire `platform/targets/x64win/` directory, including `PROVENANCE.json`
+and `licenses/`.
+
+The runtime uses the UCRT supplied with Windows 10 and 11. Vendored Roc sources
+are checked against `native/windows/UPSTREAM.json`; update the recorded source
+revision, hashes, and original license together when changing them. New native
+dependencies or license expressions need review before adding them to the
+producer's accepted set.
 
 ## Add or change examples
 

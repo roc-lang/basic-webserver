@@ -648,6 +648,99 @@ mod tests {
     use std::sync::Condvar;
 
     #[test]
+    fn ring_tls_handshake_and_untrusted_certificate_rejection() {
+        use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+
+        let cert = CertificateDer::from(include_bytes!("../tests/tls/localhost-cert.der").to_vec());
+        let key =
+            PrivateKeyDer::try_from(include_bytes!("../tests/tls/localhost-key.der").to_vec())
+                .unwrap();
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let config = Arc::new(
+            rustls::ServerConfig::builder_with_provider(provider.clone())
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_no_client_auth()
+                .with_single_cert(vec![cert.clone()], key)
+                .unwrap(),
+        );
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            for accepted in [true, false] {
+                let (socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                socket
+                    .set_write_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let connection = rustls::ServerConnection::new(Arc::clone(&config)).unwrap();
+                let mut tls = rustls::StreamOwned::new(connection, socket);
+                let mut byte = [0];
+                if accepted {
+                    tls.read_exact(&mut byte).unwrap();
+                    assert_eq!(byte, [42]);
+                    tls.write_all(&[43]).unwrap();
+                    tls.flush().unwrap();
+                } else {
+                    assert!(
+                        tls.read(&mut byte).is_err(),
+                        "untrusted certificate was accepted"
+                    );
+                }
+            }
+        });
+
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(cert).unwrap();
+        let client_config = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let connection = rustls::ClientConnection::new(
+            Arc::new(client_config),
+            ServerName::try_from("localhost").unwrap(),
+        )
+        .unwrap();
+        let socket =
+            std::net::TcpStream::connect_timeout(&address, Duration::from_secs(5)).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut tls = rustls::StreamOwned::new(connection, socket);
+        tls.write_all(&[42]).unwrap();
+        tls.flush().unwrap();
+        let mut byte = [0];
+        tls.read_exact(&mut byte).unwrap();
+        assert_eq!(byte, [43]);
+        drop(tls);
+
+        // The production client trusts WebPKI roots, so the same ring
+        // implementation must reject the self-signed test certificate.
+        let uri: hyper::Uri = format!("https://localhost:{}/", address.port())
+            .parse()
+            .unwrap();
+        let endpoint = Endpoint::from_uri(&uri).unwrap();
+        let request = hyper::Request::builder()
+            .uri(uri)
+            .body(http_body_util::Full::new(bytes::Bytes::new()))
+            .unwrap();
+        let outbound = outbound_http();
+        let result = outbound.runtime.block_on(async {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                async_send_request(request, endpoint, &outbound.client, 1024),
+            )
+            .await
+        });
+        server.join().unwrap();
+
+        assert!(matches!(result, Ok(Err(TransportError::TlsFailed { .. }))));
+    }
+
+    #[test]
     fn maps_host_method_tags_to_hyper_methods() {
         assert_eq!(as_hyper_method(3, ""), Some(hyper::Method::GET));
         assert_eq!(as_hyper_method(7, ""), Some(hyper::Method::POST));

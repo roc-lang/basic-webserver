@@ -9,16 +9,36 @@ standard library and the prebuilt link inputs under `platform/targets/`.
 Release bundles also carry basic-webserver's own `LICENSE` and Rust's standard
 library notices as `RUST_LIBRARY_LICENSES.html`.
 
+## Windows MSVC inputs
+
+`platform/targets/x64win/PROVENANCE.json` records every shipped Windows
+library's SHA-256, source revision or source-package checksum, build commands,
+toolchain, license, and redistribution basis. Its `documents` inventory hashes
+the original license and copyright notices in
+`platform/targets/x64win/licenses/`. These files are included in release
+bundles; retain them when redistributing the libraries.
+
+The startup, initializer, and TLS sources in `native/windows/` come from Roc
+commit `7d256b954603e1170ee0d6df229c795aba6dc70d` under UPL-1.0. The
+additional stack-cookie and type-info support is original basic-cli code under
+UPL-1.0. Zig 0.17.0 supplies compiler-rt under MIT and mingw-w64 import
+definitions under ZPL-2.1. The import libraries refer to Windows DLLs supplied
+by the operating system. These archives are combined into
+`windows_support.lib`, kept after the application in the platform inputs for
+lazy linking; `host.lib` remains separate.
+
+The MSVC Rust host embeds Rust, ring, SQLite, zstd, and its other Cargo
+dependencies. The Windows producer collects the resolved dependencies' original
+license files, source copyright headers, crate checksums, and Rust's
+`COPYRIGHT-library.html`. An unreviewed license expression or missing notice
+stops the build. The producer uses the dynamic CRT configuration and does not
+copy Microsoft SDK or CRT archives into the platform.
+
 ## Notes
 
 `zstd-sys` compiles the zstd C library it bundles, which its authors offer under
 BSD-3-Clause or GPL-2.0-only. basic-webserver uses it under BSD-3-Clause. The
 GPL text below is reproduced only because it ships in the package source.
-
-The Windows bundle also contains `ws2_32.lib`, `bcrypt.lib` and `advapi32.lib`.
-`scripts/build.py` copies these import libraries from the Microsoft Windows SDK
-on the build machine. They are subject to the Windows SDK license terms and are
-not covered by this file.
 
 The platform's `http` package (roc-lang/http) is not part of this bundle. Roc
 downloads it from its own release, which carries its own license.
