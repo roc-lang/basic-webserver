@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import shutil
 import subprocess
@@ -32,6 +31,8 @@ RUST_TARGETS = {
     "arm64musl": "aarch64-unknown-linux-musl",
     "x64win": "x86_64-pc-windows-msvc",
 }
+# Bundle name for Rust's standard library notices.
+RUST_LIBRARY_LICENSES = "RUST_LIBRARY_LICENSES.html"
 PLATFORM_LINK_SUPPORT = (
     PLATFORM_DIR / "targets" / "macos-sysroot" / "usr" / "lib" / "libSystem.tbd",
 )
@@ -65,129 +66,16 @@ def validate_target_manifest() -> None:
         )
 
 
-def generate_rust_dependency_licenses(
-    output: Path, selected_targets: tuple[str, ...]
-) -> None:
-    packages_by_id: dict[str, dict[str, object]] = {}
-    for target in selected_targets:
-        metadata = json.loads(
-            subprocess.check_output(
-                [
-                    "cargo",
-                    "metadata",
-                    "--locked",
-                    "--format-version",
-                    "1",
-                    "--filter-platform",
-                    RUST_TARGETS[target],
-                ],
-                cwd=ROOT,
-                text=True,
-            )
+def rust_library_licenses() -> Path:
+    """Rust's notices for the statically linked standard library and its dependencies."""
+    sysroot = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
+    path = sysroot / "share" / "doc" / "rust" / "COPYRIGHT-library.html"
+    if not path.is_file():
+        raise SystemExit(
+            "Rust standard library notices are missing; install them with "
+            "`rustup component add rust-docs`"
         )
-        reachable = {node["id"] for node in metadata["resolve"]["nodes"]}
-        packages_by_id.update(
-            (package["id"], package)
-            for package in metadata["packages"]
-            if package["id"] in reachable
-            and str(package.get("source", "")).startswith("registry+")
-        )
-    packages = sorted(
-        packages_by_id.values(),
-        key=lambda package: (package["name"], package["version"]),
-    )
-
-    license_paths_by_id: dict[str, list[Path]] = {}
-    for package in packages:
-        package_root = Path(package["manifest_path"]).parent
-        candidates: list[Path] = []
-        license_file = package.get("license_file")
-        if license_file:
-            candidates.append(package_root / license_file)
-        candidates.extend(
-            sorted(
-                path
-                for path in package_root.iterdir()
-                if path.name.lower().startswith(
-                    ("license", "copying", "notice", "unlicense")
-                )
-            )
-        )
-        seen: set[Path] = set()
-        license_paths_by_id[package["id"]] = []
-        for candidate in candidates:
-            candidate = candidate.resolve()
-            if candidate.is_file() and candidate not in seen:
-                seen.add(candidate)
-                license_paths_by_id[package["id"]].append(candidate)
-
-    lines = [
-        "# Rust Dependency Licenses",
-        "",
-        "This file is generated from the exact dependencies in `Cargo.lock`.",
-        "",
-    ]
-    for package in packages:
-        license_paths = license_paths_by_id[package["id"]]
-        license_source = package
-        if not license_paths:
-            repository = package.get("repository")
-            license_expression = package.get("license")
-            matching_upstream = next(
-                (
-                    candidate
-                    for candidate in packages
-                    if candidate["id"] != package["id"]
-                    and repository
-                    and candidate.get("repository") == repository
-                    and license_expression
-                    and candidate.get("license") == license_expression
-                    and license_paths_by_id[candidate["id"]]
-                ),
-                None,
-            )
-            if matching_upstream is not None:
-                license_source = matching_upstream
-                license_paths = license_paths_by_id[matching_upstream["id"]]
-        if not license_paths:
-            raise SystemExit(
-                f"No license text found for Rust dependency "
-                f"{package['name']} {package['version']}"
-            )
-
-        lines.extend(
-            [
-                f"## {package['name']} {package['version']}",
-                "",
-                f"SPDX expression: `{package.get('license') or 'see included license'}`",
-                "",
-            ]
-        )
-        repository = package.get("repository")
-        if repository:
-            lines.extend([f"Source: {repository}", ""])
-        if license_source["id"] != package["id"]:
-            lines.extend(
-                [
-                    "License text supplied by "
-                    f"`{license_source['name']} {license_source['version']}` "
-                    "from the same upstream repository and SPDX license.",
-                    "",
-                ]
-            )
-        for license_path in license_paths:
-            lines.extend(
-                [
-                    f"### {license_path.name}",
-                    "",
-                    "```text",
-                    license_path.read_text(encoding="utf-8", errors="replace").rstrip(),
-                    "```",
-                    "",
-                ]
-            )
-
-    write_text(output, "\n".join(lines))
+    return path
 
 
 def main() -> None:
@@ -253,15 +141,16 @@ def main() -> None:
         *(relative_platform_path(path) for path in link_input_files),
         *(relative_platform_path(path) for path in metadata_files),
     ]
-    license_source = ROOT / "THIRD_PARTY_LICENSES.md"
-    rust_licenses_target = PLATFORM_DIR / "RUST_DEPENDENCY_LICENSES.md"
-    generate_rust_dependency_licenses(rust_licenses_target, selected_targets)
+    license_sources = {
+        "LICENSE": ROOT / "LICENSE",
+        "THIRD_PARTY_LICENSES.md": ROOT / "THIRD_PARTY_LICENSES.md",
+        RUST_LIBRARY_LICENSES: rust_library_licenses(),
+    }
     unpacked_size = sum(
-        path.stat().st_size for path in (*roc_files, *link_input_files, *metadata_files)
+        path.stat().st_size
+        for path in (*roc_files, *link_input_files, *metadata_files, *license_sources.values())
     )
-    unpacked_size += license_source.stat().st_size + rust_licenses_target.stat().st_size
     if unpacked_size > MAX_PLATFORM_BYTES:
-        rust_licenses_target.unlink(missing_ok=True)
         raise SystemExit(
             "Platform inputs exceed Roc's default 100 MiB transitive dependency limit: "
             f"{unpacked_size} bytes. Rebuild Linux hosts with "
@@ -276,20 +165,23 @@ def main() -> None:
     print("Files to bundle:")
     for path in bundle_files:
         print(f"  {path}")
-    print("  THIRD_PARTY_LICENSES.md")
-    print("  RUST_DEPENDENCY_LICENSES.md\n", flush=True)
-    print(f"Unpacked platform size: {unpacked_size} bytes\n")
+    for name in license_sources:
+        print(f"  {name}")
+    print(f"\nUnpacked platform size: {unpacked_size} bytes\n", flush=True)
 
-    license_target = PLATFORM_DIR / "THIRD_PARTY_LICENSES.md"
-    shutil.copy2(license_source, license_target)
+    # Copied next to main.roc only for the bundle; restore any local file.
+    backups: dict[Path, bytes | None] = {}
     try:
+        for name, source in license_sources.items():
+            destination = PLATFORM_DIR / name
+            backups[destination] = destination.read_bytes() if destination.exists() else None
+            shutil.copy2(source, destination)
         subprocess.run(
             [
                 args.roc,
                 "bundle",
                 *bundle_files,
-                "THIRD_PARTY_LICENSES.md",
-                "RUST_DEPENDENCY_LICENSES.md",
+                *license_sources,
                 "--output-dir",
                 str(output_dir),
                 *roc_args,
@@ -298,8 +190,11 @@ def main() -> None:
             check=True,
         )
     finally:
-        license_target.unlink(missing_ok=True)
-        rust_licenses_target.unlink(missing_ok=True)
+        for destination, contents in backups.items():
+            if contents is None:
+                destination.unlink(missing_ok=True)
+            else:
+                destination.write_bytes(contents)
 
 
 if __name__ == "__main__":

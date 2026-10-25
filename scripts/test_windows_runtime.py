@@ -162,20 +162,23 @@ assert "x64win" in build.ROC_TARGETS
         for name in (*runtime.LIBRARIES, "host.lib", runtime.MANIFEST_NAME):
             shutil.copy2(self.output / name, windows / name)
         (root / "THIRD_PARTY_LICENSES.md").write_text("root notices")
+        (root / "LICENSE").write_text("project license")
+        rust_notices = root / "rust-notices.html"
+        rust_notices.write_text("rust")
         argv = ["bundle.py", "--target", "x64win", "--output-dir", str(root / "dist")]
 
         def run_bundle():
             with patch.object(bundle, "ROOT", root), patch.object(bundle, "PLATFORM_DIR", platform), \
                  patch.object(bundle, "validate_target_manifest"), \
-                 patch.object(bundle, "generate_rust_dependency_licenses",
-                              side_effect=lambda output, _targets: output.write_text("rust")), \
+                 patch.object(bundle, "rust_library_licenses", return_value=rust_notices), \
                  patch.object(sys, "argv", argv), \
                  patch.object(bundle.subprocess, "run") as run:
                 try:
                     bundle.main()
                 finally:
                     self.assertFalse((platform / "THIRD_PARTY_LICENSES.md").exists())
-                    self.assertFalse((platform / "RUST_DEPENDENCY_LICENSES.md").exists())
+                    self.assertFalse((platform / bundle.RUST_LIBRARY_LICENSES).exists())
+                    self.assertFalse((platform / "LICENSE").exists())
                 return run
 
         arguments = run_bundle().call_args.args[0]
@@ -183,6 +186,14 @@ assert "x64win" in build.ROC_TARGETS
         self.assertIn("targets/x64win/PROVENANCE.json", arguments)
         self.assertIn("targets/x64win/windows_support.lib", arguments)
         self.assertIn("THIRD_PARTY_LICENSES.md", arguments)
+        self.assertIn("LICENSE", arguments)
+        self.assertIn(bundle.RUST_LIBRARY_LICENSES, arguments)
+        bundled_size = sum(path.stat().st_size for path in windows.rglob("*") if path.is_file())
+        bundled_size += sum(path.stat().st_size for path in
+                            (root / "LICENSE", root / "THIRD_PARTY_LICENSES.md", rust_notices))
+        with patch.object(bundle, "MAX_PLATFORM_BYTES", bundled_size - 1):
+            with self.assertRaisesRegex(SystemExit, "100 MiB"):
+                run_bundle()
         (windows / "licenses/unrecorded.OBJ").write_bytes(b"unrecorded")
         with self.assertRaisesRegex(ValueError, "inventory mismatch"):
             run_bundle()

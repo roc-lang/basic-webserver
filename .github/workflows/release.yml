@@ -91,7 +91,7 @@ jobs:
 
       - name: Install Rust with cross-compilation targets
         run: |
-          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal --component llvm-tools-preview \
+          rustup toolchain install "${{ needs.rust-version.outputs.version }}" --profile minimal --component llvm-tools-preview,rust-docs \
             --target x86_64-apple-darwin --target aarch64-apple-darwin \
             --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
           rustup default "${{ needs.rust-version.outputs.version }}"
@@ -141,6 +141,9 @@ jobs:
           bump_check: warn
           bump_entrypoint: platform/main.roc
           previous_url: ${{ steps.previous.outputs.previous_url }}
+
+      - name: Check third-party notices are current
+        run: python scripts/third_party_notices.py --check
 
       - name: Bundle platform
         run: python scripts/bundle.py --output-dir dist
