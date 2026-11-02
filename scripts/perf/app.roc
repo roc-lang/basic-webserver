@@ -18,7 +18,7 @@ program = { init!, respond!, shutdown! }
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = ||
 	Ok({
-		config: Server.with_limits(
+		config: Server.Config.with_limits(
 			Server.default_config,
 			{
 				max_connections: 2048,
