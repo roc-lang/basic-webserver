@@ -1023,7 +1023,7 @@ is licensed under:
 at your option.
 ```
 
-Applies to: ambient-authority 0.0.2 (`LICENSE-APACHE`), atomic-waker 1.1.2 (`LICENSE-APACHE`), bitflags 2.13.1 (`LICENSE-APACHE`), cap-primitives 4.0.2 (`LICENSE-APACHE`), cfg-if 1.0.1 (`LICENSE-APACHE`), equivalent 1.0.2 (`LICENSE-APACHE`), errno 0.3.14 (`LICENSE-APACHE`), flate2 1.1.9 (`LICENSE-APACHE`), fnv 1.0.7 (`LICENSE-APACHE`), fs-set-times 0.20.3 (`LICENSE-APACHE`), hashbrown 0.15.4 (`LICENSE-APACHE`), httparse 1.10.1 (`LICENSE-APACHE`), httpdate 1.0.3 (`LICENSE-APACHE`), hyper-rustls 0.27.6 (`LICENSE-APACHE`), indexmap 2.10.0 (`LICENSE-APACHE`), io-extras 0.19.0 (`LICENSE-APACHE`), io-lifetimes 2.0.4 (`LICENSE-APACHE`), io-lifetimes 3.0.1 (`LICENSE-APACHE`), linux-raw-sys 0.11.0 (`LICENSE-APACHE`), once_cell 1.21.3 (`LICENSE-APACHE`), ring 0.17.14 (`src/polyfill/once_cell/LICENSE-APACHE`), rustix 1.1.2 (`LICENSE-APACHE`), rustix-linux-procfs 0.1.1 (`LICENSE-APACHE`), rustls 0.23.45 (`LICENSE-APACHE`), signal-hook-registry 1.4.8 (`LICENSE-APACHE`), smallvec 1.15.1 (`LICENSE-APACHE`), socket2 0.5.10 (`LICENSE-APACHE`), zeroize 1.8.2 (`LICENSE-APACHE`).
+Applies to: ambient-authority 0.0.2 (`LICENSE-APACHE`), atomic-waker 1.1.2 (`LICENSE-APACHE`), bitflags 2.13.1 (`LICENSE-APACHE`), cap-primitives 4.0.2 (`LICENSE-APACHE`), cfg-if 1.0.1 (`LICENSE-APACHE`), equivalent 1.0.2 (`LICENSE-APACHE`), errno 0.3.14 (`LICENSE-APACHE`), flate2 1.1.9 (`LICENSE-APACHE`), fnv 1.0.7 (`LICENSE-APACHE`), fs-set-times 0.20.3 (`LICENSE-APACHE`), hashbrown 0.15.4 (`LICENSE-APACHE`), httparse 1.10.1 (`LICENSE-APACHE`), httpdate 1.0.3 (`LICENSE-APACHE`), hyper-rustls 0.27.6 (`LICENSE-APACHE`), indexmap 2.10.0 (`LICENSE-APACHE`), io-extras 0.19.0 (`LICENSE-APACHE`), io-lifetimes 2.0.4 (`LICENSE-APACHE`), io-lifetimes 3.0.1 (`LICENSE-APACHE`), linux-raw-sys 0.11.0 (`LICENSE-APACHE`), once_cell 1.21.3 (`LICENSE-APACHE`), ring 0.17.14 (`src/polyfill/once_cell/LICENSE-APACHE`), rustix 1.1.2 (`LICENSE-APACHE`), rustix-linux-procfs 0.1.1 (`LICENSE-APACHE`), rustls 0.23.46 (`LICENSE-APACHE`), signal-hook-registry 1.4.8 (`LICENSE-APACHE`), smallvec 1.15.1 (`LICENSE-APACHE`), socket2 0.5.10 (`LICENSE-APACHE`), zeroize 1.8.2 (`LICENSE-APACHE`).
 
 ```text
                               Apache License
@@ -2939,7 +2939,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-Applies to: hyper-rustls 0.27.6 (`LICENSE-ISC`), rustls 0.23.45 (`LICENSE-ISC`).
+Applies to: hyper-rustls 0.27.6 (`LICENSE-ISC`), rustls 0.23.46 (`LICENSE-ISC`).
 
 ```text
 ISC License (ISC)
@@ -2959,7 +2959,7 @@ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-Applies to: hyper-rustls 0.27.6 (`LICENSE-MIT`), rustls 0.23.45 (`LICENSE-MIT`).
+Applies to: hyper-rustls 0.27.6 (`LICENSE-MIT`), rustls 0.23.46 (`LICENSE-MIT`).
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
