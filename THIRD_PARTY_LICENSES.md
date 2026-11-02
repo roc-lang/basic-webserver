@@ -681,7 +681,7 @@ for dual-licensed packages each offered license is included.
 | ring | 0.17.14 | Apache-2.0 AND ISC | all |
 | rustix | 1.1.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | x64mac, arm64mac, x64musl, arm64musl |
 | rustix-linux-procfs | 0.1.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | x64musl, arm64musl |
-| rustls | 0.23.45 | Apache-2.0 OR ISC OR MIT | all |
+| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | all |
 | rustls-pki-types | 1.14.1 | MIT OR Apache-2.0 | all |
 | rustls-webpki | 0.103.15 | ISC | all |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | all |
