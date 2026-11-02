@@ -44,7 +44,7 @@ init! = || {
 		})
 			? |_| Exit(2)
 	Ok({
-		config: Server.with_limits(
+		config: Server.Config.with_limits(
 			Server.default_config,
 			{
 				max_connections: 512,

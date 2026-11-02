@@ -66,6 +66,24 @@ def validate_target_manifest() -> None:
         )
 
 
+def stub_unselected_target_inputs(selected_targets: tuple[str, ...], created: list[Path]) -> None:
+    """`roc bundle` requires every declared target input to exist, but a
+    partial bundle omits unselected targets. Create the missing ones as empty
+    placeholders, which are never bundled, recording each path in `created`."""
+    for target, filenames in TARGET_INPUTS.items():
+        if target in selected_targets:
+            continue
+        target_dir = PLATFORM_DIR / "targets" / target
+        if not target_dir.exists():
+            target_dir.mkdir(parents=True)
+            created.append(target_dir)
+        for filename in filenames:
+            path = target_dir / filename
+            if not path.exists():
+                path.touch()
+                created.append(path)
+
+
 def rust_library_licenses() -> Path:
     """Rust's notices for the statically linked standard library and its dependencies."""
     sysroot = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
@@ -171,7 +189,9 @@ def main() -> None:
 
     # Copied next to main.roc only for the bundle; restore any local file.
     backups: dict[Path, bytes | None] = {}
+    stubs: list[Path] = []
     try:
+        stub_unselected_target_inputs(selected_targets, stubs)
         for name, source in license_sources.items():
             destination = PLATFORM_DIR / name
             backups[destination] = destination.read_bytes() if destination.exists() else None
@@ -195,6 +215,11 @@ def main() -> None:
                 destination.unlink(missing_ok=True)
             else:
                 destination.write_bytes(contents)
+        for path in reversed(stubs):
+            if path.is_dir():
+                path.rmdir()
+            else:
+                path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

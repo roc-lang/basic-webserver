@@ -23,7 +23,7 @@ program = { init!, respond!, shutdown! }
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = ||
 	Ok({
-		config: Server.with_timeouts(
+		config: Server.Config.with_timeouts(
 			Server.default_config,
 			{
 				header_ms: 500,
