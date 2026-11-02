@@ -1,7 +1,7 @@
 ## Streams typed SSE events from a retained Roc state machine. The host owns
 ## callback admission, timer scheduling, output framing, and cancellation.
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.19.0/4KBAoiBazDfi9UF6e3BYKwon6rA8mnx3dbLMLKFzdEMw.tar.zst",
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.20.0/7dR2ewuEbpPQXTAZL3aH62weBwpNNjbCJtyyiRsufTNZ.tar.zst",
 	roc: "nightly-2026-11-01-48d3369",
 }
 
