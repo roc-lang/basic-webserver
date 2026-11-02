@@ -15,7 +15,7 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
 init! = || {
-	config = Server.with_request_body_limit(Server.default_config, 10 * 1024 * 1024)
+	config = Server.Config.with_request_body_limit(Server.default_config, 10 * 1024 * 1024)
 	Ok({ config, context: {} })
 }
 

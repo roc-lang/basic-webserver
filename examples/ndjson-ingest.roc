@@ -293,7 +293,7 @@ init! = || {
 	ensure_schema!(db) ? |_| Exit(3)
 
 	config =
-		Server.with_request_body_limits(
+		Server.Config.with_request_body_limits(
 			Server.default_config,
 			{
 				max_bytes: max_body_bytes,

@@ -658,6 +658,89 @@ Server :: [].{
 		),
 	].{
 
+		## Set the listener host and port. The default is loopback-only on port 8000.
+		with_listen : Config, { host : Str, port : U16 } -> Config
+		with_listen = |Config(config), listen| Config({ ..config, listen })
+
+		## Set connection, active-handler, and queued-handler capacity together.
+		## Saturated handler queues receive 503 responses.
+		with_limits : Config, { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 } -> Config
+		with_limits = |Config(config), limits| Config({ ..config, limits })
+
+		## Set all finite inbound request-body limits.
+		with_request_body_limits : Config, { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 } -> Config
+		with_request_body_limits = |Config(config), request_bodies| Config({ ..config, request_bodies })
+
+		## Set only the maximum total bytes accepted for each request body.
+		with_request_body_limit : Config, U64 -> Config
+		with_request_body_limit = |Config(config), max_bytes|
+			Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
+
+		## Set the complete inbound and outbound transport timeout policy. Every
+		## value is milliseconds in the inclusive range 1 through 86_400_000; zero
+		## is invalid and startup fails before listening.
+		##
+		## `header_ms` is an idle deadline while completing a request head and
+		## resets whenever head bytes arrive. `body_idle_ms` begins when the host
+		## waits for the next body frame and resets only after non-empty body data
+		## arrives. `keep_alive_idle_ms` begins after a response has completed and
+		## bounds the gap before the next request. `handler_queue_ms` begins after a
+		## request takes a queue slot and ends before Roc execution begins.
+		## `response_idle_ms` begins when response transmission starts and resets
+		## whenever the socket or HTTP/2 stream flow-control window makes progress.
+		with_timeouts : Config, { header_ms : U64, body_idle_ms : U64, keep_alive_idle_ms : U64, handler_queue_ms : U64, response_idle_ms : U64 } -> Config
+		with_timeouts = |Config(config), timeouts| Config({ ..config, timeouts })
+
+		## Set the exact, finite request-target and decoded request-header budgets.
+		## Invalid values fail startup atomically before the listener is bound.
+		with_request_metadata_limits : Config, { max_target_bytes : U32, max_header_bytes : U32, max_header_fields : U16 } -> Config
+		with_request_metadata_limits = |Config(config), request_metadata|
+			Config({ ..config, request_metadata })
+
+		## Set the request-drain deadline and final shutdown-hook deadline.
+		with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
+		with_graceful_shutdown = |Config(config), graceful_shutdown| Config({ ..config, graceful_shutdown })
+
+		## Replace the complete set of startup-declared file roots.
+		with_file_roots : Config, List(FileRoot) -> Config
+		with_file_roots = |Config(config), file_roots| Config({ ..config, file_roots })
+
+		## Replace the complete set of startup-declared writable roots. Writable
+		## authority is never inferred from read-only file roots.
+		with_writable_roots : Config, List(WritableRoot) -> Config
+		with_writable_roots = |Config(config), writable_roots| Config({ ..config, writable_roots })
+
+		## Replace the complete immutable host-native route table.
+		with_native_routes : Config, NativeRoutes -> Config
+		with_native_routes = |Config(config), native_routes| Config({ ..config, native_routes })
+
+		## Set the active-transfer bound and streaming chunk size for host-managed
+		## file responses. Saturation returns 503 without queueing. Each transfer
+		## owns at most one queued chunk and one active read buffer.
+		with_file_transfer_limits : Config, { max_concurrent : U16, chunk_bytes : U32 } -> Config
+		with_file_transfer_limits = |Config(config), file_transfers| Config({ ..config, file_transfers })
+
+		## Set the active staging-file bound and whole-operation deadline for
+		## host-managed request-body sinks. Saturation is typed and does not queue.
+		with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
+		with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
+
+		## Set independent admitted-stream and per-event bounds for typed SSE
+		## responses. Both values must be non-zero; events above 16 MiB fail startup.
+		## Saturated stream admission returns 503 before response commitment.
+		with_sse_limits : Config, { max_streams : U16, max_event_bytes : U32 } -> Config
+		with_sse_limits = |Config(config), sse| Config({ ..config, sse })
+
+		## Configure host-owned structured request-completion logging.
+		with_access_log : Config, AccessLog -> Config
+		with_access_log = |Config(config), access_log|
+			Config({ ..config, operations: { ..config.operations, access_log } })
+
+		## Configure the host-owned fixed-cardinality metrics exporter.
+		with_metrics : Config, Metrics -> Config
+		with_metrics = |Config(config), metrics|
+			Config({ ..config, operations: { ..config.operations, metrics } })
+
 		## Platform ABI conversion hook; not an application API. Applications
 		## should use [`default_config`](#Server.default_config) and the `with_*`
 		## builders.
@@ -833,89 +916,6 @@ Server :: [].{
 			metrics: MetricsOff,
 		},
 	})
-
-	## Set the listener host and port. The default is loopback-only on port 8000.
-	with_listen : Config, { host : Str, port : U16 } -> Config
-	with_listen = |Config(config), listen| Config({ ..config, listen })
-
-	## Set connection, active-handler, and queued-handler capacity together.
-	## Saturated handler queues receive 503 responses.
-	with_limits : Config, { max_connections : U32, max_handlers : U16, max_queued_handlers : U16 } -> Config
-	with_limits = |Config(config), limits| Config({ ..config, limits })
-
-	## Set all finite inbound request-body limits.
-	with_request_body_limits : Config, { max_bytes : U64, chunk_bytes : U32, buffered_chunks : U16 } -> Config
-	with_request_body_limits = |Config(config), request_bodies| Config({ ..config, request_bodies })
-
-	## Set only the maximum total bytes accepted for each request body.
-	with_request_body_limit : Config, U64 -> Config
-	with_request_body_limit = |Config(config), max_bytes|
-		Config({ ..config, request_bodies: { ..config.request_bodies, max_bytes } })
-
-	## Set the complete inbound and outbound transport timeout policy. Every
-	## value is milliseconds in the inclusive range 1 through 86_400_000; zero
-	## is invalid and startup fails before listening.
-	##
-	## `header_ms` is an idle deadline while completing a request head and
-	## resets whenever head bytes arrive. `body_idle_ms` begins when the host
-	## waits for the next body frame and resets only after non-empty body data
-	## arrives. `keep_alive_idle_ms` begins after a response has completed and
-	## bounds the gap before the next request. `handler_queue_ms` begins after a
-	## request takes a queue slot and ends before Roc execution begins.
-	## `response_idle_ms` begins when response transmission starts and resets
-	## whenever the socket or HTTP/2 stream flow-control window makes progress.
-	with_timeouts : Config, { header_ms : U64, body_idle_ms : U64, keep_alive_idle_ms : U64, handler_queue_ms : U64, response_idle_ms : U64 } -> Config
-	with_timeouts = |Config(config), timeouts| Config({ ..config, timeouts })
-
-	## Set the exact, finite request-target and decoded request-header budgets.
-	## Invalid values fail startup atomically before the listener is bound.
-	with_request_metadata_limits : Config, { max_target_bytes : U32, max_header_bytes : U32, max_header_fields : U16 } -> Config
-	with_request_metadata_limits = |Config(config), request_metadata|
-		Config({ ..config, request_metadata })
-
-	## Set the request-drain deadline and final shutdown-hook deadline.
-	with_graceful_shutdown : Config, { drain_timeout_ms : U64, hook_timeout_ms : U64 } -> Config
-	with_graceful_shutdown = |Config(config), graceful_shutdown| Config({ ..config, graceful_shutdown })
-
-	## Replace the complete set of startup-declared file roots.
-	with_file_roots : Config, List(FileRoot) -> Config
-	with_file_roots = |Config(config), file_roots| Config({ ..config, file_roots })
-
-	## Replace the complete set of startup-declared writable roots. Writable
-	## authority is never inferred from read-only file roots.
-	with_writable_roots : Config, List(WritableRoot) -> Config
-	with_writable_roots = |Config(config), writable_roots| Config({ ..config, writable_roots })
-
-	## Replace the complete immutable host-native route table.
-	with_native_routes : Config, NativeRoutes -> Config
-	with_native_routes = |Config(config), native_routes| Config({ ..config, native_routes })
-
-	## Set the active-transfer bound and streaming chunk size for host-managed
-	## file responses. Saturation returns 503 without queueing. Each transfer
-	## owns at most one queued chunk and one active read buffer.
-	with_file_transfer_limits : Config, { max_concurrent : U16, chunk_bytes : U32 } -> Config
-	with_file_transfer_limits = |Config(config), file_transfers| Config({ ..config, file_transfers })
-
-	## Set the active staging-file bound and whole-operation deadline for
-	## host-managed request-body sinks. Saturation is typed and does not queue.
-	with_body_sink_limits : Config, { max_concurrent : U16, timeout_ms : U64 } -> Config
-	with_body_sink_limits = |Config(config), body_sinks| Config({ ..config, body_sinks })
-
-	## Set independent admitted-stream and per-event bounds for typed SSE
-	## responses. Both values must be non-zero; events above 16 MiB fail startup.
-	## Saturated stream admission returns 503 before response commitment.
-	with_sse_limits : Config, { max_streams : U16, max_event_bytes : U32 } -> Config
-	with_sse_limits = |Config(config), sse| Config({ ..config, sse })
-
-	## Configure host-owned structured request-completion logging.
-	with_access_log : Config, AccessLog -> Config
-	with_access_log = |Config(config), access_log|
-		Config({ ..config, operations: { ..config.operations, access_log } })
-
-	## Configure the host-owned fixed-cardinality metrics exporter.
-	with_metrics : Config, Metrics -> Config
-	with_metrics = |Config(config), metrics|
-		Config({ ..config, operations: { ..config.operations, metrics } })
 
 	## A request-scoped inbound body. The host expires this capability when the
 	## request handler returns, and permits only one active reader at a time.

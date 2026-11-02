@@ -167,21 +167,29 @@ assert "x64win" in build.ROC_TARGETS
         rust_notices.write_text("rust")
         argv = ["bundle.py", "--target", "x64win", "--output-dir", str(root / "dist")]
 
+        def declared_inputs_exist(*_args, **_kwargs):
+            # `roc bundle` requires every declared target input on disk.
+            for target, filenames in bundle.TARGET_INPUTS.items():
+                for filename in filenames:
+                    self.assertTrue((platform / "targets" / target / filename).is_file())
+
         def run_bundle():
             with patch.object(bundle, "ROOT", root), patch.object(bundle, "PLATFORM_DIR", platform), \
                  patch.object(bundle, "validate_target_manifest"), \
                  patch.object(bundle, "rust_library_licenses", return_value=rust_notices), \
                  patch.object(sys, "argv", argv), \
-                 patch.object(bundle.subprocess, "run") as run:
+                 patch.object(bundle.subprocess, "run", side_effect=declared_inputs_exist) as run:
                 try:
                     bundle.main()
                 finally:
                     self.assertFalse((platform / "THIRD_PARTY_LICENSES.md").exists())
                     self.assertFalse((platform / bundle.RUST_LIBRARY_LICENSES).exists())
                     self.assertFalse((platform / "LICENSE").exists())
+                    self.assertEqual(sorted(path.name for path in (platform / "targets").iterdir()), ["x64win"])
                 return run
 
         arguments = run_bundle().call_args.args[0]
+        self.assertFalse(any(arg.startswith("targets/x64mac/") for arg in arguments))
         self.assertIn("targets/x64win/licenses/license.txt", arguments)
         self.assertIn("targets/x64win/PROVENANCE.json", arguments)
         self.assertIn("targets/x64win/windows_support.lib", arguments)

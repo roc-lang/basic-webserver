@@ -42,7 +42,7 @@ animations = Animations.default
 program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64)])
-init! = || Ok({ config: Server.with_request_body_limit(Server.default_config, 2 * 1024 * 1024), context: {} })
+init! = || Ok({ config: Server.Config.with_request_body_limit(Server.default_config, 2 * 1024 * 1024), context: {} })
 
 respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str)])
 respond! = |request, _context| {

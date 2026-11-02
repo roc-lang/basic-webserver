@@ -30,7 +30,26 @@ Http :: [].{
 				max_response_bytes : U64,
 			},
 		),
-	]
+	].{
+
+		## Set the complete deadline, including bounded admission wait. Zero is
+		## normalized to one millisecond so every request remains finite.
+		with_timeout_millis : Config, U64 -> Config
+		with_timeout_millis = |Config(config), timeout_ms|
+			Config({
+				..config,
+				timeout_ms: if timeout_ms == 0 {
+					1
+				} else {
+					timeout_ms
+				},
+			})
+
+		## Set the maximum response body retained in memory.
+		with_max_response_bytes : Config, U64 -> Config
+		with_max_response_bytes = |Config(config), max_response_bytes|
+			Config({ ..config, max_response_bytes })
+	}
 
 	## The finite timeout and response-size policy used by [`send!`](#Http.send!).
 	default_config : Config
@@ -38,24 +57,6 @@ Http :: [].{
 		timeout_ms: default_timeout_ms,
 		max_response_bytes: default_max_response_bytes,
 	})
-
-	## Set the complete deadline, including bounded admission wait. Zero is
-	## normalized to one millisecond so every request remains finite.
-	with_timeout_millis : Config, U64 -> Config
-	with_timeout_millis = |Config(config), timeout_ms|
-		Config({
-			..config,
-			timeout_ms: if timeout_ms == 0 {
-				1
-			} else {
-				timeout_ms
-			},
-		})
-
-	## Set the maximum response body retained in memory.
-	with_max_response_bytes : Config, U64 -> Config
-	with_max_response_bytes = |Config(config), max_response_bytes|
-		Config({ ..config, max_response_bytes })
 
 	## Errors raised by the host while sending a request, before a real HTTP
 	## response is available.
