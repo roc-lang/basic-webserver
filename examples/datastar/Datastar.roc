@@ -39,8 +39,7 @@ Datastar :: [].{
 				POST => signals_from_body!(request, max_bytes)?
 				PUT => signals_from_body!(request, max_bytes)?
 				PATCH => signals_from_body!(request, max_bytes)?
-				# Qualified until https://github.com/roc-lang/roc/issues/12794 is fixed.
-				_ => return Err(SignalsError.UnsupportedSignalsMethod)
+				_ => return Err(UnsupportedSignalsMethod)
 			}
 
 		match Json.parse(json) {
