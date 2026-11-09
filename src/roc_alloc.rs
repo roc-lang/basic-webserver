@@ -10,7 +10,7 @@ use core::alloc::Layout;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 #[cfg(feature = "benchmark-instrumentation")]
-use core::sync::atomic::{AtomicI64, AtomicU64};
+use core::sync::atomic::AtomicI64;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::roc_platform_abi::RocHost;
@@ -196,10 +196,6 @@ fn benchmark_update_peak(peak: &AtomicI64, value: i64) {
 static BENCH_TOTAL: BenchmarkCounters = BenchmarkCounters::new();
 #[cfg(feature = "benchmark-instrumentation")]
 static BENCH_EPOCH: BenchmarkCounters = BenchmarkCounters::new();
-#[cfg(feature = "benchmark-instrumentation")]
-static BENCH_CURRENT_EPOCH: AtomicU64 = AtomicU64::new(0);
-#[cfg(feature = "benchmark-instrumentation")]
-static BENCH_EPOCH_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(feature = "benchmark-instrumentation")]
 std::thread_local! {
@@ -222,22 +218,15 @@ pub(crate) struct BenchmarkAllocationCounts {
     pub(crate) peak_live_bytes: i64,
 }
 
+/// Must only be called while no allocation epoch is active.
 #[cfg(feature = "benchmark-instrumentation")]
-pub(crate) fn benchmark_begin_epoch() {
-    BENCH_CURRENT_EPOCH.store(0, Ordering::Release);
+pub(crate) fn benchmark_reset_epoch() {
     BENCH_EPOCH.reset();
-    let generation = BENCH_EPOCH_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    BENCH_CURRENT_EPOCH.store(generation, Ordering::Release);
 }
 
 #[cfg(feature = "benchmark-instrumentation")]
 pub(crate) fn benchmark_counts() -> BenchmarkAllocationCounts {
     BENCH_EPOCH.snapshot()
-}
-
-#[cfg(feature = "benchmark-instrumentation")]
-pub(crate) fn benchmark_end_epoch() {
-    BENCH_CURRENT_EPOCH.store(0, Ordering::Release);
 }
 
 #[cfg(feature = "benchmark-instrumentation")]
@@ -267,11 +256,6 @@ fn with_benchmark_roc_allocation<T>(epoch: u64, operation: impl FnOnce() -> T) -
 }
 
 #[cfg(feature = "benchmark-instrumentation")]
-fn benchmark_current_epoch() -> u64 {
-    BENCH_CURRENT_EPOCH.load(Ordering::Acquire)
-}
-
-#[cfg(feature = "benchmark-instrumentation")]
 fn benchmark_roc_allocation_epoch() -> u64 {
     BENCH_ROC_ALLOCATION_EPOCH.with(core::cell::Cell::get)
 }
@@ -279,18 +263,17 @@ fn benchmark_roc_allocation_epoch() -> u64 {
 #[cfg(feature = "benchmark-instrumentation")]
 fn benchmark_allocated(bytes: usize, operation_epoch: u64) {
     BENCH_TOTAL.allocated(bytes);
-    if operation_epoch != 0 {
+    crate::allocation_benchmark::record_in_epoch(operation_epoch, || {
         BENCH_EPOCH.allocated(bytes);
-    }
+    });
 }
 
 #[cfg(feature = "benchmark-instrumentation")]
 fn benchmark_deallocated(bytes: usize, birth_epoch: u64, operation_epoch: u64) {
     BENCH_TOTAL.deallocated(bytes, true);
-    if operation_epoch != 0 {
-        let affects_live = birth_epoch == operation_epoch;
-        BENCH_EPOCH.deallocated(bytes, affects_live);
-    }
+    crate::allocation_benchmark::record_in_epoch(operation_epoch, || {
+        BENCH_EPOCH.deallocated(bytes, birth_epoch == operation_epoch);
+    });
 }
 
 #[cfg(feature = "benchmark-instrumentation")]
@@ -301,10 +284,9 @@ fn benchmark_reallocated(
     operation_epoch: u64,
 ) {
     BENCH_TOTAL.reallocated(old_bytes, new_bytes, true);
-    if operation_epoch != 0 {
-        let affects_live = birth_epoch == operation_epoch;
-        BENCH_EPOCH.reallocated(old_bytes, new_bytes, affects_live);
-    }
+    crate::allocation_benchmark::record_in_epoch(operation_epoch, || {
+        BENCH_EPOCH.reallocated(old_bytes, new_bytes, birth_epoch == operation_epoch);
+    });
 }
 
 #[cfg(debug_assertions)]
@@ -664,7 +646,7 @@ pub(crate) extern "C" fn roc_alloc(
 ) -> NonNull<c_void> {
     #[cfg(feature = "benchmark-instrumentation")]
     {
-        let operation_epoch = benchmark_current_epoch();
+        let operation_epoch = crate::allocation_benchmark::current_epoch();
         benchmark_allocated(length, operation_epoch);
         return with_benchmark_roc_allocation(operation_epoch, || unsafe {
             NonNull::new_unchecked(
@@ -681,7 +663,7 @@ pub(crate) extern "C" fn roc_alloc(
 
 pub(crate) extern "C" fn roc_dealloc(_roc_host: *mut RocHost, ptr: *mut c_void, alignment: usize) {
     #[cfg(feature = "benchmark-instrumentation")]
-    let operation_epoch = benchmark_current_epoch();
+    let operation_epoch = crate::allocation_benchmark::current_epoch();
     let user_ptr = ptr.cast::<u8>();
     let (layout, base, kind, drop_fn, _requested_size, _benchmark_epoch) = unsafe {
         let header = &mut *validate_header(user_ptr, Some(alignment));
@@ -726,7 +708,7 @@ pub(crate) extern "C" fn roc_realloc(
     alignment: usize,
 ) -> NonNull<c_void> {
     #[cfg(feature = "benchmark-instrumentation")]
-    let operation_epoch = benchmark_current_epoch();
+    let operation_epoch = crate::allocation_benchmark::current_epoch();
     let old_user_ptr = ptr.cast::<u8>();
     unsafe {
         let header = &mut *validate_header(old_user_ptr, Some(alignment));

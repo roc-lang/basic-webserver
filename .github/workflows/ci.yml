@@ -76,6 +76,9 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --locked
 
+      - name: Run allocation instrumentation unit tests
+        run: cargo test --locked --features benchmark-instrumentation --lib allocation_benchmark
+
       - name: Test Windows runtime provenance tooling
         run: python -m unittest scripts.test_windows_runtime
 
