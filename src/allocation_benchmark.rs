@@ -79,9 +79,9 @@ fn track_allocation(
     // boundary. Counts remain useful, but the eventual release falls back to
     // the releasing task's domain if this fixed table is saturated.
     TRACKING_MISSES_TOTAL.fetch_add(1, Ordering::Relaxed);
-    if operation_epoch != 0 {
+    record_in_epoch(operation_epoch, || {
         TRACKING_MISSES_EPOCH.fetch_add(1, Ordering::Relaxed);
-    }
+    });
 }
 
 fn untrack_allocation(pointer: *mut u8) -> Option<(usize, AllocationDomain, u64)> {
@@ -222,6 +222,8 @@ static EPOCH_ROC_BACKING: Counters = Counters::new();
 static EPOCH_HOST: Counters = Counters::new();
 static EPOCH_HARNESS: Counters = Counters::new();
 static CURRENT_EPOCH: AtomicU64 = AtomicU64::new(0);
+/// Threads currently inside `record_in_epoch`.
+static EPOCH_WRITERS: AtomicUsize = AtomicUsize::new(0);
 
 tokio::task_local! {
     static HARNESS_ALLOCATION_DOMAIN: ();
@@ -289,8 +291,25 @@ fn current_domain() -> AllocationDomain {
     }
 }
 
-fn current_epoch() -> u64 {
+pub(crate) fn current_epoch() -> u64 {
     CURRENT_EPOCH.load(Ordering::Acquire)
+}
+
+/// Applies epoch counter updates for an operation that observed
+/// `operation_epoch`, unless that epoch has since ended.
+///
+/// `end_epoch` closes the epoch and then waits for in-flight writers, so its
+/// snapshot never sees a partially applied update (e.g. a process counter
+/// incremented before the matching domain counter).
+pub(crate) fn record_in_epoch(operation_epoch: u64, record: impl FnOnce()) {
+    if operation_epoch == 0 {
+        return;
+    }
+    EPOCH_WRITERS.fetch_add(1, Ordering::SeqCst);
+    if CURRENT_EPOCH.load(Ordering::SeqCst) == operation_epoch {
+        record();
+    }
+    EPOCH_WRITERS.fetch_sub(1, Ordering::Release);
 }
 
 fn record_alloc(bytes: usize, domain: AllocationDomain, operation_epoch: u64) {
@@ -300,14 +319,14 @@ fn record_alloc(bytes: usize, domain: AllocationDomain, operation_epoch: u64) {
         AllocationDomain::Harness => HARNESS_TOTAL.allocated(bytes),
         AllocationDomain::Host => HOST_TOTAL.allocated(bytes),
     }
-    if operation_epoch != 0 {
+    record_in_epoch(operation_epoch, || {
         EPOCH_PROCESS.allocated(bytes);
         match domain {
             AllocationDomain::Roc => EPOCH_ROC_BACKING.allocated(bytes),
             AllocationDomain::Harness => EPOCH_HARNESS.allocated(bytes),
             AllocationDomain::Host => EPOCH_HOST.allocated(bytes),
         }
-    }
+    });
 }
 
 fn record_dealloc(bytes: usize, domain: AllocationDomain, birth_epoch: u64, operation_epoch: u64) {
@@ -317,7 +336,7 @@ fn record_dealloc(bytes: usize, domain: AllocationDomain, birth_epoch: u64, oper
         AllocationDomain::Harness => HARNESS_TOTAL.deallocated(bytes, true),
         AllocationDomain::Host => HOST_TOTAL.deallocated(bytes, true),
     }
-    if operation_epoch != 0 {
+    record_in_epoch(operation_epoch, || {
         let affects_live = birth_epoch == operation_epoch;
         EPOCH_PROCESS.deallocated(bytes, affects_live);
         match domain {
@@ -325,7 +344,7 @@ fn record_dealloc(bytes: usize, domain: AllocationDomain, birth_epoch: u64, oper
             AllocationDomain::Harness => EPOCH_HARNESS.deallocated(bytes, affects_live),
             AllocationDomain::Host => EPOCH_HOST.deallocated(bytes, affects_live),
         }
-    }
+    });
 }
 
 fn record_realloc(
@@ -341,7 +360,7 @@ fn record_realloc(
         AllocationDomain::Harness => HARNESS_TOTAL.reallocated(old_bytes, new_bytes, true),
         AllocationDomain::Host => HOST_TOTAL.reallocated(old_bytes, new_bytes, true),
     }
-    if operation_epoch != 0 {
+    record_in_epoch(operation_epoch, || {
         let affects_live = birth_epoch == operation_epoch;
         EPOCH_PROCESS.reallocated(old_bytes, new_bytes, affects_live);
         match domain {
@@ -353,7 +372,7 @@ fn record_realloc(
             }
             AllocationDomain::Host => EPOCH_HOST.reallocated(old_bytes, new_bytes, affects_live),
         }
-    }
+    });
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -389,13 +408,13 @@ pub(crate) fn begin_epoch() -> Result<(), &'static str> {
     EPOCH_HOST.reset();
     EPOCH_HARNESS.reset();
     TRACKING_MISSES_EPOCH.store(0, Ordering::Release);
+    crate::roc_alloc::benchmark_reset_epoch();
     let generation = EPOCH_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    crate::roc_alloc::benchmark_begin_epoch();
     CURRENT_EPOCH.store(generation, Ordering::Release);
     Ok(())
 }
 
-pub(crate) fn snapshot_epoch() -> AllocationSnapshot {
+fn snapshot_epoch() -> AllocationSnapshot {
     let process = EPOCH_PROCESS.snapshot();
     let roc_backing = EPOCH_ROC_BACKING.snapshot();
     AllocationSnapshot {
@@ -409,16 +428,18 @@ pub(crate) fn snapshot_epoch() -> AllocationSnapshot {
 }
 
 pub(crate) fn end_epoch() -> Result<AllocationSnapshot, &'static str> {
-    if CURRENT_EPOCH.swap(0, Ordering::AcqRel) == 0 {
+    if CURRENT_EPOCH.swap(0, Ordering::SeqCst) == 0 {
         return Err("no allocation measurement epoch is active");
     }
-    crate::roc_alloc::benchmark_end_epoch();
+    // Writers that observed the closed epoch may still be mid-update.
+    while EPOCH_WRITERS.load(Ordering::SeqCst) != 0 {
+        std::thread::yield_now();
+    }
     Ok(snapshot_epoch())
 }
 
 pub(crate) fn report() {
     CURRENT_EPOCH.store(0, Ordering::Release);
-    crate::roc_alloc::benchmark_end_epoch();
     let process = PROCESS_TOTAL.snapshot();
     let roc_backing = ROC_BACKING_TOTAL.snapshot();
     let report = AllocationSnapshot {
@@ -432,5 +453,69 @@ pub(crate) fn report() {
     match serde_json::to_string(&report) {
         Ok(json) => eprintln!("BENCHMARK_ALLOCATIONS {json}"),
         Err(error) => eprintln!("BENCHMARK_ALLOCATIONS_ERROR {error}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Barrier};
+
+    fn unclassified_fields(snapshot: &AllocationSnapshot) -> Vec<&'static str> {
+        let fields: [(&str, fn(&CounterSnapshot) -> u64); 6] = [
+            ("allocs", |counters| counters.allocs),
+            ("deallocs", |counters| counters.deallocs),
+            ("reallocs", |counters| counters.reallocs),
+            ("allocated_bytes", |counters| counters.allocated_bytes),
+            ("deallocated_bytes", |counters| counters.deallocated_bytes),
+            ("reallocated_bytes", |counters| counters.reallocated_bytes),
+        ];
+        let domains = [snapshot.roc_backing, snapshot.host, snapshot.harness];
+        fields
+            .into_iter()
+            .filter(|(_, field)| field(&snapshot.process) != domains.iter().map(field).sum::<u64>())
+            .map(|(name, _)| name)
+            .collect()
+    }
+
+    #[test]
+    fn epoch_snapshot_is_consistent_while_other_threads_allocate() {
+        const WORKERS: usize = 4;
+        let stop = Arc::new(AtomicBool::new(false));
+        let started = Arc::new(Barrier::new(WORKERS + 1));
+        let workers: Vec<_> = (0..WORKERS)
+            .map(|seed| {
+                let stop = Arc::clone(&stop);
+                let started = Arc::clone(&started);
+                std::thread::spawn(move || {
+                    started.wait();
+                    let mut size = 16 + seed;
+                    while !stop.load(Ordering::Relaxed) {
+                        let mut block = Vec::<u8>::with_capacity(size);
+                        block.push(1);
+                        block.reserve(size * 2);
+                        drop(std::hint::black_box(block));
+                        size = size % 4096 + 17;
+                    }
+                })
+            })
+            .collect();
+        started.wait();
+
+        let mut failures = Vec::new();
+        for iteration in 0..20_000 {
+            begin_epoch().expect("no epoch is active");
+            let snapshot = end_epoch().expect("the epoch is active");
+            let fields = unclassified_fields(&snapshot);
+            if !fields.is_empty() {
+                failures.push((iteration, fields));
+            }
+        }
+        stop.store(true, Ordering::Relaxed);
+        for worker in workers {
+            worker.join().expect("allocation worker panicked");
+        }
+        assert!(failures.is_empty(), "torn epoch snapshots: {failures:?}");
     }
 }
