@@ -322,6 +322,9 @@ Sqlite :: [].{
 			InvalidValue({ column: column })
 		}
 
+		missing_field : RowEncoding, Str -> QueryError
+		missing_field = |_, name| MissingRequiredField(name)
+
 		parse_record_field : RowEncoding,
 		Encoding.FieldName.FieldNames(_shape),
 		RowState -> Try(
@@ -380,109 +383,13 @@ Sqlite :: [].{
 	}
 
 	## Represents a prepared statement that can be executed many times.
-	Stmt :: { columns : List(Str), host : Host.SqliteStmt }.{
-
-		to_inspect : Stmt -> Str
-		to_inspect = |_| "Sqlite.Stmt(<opaque>)"
-
-		## Execute a prepared statement that must not return rows.
-		execute! : Stmt, params => Try({}, QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-			]
-		execute! = |stmt, params| {
-			bindings = encode_params(params)?
-			exec = sqlite_start!(stmt_to_host(stmt), bindings, Sqlite.default_query_limits.timeout_ms)?
-			match sqlite_next_row!(exec, 0, False) {
-				Ok(Done) => Ok({})
-				Ok(RowLimitExceeded) => Err(RowsReturnedUseQueryInstead)
-				Ok(Row(_)) => Err(RowsReturnedUseQueryInstead)
-				Ok(ResultTooLarge) => Err(RowsReturnedUseQueryInstead)
-				Err(err) => Err(err)
-			}
-		}
-
-		## Decode exactly one row as the expected result type.
-		query! : Stmt, params, QueryLimits => Try(row, QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
-			]
-		query! = |stmt, params, limits| {
-			bindings = encode_params(params)?
-			Row : row
-			parse_row = Row.parser_for(RowEncoding.Default)
-			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
-			decode_exactly_one_row!(exec, stmt.columns, parse_row, limits)
-		}
-
-		## Decode all rows as the expected list item type.
-		query_many! : Stmt, params, QueryLimits => Try(List(row), QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
-			]
-		query_many! = |stmt, params, limits| {
-			bindings = encode_params(params)?
-			Row : row
-			parse_row = Row.parser_for(RowEncoding.Default)
-			exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
-			decode_rows!(exec, stmt.columns, parse_row, limits)
-		}
-	}
+	Stmt : SqliteStmt
 
 	## A transaction pinned to one pooled connection. Dropping its final Roc
 	## reference before `commit!` or `rollback!` rolls it back automatically.
 	## Operations within one transaction are sequential; overlapping use returns
 	## `ConcurrentTransactionUse`.
-	Transaction :: { host : Host.SqliteTxn }.{
-
-		to_inspect : Transaction -> Str
-		to_inspect = |_| "Sqlite.Transaction(<opaque>)"
-
-		prepare! : Transaction, Str => Try(Stmt, QueryError)
-		prepare! = |transaction, query| {
-			host = sqlite_txn_prepare!(transaction_to_host(transaction), query)?
-			columns = sqlite_columns!(host)?
-			validate_unique_columns(columns)?
-			Ok(Stmt.{ columns, host })
-		}
-
-		execute! : Transaction, { query : Str, params : params } => Try({}, QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-			]
-		execute! = |transaction, { query, params }| {
-			stmt = transaction.prepare!(query)?
-			stmt.execute!(params)
-		}
-
-		query! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(row, QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
-			]
-		query! = |transaction, { query, params, limits }| {
-			stmt = transaction.prepare!(query)?
-			stmt.query!(params, limits)
-		}
-
-		query_many! : Transaction, { query : Str, params : params, limits : QueryLimits } => Try(List(row), QueryError)
-			where [
-				params.encoder_for : ParamsEncoding -> (params, ParamsState -> Try(ParamsState, QueryError)),
-				row.parser_for : RowEncoding -> (RowState -> Try({ value : row, rest : RowState }, QueryError)),
-			]
-		query_many! = |transaction, { query, params, limits }| {
-			stmt = transaction.prepare!(query)?
-			stmt.query_many!(params, limits)
-		}
-
-		commit! : Transaction => Try({}, QueryError)
-		commit! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), True)
-
-		rollback! : Transaction => Try({}, QueryError)
-		rollback! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), False)
-	}
+	Transaction : SqliteTransaction
 
 	TransactionMode : [Deferred, Immediate, Exclusive]
 
@@ -635,6 +542,108 @@ Sqlite :: [].{
 			Done => "Done: Statement execution completed"
 			Unknown(value) => "Unknown SQLite result code ${I64.to_str(value)}"
 		}
+}
+
+# Stmt and Transaction live outside the Sqlite block so their members don't
+# shadow the one-shot Sqlite.prepare!, execute!, query! and query_many!.
+SqliteStmt :: { columns : List(Str), host : Host.SqliteStmt }.{
+
+	to_inspect : Sqlite.Stmt -> Str
+	to_inspect = |_| "Sqlite.Stmt(<opaque>)"
+
+	## Execute a prepared statement that must not return rows.
+	execute! : Sqlite.Stmt, params => Try({}, Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+		]
+	execute! = |stmt, params| {
+		bindings = encode_params(params)?
+		exec = sqlite_start!(stmt_to_host(stmt), bindings, Sqlite.default_query_limits.timeout_ms)?
+		match sqlite_next_row!(exec, 0, False) {
+			Ok(Done) => Ok({})
+			Ok(RowLimitExceeded) => Err(RowsReturnedUseQueryInstead)
+			Ok(Row(_)) => Err(RowsReturnedUseQueryInstead)
+			Ok(ResultTooLarge) => Err(RowsReturnedUseQueryInstead)
+			Err(err) => Err(err)
+		}
+	}
+
+	## Decode exactly one row as the expected result type.
+	query! : Sqlite.Stmt, params, Sqlite.QueryLimits => Try(row, Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+			row.parser_for : Sqlite.RowEncoding -> (Sqlite.RowState -> Try({ value : row, rest : Sqlite.RowState }, Sqlite.QueryError)),
+		]
+	query! = |stmt, params, limits| {
+		bindings = encode_params(params)?
+		Row : row
+		parse_row = Row.parser_for(Sqlite.RowEncoding.Default)
+		exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+		decode_exactly_one_row!(exec, stmt.columns, parse_row, limits)
+	}
+
+	## Decode all rows as the expected list item type.
+	query_many! : Sqlite.Stmt, params, Sqlite.QueryLimits => Try(List(row), Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+			row.parser_for : Sqlite.RowEncoding -> (Sqlite.RowState -> Try({ value : row, rest : Sqlite.RowState }, Sqlite.QueryError)),
+		]
+	query_many! = |stmt, params, limits| {
+		bindings = encode_params(params)?
+		Row : row
+		parse_row = Row.parser_for(Sqlite.RowEncoding.Default)
+		exec = sqlite_start!(stmt_to_host(stmt), bindings, limits.timeout_ms)?
+		decode_rows!(exec, stmt.columns, parse_row, limits)
+	}
+}
+
+SqliteTransaction :: { host : Host.SqliteTxn }.{
+
+	to_inspect : Sqlite.Transaction -> Str
+	to_inspect = |_| "Sqlite.Transaction(<opaque>)"
+
+	prepare! : Sqlite.Transaction, Str => Try(Sqlite.Stmt, Sqlite.QueryError)
+	prepare! = |transaction, query| {
+		host = sqlite_txn_prepare!(transaction_to_host(transaction), query)?
+		columns = sqlite_columns!(host)?
+		validate_unique_columns(columns)?
+		Ok(Sqlite.Stmt.{ columns, host })
+	}
+
+	execute! : Sqlite.Transaction, { query : Str, params : params } => Try({}, Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+		]
+	execute! = |transaction, { query, params }| {
+		stmt = transaction.prepare!(query)?
+		stmt.execute!(params)
+	}
+
+	query! : Sqlite.Transaction, { query : Str, params : params, limits : Sqlite.QueryLimits } => Try(row, Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+			row.parser_for : Sqlite.RowEncoding -> (Sqlite.RowState -> Try({ value : row, rest : Sqlite.RowState }, Sqlite.QueryError)),
+		]
+	query! = |transaction, { query, params, limits }| {
+		stmt = transaction.prepare!(query)?
+		stmt.query!(params, limits)
+	}
+
+	query_many! : Sqlite.Transaction, { query : Str, params : params, limits : Sqlite.QueryLimits } => Try(List(row), Sqlite.QueryError)
+		where [
+			params.encoder_for : Sqlite.ParamsEncoding -> (params, Sqlite.ParamsState -> Try(Sqlite.ParamsState, Sqlite.QueryError)),
+			row.parser_for : Sqlite.RowEncoding -> (Sqlite.RowState -> Try({ value : row, rest : Sqlite.RowState }, Sqlite.QueryError)),
+		]
+	query_many! = |transaction, { query, params, limits }| {
+		stmt = transaction.prepare!(query)?
+		stmt.query_many!(params, limits)
+	}
+
+	commit! : Sqlite.Transaction => Try({}, Sqlite.QueryError)
+	commit! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), True)
+
+	rollback! : Sqlite.Transaction => Try({}, Sqlite.QueryError)
+	rollback! = |transaction| sqlite_txn_finish!(transaction_to_host(transaction), False)
 }
 
 stmt_to_host : Sqlite.Stmt -> Host.SqliteStmt

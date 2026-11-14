@@ -11,11 +11,11 @@ Attribute := [Attribute(Str, Str)].{
 
 	## Return the attribute name exactly as supplied.
 	raw_name : Attribute -> Str
-	raw_name = |Attribute(name, _)| name
+	raw_name = |Attribute(key, _)| key
 
 	## Return the unescaped attribute value exactly as supplied.
 	raw_value : Attribute -> Str
-	raw_value = |Attribute(_, value)| value
+	raw_value = |Attribute(_, val)| val
 
 	## Set the HTML `class` attribute.
 	class : Str -> Attribute

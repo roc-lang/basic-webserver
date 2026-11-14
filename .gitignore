@@ -50,7 +50,7 @@ curl_form_output.txt
 
 # Committed prebuilt link inputs for the platform's targets (these override the
 # *.o / *.a ignores above so a normal `git add` picks them up).
-!platform/targets/*/crt1.o
+!platform/targets/*/rcrt1.o
 !platform/targets/*/libc.a
 !platform/targets/*/libunwind.a
 # Host libraries are rebuilt by scripts/build.py and are NOT committed.
