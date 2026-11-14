@@ -117,7 +117,7 @@ create_todo_from_request! = |db, req| {
 			Err(_) => return Ok(text_response(400, "Request body must be valid UTF-8 JSON."))
 		}
 
-	decoded_result : Try(CreateTodoBody, [InvalidJson(Str), MissingRequiredField(Str)])
+	decoded_result : Try(CreateTodoBody, [InvalidJson(Str)])
 	decoded_result = Json.parse(json)
 	decoded =
 		match decoded_result {

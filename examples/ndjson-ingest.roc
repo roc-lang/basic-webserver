@@ -215,7 +215,7 @@ decode_line = |decoder| {
 			Err(_) => return Err(InvalidUtf8(decoder.line_number))
 		}
 
-	parsed : Try(Event, [InvalidJson(Str), MissingRequiredField(Str)])
+	parsed : Try(Event, [InvalidJson(Str)])
 	parsed = Json.parse(json)
 	event =
 		match parsed {
