@@ -181,7 +181,7 @@ unless the script maps it to another package from the same repository. CI and
 the release workflow run it with `--check` and fail when the committed file is
 stale.
 
-Prebuilt inputs such as musl's `libc.a` and `crt1.o`, LLVM's `libunwind.a` and
+Prebuilt inputs such as musl's `libc.a` and `rcrt1.o`, LLVM's `libunwind.a` and
 Roc's `libSystem.tbd` are recorded in `licenses/native-inputs.json` with their
 SHA-256, origin and license text in `licenses/`. Every committed file under
 `platform/targets/` must be recorded there. When replacing one, record where the
