@@ -20,8 +20,8 @@ MAX_PLATFORM_BYTES = 100 * 1024 * 1024
 TARGET_INPUTS = {
     "x64mac": ("libhost.a",),
     "arm64mac": ("libhost.a",),
-    "x64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
-    "arm64musl": ("crt1.o", "libhost.a", "libunwind.a", "libc.a"),
+    "x64musl": ("rcrt1.o", "libhost.a", "libunwind.a", "libc.a"),
+    "arm64musl": ("rcrt1.o", "libhost.a", "libunwind.a", "libc.a"),
     "x64win": ("host.lib", *windows_runtime.LIBRARIES),
 }
 RUST_TARGETS = {

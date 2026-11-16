@@ -202,9 +202,11 @@ pub type RocErasedCallableOnDrop = extern "C" fn(*mut u8, *mut RocHost);
 pub struct RocErasedCallablePayload {
     pub callable_fn_ptr: RocErasedCallableFn,
     pub on_drop: Option<RocErasedCallableOnDrop>,
+    pub on_copy: Option<extern "C" fn(*mut u8, isize)>,
+    pub capture_size: usize,
 }
 
-const _: () = assert!(core::mem::size_of::<RocErasedCallablePayload>() == 2 * core::mem::size_of::<usize>(), "RocErasedCallablePayload size mismatch");
+const _: () = assert!(core::mem::size_of::<RocErasedCallablePayload>() == 4 * core::mem::size_of::<usize>(), "RocErasedCallablePayload size mismatch");
 const _: () = assert!(core::mem::offset_of!(RocErasedCallablePayload, callable_fn_ptr) == 0, "RocErasedCallablePayload.callable_fn_ptr offset mismatch");
 const _: () = assert!(core::mem::offset_of!(RocErasedCallablePayload, on_drop) == core::mem::size_of::<usize>(), "RocErasedCallablePayload.on_drop offset mismatch");
 
@@ -264,7 +266,7 @@ pub unsafe fn roc_erased_callable_allocate(
     let rc = data.sub(core::mem::size_of::<isize>()) as *mut isize;
     *rc = 1;
     let payload = roc_erased_callable_payload_ptr(data);
-    *payload = RocErasedCallablePayload { callable_fn_ptr, on_drop };
+    *payload = RocErasedCallablePayload { callable_fn_ptr, on_drop, on_copy: None, capture_size };
     data
 }
 
@@ -956,6 +958,119 @@ impl<T, const ELEMENTS_REFCOUNTED: bool> RocListWith<T, ELEMENTS_REFCOUNTED> {
 impl<T: core::fmt::Debug, const ELEMENTS_REFCOUNTED: bool> core::fmt::Debug for RocListWith<T, ELEMENTS_REFCOUNTED> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.as_slice().iter()).finish()
+    }
+}
+
+/// A Roc list whose items have a type only the application knows.
+///
+/// This host knows neither the size of an item nor whether items are
+/// refcounted, so it cannot read an item, allocate such a list, or release
+/// one. It can move the list, retain it, and pass it back to Roc. To release
+/// it, pass it to a Roc function that takes ownership of it.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RocOpaqueList {
+    pub elements: *mut c_void,
+    pub length: usize,
+    pub capacity_or_alloc_ptr: usize,
+}
+
+impl RocOpaqueList {
+    /// Return the number of items in the list.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    /// Return true if the list has zero items.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    /// Increment the reference count by `amount`.
+    ///
+    /// # Safety
+    /// `self` must point at a live Roc list allocation. The retained references
+    /// must be handed back to Roc.
+    pub unsafe fn incref(self, amount: isize) {
+        unsafe { retain_list_allocation(self.elements as *mut u8, self.capacity_or_alloc_ptr, amount); }
+    }
+}
+
+/// A Roc list whose items hold opaque Roc values.
+///
+/// The items have a known layout, so the host can read them. Whether the
+/// opaque values inside them are refcounted is known only to Roc, and the
+/// list's allocation header depends on it, so the host cannot allocate such
+/// a list or release one. It can move the list, retain it, and pass it back
+/// to Roc. To release it, pass it to a Roc function that takes ownership of
+/// it.
+#[repr(C)]
+pub struct RocHeldList<T> {
+    pub elements: *mut T,
+    pub length: usize,
+    pub capacity_or_alloc_ptr: usize,
+}
+
+impl<T> Clone for RocHeldList<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for RocHeldList<T> {}
+
+impl<T> RocHeldList<T> {
+    /// Return the number of items in the list.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    /// Return true if the list has zero items.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    /// Return the list items as a slice.
+    pub fn as_slice(&self) -> &[T] {
+        if self.elements.is_null() {
+            &[]
+        } else {
+            unsafe { core::slice::from_raw_parts(self.elements, self.length) }
+        }
+    }
+
+    /// Increment the reference count by `amount`.
+    ///
+    /// # Safety
+    /// `self` must point at a live Roc list allocation. The retained references
+    /// must be handed back to Roc.
+    pub unsafe fn incref(self, amount: isize) {
+        unsafe { retain_list_allocation(self.elements as *mut u8, self.capacity_or_alloc_ptr, amount); }
+    }
+}
+
+/// Add `amount` references to a list's allocation. The refcount slot sits
+/// directly before the allocation's first item whatever the item type is,
+/// and a seamless slice names its allocation in `capacity_or_alloc_ptr`.
+unsafe fn retain_list_allocation(elements: *mut u8, capacity_or_alloc_ptr: usize, amount: isize) {
+    let alloc_ptr = if (capacity_or_alloc_ptr & 1) != 0 {
+        (capacity_or_alloc_ptr & !1) as *mut u8
+    } else {
+        elements
+    };
+    if alloc_ptr.is_null() {
+        return;
+    }
+    let rc = unsafe { (alloc_ptr as *mut AtomicIsize).sub(1) };
+    if unsafe { (*rc).load(Ordering::Relaxed) } == 0 {
+        return; // REFCOUNT_STATIC_DATA
+    }
+    unsafe {
+        (*rc).fetch_add(amount, Ordering::Relaxed);
     }
 }
 
@@ -13594,21 +13709,9 @@ unsafe impl RocRelease<HostTcpWriteResult> for HostTcpWriteResultRelease {
 }
 
 impl InitForHostResult {
-    /// Recursively decrement Roc-owned payloads.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted payload.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let mut value = self;
-        let _ = roc_host;
-        match value.tag {
-            InitForHostResultTag::Err => {},
-            InitForHostResultTag::Ok => {
-                let payload = unsafe { value.take_payload_ok_unchecked() };
-                unsafe { payload.decref(roc_host); }
-            },
-        }
-    }
+    // No `decref`: this value holds an opaque Roc value, which only Roc can
+    // release. Release its other parts one at a time and pass the opaque value
+    // to a Roc function that takes ownership of it.
 
     /// Increment Roc-owned payloads.
     ///
@@ -13628,24 +13731,10 @@ impl InitForHostResult {
     }
 }
 
-pub struct InitForHostResultRelease;
-
-unsafe impl RocRelease<InitForHostResult> for InitForHostResultRelease {
-    unsafe fn release(value: InitForHostResult, roc_host: &RocHost) {
-        unsafe { value.decref(roc_host); }
-    }
-}
-
 impl AnonStruct60bc4208e250c775 {
-    /// Recursively decrement Roc-owned fields.
-    ///
-    /// # Safety
-    /// `self` must own one live Roc reference for each refcounted field.
-    pub unsafe fn decref(self, roc_host: &RocHost) {
-        let value = self;
-        unsafe { value.config.decref(roc_host); }
-        unsafe { decref_box(value.context as RocBox, roc_host); }
-    }
+    // No `decref`: this value holds an opaque Roc value, which only Roc can
+    // release. Release its other parts one at a time and pass the opaque value
+    // to a Roc function that takes ownership of it.
 
     /// Increment Roc-owned fields.
     ///
@@ -13656,14 +13745,6 @@ impl AnonStruct60bc4208e250c775 {
         let value = self;
         unsafe { value.config.incref(amount); }
         unsafe { incref_box(value.context as RocBox, amount); }
-    }
-}
-
-pub struct AnonStruct60bc4208e250c775Release;
-
-unsafe impl RocRelease<AnonStruct60bc4208e250c775> for AnonStruct60bc4208e250c775Release {
-    unsafe fn release(value: AnonStruct60bc4208e250c775, roc_host: &RocHost) {
-        unsafe { value.decref(roc_host); }
     }
 }
 
@@ -15002,19 +15083,6 @@ unsafe extern "C" {
     /// Entrypoint: sse_drop_step_for_host!
     pub fn roc_sse_drop_step_for_host(arg0: SseStepToHost);
 
-}
-
-const _: () = assert!(core::mem::size_of::<RocOwned<InitForHostResult, InitForHostResultRelease>>() == core::mem::size_of::<InitForHostResult>(), "roc_init_for_host owned result size mismatch");
-const _: () = assert!(core::mem::align_of::<RocOwned<InitForHostResult, InitForHostResultRelease>>() == core::mem::align_of::<InitForHostResult>(), "roc_init_for_host owned result alignment mismatch");
-
-/// Owning wrapper for `roc_init_for_host`. The returned value is recursively
-/// released on Drop with no runtime descriptor or extra storage.
-///
-/// # Safety
-/// The raw entrypoint and its arguments must satisfy the generated host ABI.
-pub unsafe fn roc_init_for_host_owned() -> RocOwned<InitForHostResult, InitForHostResultRelease> {
-    let value = unsafe { roc_init_for_host() };
-    unsafe { RocOwned::from_raw(value) }
 }
 
 const _: () = assert!(core::mem::size_of::<RocOwned<InternalServerOutcomeToHost, InternalServerOutcomeToHostRelease>>() == core::mem::size_of::<InternalServerOutcomeToHost>(), "roc_respond_for_host owned result size mismatch");

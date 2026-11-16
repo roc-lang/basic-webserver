@@ -988,8 +988,8 @@ Server :: [].{
 
 		## Platform ABI conversion hook; not an application API.
 		from_host : Host.RequestBody, U64, [Unknown, Known(U64)] -> Body
-		from_host = |host, limit_bytes, content_length|
-			Body({ host, limit_bytes, content_length })
+		from_host = |host, limit_bytes, declared_length|
+			Body({ host, limit_bytes, content_length: declared_length })
 
 		## The maximum number of bytes this request body may deliver.
 		limit : Body -> U64

@@ -52,19 +52,19 @@ against `licenses/native-inputs.json`, which records where each one came from.
 
 | File | Component | SHA-256 |
 | --- | --- | --- |
-| `platform/targets/x64musl/crt1.o` | musl libc 1.2.4 | `ffb51a69191a69fc34acaec1003fabe245d8841da7036d124d3445718415f9ea` |
 | `platform/targets/x64musl/libc.a` | musl libc 1.2.4 | `85f5eb2316bc6f86be7bd66008488c7d2eca290942b01ad2e86f02f8b5e8c90f` |
-| `platform/targets/arm64musl/crt1.o` | musl libc 1.2.2 | `0245544b81293be7bc86df1a8c0140ce1c0345c6abef11dcb20d0cfebc237ef1` |
+| `platform/targets/x64musl/rcrt1.o` | musl libc 1.2.4 | `46f1e3a2447a158922694da4b4bf473449dcd9187bb8eaaf58163f7c6d2179ee` |
 | `platform/targets/arm64musl/libc.a` | musl libc 1.2.2 | `209b1743f3b0108f5e3f2196dcef9dd40027928c89dad29fafea896772c84878` |
+| `platform/targets/arm64musl/rcrt1.o` | musl libc 1.2.2 | `d2efd2c6a98b1779c8203ad478490788546f7be34aee6883749142fe7d3863bb` |
 | `platform/targets/arm64musl/libunwind.a` | LLVM libunwind 20.1.1 | `7d246ebb58d7c90ea3ee1907afc3e7e8f8dc5b8699173dd0373d9c813fff017d` |
 | `platform/targets/x64musl/libunwind.a` | LLVM libunwind 20.1.1 | `e59505f4e8e9bb8e19833e40a56555fc68805ec0cecf4084957e8865520ef7f4` |
 | `platform/targets/macos-sysroot/usr/lib/libSystem.tbd` | Roc macOS libSystem stub roc-lang/roc fe0ab22cf0a764249330342fa36363624fc8157d | `4f96f1402e1950b1764ac6accd0d2b9c1ca197b7783caae5e838fd0a4b474028` |
 
 ### musl libc
 
-- 1.2.4 (MIT): Alpine Linux 3.18 package musl-dev 1.2.4-r3 (x86_64): https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/musl-dev-1.2.4-r3.apk, files usr/lib/libc.a and usr/lib/crt1.o.
+- 1.2.4 (MIT): Alpine Linux 3.18 package musl-dev 1.2.4-r3 (x86_64): https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/musl-dev-1.2.4-r3.apk, files usr/lib/libc.a and usr/lib/rcrt1.o.
   License: https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT?h=v1.2.4
-- 1.2.2 (MIT): Debian 11 package musl-dev 1.2.2-1 (arm64): https://deb.debian.org/debian/pool/main/m/musl/musl-dev_1.2.2-1_arm64.deb, files usr/lib/aarch64-linux-musl/libc.a and usr/lib/aarch64-linux-musl/crt1.o.
+- 1.2.2 (MIT): Debian 11 package musl-dev 1.2.2-1 (arm64): https://deb.debian.org/debian/pool/main/m/musl/musl-dev_1.2.2-1_arm64.deb, files usr/lib/aarch64-linux-musl/libc.a and usr/lib/aarch64-linux-musl/rcrt1.o.
   License: https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT?h=v1.2.2
 
 ```text
