@@ -37,22 +37,25 @@ for a distinct reusable workflow.
   Zig 0.17.0, the Windows SDK, and the MSVC build tools used by Rust's MSVC
   target; see [Windows host inputs](#windows-host-inputs).
 
-The exact Roc nightly used for development, CI, and releases is recorded in
+The exact Roc version used for development, CI, and releases is recorded in
 [`.roc-version`](.roc-version), and every `examples/` manifest repeats it in
-its `roc:` entry. The CI action in
+its `roc:` entry. It is a [Roc release](https://github.com/roc-lang/roc/releases)
+tag such as `0.1.0-RC2`, or a [nightly](https://github.com/roc-lang/nightlies/releases)
+tag. The CI action in
 [`.github/actions/setup-roc`](.github/actions/setup-roc/action.yml) installs
 that version, and `python scripts/test.py --operation validate` fails when a
-manifest drifts from it. Move both to another nightly with:
+manifest drifts from it. Move both to another version with:
 
 ```sh
-python scripts/update_roc_version.py nightly-2026-08-13-2fdd90e
+python scripts/update_roc_version.py 0.1.0-RC2
 ```
 
 A scheduled workflow,
-[`update_roc_nightly.yml`](.github/workflows/update_roc_nightly.yml), runs that
-script for the latest nightly, pushes the result to the `update-roc-nightly`
-branch, runs CI with that nightly, and opens a pull request reporting whether
-it passed.
+[`update_roc_release.yml`](.github/workflows/update_roc_release.yml), runs that
+script for the latest Roc release, pushes the result to the
+`update-roc-release` branch, runs CI with that release, and opens a pull
+request reporting whether it passed. Run it manually with a `version` input to
+try a specific release or nightly.
 
 ## Build and run locally
 

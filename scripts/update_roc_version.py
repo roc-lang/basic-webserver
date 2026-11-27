@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pin the Roc nightly used by this repository and by every example manifest."""
+"""Pin the Roc version used by this repository and by every example manifest."""
 
 from __future__ import annotations
 
@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROC_VERSION_FILE = ROOT / ".roc-version"
 EXAMPLES = ROOT / "examples"
+# A roc-lang/roc release tag (e.g. 0.1.0-RC2) or a roc-lang/nightlies tag,
+# the two forms an app header may pin.
+RELEASE_TAG = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
 NIGHTLY_TAG = re.compile(
     r"^nightly-[0-9]{4}-(?:[A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$"
 )
@@ -18,10 +21,18 @@ APP_HEADER = re.compile(r"(?ms)^app\s+\[[^\]]*\]\s*\{\n(?P<body>.*?)^\}")
 ROC_PIN = re.compile(r'(?m)^[ \t]*roc:\s*"(?P<version>[^"]*)",?[ \t]*$')
 
 
+def is_release(version: str) -> bool:
+    return RELEASE_TAG.fullmatch(version) is not None
+
+
+def is_valid_version(version: str) -> bool:
+    return is_release(version) or NIGHTLY_TAG.fullmatch(version) is not None
+
+
 def pinned_version() -> str:
     tag = ROC_VERSION_FILE.read_text(encoding="utf-8").strip()
-    if NIGHTLY_TAG.fullmatch(tag) is None:
-        raise SystemExit(f"Invalid Roc nightly tag in {ROC_VERSION_FILE}: {tag!r}")
+    if not is_valid_version(tag):
+        raise SystemExit(f"Invalid Roc version in {ROC_VERSION_FILE}: {tag!r}")
     return tag
 
 
@@ -73,10 +84,10 @@ def rewrite_header(source: str, path: Path, version: str) -> str:
 
 
 def update(version: str) -> None:
-    if NIGHTLY_TAG.fullmatch(version) is None:
+    if not is_valid_version(version):
         raise SystemExit(
-            "Expected a nightly release tag like nightly-2026-08-13-2fdd90e, "
-            f"got: {version}"
+            "Expected a Roc release tag like 0.1.0-RC2 or a nightly tag like "
+            f"nightly-2026-08-13-2fdd90e, got: {version}"
         )
 
     write_text(ROC_VERSION_FILE, f"{version}\n")
@@ -121,7 +132,7 @@ def main() -> None:
     group.add_argument(
         "version",
         nargs="?",
-        help="Roc nightly tag to pin, for example nightly-2026-08-13-2fdd90e",
+        help="Roc version to pin, for example 0.1.0-RC2 or nightly-2026-08-13-2fdd90e",
     )
     group.add_argument(
         "--check",

@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      roc-nightly:
-        description: 'Roc nightly tag to pin before running, for example nightly-2026-08-13-2fdd90e. Defaults to the pin committed on this ref.'
+      roc-version:
+        description: 'Roc release or nightly tag to pin before running, for example 0.1.0-RC2 or nightly-2026-08-13-2fdd90e. Defaults to the pin committed on this ref.'
         type: string
         required: false
         default: ''
@@ -38,11 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Pin the requested Roc nightly
-        if: inputs.roc-nightly != ''
+      - name: Pin the requested Roc version
+        if: inputs.roc-version != ''
         env:
-          ROC_NIGHTLY: ${{ inputs.roc-nightly }}
-        run: python scripts/update_roc_version.py "$ROC_NIGHTLY"
+          ROC_VERSION: ${{ inputs.roc-version }}
+        run: python scripts/update_roc_version.py "$ROC_VERSION"
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
@@ -50,8 +50,8 @@ jobs:
           with-source: "true"
 
       # A pin applied here leaves src/roc_platform_abi.rs from the old compiler.
-      - name: Regenerate the Rust glue for the requested nightly
-        if: inputs.roc-nightly != ''
+      - name: Regenerate the Rust glue for the requested version
+        if: inputs.roc-version != ''
         env:
           ROC_GLUE_SPEC: target/roc-source/src/glue/src/RustGlue.roc
         run: python scripts/regenerate_glue.py
@@ -103,11 +103,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Pin the requested Roc nightly
-        if: inputs.roc-nightly != ''
+      - name: Pin the requested Roc version
+        if: inputs.roc-version != ''
         env:
-          ROC_NIGHTLY: ${{ inputs.roc-nightly }}
-        run: python scripts/update_roc_version.py "$ROC_NIGHTLY"
+          ROC_VERSION: ${{ inputs.roc-version }}
+        run: python scripts/update_roc_version.py "$ROC_VERSION"
 
       - name: Install the Zig-based Roc compiler
         uses: ./.github/actions/setup-roc
@@ -115,8 +115,8 @@ jobs:
           with-source: "true"
 
       # A pin applied here leaves src/roc_platform_abi.rs from the old compiler.
-      - name: Regenerate the Rust glue for the requested nightly
-        if: inputs.roc-nightly != ''
+      - name: Regenerate the Rust glue for the requested version
+        if: inputs.roc-version != ''
         env:
           ROC_GLUE_SPEC: target/roc-source/src/glue/src/RustGlue.roc
         run: python scripts/regenerate_glue.py
