@@ -644,13 +644,9 @@ def prepare_memcheck_binaries(
         binary = binary_dir / output_relative_path(source, "x64glibc")
         binary.parent.mkdir(parents=True, exist_ok=True)
         print(f"==> memcheck build {app['path']} (x64glibc)", flush=True)
-        # TODO: Investigate these Roc compiler bugs upstream, then restore the
-        # LLVM speed backend without stripping debug information. The speed
-        # backend can currently require several GiB while specializing one
-        # application, and Valgrind 3.22 rejects the dev backend's DWARF.
-        # Use the small native dev backend and remove only its debug sections
-        # for now. The symbol table and executable host/ABI code remain
-        # available to Memcheck.
+        # TODO: Investigate this Roc compiler bug upstream, then restore the
+        # LLVM speed backend. It can currently require several GiB while
+        # specializing one application, so use the small native dev backend.
         command(
             roc,
             "build",
@@ -659,7 +655,6 @@ def prepare_memcheck_binaries(
             "--opt=dev",
             f"--output={binary}",
         )
-        command("strip", "--strip-debug", binary)
         binaries[str(app["path"])] = binary
     return binaries
 
