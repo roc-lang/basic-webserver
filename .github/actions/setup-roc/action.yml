@@ -1,5 +1,5 @@
 name: Install the pinned Roc compiler
-description: Install the exact new-compiler nightly selected by this repository
+description: Install the exact Roc release or nightly selected by this repository
 
 inputs:
   with-source:
@@ -10,7 +10,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Resolve the Roc nightly
+    - name: Resolve the Roc version
       id: roc-version
       shell: bash
       run: |
@@ -21,25 +21,40 @@ runs:
           echo "Missing Roc version file: $version_file"
           exit 1
         fi
-        nightly_tag="$(sed 's/\r$//' "$version_file")"
-        if [[ ! "$nightly_tag" =~ ^nightly-[0-9]{4}-([A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$ ]]; then
-          echo "Invalid Roc nightly tag in $version_file: $nightly_tag"
+        tag="$(sed 's/\r$//' "$version_file")"
+        if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          # Release from roc-lang/roc
+          {
+            echo "setup-version=$tag"
+            echo "nightly-tag="
+            echo "release-api=https://api.github.com/repos/roc-lang/roc/releases/tags/$tag"
+            echo "source-asset=roc-source-$tag.tar.gz"
+          } >> "$GITHUB_OUTPUT"
+        elif [[ "$tag" =~ ^nightly-[0-9]{4}-([A-Za-z]+|[0-9]{2})-[0-9]{2}-[0-9a-f]{7}$ ]]; then
+          {
+            echo "setup-version=nightly"
+            echo "nightly-tag=$tag"
+            echo "release-api=https://api.github.com/repos/roc-lang/nightlies/releases/tags/$tag"
+            echo "source-asset=roc_nightly-source-${tag#nightly-}.tar.gz"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "Invalid Roc version in $version_file: $tag"
           exit 1
         fi
-        echo "Installing Roc $nightly_tag from .roc-version"
+        echo "Installing Roc $tag from .roc-version"
 
-        printf 'nightly-tag=%s\n' "$nightly_tag" >> "$GITHUB_OUTPUT"
-
-    - uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427 # ratchet:roc-lang/setup-roc@v0.3.0
+    - uses: roc-lang/setup-roc@19c9da4f0158ca74c4ac27d8999c17b5c2739cbf # ratchet:roc-lang/setup-roc@main
       with:
-        version: nightly-new-compiler
+        version: ${{ steps.roc-version.outputs.setup-version }}
         nightly-tag: ${{ steps.roc-version.outputs.nightly-tag }}
+        cache: "false"
 
     - name: Download the matching Roc source
       if: inputs.with-source == 'true'
       shell: bash
       env:
-        NIGHTLY_TAG: ${{ steps.roc-version.outputs.nightly-tag }}
+        RELEASE_API: ${{ steps.roc-version.outputs.release-api }}
+        SOURCE_ASSET: ${{ steps.roc-version.outputs.source-asset }}
         TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
@@ -48,10 +63,9 @@ runs:
         if [[ -n "$TOKEN" ]]; then
           auth_header=(-H "Authorization: Bearer $TOKEN")
         fi
-        release_api="https://api.github.com/repos/roc-lang/nightlies/releases/tags/$NIGHTLY_TAG"
         source_url="$(
-          curl -fsSL "${auth_header[@]}" "$release_api" |
-            jq -er '.assets[] | select(.name | startswith("roc_nightly-source-")) | select(.name | endswith(".tar.gz")) | .browser_download_url'
+          curl -fsSL "${auth_header[@]}" "$RELEASE_API" |
+            jq -er --arg name "$SOURCE_ASSET" '.assets[] | select(.name == $name) | .browser_download_url'
         )"
 
         source_dir="$GITHUB_WORKSPACE/target/roc-source"

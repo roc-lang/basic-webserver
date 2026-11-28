@@ -58,11 +58,11 @@ python scripts/test_bundle.py --operation build-all --bundle-path BUNDLE --build
 python scripts/test.py --operation run --target x64musl --artifact-dir dist/example-binaries
 ```
 
-Pin a different Roc nightly in `.roc-version` and every example manifest
-(`--check` fails when they disagree, and runs as part of `test.py --operation
-validate`):
+Pin a different Roc release or nightly in `.roc-version` and every example
+manifest (`--check` fails when they disagree, and runs as part of `test.py
+--operation validate`):
 ```
-python scripts/update_roc_version.py nightly-2026-08-13-2fdd90e
+python scripts/update_roc_version.py 0.1.0-RC2
 python scripts/update_roc_version.py --check
 ```
 

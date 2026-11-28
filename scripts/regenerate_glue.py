@@ -6,11 +6,12 @@ from __future__ import annotations
 import argparse
 import difflib
 import os
-import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+from update_roc_version import pinned_version
 
 
 # Glue provenance: retained SSE sources require consuming tagged-union
@@ -19,18 +20,6 @@ from pathlib import Path
 # generated with that compiler and its matching RustGlue.roc. Compiler and
 # glue-spec revisions must match.
 ROOT = Path(__file__).resolve().parents[1]
-ROC_VERSION_FILE = ROOT / ".roc-version"
-NIGHTLY_TAG = re.compile(
-    r"^nightly-[0-9]{4}-(?:[A-Za-z]+|[0-9]{2})-[0-9]{2}-([0-9a-f]{7})$"
-)
-
-
-def pinned_roc() -> tuple[str, str]:
-    tag = ROC_VERSION_FILE.read_text(encoding="utf-8").strip()
-    match = NIGHTLY_TAG.fullmatch(tag)
-    if match is None:
-        raise SystemExit(f"Invalid Roc nightly tag in {ROC_VERSION_FILE}: {tag!r}")
-    return tag, match.group(1)
 
 
 def rooted_path(value: str) -> Path:
@@ -51,18 +40,19 @@ def roc_executable(value: str) -> str:
 
 
 def require_known_roc(roc: str) -> None:
-    nightly_tag, revision = pinned_roc()
+    pinned = pinned_version()
     result = subprocess.run(
         [roc, "version"],
         check=True,
         capture_output=True,
         text=True,
     )
+    # `roc version` prints "Roc compiler version <tag>".
     version = f"{result.stdout}\n{result.stderr}"
-    if revision not in version:
+    if pinned not in version.split():
         raise SystemExit(
             "Rust glue must be generated with the pinned Roc compiler "
-            f"{nightly_tag}, but `roc version` reported:\n"
+            f"{pinned}, but `roc version` reported:\n"
             f"{version.strip()}"
         )
 
@@ -120,11 +110,10 @@ def run_glue(roc: str, glue_spec: Path, platform_file: Path, out_dir: Path) -> N
         check=False,
     )
     if result.returncode != 0:
-        nightly_tag, _revision = pinned_roc()
         raise SystemExit(
             "Glue generation failed.\n"
             "Use matching Roc and RustGlue.roc revisions; "
-            f"{nightly_tag} is the pinned compiler."
+            f"{pinned_version()} is the pinned compiler."
         )
 
 

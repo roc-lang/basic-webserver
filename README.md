@@ -32,7 +32,7 @@ does not route requests through a global mutable application model.
 
 Start from [`examples/hello-web.roc`](examples/hello-web.roc): download it,
 run `roc hello-web.roc`, and open <http://127.0.0.1:8000>. Every example's
-header pins the platform release and Roc nightly it was tested with.
+header pins the platform release and Roc version it was tested with.
 
 `Server.default_config` listens only on `127.0.0.1:8000`. Use
 `Server.Config.with_listen` to choose another address. See

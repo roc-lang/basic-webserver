@@ -1,10 +1,15 @@
-name: Update Roc nightly
+name: Update Roc release
 
 on:
   schedule:
-    # Nightlies are published around 10:30 UTC, run after that.
     - cron: "0 11 * * *"
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Roc release or nightly tag to pin, for example 0.1.0-RC2 or nightly-2026-11-26-890d6c8. Defaults to the latest Roc release.'
+        type: string
+        required: false
+        default: ''
 
 # only one update run at a time, they all push to the same branch
 concurrency:
@@ -15,41 +20,51 @@ concurrency:
 permissions: {}
 
 env:
-  BRANCH: update-roc-nightly
+  BRANCH: update-roc-release
 
 jobs:
   bump:
-    name: pin the latest nightly
+    name: pin the latest release
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     outputs:
-      nightly-tag: ${{ steps.latest.outputs.nightly-tag }}
+      roc-version: ${{ steps.latest.outputs.roc-version }}
       changed: ${{ steps.bump.outputs.changed }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Get the latest nightly tag
+      - name: Get the Roc version to pin
         id: latest
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          nightly_tag="$(gh release view --repo roc-lang/nightlies --json tagName --jq .tagName)"
-          echo "latest nightly is $nightly_tag"
-          echo "nightly-tag=$nightly_tag" >> "$GITHUB_OUTPUT"
+          version="$REQUESTED_VERSION"
+          if [ -z "$version" ]; then
+            # The newest release since 0.1.0_RC1, ignoring prereleases once
+            # there is a stable one. Older releases are of the old compiler.
+            version="$(gh api 'repos/roc-lang/roc/releases?per_page=100' --jq '
+              map(select(.draft == false and .published_at >= "2026-11-21T19:38:08Z"))
+              | sort_by(.published_at)
+              | (map(select(.prerelease == false)) | last) // last
+              | .tag_name')"
+          fi
+          echo "Roc version to pin is $version"
+          echo "roc-version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Update the pinned version
         id: bump
         env:
-          NIGHTLY_TAG: ${{ steps.latest.outputs.nightly-tag }}
+          ROC_VERSION: ${{ steps.latest.outputs.roc-version }}
         run: |
-          if [ "$NIGHTLY_TAG" = "$(<.roc-version)" ]; then
-            echo "already pinned to $NIGHTLY_TAG, nothing to do"
+          if [ "$ROC_VERSION" = "$(<.roc-version)" ]; then
+            echo "already pinned to $ROC_VERSION, nothing to do"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          python scripts/update_roc_version.py "$NIGHTLY_TAG"
+          python scripts/update_roc_version.py "$ROC_VERSION"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       # The generated Rust glue must be produced by the pinned compiler and its
@@ -70,12 +85,12 @@ jobs:
       - name: Push the branch
         if: steps.bump.outputs.changed == 'true'
         env:
-          NIGHTLY_TAG: ${{ steps.latest.outputs.nightly-tag }}
+          ROC_VERSION: ${{ steps.latest.outputs.roc-version }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch --create "$BRANCH"
-          git commit --all --message "Update Roc nightly pin to $NIGHTLY_TAG"
+          git commit --all --message "Update Roc pin to $ROC_VERSION"
           git push --force origin "$BRANCH"
 
   # CI runs from the default branch and applies the same pin the bump job
@@ -87,7 +102,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
     with:
-      roc-nightly: ${{ needs.bump.outputs.nightly-tag }}
+      roc-version: ${{ needs.bump.outputs.roc-version }}
 
   pull-request:
     name: open or update the pull request
@@ -103,21 +118,26 @@ jobs:
       - name: Open or update the pull request
         env:
           GH_TOKEN: ${{ github.token }}
-          NIGHTLY_TAG: ${{ needs.bump.outputs.nightly-tag }}
+          ROC_VERSION: ${{ needs.bump.outputs.roc-version }}
           TEST_RESULT: ${{ needs.test.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ "$TEST_RESULT" = "success" ]; then
-            status=":white_check_mark: CI passed with this nightly."
+            status=":white_check_mark: CI passed with this version."
           else
-            status=":x: CI did not pass with this nightly (\`$TEST_RESULT\`), this needs a look before merging."
+            status=":x: CI did not pass with this version (\`$TEST_RESULT\`), this needs a look before merging."
           fi
 
-          title="Update Roc nightly pin to $NIGHTLY_TAG"
+          case "$ROC_VERSION" in
+            nightly-*) release_url="https://github.com/roc-lang/nightlies/releases/tag/$ROC_VERSION" ;;
+            *) release_url="https://github.com/roc-lang/roc/releases/tag/$ROC_VERSION" ;;
+          esac
+
+          title="Update Roc pin to $ROC_VERSION"
           body="$(printf '%s\n\n%s\n\n%s\n' \
-            "Updates \`.roc-version\` and all example manifests to [\`$NIGHTLY_TAG\`](https://github.com/roc-lang/nightlies/releases/tag/$NIGHTLY_TAG), and regenerates \`src/roc_platform_abi.rs\` with that nightly's \`RustGlue.roc\`." \
+            "Updates \`.roc-version\` and all example manifests to [\`$ROC_VERSION\`]($release_url), and regenerates \`src/roc_platform_abi.rs\` with that version's \`RustGlue.roc\`." \
             "$status See the [workflow run]($RUN_URL) for details." \
-            "This PR was created automatically by the \`Update Roc nightly\` workflow.")"
+            "This PR was created automatically by the \`Update Roc release\` workflow.")"
 
           pr="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
 
